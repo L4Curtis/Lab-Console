@@ -1,15 +1,22 @@
 /**
- * The identity surface of ARCHITECTURE §5, in its anonymous implementation
- * (AUTH_MODE=off). The same assertions describe what any implementation of
- * src/modules/auth/ must keep offering to the other modules
+ * The sign-in module in the real application: the service surface of
+ * ARCHITECTURE §5, the local administrator's form (success and every
+ * refusal, replay, throttling), cookies over http and https, sign-out, the
+ * login page, and what happens to live connections when a session is
+ * revoked or expires
  */
-import { test } from 'node:test';
+import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { createAuth, requireAuth, requireRole, createUser, hasRole, ANONYMOUS } from '../src/modules/auth/index.js';
-import { initialsOf, colorOf } from '../src/modules/auth/user.js';
+import { WebSocketServer } from 'ws';
+import WebSocket from 'ws';
+import express from 'express';
+import { createAuth, requireAuth, requireRole, createUser, hasRole, ROLES } from '../src/modules/auth/index.js';
+import { startTestApp, loadTestConfig, adminCode, silentLogger } from './helpers/app.js';
 import { student, admin, fakeRequest, fakeResponse } from './helpers/fakes.js';
+import { TestBrowser, postLocalSignIn } from './helpers/browser.js';
+import { createStore } from '../src/lib/store.js';
+import { tempDataDir } from './helpers/app.js';
 
-const config = { auth: { mode: 'off' }, defaultLocale: 'fr' };
 const through = (middleware, req) => {
   const res = fakeResponse();
   let passed = false;
@@ -17,91 +24,421 @@ const through = (middleware, req) => {
   return { passed, res };
 };
 
-test('service surface: everything §5 promises is there', () => {
-  const auth = createAuth({ config });
-  assert.equal(auth.mode, 'off');
-  for (const fn of ['attach', 'requireAuth', 'requireRole', 'authenticateUpgrade']) assert.equal(typeof auth[fn], 'function', fn);
-  for (const fn of ['list', 'revoke', 'revokeUser']) assert.equal(typeof auth.sessions[fn], 'function', `sessions.${fn}`);
-  assert.equal(typeof auth.router, 'function', 'an Express router for /login and /auth/*');
+const clock = () => {
+  const c = { ms: Date.now(), now: () => c.ms, advance: (delta) => { c.ms += delta; } };
+  return c;
+};
+
+/** A module that keeps its WebSocket open, to watch what ending a session does to it */
+function keepOpenModule() {
+  const wss = new WebSocketServer({ noServer: true });
+  const router = express.Router();
+  router.get('/whoami', (req, res) => res.json({ user: req.user.id, session: req.sessionId }));
+  return {
+    id: 'probe', title: 'Probe', enabled: true, router,
+    upgrade(req, socket, head) {
+      if (!req.url.startsWith('/ws/probe')) return false;
+      wss.handleUpgrade(req, socket, head, (ws) => ws.send(JSON.stringify({ user: req.user.id })));
+      return true;
+    },
+    shutdown() { for (const ws of wss.clients) ws.terminate(); wss.close(); },
+  };
+}
+
+function connect(lab, path, headers = {}) {
+  return new Promise((resolve, reject) => {
+    const ws = new WebSocket(lab.wsUrl + path, { headers: { origin: lab.url, ...headers } });
+    ws.once('message', (raw) => resolve({ ws, hello: JSON.parse(raw.toString()) }));
+    ws.on('unexpected-response', (_req, res) => { res.resume(); resolve({ status: res.statusCode }); });
+    ws.on('error', (err) => { if (ws.readyState !== WebSocket.OPEN) reject(err); });
+  });
+}
+const closed = (ws) => new Promise((resolve) => { if (ws.readyState === WebSocket.CLOSED) resolve(); else ws.once('close', resolve); });
+
+/** Resolves when an SSE response's body ends (the server closed the stream) */
+async function streamEnds(res, timeoutMs = 3000) {
+  const reader = res.body.getReader();
+  const timer = setTimeout(() => reader.cancel().catch(() => {}), timeoutMs);
+  const started = Date.now();
+  try {
+    for (;;) {
+      const { done } = await reader.read();
+      if (done) break;
+    }
+  } finally {
+    clearTimeout(timer);
+  }
+  return Date.now() - started < timeoutMs;
+}
+
+// ── The service surface ─────────────────────────────────────────────────────
+
+describe('service surface (ARCHITECTURE §5)', () => {
+  test('createAuth returns what the other modules rely on, and no switch to turn it off', async () => {
+    const config = await loadTestConfig();
+    const dir = tempDataDir();
+    const auth = createAuth({ config, logger: silentLogger(), store: createStore(dir) });
+    try {
+      for (const name of ['attach', 'requireAuth', 'requireRole', 'authenticateUpgrade', 'shutdown']) assert.equal(typeof auth[name], 'function', name);
+      for (const name of ['list', 'revoke', 'revokeUser', 'create']) assert.equal(typeof auth.sessions[name], 'function', name);
+      assert.equal(typeof auth.router, 'function');
+      assert.equal(typeof auth.accounts.add, 'function');
+      assert.deepEqual(auth.accounts.providers, ['env-admin']);
+      assert.equal(typeof auth.oidc.configure, 'function');
+      assert.equal(auth.mode, undefined, 'there is no mode');
+      assert.equal(auth.cookieName, 'lc_sid');
+      assert.deepEqual(ROLES, ['student', 'admin']);
+      assert.equal(typeof createUser, 'function');
+      assert.equal(typeof hasRole, 'function');
+    } finally {
+      await auth.shutdown();
+    }
+  });
+
+  test('createAuth refuses to exist without a local administrator or a PUBLIC_URL', async () => {
+    const config = await loadTestConfig();
+    const store = createStore(tempDataDir());
+    const without = (patch) => ({ ...config, ...patch });
+    for (const localAdmin of [undefined, { ...config.auth.localAdmin, username: '' }, { ...config.auth.localAdmin, passwordHash: '' }, { ...config.auth.localAdmin, totpSecret: '' }]) {
+      assert.throws(() => createAuth({ config: without({ auth: { ...config.auth, localAdmin } }), store }), /local administrator is not configured/);
+    }
+    assert.throws(() => createAuth({ config: without({ server: { ...config.server, publicUrl: '' } }), store }), /PUBLIC_URL is required/);
+  });
+
+  test('requireAuth: next() with a user; 401 JSON under /api and for writes; 302 /login for pages, with the way back', () => {
+    assert.equal(through(requireAuth, fakeRequest({ user: student(1) })).passed, true);
+    const api = through(requireAuth, fakeRequest({ url: '/api/benches' })).res;
+    assert.equal(api.statusCode, 401);
+    assert.deepEqual(api.body, { error: 'Sign in to continue', code: 'auth.required', params: {} });
+    assert.equal(through(requireAuth, fakeRequest({ method: 'POST', url: '/somewhere' })).res.statusCode, 401);
+    const page = through(requireAuth, fakeRequest({ url: '/' })).res;
+    assert.equal(page.redirectedTo, '/login');
+    assert.equal(through(requireAuth, fakeRequest({ url: '/index.html?x=1' })).res.redirectedTo, '/login?next=%2Findex.html%3Fx%3D1');
+    assert.equal(through(requireAuth, fakeRequest({ url: '//evil.example/x' })).res.redirectedTo, '/login');
+  });
+
+  test('requireRole: 401 without a user, 403 below the role, next() at or above it', () => {
+    assert.equal(through(requireRole('admin'), fakeRequest()).res.statusCode, 401);
+    const denied = through(requireRole('admin'), fakeRequest({ user: student(1) })).res;
+    assert.equal(denied.statusCode, 403);
+    assert.deepEqual(denied.body, { error: 'You are not allowed to do this', code: 'auth.forbidden', params: { role: 'admin' } });
+    assert.equal(through(requireRole('admin'), fakeRequest({ user: admin() })).passed, true);
+    assert.equal(through(requireRole('student'), fakeRequest({ user: admin() })).passed, true);
+  });
 });
 
-test('AUTH_MODE=off: every request and every upgrade carries the same anonymous admin', async () => {
-  const auth = createAuth({ config });
-  const req = fakeRequest({ url: '/api/consoles/labs' });
-  assert.equal(through(auth.attach, req).passed, true);
-  assert.equal(req.user, ANONYMOUS);
-  assert.equal(await auth.authenticateUpgrade(fakeRequest({ url: '/ws/console' })), ANONYMOUS);
-  assert.deepEqual(
-    { id: ANONYMOUS.id, role: ANONYMOUS.role, via: ANONYMOUS.via, username: ANONYMOUS.username },
-    { id: 'anonymous', role: 'admin', via: 'anonymous', username: 'anonymous' },
-  );
-  assert.equal(through(auth.requireAuth, req).passed, true);
-  assert.equal(through(auth.requireRole('admin'), req).passed, true);
-  assert.deepEqual(auth.sessions.list(), []);
-  assert.equal(auth.sessions.revoke('whatever'), false);
-  assert.equal(auth.sessions.revokeUser('anonymous'), 0);
+// ── The local administrator ─────────────────────────────────────────────────
+
+describe('local administrator sign-in', () => {
+  let lab;
+  const c = clock();
+  let ipCounter = 0;
+  /** Every test signs in from its own address (through the trusted proxy), and starts after the throttle windows */
+  const freshStart = () => {
+    c.advance(30 * 60_000);
+    ipCounter += 1;
+    return `203.0.113.${ipCounter}`;
+  };
+  const post = (fields, browser) => postLocalSignIn(lab, { code: adminCode(c.ms), ...fields }, browser);
+
+  before(async () => { lab = await startTestApp({ env: { TRUSTED_PROXIES: '127.0.0.1' }, now: c.now }); });
+  after(() => lab.close());
+
+  test('user name + password + code: a session, its cookie, and the user', async () => {
+    const ip = freshStart();
+    const browser = new TestBrowser();
+    const res = await post({ ip }, browser);
+    assert.equal(res.status, 200);
+    assert.deepEqual(await res.json(), { redirect: '/' });
+    const [cookie] = res.headers.getSetCookie();
+    assert.match(cookie, /^lc_sid=[\w-]{43}; Path=\/; HttpOnly; SameSite=Lax$/);
+
+    const me = await (await browser.fetch(`${lab.url}/auth/me`)).json();
+    assert.equal(me.user.id, 'local:root');
+    assert.equal(me.user.role, 'admin');
+    assert.equal(me.user.via, 'local');
+    assert.equal((await browser.fetch(`${lab.url}/api/modules`)).status, 200);
+
+    const [entry] = await lab.deps.audit.query({ action: 'auth.login' });
+    assert.equal(entry.actor.id, 'local:root');
+    assert.equal(entry.ip, ip, 'the audit trail has the real client address');
+    assert.equal(entry.details.method, 'local');
+  });
+
+  test('the way back: a path on this site, never another site', async () => {
+    freshStart();
+    for (const [next, expected] of [['/#/infra', '/#/infra'], ['//evil.example', '/'], ['https://evil.example/', '/'], ['/\\evil.example', '/']]) {
+      c.advance(31_000); // a new code each time
+      const res = await post({ ip: `198.51.100.${expected.length}${next.length}`, next });
+      assert.equal(res.status, 200, next);
+      assert.deepEqual(await res.json(), { redirect: expected }, next);
+    }
+  });
+
+  test('a wrong password, a wrong code, an unknown user or a missing field: one and the same refusal', async () => {
+    const bodies = [];
+    for (const fields of [
+      { password: 'not-the-password' },
+      { code: '000000' },
+      { username: 'nobody' },
+      { username: 'ROOT' },
+      { code: '' },
+      { password: null },
+    ]) {
+      const ip = freshStart();
+      const res = await post({ ip, ...fields });
+      assert.equal(res.status, 401, JSON.stringify(fields));
+      assert.equal(res.headers.getSetCookie().length, 0, 'no cookie');
+      bodies.push(await res.text());
+    }
+    assert.equal(new Set(bodies).size, 1, 'byte-identical answers');
+    assert.deepEqual(JSON.parse(bodies[0]), { error: 'Sign-in failed. Check the user name, the password and the code', code: 'auth.invalid_credentials', params: {} });
+    const failures = await lab.deps.audit.query({ action: 'auth.login.failed' });
+    assert.ok(failures.length >= 6);
+    assert.ok(failures.every((e) => !JSON.stringify(e).includes('not-the-password')), 'the audit trail never holds a typed password');
+  });
+
+  test('an unknown user name takes as long as the real one (the password is always hashed)', async () => {
+    const time = async (username) => {
+      const ip = freshStart();
+      const started = process.hrtime.bigint();
+      await (await post({ ip, username, password: 'wrong-password-123' })).arrayBuffer();
+      return Number(process.hrtime.bigint() - started) / 1e6;
+    };
+    const known = [];
+    const unknown = [];
+    for (let i = 0; i < 3; i++) { known.push(await time('root')); unknown.push(await time(`ghost${i}`)); }
+    const median = (xs) => xs.sort((a, b) => a - b)[1];
+    // The scrypt derivation dominates: an early exit for unknown names would be several times faster
+    assert.ok(median(unknown) > median(known) * 0.5, `known ${median(known)} ms, unknown ${median(unknown)} ms`);
+  });
+
+  test('a code that was accepted cannot be used again; the next one works', async () => {
+    freshStart();
+    const code = adminCode(c.ms);
+    const first = await post({ ip: '192.0.2.10', code });
+    assert.equal(first.status, 200);
+    await first.arrayBuffer();
+    const replay = await post({ ip: '192.0.2.11', code });
+    assert.equal(replay.status, 401);
+    assert.equal((await replay.json()).code, 'auth.invalid_credentials');
+    c.advance(30_000);
+    const nextCode = await post({ ip: '192.0.2.12', code: adminCode(c.ms) });
+    assert.equal(nextCode.status, 200);
+    await nextCode.arrayBuffer();
+  });
+
+  test('throttling per client: the sixth attempt in 15 minutes is refused, with Retry-After', async () => {
+    const ip = freshStart();
+    for (let i = 0; i < 5; i++) {
+      const res = await post({ ip, username: `guess${ipCounter}-${i}`, password: 'nope-nope-nope' });
+      assert.equal(res.status, 401);
+      await res.arrayBuffer();
+    }
+    const refused = await post({ ip }); // even with the right credentials
+    assert.equal(refused.status, 429);
+    assert.equal(refused.headers.get('retry-after'), '900');
+    assert.deepEqual(await refused.json(), { error: 'Too many sign-in attempts. Try again later', code: 'auth.throttled', params: { seconds: 900 } });
+    const other = await post({ ip: `${ip}0` });
+    assert.equal(other.status, 200, 'another client is not affected');
+    await other.arrayBuffer();
+  });
+
+  test('throttling per user name: failures from many addresses slow the next attempt down', async () => {
+    freshStart();
+    for (const ip of ['192.0.2.21', '192.0.2.22']) {
+      const res = await post({ ip, password: 'wrong-wrong-wrong' });
+      assert.equal(res.status, 401);
+      await res.arrayBuffer();
+    }
+    const slowed = await post({ ip: '192.0.2.23' });
+    assert.equal(slowed.status, 429, 'a third address meets the backoff too');
+    assert.equal(slowed.headers.get('retry-after'), '1');
+    await slowed.arrayBuffer();
+    c.advance(1000);
+    const ok = await post({ ip: '192.0.2.24' });
+    assert.equal(ok.status, 200);
+    await ok.arrayBuffer();
+  });
+
+  test('the client address comes from the trusted proxy only', async () => {
+    freshStart();
+    // The application trusts 127.0.0.1: the address it forwards is the client
+    const res = await post({ ip: '6.6.6.6, 203.0.113.250' });
+    assert.equal(res.status, 200);
+    await res.arrayBuffer();
+    const [entry] = await lab.deps.audit.query({ action: 'auth.login' });
+    assert.equal(entry.ip, '203.0.113.250');
+  });
+
+  test('the form must come from this site, as JSON of a sane size', async () => {
+    freshStart();
+    const send = (headers, body) => fetch(`${lab.url}/auth/local`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-forwarded-for': '192.0.2.99', ...headers }, body });
+    const foreign = await send({ origin: 'https://evil.example' }, '{}');
+    assert.equal(foreign.status, 403);
+    assert.equal((await foreign.json()).code, 'server.cross_origin');
+    assert.equal((await send({}, '{}')).status, 403, 'no Origin header: refused');
+    const malformed = await send({ origin: lab.url }, '{"username":');
+    assert.equal(malformed.status, 400);
+    assert.deepEqual(await malformed.json(), { error: 'Invalid request', code: 'server.bad_request', params: {} });
+    const huge = await send({ origin: lab.url }, JSON.stringify({ password: 'x'.repeat(10_000) }));
+    assert.equal(huge.status, 413);
+    assert.equal((await huge.json()).code, 'server.too_large');
+  });
 });
 
-test('AUTH_MODE=on is refused by this build instead of running open', () => {
-  assert.throws(() => createAuth({ config: { auth: { mode: 'on' } } }), /AUTH_MODE=on needs the sign-in module/);
-  assert.throws(() => createAuth({ config: {} }), /AUTH_MODE=on/, 'a missing mode is "on", never "off"');
+// ── Cookies over https ──────────────────────────────────────────────────────
+
+describe('cookies follow PUBLIC_URL', () => {
+  let lab;
+  before(async () => { lab = await startTestApp({ env: { PUBLIC_URL: 'https://lab.example.org' } }); });
+  after(() => lab.close());
+
+  test('over https the session cookie is __Host-lc_sid, Secure, HttpOnly, SameSite=Lax, Path=/', async () => {
+    const browser = new TestBrowser();
+    const res = await postLocalSignIn(lab, {}, browser);
+    assert.equal(res.status, 200);
+    const [cookie] = res.headers.getSetCookie();
+    assert.match(cookie, /^__Host-lc_sid=[\w-]{43}; Path=\/; HttpOnly; SameSite=Lax; Secure$/);
+    assert.ok(!/Domain=/i.test(cookie));
+    assert.equal(lab.deps.auth.cookieName, '__Host-lc_sid');
+    assert.equal((await browser.fetch(`${lab.url}/api/modules`)).status, 200);
+
+    const token = browser.cookie(lab.url, '__Host-lc_sid');
+    const plain = await fetch(`${lab.url}/api/modules`, { headers: { cookie: `lc_sid=${token}` } });
+    assert.equal(plain.status, 401, 'the http name is not accepted on an https deployment');
+  });
 });
 
-test('requireAuth: no user → 401 JSON under /api, redirect to /login for a page', () => {
-  const api = through(requireAuth, fakeRequest({ url: '/api/consoles/labs' }));
-  assert.equal(api.passed, false);
-  assert.equal(api.res.statusCode, 401);
-  assert.deepEqual(api.res.body, { error: 'Sign in to continue', code: 'auth.required', params: {} });
+// ── Sign-out, the login page ────────────────────────────────────────────────
 
-  const page = through(requireAuth, fakeRequest({ url: '/' }));
-  assert.equal(page.passed, false);
-  assert.equal(page.res.statusCode, 302);
-  assert.equal(page.res.redirectedTo, '/login');
+describe('sign-out and the login page', () => {
+  let lab;
+  before(async () => { lab = await startTestApp(); });
+  after(() => lab.close());
 
-  const write = through(requireAuth, fakeRequest({ method: 'POST', url: '/upload' }));
-  assert.equal(write.res.statusCode, 401, 'a write is never answered with a redirect');
-  assert.equal(through(requireAuth, fakeRequest({ url: '/', user: student(1) })).passed, true);
+  test('POST /auth/logout ends the session and clears the cookie', async () => {
+    const browser = new TestBrowser();
+    await (await postLocalSignIn(lab, {}, browser)).arrayBuffer();
+    const token = browser.cookie(lab.url, 'lc_sid');
+    const out = await browser.fetch(`${lab.url}/auth/logout`, { method: 'POST', headers: { origin: lab.url } });
+    assert.equal(out.status, 200);
+    assert.deepEqual(await out.json(), { redirect: '/login' });
+    assert.match(out.headers.getSetCookie()[0], /^lc_sid=; Path=\/; HttpOnly; SameSite=Lax; Max-Age=0$/);
+    const again = await fetch(`${lab.url}/api/modules`, { headers: { cookie: `lc_sid=${token}` } });
+    assert.equal(again.status, 401, 'the old cookie no longer opens anything');
+    const [entry] = await lab.deps.audit.query({ action: 'auth.logout' });
+    assert.equal(entry.actor.id, 'local:root');
+  });
+
+  test('POST /auth/logout from another site is refused', async () => {
+    const { headers } = lab.signIn('student1');
+    const res = await fetch(`${lab.url}/auth/logout`, { method: 'POST', headers: { ...headers, origin: 'https://evil.example' } });
+    assert.equal(res.status, 403);
+    assert.equal((await fetch(`${lab.url}/api/modules`, { headers })).status, 200, 'still signed in');
+  });
+
+  test('GET /login: the page, never cached, never indexed', async () => {
+    const res = await fetch(`${lab.url}/login`);
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get('content-type'), /^text\/html/);
+    assert.equal(res.headers.get('x-robots-tag'), 'noindex, nofollow');
+    assert.equal(res.headers.get('cache-control'), 'no-store');
+    assert.equal(res.headers.get('x-powered-by'), null);
+    const html = await res.text();
+    assert.match(html, /<script type="module" src="\/js\/login.js">/);
+    assert.match(html, /id="local-form"/);
+    assert.match(html, /id="login-extra"/, 'room for a passkey button');
+    const script = await fetch(`${lab.url}/js/login.js`);
+    assert.equal(script.status, 200);
+    assert.match(script.headers.get('content-type'), /javascript/);
+    for (const asset of ['/css/login.css', '/css/auth.css', '/locales/fr/auth.json', '/locales/en/auth.json', '/js/core/userMenu.js']) {
+      assert.equal((await fetch(lab.url + asset)).status, 200, asset);
+    }
+  });
+
+  test('GET /login when already signed in goes where the user was heading', async () => {
+    const { headers } = lab.signIn('student1');
+    const res = await fetch(`${lab.url}/login?next=%2F%23%2Finfra`, { headers, redirect: 'manual' });
+    assert.equal(res.status, 302);
+    assert.equal(res.headers.get('location'), '/#/infra');
+  });
+
+  test('/auth/me: the user, the default language and the provider label - nothing secret', async () => {
+    const anonymous = await (await fetch(`${lab.url}/auth/me`)).json();
+    assert.deepEqual(anonymous, { user: null, locale: 'fr', providerName: null });
+    const { headers } = lab.signIn('student2');
+    const me = await (await fetch(`${lab.url}/auth/me`, { headers })).json();
+    assert.equal(me.user.id, 'oidc:student2');
+    assert.ok(!JSON.stringify(me).includes(headers.cookie.split('=')[1]));
+  });
+
+  test('without an identity provider, /auth/login sends back to the login page with a reason', async () => {
+    const res = await fetch(`${lab.url}/auth/login`, { redirect: 'manual' });
+    assert.equal(res.status, 302);
+    assert.equal(res.headers.get('location'), '/login?error=sso_disabled');
+  });
+
+  test('an unknown /auth path is a bare JSON 404', async () => {
+    const res = await fetch(`${lab.url}/auth/nope`);
+    assert.equal(res.status, 404);
+    assert.deepEqual(await res.json(), { error: 'Not found', code: 'server.not_found', params: {} });
+  });
 });
 
-test('requireRole: wrong role → 403 JSON, missing session → 401', () => {
-  const asStudent = through(requireRole('admin'), fakeRequest({ url: '/api/admin/sessions', user: student(1) }));
-  assert.equal(asStudent.passed, false);
-  assert.equal(asStudent.res.statusCode, 403);
-  assert.deepEqual(asStudent.res.body, { error: 'You are not allowed to do this', code: 'auth.forbidden', params: { role: 'admin' } });
+// ── Live connections ────────────────────────────────────────────────────────
 
-  assert.equal(through(requireRole('admin'), fakeRequest({ user: admin() })).passed, true);
-  assert.equal(through(requireRole('student'), fakeRequest({ user: admin() })).passed, true, 'an admin can do what a student can');
-  assert.equal(through(requireRole('student'), fakeRequest({ user: student(1) })).passed, true);
-  assert.equal(through(requireRole('admin'), fakeRequest({ url: '/api/admin/sessions' })).res.statusCode, 401);
-  assert.equal(through(requireRole('root'), fakeRequest({ user: admin() })).res.statusCode, 403, 'an unknown role is held by nobody');
-});
+describe('revoking or outliving a session closes its live connections', () => {
+  let lab;
+  const c = clock();
+  before(async () => { lab = await startTestApp({ now: c.now, modules: () => [keepOpenModule()] }); });
+  after(() => lab.close());
 
-test('hasRole: student < admin', () => {
-  assert.equal(hasRole(admin(), 'admin'), true);
-  assert.equal(hasRole(student(1), 'admin'), false);
-  assert.equal(hasRole(student(1), 'student'), true);
-  assert.equal(hasRole(null, 'student'), false);
-  assert.equal(hasRole({ role: 'teacher' }, 'student'), false);
-});
+  test('revoke(sessionId): the WebSocket and the SSE stream close, and cannot be reopened', async () => {
+    const { id, headers } = lab.signIn('student1');
+    const { ws, hello } = await connect(lab, '/ws/probe', headers);
+    assert.deepEqual(hello, { user: 'oidc:student1' });
+    const sse = await fetch(`${lab.url}/api/events`, { headers });
+    assert.equal(sse.status, 200);
+    const ending = streamEnds(sse);
 
-test('createUser: the User shape of §5, frozen, with a stable badge', () => {
-  const user = createUser({ id: 'oidc:42', username: 'alovelace', name: 'Ada Lovelace', email: 'ada@example.org', role: 'student', groups: ['rt2'], via: 'oidc' });
-  assert.deepEqual(Object.keys(user).sort(), ['color', 'email', 'groups', 'id', 'initials', 'name', 'role', 'username', 'via']);
-  assert.equal(user.initials, 'AL');
-  assert.match(user.color, /^hsl\(\d{1,3} \d+% \d+%\)$/);
-  assert.equal(createUser({ id: 'oidc:42', via: 'oidc' }).color, user.color, 'same id, same colour');
-  assert.notEqual(colorOf('oidc:43'), user.color);
-  assert.throws(() => { user.role = 'admin'; }, TypeError);
-  assert.throws(() => { user.groups.push('admins'); }, TypeError);
-  assert.throws(() => createUser({ id: 'x', via: 'oidc', role: 'root' }), /Unknown role/);
-  assert.throws(() => createUser({ username: 'x' }), /needs an id/);
-  assert.equal(JSON.parse(JSON.stringify(user)).id, 'oidc:42', 'serializable as is, for /auth/me and presence');
-});
+    assert.equal(lab.deps.auth.sessions.revoke(id), true);
+    await closed(ws);
+    assert.equal(await ending, true, 'the SSE stream was ended by the server');
+    assert.equal((await connect(lab, '/ws/probe', headers)).status, 401);
+    assert.equal((await fetch(`${lab.url}/api/events`, { headers })).status, 401);
+    const [entry] = await lab.deps.audit.query({ action: 'auth.session.end' });
+    assert.equal(entry.details.reason, 'revoked');
+  });
 
-test('initialsOf', () => {
-  assert.equal(initialsOf('Ada Lovelace'), 'AL');
-  assert.equal(initialsOf('jean-pierre.martin'), 'JM');
-  assert.equal(initialsOf('curtis'), 'CU');
-  assert.equal(initialsOf('élodie'), 'ÉL');
-  assert.equal(initialsOf(''), '?');
+  test('revokeUser(userId): every session of that person, and only theirs', async () => {
+    const a = lab.signIn('student2');
+    const b = lab.signIn('student2');
+    const other = lab.signIn('student3');
+    const sockets = await Promise.all([a, b, other].map((s) => connect(lab, '/ws/probe', s.headers)));
+    assert.equal(lab.deps.auth.sessions.revokeUser('oidc:student2'), 2);
+    await Promise.all([closed(sockets[0].ws), closed(sockets[1].ws)]);
+    assert.equal(sockets[2].ws.readyState, WebSocket.OPEN, 'another user keeps their console');
+    assert.equal((await fetch(`${lab.url}/api/probe/whoami`, { headers: other.headers })).status, 200);
+    sockets[2].ws.close();
+  });
+
+  test('sessions.list(): who is connected, with no token', async () => {
+    const { id, token } = lab.signIn('admin');
+    const listed = lab.deps.auth.sessions.list().find((s) => s.id === id);
+    assert.equal(listed.user.id, 'oidc:admin');
+    assert.ok(!JSON.stringify(lab.deps.auth.sessions.list()).includes(token));
+  });
+
+  test('an expired session opens nothing: no page, no API, no SSE, no WebSocket', async () => {
+    const { headers } = lab.signIn('student3');
+    assert.equal((await fetch(`${lab.url}/api/probe/whoami`, { headers })).status, 200);
+    c.advance(8 * 3600_000 + 1000);
+    assert.equal((await fetch(`${lab.url}/api/probe/whoami`, { headers })).status, 401);
+    assert.equal((await fetch(`${lab.url}/api/events`, { headers })).status, 401);
+    assert.equal((await connect(lab, '/ws/probe', headers)).status, 401);
+    const page = await fetch(`${lab.url}/`, { headers, redirect: 'manual' });
+    assert.equal(page.status, 302);
+    assert.equal(page.headers.get('location'), '/login');
+  });
 });

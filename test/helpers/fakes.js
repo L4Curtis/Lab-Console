@@ -5,7 +5,7 @@
 import { EventEmitter } from 'node:events';
 import express from 'express';
 import { createUser } from '../../src/modules/auth/user.js';
-import { requireAuth, requireRole } from '../../src/modules/auth/index.js';
+import { createAuth } from '../../src/modules/auth/index.js';
 
 export const student = (n = 1, extra = {}) =>
   createUser({ id: `oidc:student${n}`, username: `student${n}`, name: `Student ${n}`, role: 'student', groups: ['students'], via: 'oidc', ...extra });
@@ -13,28 +13,36 @@ export const admin = (extra = {}) =>
   createUser({ id: 'oidc:admin', username: 'admin', name: 'Ada Admin', role: 'admin', groups: ['admins'], via: 'oidc', ...extra });
 
 /**
- * An identity for tests, with the surface of ARCHITECTURE §5: the user is
- * named by the `x-test-user` header (or `?as=` on a WebSocket URL, since a
- * browser cannot set headers there). No header: nobody is signed in.
+ * Kept for tests written before the sign-in existed: the user is named by an
+ * `x-test-user` header (or `?as=` on a WebSocket URL). No header: nobody.
  *
  *   const lab = await startTestApp({ auth: fakeAuth() });
  *   fetch(`${lab.url}/api/benches`, { headers: { 'x-test-user': 'student1' } })
  *
+ * Nothing is bypassed: this wraps the real sign-in module, opens a real
+ * session for the named user in the session store, and puts its cookie on
+ * the request before the real gate looks at it. New tests should not need
+ * it: `lab.as('student1')` from startTestApp returns the Cookie header itself
+ *
  * Known users: student1, student2, student3, admin - or pass your own map
  */
 export function fakeAuth(users = { student1: student(1), student2: student(2), student3: student(3), admin: admin() }) {
-  return ({ config }) => {
-    const who = (req) => users[req.headers['x-test-user']] ?? users[new URL(req.url, 'http://localhost').searchParams.get('as')] ?? null;
+  return (deps) => {
+    const real = createAuth(deps);
+    const cookies = new Map(); // user name → Cookie header of their session
+    const impersonate = (req) => {
+      const name = req.headers['x-test-user'] ?? new URL(req.url, 'http://localhost').searchParams.get('as');
+      if (!name || !Object.hasOwn(users, name)) return;
+      if (!cookies.has(name)) cookies.set(name, real.sessions.create(users[name], { ip: '127.0.0.1', userAgent: 'test' }).cookie);
+      req.headers.cookie = cookies.get(name);
+    };
     const router = express.Router();
-    router.get('/auth/me', (req, res) => res.json({ user: who(req), mode: 'on', locale: config.defaultLocale, providerName: 'Test' }));
-    router.get('/login', (_req, res) => res.type('html').send('<!doctype html><title>login</title>'));
+    router.use((req, _res, next) => { impersonate(req); next(); });
+    router.use(real.router);
     return {
-      mode: 'on',
-      attach(req, _res, next) { const user = who(req); if (user) req.user = user; next(); },
-      requireAuth,
-      requireRole,
-      authenticateUpgrade: (req) => who(req),
-      sessions: { list: () => [], revoke: () => false, revokeUser: () => 0 },
+      ...real,
+      attach(req, res, next) { impersonate(req); real.attach(req, res, next); },
+      authenticateUpgrade(req) { impersonate(req); return real.authenticateUpgrade(req); },
       router,
       users,
     };

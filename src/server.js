@@ -179,7 +179,7 @@ if (isMain) {
     const { host, port } = await lab.listen();
     log.info(`Lab Console listening on http://${host}:${port}`);
     log.info(`Jump server ${config.ssh.username}@${config.ssh.host}:${config.ssh.port}`);
-    if (config.auth.mode === 'off') log.warn('AUTH_MODE=off: no login, every visitor is an anonymous administrator');
+    log.info(`Sign-in: local administrator "${config.auth.localAdmin.username}"${config.auth.oidc.enabled ? ` and ${config.auth.oidc.providerName} (${config.auth.oidc.issuer})` : ' only (no identity provider configured)'}`);
   } catch (err) {
     console.error(`\n✖ Lab Console could not start: ${err.message}\n`);
     process.exit(1);

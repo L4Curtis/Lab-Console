@@ -43,7 +43,7 @@ function readServerConfig() {
     host: str('HOST', '0.0.0.0'),
     port: int('PORT', 3000, { min: 0, max: 65535 }), // 0 = any free port (tests)
     // Public origin of the platform, e.g. https://lab.example.org: OIDC redirect
-    // URIs and cookie security derive from it. Required when auth is on
+    // URIs and cookie security derive from it. Required
     publicUrl: origin('PUBLIC_URL'),
     // Legacy switch: believe X-Forwarded-For from ANY peer. Prefer TRUSTED_PROXIES,
     // which wins when both are set
@@ -186,7 +186,9 @@ export function loadConfig() {
     auth: readAuthConfig(),
   };
 
-  if (assembled.auth.mode === 'on' && !assembled.server.publicUrl) fail('PUBLIC_URL is required when AUTH_MODE=on');
+  if (!assembled.server.publicUrl && !str('PUBLIC_URL')) {
+    fail('PUBLIC_URL is required: the address users type, e.g. https://lab.example.org (sign-in redirects and cookie security derive from it)');
+  }
 
   const problems = takeErrors();
   if (problems.length) throw new ConfigError(problems);

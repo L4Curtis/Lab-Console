@@ -1,9 +1,10 @@
 /**
  * The request pipeline of ARCHITECTURE §4, on the real application.
  *
- * Two configurations: the anonymous auth (AUTH_MODE=off), where every
- * existing route must keep answering as upstream; and a test identity that
- * can be "nobody", to prove what is public and what the gate protects
+ * First signed in (a real session, opened in the session store by the test
+ * helper), where every existing route must keep answering as upstream; then
+ * with the fakeAuth() test seam, to prove what is public and what the gate
+ * protects. test/routeWalk.test.js walks every route as an anonymous client
  */
 import { test, before, after, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -11,7 +12,7 @@ import fs from 'node:fs';
 import express from 'express';
 import WebSocket, { WebSocketServer } from 'ws';
 import { startTestApp } from './helpers/app.js';
-import { fakeAuth } from './helpers/fakes.js';
+import { fakeAuth, student } from './helpers/fakes.js';
 import { httpError } from '../src/lib/httpError.js';
 import { clientIp } from '../src/lib/security.js';
 
@@ -19,7 +20,7 @@ const get = (lab, path, headers = {}) => fetch(lab.url + path, { headers, redire
 const as = (user) => ({ 'x-test-user': user });
 
 /** Open a WebSocket; resolves to { ws, messages } once open, or to { status } when the upgrade is refused */
-function connect(lab, path, { origin = lab.url, headers = {} } = {}) {
+function connectAs(lab, path, { origin = lab.url, headers = {} } = {}) {
   return new Promise((resolve, reject) => {
     const ws = new WebSocket(lab.wsUrl + path, { headers: { ...(origin ? { origin } : {}), ...headers } });
     const messages = [];
@@ -29,6 +30,7 @@ function connect(lab, path, { origin = lab.url, headers = {} } = {}) {
     ws.on('error', (err) => { if (ws.readyState !== WebSocket.OPEN) reject(err); });
   });
 }
+const connect = connectAs;
 const closed = (ws) => new Promise((resolve) => { if (ws.readyState === WebSocket.CLOSED) resolve(); else ws.once('close', resolve); });
 
 /** Read an SSE stream until `count` events arrived (or the timeout); returns [{ topic, data }] */
@@ -78,10 +80,16 @@ function probeModule(deps) {
   };
 }
 
-describe('anonymous auth (AUTH_MODE=off): the application behaves as upstream', () => {
+describe('signed in: the application behaves as upstream', () => {
   let lab;
-  before(async () => { lab = await startTestApp(); });
+  let session; // Cookie header of an administrator's session
+  before(async () => {
+    lab = await startTestApp();
+    session = lab.as('admin');
+  });
   after(() => lab.close());
+  const get = (lab, path, headers = {}) => fetch(lab.url + path, { headers: { ...session, ...headers }, redirect: 'manual' });
+  const connect = (lab, path, options = {}) => connectAs(lab, path, { ...options, headers: { ...session, ...options.headers } });
 
   test('GET /api/health answers liveness only', async () => {
     const res = await get(lab, '/api/health');
@@ -131,21 +139,19 @@ describe('anonymous auth (AUTH_MODE=off): the application behaves as upstream', 
     assert.equal(vms.status, 503);
   });
 
-  test('GET /auth/me: the anonymous administrator, the mode and the default language', async () => {
+  test('GET /auth/me: the signed-in user and the default language', async () => {
     const res = await get(lab, '/auth/me');
     assert.equal(res.status, 200);
     assert.equal(res.headers.get('cache-control'), 'no-store');
     const me = await res.json();
-    assert.deepEqual(Object.keys(me).sort(), ['locale', 'mode', 'providerName', 'user']);
-    assert.equal(me.mode, 'off');
+    assert.deepEqual(Object.keys(me).sort(), ['locale', 'providerName', 'user']);
     assert.equal(me.locale, 'fr');
     assert.equal(me.providerName, null);
-    assert.equal(me.user.id, 'anonymous');
+    assert.equal(me.user.id, 'oidc:admin');
     assert.equal(me.user.role, 'admin');
-    assert.equal(me.user.via, 'anonymous');
   });
 
-  test('there is nothing to sign in to: /login sends back to the application', async () => {
+  test('already signed in: /login sends back to the application', async () => {
     const res = await get(lab, '/login');
     assert.equal(res.status, 302);
     assert.equal(res.headers.get('location'), '/');
@@ -170,7 +176,7 @@ describe('anonymous auth (AUTH_MODE=off): the application behaves as upstream', 
   });
 
   test('state-changing requests must come from the platform itself', async () => {
-    const post = (headers) => fetch(`${lab.url}/api/proxmox/clone`, { method: 'POST', headers });
+    const post = (headers) => fetch(`${lab.url}/api/proxmox/clone`, { method: 'POST', headers: { ...session, ...headers } });
     for (const headers of [{}, { origin: 'https://evil.example' }]) {
       const res = await post(headers);
       assert.equal(res.status, 403);
@@ -215,15 +221,14 @@ describe('anonymous auth (AUTH_MODE=off): the application behaves as upstream', 
   test('every module received the platform services, and the registry is shared', () => {
     assert.deepEqual(Object.keys(lab.deps).sort(), ['audit', 'auth', 'config', 'events', 'infra', 'logger', 'services', 'store']);
     assert.equal(typeof lab.deps.services.consoles.registry.getDevice, 'function');
-    assert.equal(lab.deps.auth.mode, 'off');
     assert.equal(lab.deps.store.root, lab.dataDir);
   });
 
   test('the audit trail lands in DATA_DIR, signed with the request\'s user and address', async () => {
-    const req = { headers: {}, socket: { remoteAddress: '127.0.0.1' }, user: lab.deps.auth.authenticateUpgrade({}) };
+    const req = { headers: {}, socket: { remoteAddress: '127.0.0.1' }, user: student(1) };
     assert.equal(await lab.deps.audit.log(req, 'console.open', { bench: 'B4M', device: 'R1' }), true);
     const [entry] = await lab.deps.audit.query({ bench: 'B4M' });
-    assert.equal(entry.actor.id, 'anonymous');
+    assert.equal(entry.actor.id, 'oidc:student1');
     assert.equal(entry.ip, '127.0.0.1');
     assert.ok(fs.readdirSync(lab.deps.store.resolve('audit')).length === 1);
   });
@@ -254,7 +259,7 @@ describe('the gate: what is public, what needs a user, what needs a role', () =>
     for (const path of ['/', '/index.html', '/js/main.js', '/js/shared/dialog.js', '/js/modules/consoles/index.js', '/anything']) {
       const res = await get(lab, path);
       assert.equal(res.status, 302, path);
-      assert.equal(res.headers.get('location'), '/login', path);
+      assert.equal(res.headers.get('location'), path === '/' ? '/login' : `/login?next=${encodeURIComponent(path)}`, path);
     }
   });
 
@@ -354,10 +359,10 @@ describe('behind a trusted reverse proxy', () => {
 
 test('close(): open streams end, pending writes finish, the port is freed', async () => {
   const lab = await startTestApp();
-  const stream = await get(lab, '/api/events');
+  const stream = await get(lab, '/api/events', lab.as('student1'));
   const reading = readEvents(stream, 99, 5000); // an open tab must not prevent the shutdown
   let written = false;
-  lab.deps.store.json('benches/occupancy.json', {}).set({ B4M: ['anonymous'] }).then(() => { written = true; });
+  lab.deps.store.json('benches/occupancy.json', {}).set({ B4M: ['oidc:student1'] }).then(() => { written = true; });
   const { deps, server } = lab;
   await lab.close();
   assert.equal(written, true, 'close() waited for the write');
