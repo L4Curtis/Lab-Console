@@ -12,7 +12,9 @@
     "dev": "node --watch src/server.js",
     "check-diagram": "node scripts/check-diagram.js",
     "mock-lab": "node dev/mock-lab.js",
-    "test": "node --test test/*.test.js",
+    "lint": "eslint .",
+    "test": "node --test \"test/**/*.test.js\"",
+    "test:e2e": "node --test --test-concurrency=1 \"test/e2e/*.e2e.js\"",
     "mock-proxmox": "node dev/mock-proxmox.js"
   },
   "dependencies": {
@@ -22,8 +24,17 @@
     "@xmldom/xmldom": "^0.9.8",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
+    "diff": "^9.0.0",
     "express": "^5.1.0",
+    "fflate": "^0.8.3",
+    "openid-client": "^6.8.9",
     "ssh2": "^1.17.0",
     "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.14.0",
+    "globals": "^17.14.0",
+    "playwright-core": "^1.65.0"
   }
 }
