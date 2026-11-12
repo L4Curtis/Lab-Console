@@ -70,6 +70,15 @@ if (privateKeyPath) {
 }
 if (!privateKeyPath && !sshPassword) errors.push('Set SSH_PASSWORD (or SSH_PRIVATE_KEY_PATH)');
 
+function tunnelTransport() {
+  const v = str('PROXMOX_TUNNEL_TRANSPORT', 'auto').toLowerCase();
+  if (!['auto', 'forward', 'exec'].includes(v)) {
+    errors.push('PROXMOX_TUNNEL_TRANSPORT must be auto, forward or exec');
+    return 'auto';
+  }
+  return v;
+}
+
 export const config = Object.freeze({
   server: {
     host: str('HOST', '0.0.0.0'),
@@ -93,6 +102,15 @@ export const config = Object.freeze({
     hostFingerprint: str('SSH_HOST_FINGERPRINT'),
     readyTimeoutMs: 15_000,
     keepaliveIntervalMs: 15_000,
+    // How the Proxmox tunnel reaches the lab network through the jump server:
+    //   auto    - try `ssh -L`-style forwarding, fall back to a relay command
+    //             if the jump server forbids forwarding (recommended)
+    //   forward - direct-tcpip only (fails if AllowTcpForwarding is off)
+    //   exec    - always run a relay (socat/nc/bash), like the device consoles
+    tunnelTransport: tunnelTransport(),
+    // Optional explicit relay command for `exec`/`auto`, with {host}/{port}
+    // placeholders, e.g. "socat - TCP:{host}:{port}". Empty = auto-detect.
+    tunnelRelay: str('PROXMOX_TUNNEL_RELAY') || undefined,
   },
 
   // ── Telnet console login (credential set #2) ──────────────────────────────

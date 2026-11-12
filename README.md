@@ -173,21 +173,44 @@ side by side, and they stay open when you switch sections.
 
 ```
 platform ──SSH──► jump server ──direct-tcpip──► 10.22.9.20:8006 (Proxmox)
-           one shared connection, one lightweight channel per HTTPS socket / console
+           shared connection(s), one lightweight channel per HTTPS socket / console
 ```
 
-- The platform keeps **one** SSH connection to the jump server for Proxmox
+- The platform keeps a shared SSH connection to the jump server for Proxmox
   (`src/lib/sshTunnel.js`). Every HTTPS request and every console WebSocket is an
-  SSH `forwardOut` channel on it, with TLS end-to-end to Proxmox inside.
+  SSH channel on it, with TLS end-to-end to Proxmox inside.
 - HTTPS sockets are kept alive, and at most 6 API requests run at once, so
   listing 20 VMs reuses a handful of channels.
 - If the jump server drops the connection, it is re-opened on the next call.
-- The jump account must be allowed to forward TCP. That is OpenSSH's default
-  (`AllowTcpForwarding yes`). To restrict it to Proxmox only:
+
+**Two transports (`PROXMOX_TUNNEL_TRANSPORT`, default `auto`).** How the tunnel
+crosses the jump server — the device consoles are unaffected either way:
+
+- `forward` — a `direct-tcpip` channel (`ssh -L`-style). Lightest; one
+  connection carries everything. Needs `AllowTcpForwarding` on the jump server.
+- `exec` — the jump server runs a relay (`socat`/`nc`/bash `/dev/tcp`) that
+  connects to Proxmox, and the platform speaks TLS over its stdio. This is the
+  **same** mechanism the device consoles use, so it works even when forwarding
+  is turned off. Each relay is a *session* channel, so these count against
+  sshd's `MaxSessions`; the pool spreads bursts over a few connections.
+- `auto` (default) — try `forward`, and the first time the jump server answers
+  *administratively prohibited / open failed*, switch to `exec` for the rest of
+  the run and log it once. Zero-config survival of a locked-down jump server.
+
+If forwarding is allowed, restrict it to Proxmox only:
   ```
   Match User labjump
       PermitOpen 10.22.9.20:8006
   ```
+**Troubleshooting `open failed` / `administratively prohibited`:** the jump
+server's sshd forbids TCP forwarding for that account (`AllowTcpForwarding no`,
+`DisableForwarding`, a mismatched `PermitOpen`, or `restrict` /
+`no-port-forwarding` in `authorized_keys`). A `curl -k` *from* the jump box
+still works because that originates on the box itself. Either re-enable
+forwarding for the account, or leave `PROXMOX_TUNNEL_TRANSPORT=auto` (or set
+`exec`) and the platform relays through a command instead, needing only
+`socat`, `nc`/`ncat`, or bash on the jump server. After changing jump-server
+sshd config, **restart Lab Console** so the tunnel reconnects with the new policy.
 - Authentication is a username/password **ticket**, renewed before Proxmox's
   2-hour expiry and again on any 401. No Proxmox credential, ticket or VNC
   password reaches the browser:
