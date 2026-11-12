@@ -44,6 +44,8 @@ test('boot: session and language are loaded before the screens, without errors',
   });
   assert.deepEqual(state, { user: 'anonymous', isAdmin: true, mode: 'off', loaded: true, locale: 'fr', cancel: 'Annuler' });
   assert.equal(await page.locator('#rail-items .rail-btn').count(), 2, 'the existing sections are still there');
+  await page.waitForSelector('section.view-consoles svg');
+  assert.ok(await page.locator('section.view-consoles svg').count() > 0, 'the consoles screen rendered its diagram');
   assert.deepEqual(pageErrors, []);
 });
 

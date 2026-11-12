@@ -550,9 +550,8 @@ Each recipe names every file to touch. `benches` is the example module.
 ### Add a rail section
 
 1. `public/js/modules/benches/index.js` exporting `mount(el, ctx)` →
-   `{ show?(params), hide?() }`. Start it with
-   `await Promise.all([loadNamespace('benches'), loadCss('benches')])` — or make
-   `mount` synchronous and render once that promise resolves.
+   `{ show?(params), hide?() }`. `mount` may be async: start it with
+   `await Promise.all([loadNamespace('benches'), loadCss('benches')])`.
 2. One line in the `MODULES` array of `public/js/main.js`:
    `{ id: 'benches', path: 'benches', title: …, icon: 'grid', load: () => import('./modules/benches/index.js') }`
    (`id` is the server module that answers `/api/modules`, `path` the hash).

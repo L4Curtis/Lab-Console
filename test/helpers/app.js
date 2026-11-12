@@ -67,12 +67,19 @@ export function withEnv(env) {
 
 /** Read a configuration from baseEnv + overrides, without touching the caller's environment */
 export async function loadTestConfig(env = {}, dataDir = tempDataDir()) {
-  const restore = withEnv({ ...baseEnv(dataDir), ...env });
+  const restoreBase = withEnv(baseEnv(dataDir));
   try {
+    // src/config.js also evaluates the environment when it is first imported,
+    // and exits the process if it is invalid: import it under the valid base
     const { loadConfig } = await import('../../src/config.js');
-    return loadConfig();
+    const restore = withEnv(env);
+    try {
+      return loadConfig();
+    } finally {
+      restore();
+    }
   } finally {
-    restore();
+    restoreBase();
   }
 }
 

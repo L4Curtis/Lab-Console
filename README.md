@@ -13,6 +13,7 @@ Browser ──WebSocket──► Lab Console ──SSH (exec)──► jump serv
 ```bash
 cp .env.example .env        # Windows: Copy-Item .env.example .env
 # edit .env: SSH_* (jump server) and TELNET_* (console login)
+# and AUTH_MODE=off (see below): sign-in is not part of this build yet
 docker compose up -d --build
 ```
 
@@ -95,9 +96,17 @@ top/middle/bottom). Any other naming falls back to plain tabs.
 Recommended on the jump server: a dedicated account that may only run telnet,
 for example `ForceCommand` in `sshd_config` or a restricted shell.
 
-The platform has no login: anyone who can open it can use the lab consoles,
-the admin switches and the Proxmox VMs. Expose it on the lab network only, or
-behind your school's reverse proxy/SSO (set `TRUST_PROXY=true`).
+With `AUTH_MODE=off` the platform has no login: anyone who can open it can use
+the lab consoles, the admin switches and the Proxmox VMs, as an anonymous
+administrator. Expose it on the lab network only, or behind your school's
+reverse proxy/SSO. `AUTH_MODE=on` is the default and, until the sign-in module
+ships, refuses to start: running open is always a deliberate choice.
+
+Behind a reverse proxy, list its address in `TRUSTED_PROXIES` (IP addresses or
+CIDR blocks) so that client addresses are read from `X-Forwarded-For`; the
+header is ignored when it comes from anyone else. State (audit trail, and later
+sessions and backups) is written to `DATA_DIR` only: the Docker image runs with
+a read-only root filesystem and a volume on `/data`.
 
 ## Console tools (v1.1)
 

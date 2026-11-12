@@ -3,8 +3,8 @@
  *
  * A module is { id, path, title, icon, load: () => import(...) } where the
  * imported file exports `mount(container, ctx)` returning
- * { show?(params), hide?() }. Views stay mounted when hidden, so switching to
- * another section never drops a student's open consoles
+ * { show?(params), hide?() }, or a promise of it. Views stay mounted when
+ * hidden, so switching to another section never drops a student's open consoles
  */
 import { h, icon, prefs } from './core/dom.js';
 import { getJson } from './core/api.js';
@@ -52,7 +52,7 @@ async function route() {
     const el = h(`section.view.view-${mod.id}`);
     views.append(el);
     const { mount } = await mod.load();
-    mounted.set(mod.id, { el, api: mount(el, { enabled: mod.enabled, navigate }) || {} });
+    mounted.set(mod.id, { el, api: (await mount(el, { enabled: mod.enabled, navigate })) || {} }); // mount may be async
   }
   if (current && current !== mod.id) {
     const prev = mounted.get(current);
