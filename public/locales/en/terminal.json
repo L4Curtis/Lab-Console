@@ -1,0 +1,167 @@
+{
+  "pane": {
+    "starting": "Starting…",
+    "console": "Console",
+    "label": "{subtitle} of {title}",
+    "reconnect": "Reconnect",
+    "maximize": "Maximize",
+    "restore": "Restore layout",
+    "disconnectAndClose": "Disconnect and close",
+    "couldNotConnect": "Could not connect",
+    "disconnected": "Disconnected",
+    "tryAgain": "Try again",
+    "connectionLost": "Connection to the platform was lost",
+    "sessionClosed": "Session closed"
+  },
+  "phase": {
+    "ssh": "Reaching jump server",
+    "telnet": "Opening console",
+    "proxmox": "Opening VM console",
+    "connected": "Connected",
+    "login": "Connected"
+  },
+  "actions": {
+    "break": "Send BREAK (password recovery, ROMMON)",
+    "export": "Export config: download show running-config as a .txt file",
+    "inject": "Inject script: send a list of commands, line by line",
+    "ctrlAltDel": "Send Ctrl+Alt+Del"
+  },
+  "vnc": {
+    "opening": "Opening screen",
+    "closed": "Screen session closed",
+    "lost": "Connection to the VM screen was lost",
+    "credentials": "The VM asked for a password the platform did not expect"
+  },
+  "session": {
+    "serial": "Serial",
+    "screen": "Screen",
+    "vmAddress": "VM {vmid} on {node}"
+  },
+  "split": {
+    "sidePanel": "Side panel",
+    "resize": "Resize panel and consoles"
+  },
+  "workspace": {
+    "label": "Open consoles",
+    "togglePanel": "Show or hide the side panel",
+    "layoutGroup": "Layout",
+    "layout": {
+      "grid": "Grid layout",
+      "columns": "Columns layout",
+      "rows": "Rows layout"
+    },
+    "textSize": "Text size",
+    "smaller": "Smaller text",
+    "larger": "Larger text",
+    "closeAll": "Close all",
+    "count": {
+      "one": "{count} console open",
+      "other": "{count} consoles open"
+    }
+  },
+  "task": {
+    "stop": "Stop",
+    "showErrors": "Show errors",
+    "hideErrors": "Hide errors",
+    "dismiss": "Dismiss",
+    "keyboardPaused": "Keyboard paused until it finishes",
+    "line": "line {line}",
+    "startingExport": "Starting the export",
+    "startingScript": "Starting the script",
+    "connectFirst": "Connect to the device first."
+  },
+  "script": {
+    "title": "Inject a script into {title}",
+    "commands": "Commands to send",
+    "upload": "Upload file",
+    "hint": "One command per line, as you would type them. Blank lines are sent as Enter (to answer questions like \"[confirm]\"). You can also drop a .txt file here.",
+    "count": {
+      "one": "{count} line to send",
+      "other": "{count} lines to send"
+    },
+    "fileTooLarge": "{name} is larger than 256 KB.",
+    "tooLarge": "The script is larger than 256 KB.",
+    "pacing": "Pacing",
+    "waitPrompt": "Wait for the prompt after each line",
+    "waitPromptHint": "Recommended. The next line goes only once the device has answered.",
+    "delay": "Delay between lines",
+    "delayLabel": "Delay between lines in milliseconds",
+    "ms": "ms",
+    "skipComments": "Skip comment lines starting with \"!\"",
+    "stopOnError": "Stop at the first device error (\"% Invalid input…\")",
+    "send": "Send commands"
+  },
+  "server": {
+    "consoles": {
+      "status_ssh": "Connecting to jump server {host}…",
+      "status_telnet": "Opening console {target}…",
+      "status_connected": "Console connected",
+      "status_login": "Signed in to the console automatically",
+      "telnet_failed": "Could not start telnet on the jump server: {detail}",
+      "closed": "Console closed",
+      "closed_exit": "Console closed (telnet exit code {code})",
+      "session_closed": "Session closed",
+      "browser_gone": "Browser disconnected",
+      "restarting": "Platform is restarting",
+      "idle_timeout": "Closed after {minutes} minutes without input. {name}'s console is free again.",
+      "line_busy": "{name}'s console is already in use by another session",
+      "line_busy_since": "{name}'s console is already in use by another session (since {since})",
+      "platform_full": "The platform has reached its maximum number of open consoles. Try again shortly.",
+      "client_full": "You can keep at most {max} consoles open. Close one first.",
+      "rate_limited": "Too many consoles opened in the last minute. Wait a moment and try again.",
+      "device_gone": "This device no longer exists. Reload the page.",
+      "not_allowed": "{name}'s console address is not on the platform's allow-list.",
+      "invalid_target": "Invalid console address.",
+      "ssh_rejected": "Jump server rejected the SSH credentials (check SSH_USERNAME / SSH_PASSWORD)",
+      "ssh_refused": "Jump server {host}:{port} refused the connection",
+      "ssh_timeout": "Jump server {host} did not answer in time",
+      "ssh_unreachable": "Jump server {host} is unreachable from the platform",
+      "ssh_identity": "Jump server identity check failed (SSH_HOST_FINGERPRINT mismatch)",
+      "ssh_error": "SSH error: {detail}",
+      "ssh_closed": "Connection to the jump server closed"
+    },
+    "automation": {
+      "busy": "Another task is still running on this console.",
+      "busy_task": "Another task ({task}) is still running on this console.",
+      "export_unsupported": "Config export is available on Cisco console devices only.",
+      "script_empty": "The script is empty.",
+      "script_too_large": "The script is larger than 256 KB.",
+      "script_too_long": "The script has more than {max} lines.",
+      "looking_for_prompt": "Looking for the device prompt",
+      "leaving_config": "Leaving configuration mode",
+      "paging_off": "Turning paging off (terminal length 0)",
+      "reading_config": "Reading the running configuration",
+      "restoring_paging": "Restoring paging (terminal length {length})",
+      "user_mode": "{host} is in user mode ({host}>). Type \"enable\" to reach {host}#, then export again.",
+      "device_stopped": "The device stopped sending before the end of the configuration. Nothing was saved.",
+      "device_answered": "The device answered: {detail}",
+      "not_a_config": "The output does not look like a running configuration.",
+      "no_prompt": "No Cisco prompt answered. Log in to the device first (until you see a prompt such as R1#), then try again.",
+      "sending_line": "Sending line {line} of {total}",
+      "done": "Done",
+      "stopped": "Stopped",
+      "exported": {
+        "one": "Exported {count} line of {hostname}'s running-config",
+        "other": "Exported {count} lines of {hostname}'s running-config"
+      },
+      "exported_paging": {
+        "one": "Exported {count} line of {hostname}'s running-config (paging could not be disabled; --More-- pages were skipped through)",
+        "other": "Exported {count} lines of {hostname}'s running-config (paging could not be disabled; --More-- pages were skipped through)"
+      },
+      "sent": {
+        "one": "Sent {sent} of {total} line",
+        "other": "Sent {sent} of {total} lines"
+      },
+      "device_errors": {
+        "one": "{count} device error (line {lines})",
+        "other": "{count} device errors (lines {lines})"
+      },
+      "no_prompt_after": {
+        "one": "No prompt after line {lines}",
+        "other": "No prompt after lines {lines}"
+      },
+      "stopped_on_error": "Stopped at the first error",
+      "waiting_for": "The device is waiting for an answer: \"{question}\""
+    }
+  }
+}

@@ -3,6 +3,7 @@
  */
 import { h, icon, toast, prefs } from '../../core/dom.js';
 import { getJson, live } from '../../core/api.js';
+import { t, tNode, loadNamespace, onLocaleChange } from '../../core/i18n.js';
 import { workspace } from '../../shared/workspace.js';
 import { SplitView } from '../../shared/splitView.js';
 import { consoleSession } from '../../shared/sessions.js';
@@ -10,18 +11,21 @@ import { DiagramView } from './diagramView.js';
 import { LabPicker } from './labPicker.js';
 import { QuickOpen } from './quickOpen.js';
 
-export function mount(el, { navigate }) {
+export async function mount(el, { navigate }) {
+  await loadNamespace('consoles');
   let labs = [];
   let current = null;
   let busy = new Set();
   let version = null;
   let pendingLabName = null;
+  let loadError = null;
+  let notesList = [];
 
   // ── Layout ────────────────────────────────────────────────────────────────
-  const head = h('header.view-head', h('div.view-title', h('h1', 'Lab consoles'), h('p', 'Choose a bench, then click a device.')));
+  const head = h('header.view-head', h('div.view-title', h('h1', tNode('consoles.title')), h('p', tNode('consoles.subtitle'))));
   const picker = new LabPicker(head, { onSelect: (lab) => selectLab(lab) });
   const quick = new QuickOpen({ onPick: (lab, device) => { selectLab(lab); openDevice(device); } });
-  head.append(h('button.find-btn', { type: 'button', onclick: () => quick.open() }, icon('search'), h('span', 'Find a device'), h('kbd', 'Ctrl K')));
+  head.append(h('button.find-btn', { type: 'button', onclick: () => quick.open() }, icon('search'), tNode('consoles.find'), h('kbd', 'Ctrl K')));
 
   const labTitle = h('h2.canvas-title');
   const labHint = h('p.canvas-hint');
@@ -30,7 +34,7 @@ export function mount(el, { navigate }) {
   const canvas = h('div.diagram-canvas');
   const diagramPane = h('div.diagram-pane', h('div.canvas-heading', labTitle, labHint), canvas, notesBtn, notes);
   el.append(head);
-  const split = new SplitView(el, diagramPane, { label: 'Topology', onResize: () => diagram.fit() });
+  const split = new SplitView(el, diagramPane, { labelKey: 'consoles.topology', onResize: () => diagram.fit() });
   const diagram = new DiagramView(canvas, { onOpen: (d) => openDevice(d) });
   workspace.addEventListener('change', () => refreshStates());
 
@@ -48,17 +52,23 @@ export function mount(el, { navigate }) {
     try {
       const data = await getJson('/api/consoles/labs');
       version = data.version;
+      loadError = null;
       labs = data.labs;
       picker.render(labs);
       quick.setLabs(labs);
       renderNotes(data.warnings);
       const keep = labs.find((l) => l.id === current?.id || l.name === pendingLabName) || labs.find((l) => l.name === prefs.get('lab')) || labs[0];
       if (keep) selectLab(keep, true);
-      else labTitle.textContent = 'No labs found in the diagram file';
+      else labTitle.textContent = t('consoles.noLabs');
     } catch (err) {
-      labTitle.textContent = 'The diagram could not be loaded';
-      labHint.textContent = `${err.message}. Check that the platform is running, then reload the page.`;
+      loadError = err.message;
+      writeLoadError();
     }
+  }
+
+  function writeLoadError() {
+    labTitle.textContent = t('consoles.loadFailed');
+    labHint.textContent = t('consoles.loadFailedHint', { error: loadError });
   }
 
   function selectLab(lab, force = false) {
@@ -69,11 +79,15 @@ export function mount(el, { navigate }) {
     navigate(`#/consoles/${encodeURIComponent(lab.name)}`);
     picker.setActive(lab.id);
     labTitle.textContent = lab.name;
-    labHint.textContent = lab.devices.length
-      ? `${lab.devices.length} devices. Click one to open its console.`
-      : 'This page has no device with a console address.';
+    writeHint();
     diagram.render(lab);
     refreshStates();
+  }
+
+  function writeHint() {
+    labHint.textContent = current && current.devices.length
+      ? t('consoles.hint', { count: current.devices.length })
+      : t('consoles.noDevice');
   }
 
   // ── Consoles ──────────────────────────────────────────────────────────────
@@ -83,8 +97,8 @@ export function mount(el, { navigate }) {
     const session = consoleSession(device, current?.name ?? '');
     // Tiles are keyed by console line, so a device shown on several pages reuses its tile
     if (workspace.panes.has(session.key)) return workspace.open(session);
-    if (!device.allowed) return toast(`${device.name}'s console address is not on the platform's allow-list.`, 'warn');
-    if (busy.has(targetOf(device))) return toast(`${device.name}'s console is in use by another session. Try again when it is free.`, 'warn');
+    if (!device.allowed) return toast(t('consoles.notAllowed', { name: device.name }), 'warn');
+    if (busy.has(targetOf(device))) return toast(t('consoles.busy', { name: device.name }), 'warn');
     workspace.open(session);
     diagram.pulse(device.key);
   }
@@ -99,11 +113,22 @@ export function mount(el, { navigate }) {
     picker.setLive(new Set(labs.filter((l) => l.devices.some((d) => mine.has(targetOf(d)))).map((l) => l.id)));
   }
 
-  function renderNotes(warnings = []) {
+  // The warnings themselves come from the server, in English
+  function renderNotes(warnings = notesList) {
+    notesList = warnings;
     notesBtn.hidden = !warnings.length;
-    notesBtn.replaceChildren(icon('warning'), h('span', warnings.length === 1 ? '1 diagram note' : `${warnings.length} diagram notes`));
-    notes.replaceChildren(h('p', 'Found while reading the diagram file:'), h('ul', warnings.map((w) => h('li', w))));
+    notesBtn.replaceChildren(icon('warning'), h('span', t('consoles.notes', { count: warnings.length })));
+    notes.replaceChildren(h('p', tNode('consoles.notesIntro')), h('ul', warnings.map((w) => h('li', w))));
   }
+
+  // Sentences made with a number or a name are written again when the language changes
+  onLocaleChange(() => {
+    renderNotes();
+    if (loadError) writeLoadError();
+    else if (current) writeHint();
+    else if (labs.length === 0 && labTitle.textContent) labTitle.textContent = t('consoles.noLabs');
+    refreshStates();
+  });
 
   // Ctrl+K or "/" opens the device finder - but never steals keys from a terminal
   // (Ctrl+K is "erase to end of line" on Cisco IOS)

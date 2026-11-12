@@ -142,6 +142,32 @@ export async function initI18n({ defaultLocale, namespaces: initial = ['common']
   return locale;
 }
 
+/**
+ * Text and attributes that follow the language by themselves. Built with h(),
+ * they are translated now and again by translateDom() on every language
+ * change - no listener to register or release. Use them for a fixed key;
+ * a text with {params} is rebuilt in an onLocaleChange() listener instead
+ *
+ *   h('button', tAttr('title', 'terminal.pane.reconnect'), icon('reconnect'), tNode('common.actions.close'))
+ */
+export function tAttr(attr, key) {
+  return { [attr]: t(key), [`data-i18n-${attr}`]: key };
+}
+
+/** A <span> (or another `tag`) whose text is the translation of `key` */
+export function tNode(key, tag = 'span') {
+  const el = document.createElement(tag);
+  el.dataset.i18n = key;
+  el.textContent = t(key);
+  return el;
+}
+
+/** Point an existing element's attribute at another key (a button whose title changes with its state) */
+export function setTAttr(el, attr, key) {
+  el.setAttribute(attr, t(key));
+  el.setAttribute(`data-i18n-${attr}`, key);
+}
+
 const ATTRIBUTES = { i18nTitle: 'title', i18nAriaLabel: 'aria-label', i18nPlaceholder: 'placeholder' };
 
 /**

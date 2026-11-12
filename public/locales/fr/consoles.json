@@ -1,0 +1,48 @@
+{
+  "title": "Consoles du labo",
+  "subtitle": "Choisissez une baie, puis cliquez sur un équipement.",
+  "find": "Trouver un équipement",
+  "topology": "Topologie",
+  "noLabs": "Aucune baie trouvée dans le fichier de schéma",
+  "loadFailed": "Impossible de charger le schéma",
+  "loadFailedHint": "{error}. Vérifiez que la plateforme tourne, puis rechargez la page.",
+  "hint": {
+    "one": "{count} équipement. Cliquez dessus pour ouvrir sa console.",
+    "other": "{count} équipements. Cliquez sur l’un d’eux pour ouvrir sa console."
+  },
+  "noDevice": "Cette page ne contient aucun équipement avec une adresse de console.",
+  "notAllowed": "L’adresse de console de {name} n’est pas dans la liste autorisée de la plateforme.",
+  "busy": "La console de {name} est utilisée par une autre session. Réessayez quand elle sera libre.",
+  "notes": {
+    "one": "{count} remarque sur le schéma",
+    "other": "{count} remarques sur le schéma"
+  },
+  "notesIntro": "Relevé à la lecture du fichier de schéma :",
+  "picker": {
+    "label": "Baies",
+    "bay": "Baie {bay}",
+    "devices": {
+      "one": "{name} : {count} équipement",
+      "other": "{name} : {count} équipements"
+    }
+  },
+  "quickOpen": {
+    "placeholder": "Chercher un équipement par nom, baie ou port",
+    "label": "Trouver un équipement",
+    "hint": "Entrée ouvre la console. Échap ferme.",
+    "empty": "Aucun équipement ne correspond. Essayez un nom de baie comme B4B ou un port comme 2001."
+  },
+  "diagram": {
+    "zoomOut": "Zoom arrière",
+    "zoomIn": "Zoom avant",
+    "fit": "Ajuster le schéma à la fenêtre",
+    "topology": "Topologie de {name}",
+    "device": "{name} : {state}"
+  },
+  "state": {
+    "idle": "Libre. Cliquez pour ouvrir la console",
+    "open": "Ouverte dans votre espace de travail",
+    "busy": "Utilisée par une autre session",
+    "disabled": "Adresse de console non autorisée par la plateforme"
+  }
+}

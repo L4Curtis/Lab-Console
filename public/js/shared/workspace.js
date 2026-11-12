@@ -11,6 +11,7 @@
  * (the "show/hide side panel" button)
  */
 import { h, icon, prefs } from '../core/dom.js';
+import { t, tAttr, tNode, onLocaleChange } from '../core/i18n.js';
 import { TerminalPane } from './terminalPane.js';
 import { VncPane } from './vncPane.js';
 
@@ -28,21 +29,22 @@ class Workspace extends EventTarget {
 
     this.countLabel = h('span.ws-count');
     this.layoutBtns = Object.fromEntries(['grid', 'columns', 'rows'].map((l) => [l,
-      h('button.icon-btn', { type: 'button', title: `${l[0].toUpperCase()}${l.slice(1)} layout`, 'aria-pressed': String(l === this.layout), onclick: () => this.setLayout(l) }, icon(l))]));
+      h('button.icon-btn', { type: 'button', ...tAttr('title', `terminal.workspace.layout.${l}`), 'aria-pressed': String(l === this.layout), onclick: () => this.setLayout(l) }, icon(l))]));
     this.tiles = h('div.ws-tiles', { dataset: { layout: this.layout } });
 
-    this.el = h('section.workspace.empty', { 'aria-label': 'Open consoles' },
+    this.el = h('section.workspace.empty', tAttr('aria-label', 'terminal.workspace.label'),
       h('div.ws-toolbar',
-        h('button.icon-btn', { type: 'button', title: 'Show or hide the side panel', onclick: () => this.dispatchEvent(new Event('toggle-primary')) }, icon('sidebar')),
+        h('button.icon-btn', { type: 'button', ...tAttr('title', 'terminal.workspace.togglePanel'), onclick: () => this.dispatchEvent(new Event('toggle-primary')) }, icon('sidebar')),
         this.countLabel,
-        h('div.ws-group', { role: 'group', 'aria-label': 'Layout' }, Object.values(this.layoutBtns)),
-        h('div.ws-group.ws-text-size', { role: 'group', 'aria-label': 'Text size' },
-          h('button.icon-btn', { type: 'button', title: 'Smaller text', onclick: () => this.setFontSize(this.fontSize - 1) }, icon('textSmaller')),
-          h('button.icon-btn', { type: 'button', title: 'Larger text', onclick: () => this.setFontSize(this.fontSize + 1) }, icon('textLarger'))),
-        h('button.btn.subtle', { type: 'button', onclick: () => this.closeAll() }, 'Close all')),
+        h('div.ws-group', { role: 'group', ...tAttr('aria-label', 'terminal.workspace.layoutGroup') }, Object.values(this.layoutBtns)),
+        h('div.ws-group.ws-text-size', { role: 'group', ...tAttr('aria-label', 'terminal.workspace.textSize') },
+          h('button.icon-btn', { type: 'button', ...tAttr('title', 'terminal.workspace.smaller'), onclick: () => this.setFontSize(this.fontSize - 1) }, icon('textSmaller')),
+          h('button.icon-btn', { type: 'button', ...tAttr('title', 'terminal.workspace.larger'), onclick: () => this.setFontSize(this.fontSize + 1) }, icon('textLarger'))),
+        h('button.btn.subtle', { type: 'button', onclick: () => this.closeAll() }, tNode('terminal.workspace.closeAll'))),
       this.tiles);
     new ResizeObserver(() => this.#arrange()).observe(this.tiles);
     addEventListener('pagehide', () => this.closeAll()); // hang up cleanly when the tab goes away
+    onLocaleChange(() => this.#arrange()); // the count of open consoles is a sentence
   }
 
   /** Opens (or focuses) the tile for a session descriptor */
@@ -146,7 +148,7 @@ class Workspace extends EventTarget {
   /** Computes the grid for the current layout and tile count */
   #arrange() {
     const n = this.panes.size;
-    this.countLabel.textContent = n === 1 ? '1 console open' : `${n} consoles open`;
+    this.countLabel.textContent = t('terminal.workspace.count', { count: n });
     this.el.classList.toggle('empty', n === 0);
     if (!n) return;
 

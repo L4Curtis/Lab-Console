@@ -21,9 +21,16 @@ const DEVICE_ERROR = /^% [^\n]+/m;                            // "% Invalid inpu
 const SYSLOG_LINE = /^(?:\*?[A-Z][a-z]{2}\s+\d+\s+\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:\s+\w+)?:\s*)?%[A-Z0-9_]+-\d-[A-Z0-9_]+:/;
 const MORE = /--More--\s*$/;
 
-export class AutomationError extends Error {}
+/** `code` and `params` let the browser show the message in the user's language (the sentence stays English) */
+export class AutomationError extends Error {
+  constructor(message, code = null, params = {}) {
+    super(message);
+    this.code = code;
+    this.params = params;
+  }
+}
 class Cancelled extends AutomationError {
-  constructor() { super('Stopped'); this.cancelled = true; }
+  constructor() { super('Stopped', 'automation.stopped'); this.cancelled = true; }
 }
 
 export class CliAutomation {
@@ -81,24 +88,24 @@ export class CliAutomation {
    */
   exportRunningConfig(progress = () => {}, { restoreLength = 24 } = {}) {
     return this.#run('export', async () => {
-      progress('Looking for the device prompt');
+      progress('Looking for the device prompt', { code: 'automation.looking_for_prompt' });
       let p = await this.#findCiscoPrompt();
       if (p.configMode) {
-        progress('Leaving configuration mode');
+        progress('Leaving configuration mode', { code: 'automation.leaving_config' });
         this.#clear(); this.write('end\r');
         p = await this.#findCiscoPrompt(false);
       }
       if (p.mark === '>') {
-        throw new AutomationError(`${p.host} is in user mode (${p.host}>). Type "enable" to reach ${p.host}#, then export again.`);
+        throw new AutomationError(`${p.host} is in user mode (${p.host}>). Type "enable" to reach ${p.host}#, then export again.`, 'automation.user_mode', { host: p.host });
       }
       const promptAtEnd = new RegExp(`(?:^|\\n)${escapeRe(p.host)}# ?$`);
 
-      progress('Turning paging off (terminal length 0)');
+      progress('Turning paging off (terminal length 0)', { code: 'automation.paging_off' });
       this.#clear(); this.write('terminal length 0\r');
       await this.#waitFor((b) => promptAtEnd.test(b), { timeout: 6000 });
       const pagingOff = !DEVICE_ERROR.test(this.#buf);
 
-      progress('Reading the running configuration');
+      progress('Reading the running configuration', { code: 'automation.reading_config' });
       this.#autoMore = true; // safety net: some platforms (or old images) ignore terminal length
       this.#clear(); this.write('show running-config\r');
       const complete = await this.#waitFor((b) => promptAtEnd.test(b), { timeout: 180_000, idle: 20_000, settle: 400 });
@@ -106,16 +113,18 @@ export class CliAutomation {
       const captured = this.#buf;
 
       if (pagingOff) {
-        progress(`Restoring paging (terminal length ${restoreLength})`);
+        progress(`Restoring paging (terminal length ${restoreLength})`, { code: 'automation.restoring_paging', params: { length: restoreLength } });
         this.#clear(); this.write(`terminal length ${restoreLength}\r`);
         await this.#waitFor((b) => promptAtEnd.test(b), { timeout: 6000 });
       }
-      if (!complete) throw new AutomationError('The device stopped sending before the end of the configuration. Nothing was saved.');
+      if (!complete) throw new AutomationError('The device stopped sending before the end of the configuration. Nothing was saved.', 'automation.device_stopped');
 
       const config = cleanRunningConfig(captured, promptAtEnd);
       const deviceError = config.match(DEVICE_ERROR);
       if (!/^(version|hostname|end)\b/m.test(config)) {
-        throw new AutomationError(deviceError ? `The device answered: ${deviceError[0]}` : 'The output does not look like a running configuration.');
+        throw deviceError
+          ? new AutomationError(`The device answered: ${deviceError[0]}`, 'automation.device_answered', { detail: deviceError[0] })
+          : new AutomationError('The output does not look like a running configuration.', 'automation.not_a_config');
       }
       return { hostname: p.host, config, pagingFallback: !pagingOff };
     });
@@ -150,7 +159,7 @@ export class CliAutomation {
       let sent = 0;
       for (const { n, text } of lines) {
         this.#checkCancelled();
-        progress(`Sending line ${sent + 1} of ${lines.length}`, { done: sent, total: lines.length });
+        progress(`Sending line ${sent + 1} of ${lines.length}`, { done: sent, total: lines.length, code: 'automation.sending_line', params: { line: sent + 1, total: lines.length } });
         this.#clear();
         await this.#type(`${text}\r`, o);
         sent++;
@@ -174,7 +183,7 @@ export class CliAutomation {
         }
         await this.#sleep(o.delayMs);
       }
-      progress('Done', { done: sent, total: lines.length });
+      progress('Done', { done: sent, total: lines.length, code: 'automation.done' });
       // Left at a question after the last line? ("Destination filename [startup-config]?")
       const lastLine = this.#buf.split('\n').at(-1).trim();
       const waitingFor = QUESTION.test(lastLine) && !ANY_PROMPT.test(`\n${lastLine}`) ? lastLine : null;
@@ -185,7 +194,7 @@ export class CliAutomation {
   // ── Internals ─────────────────────────────────────────────────────────────
 
   async #run(task, fn) {
-    if (this.#task) throw new AutomationError(`Another task (${this.#task}) is still running on this console.`);
+    if (this.#task) throw new AutomationError(`Another task (${this.#task}) is still running on this console.`, 'automation.busy_task', { task: this.#task });
     this.#task = task;
     this.#cancelled = false;
     this.#buf = '';
@@ -202,7 +211,7 @@ export class CliAutomation {
   async #findCiscoPrompt(nudge = true) {
     if (nudge) { this.#clear(); this.write('\r'); }
     const ok = await this.#waitFor((b) => CISCO_PROMPT.test(b), { timeout: 6000, settle: 150 });
-    if (!ok) throw new AutomationError('No Cisco prompt answered. Log in to the device first (until you see a prompt such as R1# ), then try again.');
+    if (!ok) throw new AutomationError('No Cisco prompt answered. Log in to the device first (until you see a prompt such as R1# ), then try again.', 'automation.no_prompt');
     const [, host, configMode, mark] = this.#buf.match(CISCO_PROMPT);
     return { host, configMode: Boolean(configMode), mark };
   }

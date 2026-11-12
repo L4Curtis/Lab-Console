@@ -3,6 +3,7 @@
  * name, lab or port (e.g. "b5h r2", "2014")
  */
 import { h, icon } from '../../core/dom.js';
+import { t, tAttr, tNode, onLocaleChange } from '../../core/i18n.js';
 
 export class QuickOpen {
   #items = [];
@@ -11,11 +12,11 @@ export class QuickOpen {
 
   constructor({ onPick }) {
     this.onPick = onPick;
-    this.input = h('input.qo-input', { type: 'search', placeholder: 'Find a device by name, lab or port', 'aria-label': 'Find a device', autocomplete: 'off', spellcheck: 'false' });
+    this.input = h('input.qo-input', { type: 'search', ...tAttr('placeholder', 'consoles.quickOpen.placeholder'), ...tAttr('aria-label', 'consoles.quickOpen.label'), autocomplete: 'off', spellcheck: 'false' });
     this.list = h('ul.qo-list', { role: 'listbox' });
-    this.dialog = h('dialog.quick-open', { 'aria-label': 'Find a device' },
+    this.dialog = h('dialog.quick-open', tAttr('aria-label', 'consoles.quickOpen.label'),
       h('div.qo-field', icon('search'), this.input), this.list,
-      h('p.qo-hint', 'Enter opens the console. Esc closes.'));
+      h('p.qo-hint', tNode('consoles.quickOpen.hint')));
     document.body.append(this.dialog);
 
     this.input.addEventListener('input', () => this.#filter());
@@ -25,6 +26,7 @@ export class QuickOpen {
       if (e.key === 'Enter' && this.#results[this.#index]) { e.preventDefault(); this.#pick(this.#results[this.#index]); }
     });
     this.dialog.addEventListener('click', (e) => { if (e.target === this.dialog) this.dialog.close(); });
+    onLocaleChange(() => { if (this.dialog.open) this.#filter(); }); // the "no match" line is a sentence
   }
 
   setLabs(labs) {
@@ -43,12 +45,12 @@ export class QuickOpen {
 
   #filter() {
     const terms = this.input.value.toLowerCase().split(/\s+/).filter(Boolean);
-    this.#results = this.#items.filter((it) => terms.every((t) => it.haystack.includes(t))).slice(0, 50);
+    this.#results = this.#items.filter((it) => terms.every((term) => it.haystack.includes(term))).slice(0, 50);
     this.#index = 0;
     this.list.replaceChildren(...this.#results.map((it, i) =>
       h('li.qo-item', { role: 'option', onclick: () => this.#pick(it), onpointermove: () => this.#select(i) },
         h('strong', it.device.name), h('span', it.lab.name), h('code', `${it.device.target.host}:${it.device.target.port}`))));
-    if (!this.#results.length) this.list.append(h('li.qo-empty', 'No device matches. Try a lab name like B4B or a port like 2001.'));
+    if (!this.#results.length) this.list.append(h('li.qo-empty', t('consoles.quickOpen.empty')));
     this.#select(0);
   }
 

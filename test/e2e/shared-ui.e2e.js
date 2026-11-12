@@ -380,3 +380,18 @@ test('no error was logged by the page during the whole run', () => {
   const expected = ['[tabs] broken', 'does-not-exist.css'];
   assert.deepEqual(pageErrors.filter((m) => !expected.some((e) => m.includes(e))), []);
 });
+
+test('language switch: the FR / EN buttons in the rail change the screen at once and persist', async () => {
+  await page.click('.lang-btn[data-lang="en"]');
+  await page.waitForFunction(() => document.documentElement.lang === 'en');
+  assert.equal(await page.getAttribute('.lang-btn[data-lang="en"]', 'aria-pressed'), 'true');
+  assert.equal(await page.getAttribute('.lang-btn[data-lang="fr"]', 'aria-pressed'), 'false');
+  assert.equal(await page.locator('#theme-toggle span').textContent(), 'Theme');
+  assert.ok(await page.locator('section.view-consoles svg').count() > 0, 'the open screen was not rebuilt');
+  await page.reload();
+  await page.waitForSelector('#rail-items .rail-btn');
+  assert.equal(await page.getAttribute('html', 'lang'), 'en', 'the choice survives a reload');
+  await page.click('.lang-btn[data-lang="fr"]');
+  await page.waitForFunction(() => document.documentElement.lang === 'fr');
+  assert.equal(await page.locator('#theme-toggle span').textContent(), 'Thème');
+});

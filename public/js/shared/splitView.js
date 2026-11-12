@@ -4,6 +4,7 @@
  * visible section's SplitView holds the workspace (activate() moves it in)
  */
 import { h, prefs } from '../core/dom.js';
+import { tAttr } from '../core/i18n.js';
 import { workspace } from './workspace.js';
 
 let activeSplit = null;
@@ -11,10 +12,11 @@ workspace.addEventListener('change', () => activeSplit?.sync());
 workspace.addEventListener('toggle-primary', () => activeSplit?.togglePrimary());
 
 export class SplitView {
-  constructor(container, primary, { onResize, label = 'Side panel' } = {}) {
+  /** `labelKey` names the side panel for assistive technology and follows the language; `label` is a fixed text */
+  constructor(container, primary, { onResize, label, labelKey = 'terminal.split.sidePanel' } = {}) {
     this.onResize = onResize;
-    this.primary = h('section.split-primary', { 'aria-label': label }, primary);
-    this.splitter = h('div.splitter', { role: 'separator', 'aria-orientation': 'vertical', 'aria-label': 'Resize panel and consoles', tabindex: 0 });
+    this.primary = h('section.split-primary', label ? { 'aria-label': label } : tAttr('aria-label', labelKey), primary);
+    this.splitter = h('div.splitter', { role: 'separator', 'aria-orientation': 'vertical', ...tAttr('aria-label', 'terminal.split.resize'), tabindex: 0 });
     this.el = h('div.split-body', { dataset: { primary: 'shown', terminals: 'false' } }, this.primary, this.splitter);
     container.append(this.el);
     this.#bindSplitter();

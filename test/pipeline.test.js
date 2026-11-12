@@ -202,7 +202,7 @@ describe('anonymous auth (AUTH_MODE=off): the application behaves as upstream', 
   test('WebSocket: unknown device is refused by the module, as upstream', async () => {
     const { ws, messages } = await connect(lab, '/ws/console?device=nope');
     await closed(ws);
-    assert.deepEqual(messages, [{ type: 'error', message: 'This device no longer exists. Reload the page.' }]);
+    assert.deepEqual(messages, [{ type: 'error', message: 'This device no longer exists. Reload the page.', code: 'consoles.device_gone', params: {} }]);
   });
 
   test('WebSocket: a foreign origin is refused, an unknown path is a 404', async () => {
