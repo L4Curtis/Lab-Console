@@ -17,11 +17,11 @@
     "other": "Autres",
     "open": "Ouvrir la console",
     "show": "Afficher la console",
-    "busy": "{name} est utilisé par une autre session. Réessayez quand il sera libre.",
+    "busy": "La console de {name} est utilisée par une autre session. Réessayez quand elle sera libre.",
     "state": {
       "idle": "Libre",
       "open": "Ouvert dans votre espace de travail",
-      "busy": "Utilisé par une autre session",
+      "busy": "Utilisée par une autre session",
       "disabled": "Hors de la liste autorisée"
     }
   },
@@ -57,7 +57,7 @@
     },
     "foot": "{vms}. {templates} à cloner.",
     "rowLabel": "{action} {name}",
-    "serial": "Série",
+    "serial": "Console série",
     "vnc": "VNC",
     "noSerial": "Pas de port série sur cette VM (ajoutez serial0: socket dans Proxmox)",
     "serialTitle": "Console texte dans l’espace de travail",

@@ -111,7 +111,7 @@
       "rate_limited": "Too many consoles opened in the last minute. Wait a moment and try again.",
       "device_gone": "This device no longer exists. Reload the page.",
       "not_allowed": "{name}'s console address is not on the platform's allow-list.",
-      "invalid_target": "Invalid console address.",
+      "invalid_target": "Invalid console address: {detail}",
       "ssh_rejected": "Jump server rejected the SSH credentials (check SSH_USERNAME / SSH_PASSWORD)",
       "ssh_refused": "Jump server {host}:{port} refused the connection",
       "ssh_timeout": "Jump server {host} did not answer in time",

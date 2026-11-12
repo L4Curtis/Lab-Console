@@ -102,7 +102,7 @@ export function createConsolesModule({ config, events, logger, infra, services }
         logger: log,
       });
     } catch (err) {
-      return refuse(err.message, 'consoles.invalid_target');
+      return refuse(err.message, 'consoles.invalid_target', { detail: err.message });
     }
     sessions.register(session, device, clientId);
 

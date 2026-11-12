@@ -118,7 +118,7 @@ test('server messages: the placeholders of a translation are the params the serv
     'consoles.status_ssh': ['host'], 'consoles.status_telnet': ['target'], 'consoles.telnet_failed': ['detail'], 'consoles.closed_exit': ['code'],
     'consoles.idle_timeout': ['minutes', 'name'], 'consoles.line_busy': ['name', 'since'], 'consoles.line_busy_since': ['name', 'since'],
     'consoles.client_full': ['max'], 'consoles.not_allowed': ['name'], 'consoles.ssh_refused': ['host', 'port'], 'consoles.ssh_timeout': ['host'],
-    'consoles.ssh_unreachable': ['host'], 'consoles.ssh_error': ['detail'],
+    'consoles.ssh_unreachable': ['host'], 'consoles.ssh_error': ['detail'], 'consoles.invalid_target': ['detail'],
     'automation.busy_task': ['task'], 'automation.script_too_long': ['max'], 'automation.restoring_paging': ['length'], 'automation.user_mode': ['host'],
     'automation.device_answered': ['detail'], 'automation.sending_line': ['line', 'total'], 'automation.exported': ['count', 'hostname'],
     'automation.exported_paging': ['count', 'hostname'], 'automation.sent': ['sent', 'total', 'count'], 'automation.device_errors': ['count', 'lines'],

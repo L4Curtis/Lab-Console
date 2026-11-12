@@ -17,7 +17,9 @@ import { startTestApp, tempDataDir, repoRoot, silentLogger } from './helpers/app
 import { SessionManager } from '../src/modules/consoles/sessionManager.js';
 import { ConsoleSession } from '../src/modules/consoles/consoleSession.js';
 import { createAutomationHandler } from '../src/lib/automationProtocol.js';
-import { AutomationError } from '../src/lib/cliAutomation.js';
+import { AutomationError, CliAutomation } from '../src/lib/cliAutomation.js';
+import { FakeIos } from '../dev/fakeIos.js';
+import { sshErrorInfo } from '../src/lib/ssh.js';
 import { LabRegistry } from '../src/modules/consoles/labRegistry.js';
 
 // ── Rendering as the browser does ───────────────────────────────────────────
@@ -280,6 +282,34 @@ test('frames: a telnet that exits with a code, and one that simply ends', async 
       jump.server.close();
     }
   }
+});
+
+test('frames: a refused target keeps the detail, a host key mismatch has its own sentence', async () => {
+  assert.throws(() => new ConsoleSession({ target: { host: 'bad host;', port: 2001 }, ssh: {}, telnet: {}, logger: silentLogger() }), /Invalid console host/);
+  const err = new Error('Host denied (verification failed)');
+  const info = sshErrorInfo(err, { host: 'jump', port: 22 });
+  assert.equal(info.code, 'consoles.ssh_identity');
+  assert.match((await render({ type: 'exit', message: info.message, ...info })).fr, /SSH_HOST_FINGERPRINT/);
+  const detail = 'Invalid console port';
+  const text = await render({ type: 'error', message: detail, code: 'consoles.invalid_target', params: { detail } });
+  assert.ok(text.fr.includes(detail) && text.en.includes(detail));
+});
+
+test('frames: the steps of an export carry their codes', async () => {
+  let cli;
+  const ios = new FakeIos({ hostname: 'S1', out: (s) => setImmediate(() => cli.feed(s)), username: 'u', password: 'p' });
+  cli = new CliAutomation({ write: (s) => setImmediate(() => ios.input(s)) });
+  ios.state = 'exec';
+  ios.mode = 'config-if';
+  const steps = [];
+  try {
+    await cli.exportRunningConfig((message, p) => steps.push({ message, ...p }));
+  } finally {
+    ios.stop();
+  }
+  assert.deepEqual(steps.map((s) => s.code), ['automation.looking_for_prompt', 'automation.leaving_config', 'automation.paging_off', 'automation.reading_config', 'automation.restoring_paging']);
+  for (const s of steps) await render(s);
+  assert.deepEqual(steps.at(-1).params, { length: 24 });
 });
 
 // ── The diagram ─────────────────────────────────────────────────────────────

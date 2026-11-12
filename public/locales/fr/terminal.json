@@ -111,7 +111,7 @@
       "rate_limited": "Trop de consoles ouvertes en une minute. Patientez un instant et réessayez.",
       "device_gone": "Cet équipement n’existe plus. Rechargez la page.",
       "not_allowed": "L’adresse de console de {name} n’est pas dans la liste autorisée de la plateforme.",
-      "invalid_target": "Adresse de console invalide.",
+      "invalid_target": "Adresse de console invalide : {detail}",
       "ssh_rejected": "Le serveur de rebond a refusé les identifiants SSH (vérifiez SSH_USERNAME et SSH_PASSWORD)",
       "ssh_refused": "Le serveur de rebond {host}:{port} a refusé la connexion",
       "ssh_timeout": "Le serveur de rebond {host} n’a pas répondu à temps",
