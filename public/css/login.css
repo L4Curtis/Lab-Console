@@ -1,0 +1,76 @@
+/* The sign-in page (public/login.html). Uses the custom properties of
+   app.css so the light and dark themes both work */
+
+.login-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px 16px;
+  background: var(--paper);
+  background-image: radial-gradient(var(--paper-dot) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+
+.login-card {
+  width: min(400px, 100%);
+  display: grid;
+  gap: 18px;
+  padding: 28px 26px 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  color: var(--ink);
+}
+
+.login-brand { display: flex; align-items: center; gap: 14px; }
+.login-brand svg { width: 42px; height: 42px; flex: none; }
+.login-brand rect { fill: var(--console); }
+.login-brand path { fill: none; stroke: #fff; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.login-brand h1 { margin: 0; font-size: 20px; font-weight: 600; }
+.login-sub { margin: 2px 0 0; color: var(--ink-2); font-size: 13.5px; }
+
+.login-message {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  border-left: 3px solid var(--led-amber);
+  background: var(--surface-2);
+  font-size: 13.5px;
+  line-height: 1.45;
+}
+
+.login-sso .btn, .login-local .btn { text-decoration: none; }
+.login-extra:empty { display: none; }
+
+.login-local summary {
+  cursor: pointer;
+  color: var(--ink-2);
+  font-size: 13px;
+  width: fit-content;
+}
+.login-local summary:hover { color: var(--ink); }
+.login-local summary:focus-visible { outline: 2px solid var(--console); outline-offset: 2px; border-radius: 4px; }
+.login-local[open] summary { margin-bottom: 10px; color: var(--ink); font-weight: 600; }
+.login-hint { margin: 0 0 12px; color: var(--ink-3); font-size: 12.5px; line-height: 1.4; }
+
+.login-local form { display: grid; gap: 6px; }
+.login-local label { font-size: 13px; color: var(--ink-2); margin-top: 6px; }
+.login-local input {
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--device-tile);
+  color: var(--ink);
+  font: inherit;
+}
+.login-local input:focus-visible { outline: 2px solid var(--console); outline-offset: 0; border-color: var(--console); }
+#local-code { font-family: var(--mono); letter-spacing: .3em; width: 9.5em; }
+.login-local small { color: var(--ink-3); font-size: 12px; }
+.login-local .btn { margin-top: 12px; }
+
+.login-error { margin: 6px 0 0; color: var(--led-red); font-size: 13px; line-height: 1.4; }
+
+.login-langs { display: flex; justify-content: center; gap: 4px; border-top: 1px solid var(--line); padding-top: 10px; }
+.login-langs [aria-pressed="true"] { color: var(--ink); font-weight: 600; }

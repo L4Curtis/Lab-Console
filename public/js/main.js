@@ -10,6 +10,7 @@ import { h, icon, prefs } from './core/dom.js';
 import { getJson } from './core/api.js';
 import { loadSession } from './core/session.js';
 import { initI18n } from './core/i18n.js';
+import { mountUserMenu } from './core/userMenu.js';
 
 const MODULES = [
   { id: 'consoles', path: 'consoles', title: 'Consoles', icon: 'topology', load: () => import('./modules/consoles/index.js') },
@@ -30,6 +31,7 @@ async function init() {
   // Who is signed in, then the language: both must be known before any screen is built
   const session = await loadSession();
   await initI18n({ defaultLocale: session.locale });
+  mountUserMenu();
 
   // The backend says which modules are live; disabled ones show a "soon" tag
   let status = [];

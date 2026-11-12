@@ -1,0 +1,39 @@
+/* The user menu at the bottom of the rail (public/js/core/userMenu.js) */
+
+.user-menu-root { position: relative; margin-top: 8px; }
+.user-menu-btn { justify-content: center; }
+.user-menu-btn:focus-visible { outline: 2px solid var(--console); outline-offset: 2px; }
+.user-badge {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .02em;
+}
+
+.user-menu {
+  position: absolute;
+  left: calc(100% + 10px);
+  bottom: 0;
+  z-index: 50;
+  width: 230px;
+  display: grid;
+  gap: 4px;
+  padding: 14px;
+  background: var(--surface);
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.user-menu[hidden] { display: none; }
+.user-menu-label { color: var(--ink-3); font-size: 12px; }
+.user-menu-name { font-size: 14px; overflow-wrap: anywhere; }
+.user-menu-meta { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; color: var(--ink-2); font-size: 12.5px; }
+.user-menu-role { padding: 1px 7px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); }
+.user-menu-role[data-role="admin"] { border-color: var(--console); color: var(--console-strong); }
+.user-menu-out { margin-top: 10px; }

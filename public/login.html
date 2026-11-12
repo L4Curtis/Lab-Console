@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title data-i18n="auth.login.pageTitle">Lab Console</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <!-- Only public assets: this page is served to people who are not signed in -->
+  <link rel="stylesheet" href="/vendor/fonts/plex-sans/400.css" />
+  <link rel="stylesheet" href="/vendor/fonts/plex-sans/600.css" />
+  <link rel="stylesheet" href="/css/app.css" />
+  <link rel="stylesheet" href="/css/login.css" />
+  <script type="module" src="/js/login.js"></script>
+</head>
+<body class="login-page">
+  <main class="login-card" aria-labelledby="login-title">
+    <div class="login-brand">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="6" width="24" height="20" rx="4" /><path d="M10 14l4 3-4 3M16 21h6" /></svg>
+      <div>
+        <h1 id="login-title" data-i18n="auth.login.title"></h1>
+        <p class="login-sub" data-i18n="auth.login.subtitle"></p>
+      </div>
+    </div>
+
+    <p class="login-message" id="login-message" role="alert" hidden></p>
+
+    <!-- Identity provider: what students use -->
+    <section class="login-sso" id="login-sso" hidden>
+      <a class="btn primary wide" id="sso-button" href="/auth/login"></a>
+    </section>
+
+    <!-- Room for other one-click ways in (a passkey button), filled by later versions -->
+    <section class="login-extra" id="login-extra" hidden></section>
+
+    <!-- Local administrator: user name, password and one-time code, sent together -->
+    <details class="login-local" id="login-local">
+      <summary data-i18n="auth.login.localToggle"></summary>
+      <p class="login-hint" id="local-hint"></p>
+      <form id="local-form" method="post" action="/auth/local" novalidate>
+        <label for="local-username" data-i18n="auth.login.username"></label>
+        <input id="local-username" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="64" required />
+        <label for="local-password" data-i18n="auth.login.password"></label>
+        <input id="local-password" name="password" type="password" autocomplete="current-password" maxlength="1024" required />
+        <label for="local-code" data-i18n="auth.login.code"></label>
+        <input id="local-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required aria-describedby="local-code-hint" />
+        <small id="local-code-hint" data-i18n="auth.login.codeHint"></small>
+        <p class="login-error" id="local-error" role="alert" hidden></p>
+        <button class="btn primary wide" id="local-submit" type="submit" data-i18n="auth.login.submit"></button>
+      </form>
+    </details>
+
+    <nav class="login-langs" id="login-langs" data-i18n-aria-label="auth.login.language">
+      <button type="button" class="btn subtle small" data-lang="fr" lang="fr" data-i18n="auth.login.languages.fr"></button>
+      <button type="button" class="btn subtle small" data-lang="en" lang="en" data-i18n="auth.login.languages.en"></button>
+    </nav>
+  </main>
+</body>
+</html>
