@@ -28,6 +28,7 @@ export class EventHub {
       Connection: 'keep-alive',
       'X-Accel-Buffering': 'no', // nginx: don't buffer the stream
     });
+    res.on?.('error', () => {}); // a tab that vanished mid-write is not an incident
     res.write('retry: 3000\n\n');
     for (const [topic, { data, audience }] of this.#snapshots) {
       if (this.#allowed(audience, client.user, topic)) send(res, topic, data);

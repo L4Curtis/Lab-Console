@@ -153,6 +153,14 @@ test('json: a corrupt file is set aside, not overwritten silently', async () => 
   assert.equal(fs.readFileSync(path.join(dir, 'collab', kept[0]), 'utf8'), '{ "half": ');
 });
 
+test('json: a file that cannot be read is an error every time, never an empty document', async () => {
+  fs.mkdirSync(path.join(dir, 'state.json')); // a directory where the file should be
+  const doc = store.json('state.json', { safe: true });
+  assert.throws(() => doc.get(), /EISDIR/);
+  assert.throws(() => doc.get(), /EISDIR/, 'not cached as "loaded"');
+  await assert.rejects(doc.update((d) => d), /EISDIR/);
+});
+
 test('jsonl: append then read, in order', async () => {
   const log = store.jsonl('collab/chat/B4M.jsonl');
   assert.deepEqual(await log.read(), [], 'a log that does not exist yet is empty');

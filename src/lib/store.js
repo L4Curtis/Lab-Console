@@ -157,15 +157,16 @@ export function createStore(dataDir, { logger } = {}) {
 
     const load = () => {
       if (loaded) return;
-      loaded = true;
       let text;
       try {
         text = fs.readFileSync(file, 'utf8');
       } catch (err) {
-        if (err.code !== 'ENOENT') throw err;
+        if (err.code !== 'ENOENT') throw err; // unreadable: say so on every access, never pretend it is empty
         value = clone(fallback);
+        loaded = true;
         return;
       }
+      loaded = true;
       try {
         value = JSON.parse(text);
       } catch (err) {
