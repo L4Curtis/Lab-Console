@@ -1,13 +1,15 @@
 /**
- * The two cookies of the sign-in module (ARCHITECTURE §5)
+ * The cookies of the sign-in module (ARCHITECTURE §5)
  *
  *   session   `__Host-lc_sid` over https, `lc_sid` over http
  *   login     `__Host-lc_login` / `lc_login`: ties a sign-in in progress at the
  *             identity provider to the browser that started it (10 minutes)
+ *   device    `__Host-lc_device` / `lc_device`: a browser that already signed
+ *             in on the local form (devices.js), 180 days
  *
  * Over https the `__Host-` prefix makes the browser itself enforce `Secure`,
  * `Path=/` and no `Domain`, so a sibling sub-domain cannot plant or read the
- * cookie. Both are `HttpOnly` (scripts never see them) and `SameSite=Lax`
+ * cookie. All are `HttpOnly` (scripts never see them) and `SameSite=Lax`
  * (sent on the redirect coming back from the provider, never on another
  * site's background requests). The plain names only exist for http, that is
  * for development and tests: browsers refuse `__Host-` without TLS
@@ -17,7 +19,7 @@
 export function cookieSettings(publicUrl) {
   const secure = String(publicUrl ?? '').startsWith('https://');
   const prefix = secure ? '__Host-' : '';
-  return Object.freeze({ secure, session: `${prefix}lc_sid`, login: `${prefix}lc_login` });
+  return Object.freeze({ secure, session: `${prefix}lc_sid`, login: `${prefix}lc_login`, device: `${prefix}lc_device` });
 }
 
 /** Read one cookie from a request (Express or raw upgrade). Only an exact name matches */

@@ -12,6 +12,7 @@ import WebSocket from 'ws';
 import express from 'express';
 import { createAuth, requireAuth, requireRole, createUser, hasRole, ROLES } from '../src/modules/auth/index.js';
 import { startTestApp, loadTestConfig, adminCode, silentLogger } from './helpers/app.js';
+import fs from 'node:fs';
 import { student, admin, fakeRequest, fakeResponse } from './helpers/fakes.js';
 import { TestBrowser, postLocalSignIn } from './helpers/browser.js';
 import { createStore } from '../src/lib/store.js';
@@ -284,6 +285,135 @@ describe('local administrator sign-in', () => {
     const huge = await send({ origin: lab.url }, JSON.stringify({ password: 'x'.repeat(10_000) }));
     assert.equal(huge.status, 413);
     assert.equal((await huge.json()).code, 'server.too_large');
+  });
+
+  test('a stranger keeping the name backed off and the global count full does not keep the administrator out of a known browser', async () => {
+    freshStart();
+    const mine = new TestBrowser();
+    const first = await post({ ip: '192.0.2.50' }, mine);
+    assert.equal(first.status, 200);
+    await first.arrayBuffer();
+    const deviceCookie = first.headers.getSetCookie().find((line) => line.startsWith('lc_device='));
+    assert.match(deviceCookie, /^lc_device=[\w-]{71}; Path=\/; HttpOnly; SameSite=Lax; Max-Age=15552000$/);
+
+    // The attack: wrong guesses on the administrator's name as soon as its
+    // backoff allows, then random names from many addresses up to fifty failures
+    let attacker = 0;
+    const guess = async (username) => {
+      attacker += 1;
+      const res = await post({ ip: `198.18.${attacker >> 4}.${attacker & 15}`, username, password: 'guess-guess-guess' });
+      await res.arrayBuffer();
+      return res.status;
+    };
+    for (let i = 0; i < 6; i++) {
+      assert.equal(await guess('root'), 401);
+      c.advance(2 ** Math.max(0, i - 1) * 1000);
+    }
+    for (let i = 0; i < 44; i++) assert.equal(await guess(`name${i}`), 401, `guess ${i}`); // fifty failures in all
+    assert.equal(await guess('someone-else'), 429, 'the global count is full');
+    assert.equal(await guess('root'), 429, 'and the name is backed off');
+
+    c.advance(31_000); // a new code
+    const stranger = await post({ ip: '192.0.2.51' });
+    assert.equal(stranger.status, 429, 'a browser that never signed in meets them');
+    await stranger.arrayBuffer();
+    const back = await post({ ip: '192.0.2.52' }, mine);
+    assert.equal(back.status, 200, 'the known browser gets in, from any address');
+    await back.arrayBuffer();
+    const [entry] = await lab.deps.audit.query({ action: 'auth.login' });
+    assert.equal(entry.action, 'auth.login');
+    assert.equal(entry.details.knownBrowser, true);
+
+    // The cookie only counts for its own name, and is limited on its own
+    const other = await postLocalSignIn(lab, { username: 'someone', password: 'x-x-x-x-x-x', code: adminCode(c.ms), ip: '192.0.2.53' }, mine);
+    assert.equal(other.status, 429, 'for another name the browser is a stranger');
+    await other.arrayBuffer();
+    for (let i = 0; i < 2; i++) {
+      const wrong = await post({ ip: '192.0.2.54', password: 'not-the-password' }, mine);
+      assert.equal(wrong.status, 401);
+      await wrong.arrayBuffer();
+    }
+    const slowed = await post({ ip: '192.0.2.54', password: 'not-the-password' }, mine);
+    assert.equal(slowed.status, 429, 'its own backoff');
+    assert.equal(slowed.headers.get('retry-after'), '1');
+    await slowed.arrayBuffer();
+  });
+
+  test('refusals anyone can send for free write a bounded number of audit entries', async () => {
+    freshStart();
+    const count = async (ip) => (await lab.deps.audit.query({ action: 'auth.login', limit: 5000 })).filter((e) => e.ip === ip).length;
+    const ip = '192.0.2.60';
+    for (let i = 0; i < 5; i++) await (await post({ ip, username: `x${i}`, password: 'nope-nope-nope' })).arrayBuffer();
+    assert.equal(await count(ip), 5, 'attempts that were checked: one entry each');
+    for (let i = 0; i < 200; i++) {
+      const res = await post({ ip });
+      assert.equal(res.status, 429);
+      await res.arrayBuffer();
+    }
+    assert.equal(await count(ip), 6, 'two hundred throttled posts: one entry');
+
+    // Callbacks that match no sign-in in progress: limited per address, audited once per kind
+    const other = '192.0.2.61';
+    const statuses = [];
+    for (let i = 0; i < 100; i++) {
+      const res = await fetch(`${lab.url}/auth/callback?code=x&state=y`, { redirect: 'manual', headers: { 'x-forwarded-for': other } });
+      statuses.push(res.headers.get('location'));
+    }
+    assert.deepEqual(statuses.slice(0, 60), Array(60).fill('/login?error=login_expired'));
+    assert.deepEqual(statuses.slice(60), Array(40).fill('/login?error=throttled'), 'at most 60 a minute from one address');
+    const fresh = await fetch(`${lab.url}/auth/callback`, { redirect: 'manual', headers: { 'x-forwarded-for': '192.0.2.62' } });
+    assert.equal(fresh.headers.get('location'), '/login?error=login_expired', 'another address is not affected');
+    assert.equal(await count(other), 2, 'one "no pending sign-in" entry, one "throttled" entry');
+
+    // When the window is over, what was left out is summed up in one entry
+    c.advance(15 * 60_000);
+    await (await fetch(`${lab.url}/auth/callback`, { redirect: 'manual', headers: { 'x-forwarded-for': '192.0.2.63' } })).arrayBuffer();
+    const [summary] = await lab.deps.audit.query({ action: 'auth.login.suppressed' });
+    assert.equal(summary.actor.id, 'system');
+    assert.ok(summary.details.count >= 199 + 98, JSON.stringify(summary.details));
+    assert.ok(summary.details.top.some((t) => t.ip === ip && t.count >= 199));
+  });
+});
+
+// ── Replacing the administrator's credentials ───────────────────────────────
+
+describe('replacing the local administrator\'s credentials ends its sessions', () => {
+  test('after a restart with a new password, code or name, the old session is gone; with the same ones it stays', async () => {
+    const { createApp } = await import('../src/server.js');
+    const { hashPassword } = await import('../src/modules/auth/password.js');
+    const { generateSecret } = await import('../src/modules/auth/totp.js');
+    const dataDir = tempDataDir();
+    const boot = async (env = {}) => {
+      const app = createApp({ config: await loadTestConfig({ PUBLIC_URL: 'http://127.0.0.1:1', ...env }, dataDir), logger: silentLogger });
+      const { port } = await app.listen({ port: 0 });
+      return { app, url: `http://127.0.0.1:${port}` };
+    };
+    const status = async ({ url }, cookie) => (await fetch(`${url}/api/modules`, { headers: { cookie } })).status;
+    try {
+      let run = await boot();
+      const res = await postLocalSignIn({ url: run.url });
+      assert.equal(res.status, 200);
+      const cookie = res.headers.getSetCookie()[0].split(';')[0];
+      const other = run.app.deps.auth.sessions.create(student(1), {}).cookie;
+      await run.app.close();
+
+      run = await boot();
+      assert.equal(await status(run, cookie), 200, 'same credentials: still signed in after a restart');
+      await run.app.close();
+
+      const otherHash = await hashPassword('another-long-password', { N: 16384, r: 8, p: 1 });
+      for (const change of [{ LOCAL_ADMIN_TOTP_SECRET: generateSecret() }, { LOCAL_ADMIN_PASSWORD_HASH: otherHash }, { LOCAL_ADMIN_USERNAME: 'newadmin' }]) {
+        run = await boot(change);
+        assert.equal(await status(run, cookie), 401, Object.keys(change)[0]);
+        assert.equal(await status(run, other), 200, 'other people stay signed in');
+        await run.app.close();
+      }
+      run = await boot();
+      assert.equal(await status(run, cookie), 401, 'and it does not come back with the old credentials');
+      await run.app.close();
+    } finally {
+      fs.rmSync(dataDir, { recursive: true, force: true });
+    }
   });
 });
 

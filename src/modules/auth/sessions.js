@@ -17,6 +17,13 @@
  * created, whichever comes first. An open console counts as activity. When a
  * session ends, for any reason, the WebSockets opened with it are destroyed
  * and `onEnd(session, reason)` is called
+ *
+ * `bindingOf(user)` ties a session to the credentials it was opened with: its
+ * value is stored with the session, and a saved session whose binding is no
+ * longer the current one is not restored. The local administrator's binding
+ * is derived from its user name, password hash and TOTP secret (envAdmin.js),
+ * so replacing them and restarting ends every session opened with the old
+ * ones - the usual answer to a suspected compromise
  */
 import crypto from 'node:crypto';
 import { createUser } from './user.js';
@@ -33,6 +40,7 @@ const hashOf = (token) => crypto.createHash('sha256').update(token).digest('hex'
 
 export function createSessionStore({
   store, logger, now = Date.now, idleMs = SESSION_IDLE_MS, absoluteMs = SESSION_ABSOLUTE_MS, onEnd = () => {},
+  bindingOf = () => undefined,
 }) {
   const log = logger ?? { info() {}, warn() {}, error() {} };
   const file = store.json('auth/sessions.json', { version: FILE_VERSION, sessions: {} });
@@ -53,6 +61,7 @@ export function createSessionStore({
       return;
     }
     if (saved?.version !== FILE_VERSION || saved.sessions === null || typeof saved.sessions !== 'object') return;
+    let unbound = 0;
     for (const [hash, raw] of Object.entries(saved.sessions)) {
       try {
         if (!/^[0-9a-f]{64}$/.test(hash) || typeof raw.id !== 'string') continue;
@@ -65,12 +74,22 @@ export function createSessionStore({
           expiresAt: Number(raw.expiresAt),
           ip: typeof raw.ip === 'string' ? raw.ip : '',
           userAgent: typeof raw.userAgent === 'string' ? raw.userAgent : '',
+          binding: typeof raw.binding === 'string' ? raw.binding : undefined,
         };
         if (![session.createdAt, session.lastSeenAt, session.expiresAt].every(Number.isFinite)) continue;
+        // Opened with credentials that have been replaced since (or for an account that is gone)
+        if (session.binding !== bindingOf(session.user)) {
+          unbound += 1;
+          continue;
+        }
         if (!expired(session)) sessions.set(hash, session);
       } catch {
         // A record that no longer describes a valid user is simply not restored
       }
+    }
+    if (unbound) {
+      log.warn(`${unbound} saved session(s) not restored: opened with sign-in credentials that have changed since`);
+      dirty = true; // the file still lists them: rewritten just below
     }
   }
 
@@ -82,6 +101,7 @@ export function createSessionStore({
         id: s.id,
         user: { id, username, name, email, role, groups, via },
         createdAt: s.createdAt, lastSeenAt: s.lastSeenAt, expiresAt: s.expiresAt, ip: s.ip, userAgent: s.userAgent,
+        ...(s.binding === undefined ? {} : { binding: s.binding }),
       };
     }
     return { version: FILE_VERSION, sessions: out };
@@ -168,6 +188,7 @@ export function createSessionStore({
   });
 
   load();
+  if (dirty) save();
   const sweeper = setInterval(sweep, SWEEP_MS);
   sweeper.unref();
 
@@ -193,6 +214,7 @@ export function createSessionStore({
         expiresAt: at + absoluteMs,
         ip: String(ip).slice(0, 64),
         userAgent: String(userAgent).slice(0, 256),
+        binding: bindingOf(user),
       };
       // Kept in memory only, for the provider's sign-out; never written to disk (ARCHITECTURE §13)
       session.idToken = idToken;

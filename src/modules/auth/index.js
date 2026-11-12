@@ -39,7 +39,9 @@ import { createSessionStore } from './sessions.js';
 import { createPendingLogins, safeReturnPath } from './pendingLogins.js';
 import { createLoginThrottle } from './throttle.js';
 import { createAccountProviders } from './accounts.js';
-import { createEnvAdminProvider } from './envAdmin.js';
+import { createEnvAdminProvider, adminDerivedKey } from './envAdmin.js';
+import { createDeviceCookies } from './devices.js';
+import { createRefusalAudit } from './refusals.js';
 import { createOidc, OidcError } from './oidc.js';
 import { normalizeOidcSettings, isInsecureIssuer } from './oidcSettings.js';
 import { userFromClaims, needsUserinfo } from './claims.js';
@@ -87,8 +89,11 @@ export function createAuth({ config, logger, events, store, audit, now = Date.no
 
   const cookies = cookieSettings(publicUrl);
   const serverTrust = config.server;
+  const envAdmin = createEnvAdminProvider({ settings: settings.localAdmin, store, logger: log, now });
   const sessions = createSessionStore({
     store, logger: log, now,
+    // The administrator's sessions do not outlive a change of its credentials
+    bindingOf: (user) => (user.id === envAdmin.user.id ? envAdmin.binding : undefined),
     onEnd(session, reason) {
       // Whatever ended the session, its live streams go with it; the browser
       // reconnects by itself and meets the gate again
@@ -100,9 +105,16 @@ export function createAuth({ config, logger, events, store, audit, now = Date.no
   });
   const pending = createPendingLogins({ now });
   const throttle = createLoginThrottle({ now });
-  const accounts = createAccountProviders([createEnvAdminProvider({ settings: settings.localAdmin, store, logger: log, now })]);
+  const devices = createDeviceCookies({ key: adminDerivedKey(settings.localAdmin, 'device cookies'), now });
+  const refusals = createRefusalAudit({ audit, now });
+  const accounts = createAccountProviders([envAdmin]);
   const startsPerMinute = createRateLimiter({ limit: 30, windowMs: 60_000 });
-  const housekeeping = setInterval(() => throttle.sweep(), 5 * 60_000);
+  // Each start leads to one callback at most; the margin covers a fixed window cut in two
+  const callbacksPerMinute = createRateLimiter({ limit: 60, windowMs: 60_000 });
+  const housekeeping = setInterval(() => {
+    throttle.sweep();
+    refusals.flush();
+  }, 5 * 60_000);
   housekeeping.unref();
 
   // ── Identity provider: rebuilt whenever its settings change ────────────────
@@ -176,7 +188,8 @@ export function createAuth({ config, logger, events, store, audit, now = Date.no
   router.get('/auth/login', async (req, res) => {
     const client = oidc;
     if (!client.enabled) return backToLogin(res, 'sso_disabled');
-    if (!startsPerMinute(clientIp(req, serverTrust))) return backToLogin(res, 'throttled');
+    const address = clientIp(req, serverTrust);
+    if (!startsPerMinute(address)) return backToLogin(res, 'throttled');
     let started;
     try {
       started = await client.begin();
@@ -185,7 +198,7 @@ export function createAuth({ config, logger, events, store, audit, now = Date.no
       return backToLogin(res, 'provider_unavailable');
     }
     pending.discard(readCookie(req, cookies.login)); // a second click replaces the first attempt
-    const id = pending.put({ ...started.pending, client, returnTo: safeReturnPath(req.query.next) });
+    const id = pending.put({ ...started.pending, client, returnTo: safeReturnPath(req.query.next) }, { owner: address });
     appendCookie(res, serializeCookie(cookies.login, id, { secure: cookies.secure, maxAgeSeconds: pending.ttlMs / 1000 }));
     res.redirect(302, started.url);
   });
@@ -195,12 +208,19 @@ export function createAuth({ config, logger, events, store, audit, now = Date.no
       audit?.log(req, 'auth.login.failed', { method: 'oidc', reason, ...details });
       return backToLogin(res, error);
     };
+    // Refusals anyone can produce for free are audited once per client and window (refusals.js)
+    const address = clientIp(req, serverTrust);
+    const refuseCheaply = (reason, error) => {
+      refusals.record(req, address, reason, { method: 'oidc', reason });
+      return backToLogin(res, error);
+    };
+    if (!callbacksPerMinute(address)) return refuseCheaply('throttled', 'throttled');
 
     // Single use: the attempt is forgotten before anything is checked, so a
     // replayed or forged callback has nothing to be compared with
     const attempt = pending.take(readCookie(req, cookies.login));
     appendCookie(res, clearCookie(cookies.login, { secure: cookies.secure }));
-    if (!attempt) return refuse('no_pending_login', 'login_expired');
+    if (!attempt) return refuseCheaply('no_pending_login', 'login_expired');
     // The settings changed while this person was at the provider: start again
     if (attempt.client !== oidc) return refuse('provider_changed', 'login_expired');
 
@@ -237,9 +257,11 @@ export function createAuth({ config, logger, events, store, audit, now = Date.no
     const body = req.body !== null && typeof req.body === 'object' ? req.body : {};
     const username = typeof body.username === 'string' ? body.username.slice(0, 128) : '';
     const client = clientIp(req, serverTrust);
-    const slot = throttle.take({ client, username });
+    // A browser that already signed in with this name is limited on its own (throttle.js, devices.js)
+    const device = devices.check(readCookie(req, cookies.device), username) ?? undefined;
+    const slot = throttle.take({ client, username, device });
     if (!slot.allowed) {
-      audit?.log(req, 'auth.login.failed', { method: 'local', reason: 'throttled', scope: slot.scope });
+      refusals.record(req, client, `throttled:${slot.scope}`, { method: 'local', reason: 'throttled', scope: slot.scope });
       res.set('Retry-After', String(slot.retryAfterSeconds));
       return sendError(res, 429, 'auth.throttled', 'Too many sign-in attempts. Try again later', { seconds: slot.retryAfterSeconds });
     }
@@ -248,8 +270,8 @@ export function createAuth({ config, logger, events, store, audit, now = Date.no
     try {
       user = await accounts.verify({ username, password: body.password, code: body.code }, { logger: log });
     } finally {
-      if (user) throttle.succeeded({ client, username });
-      else throttle.failed({ username });
+      if (user) throttle.succeeded({ client, username, device });
+      else throttle.failed({ username, device });
     }
     if (!user) {
       audit?.log(req, 'auth.login.failed', { method: 'local', reason: 'invalid' });
@@ -258,7 +280,8 @@ export function createAuth({ config, logger, events, store, audit, now = Date.no
     }
 
     const session = signIn(req, res, user);
-    audit?.log(req, 'auth.login', { method: 'local', session: session.id, role: user.role });
+    appendCookie(res, serializeCookie(cookies.device, devices.issue(username), { secure: cookies.secure, maxAgeSeconds: devices.maxAgeMs / 1000 }));
+    audit?.log(req, 'auth.login', { method: 'local', session: session.id, role: user.role, knownBrowser: Boolean(device) });
     res.json({ redirect: safeReturnPath(body.next) });
   });
 
@@ -322,6 +345,7 @@ export function createAuth({ config, logger, events, store, audit, now = Date.no
     get providerName() { return oidc.providerName; },
     shutdown() {
       clearInterval(housekeeping);
+      refusals.flush({ force: true });
       return sessions.shutdown();
     },
   };

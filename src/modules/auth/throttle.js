@@ -14,6 +14,17 @@
  *   - globally: at most `global` failed attempts in `windowMs`, whatever
  *     their origin, as a last resort.
  *
+ * The last two are shared by everyone, so on their own they would let any
+ * stranger keep the administrator out for good: one wrong guess on the name
+ * each time its backoff expires, or fifty random failures every quarter of an
+ * hour. Hence known browsers (the "device cookie" of the OWASP guidance on
+ * lockouts, see devices.js): a browser that already signed in with this name
+ * presents a signed cookie, and its attempts are counted on that browser
+ * alone - `perClient` attempts per window and its own backoff - instead of
+ * on its address, the name and the global count. Nobody else can obtain such
+ * a cookie without the full credentials, so the shared refusals no longer
+ * reach the person who owns them
+ *
  * The user name is the one typed, whether or not such an account exists:
  * the answers and the delays are the same for both, so the limiter tells an
  * attacker nothing about which names are real. Nobody is signed in yet here,
@@ -34,13 +45,14 @@ export const THROTTLE_DEFAULTS = Object.freeze({
 });
 
 /** User names are compared the way a person would type them */
-const nameKey = (username) => (typeof username === 'string' ? username.trim().toLowerCase().slice(0, 128) : '');
+export const nameKey = (username) => (typeof username === 'string' ? username.trim().toLowerCase().slice(0, 128) : '');
 
 export function createLoginThrottle(options = {}) {
   const { perClient, global, windowMs, freeFailures, baseBackoffMs, maxBackoffMs } = { ...THROTTLE_DEFAULTS, ...options };
   const now = options.now ?? Date.now;
   const clients = new Map(); // address → timestamps of its attempts (oldest first)
   const names = new Map();   // user name → { failures, lastFailureAt, inFlight }
+  const devices = new Map(); // known browser → { stamps, failures, lastFailureAt, inFlight }
   let failures = [];         // timestamps of failed attempts, everyone together
 
   const recent = (stamps, at) => stamps.filter((t) => at - t < windowMs);
@@ -61,8 +73,12 @@ export function createLoginThrottle(options = {}) {
     for (const [key, entry] of names) {
       if (!entry.inFlight && quietLongEnough(entry, at)) names.delete(key);
     }
+    for (const [key, entry] of devices) {
+      entry.stamps = recent(entry.stamps, at);
+      if (!entry.inFlight && !entry.stamps.length && quietLongEnough(entry, at)) devices.delete(key);
+    }
     // Maps keep insertion order: the first keys are the oldest
-    for (const map of [clients, names]) {
+    for (const map of [clients, names, devices]) {
       for (const key of map.keys()) {
         if (map.size <= MAX_ENTRIES) break;
         map.delete(key);
@@ -72,14 +88,33 @@ export function createLoginThrottle(options = {}) {
 
   const refuse = (scope, retryMs) => ({ allowed: false, scope, retryAfterSeconds: seconds(retryMs) });
 
+  /** A known browser: its own window and its own backoff, nothing shared */
+  function takeDevice(key, at) {
+    const entry = devices.get(key) ?? { stamps: [], failures: 0, lastFailureAt: 0, inFlight: false };
+    entry.stamps = recent(entry.stamps, at);
+    if (entry.inFlight) return refuse('device', baseBackoffMs);
+    if (entry.stamps.length >= perClient) return refuse('device', entry.stamps[0] + windowMs - at);
+    const wait = entry.lastFailureAt + backoffOf(entry) - at;
+    if (wait > 0) return refuse('device', wait);
+    if (devices.size >= MAX_ENTRIES) sweep(at);
+    entry.stamps.push(at);
+    entry.inFlight = true;
+    devices.delete(key);
+    devices.set(key, entry);
+    return { allowed: true };
+  }
+
   return {
     /**
-     * Ask for one attempt by `client` for `username`.
-     * → { allowed: true } (the attempt is counted; call failed() or succeeded() once it is decided)
-     *   or { allowed: false, scope: 'client' | 'name' | 'global', retryAfterSeconds }
+     * Ask for one attempt by `client` for `username`; `device` is the id of a
+     * known browser for that name (devices.js), when it presented one.
+     * → { allowed: true } (the attempt is counted; call failed() or succeeded()
+     *   with the same arguments once it is decided)
+     *   or { allowed: false, scope: 'client' | 'name' | 'global' | 'device', retryAfterSeconds }
      */
-    take({ client, username }) {
+    take({ client, username, device }) {
       const at = now();
+      if (device) return takeDevice(String(device), at);
       const clientKey = String(client ?? 'unknown');
       const userKey = nameKey(username);
 
@@ -116,8 +151,17 @@ export function createLoginThrottle(options = {}) {
     },
 
     /** The attempt taken for `username` failed */
-    failed({ username }) {
+    failed({ username, device }) {
       const at = now();
+      if (device) {
+        const entry = devices.get(String(device));
+        if (entry) {
+          entry.failures += 1;
+          entry.lastFailureAt = at;
+          entry.inFlight = false;
+        }
+        return;
+      }
       failures.push(at);
       const entry = names.get(nameKey(username)) ?? { failures: 0, lastFailureAt: 0, inFlight: false };
       entry.failures += 1;
@@ -127,13 +171,16 @@ export function createLoginThrottle(options = {}) {
     },
 
     /** The attempt succeeded: that client and that name start again from zero */
-    succeeded({ client, username }) {
+    succeeded({ client, username, device }) {
+      // A known browser starts again from zero; what strangers did to the
+      // name and to the global count stays, or they would get fresh tries
+      if (device) return void devices.delete(String(device));
       clients.delete(String(client ?? 'unknown'));
       names.delete(nameKey(username));
     },
 
     sweep: () => sweep(),
 
-    get size() { return { clients: clients.size, names: names.size, failures: failures.length }; },
+    get size() { return { clients: clients.size, names: names.size, devices: devices.size, failures: failures.length }; },
   };
 }

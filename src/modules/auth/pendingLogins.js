@@ -7,43 +7,65 @@
  * in memory, for ten minutes, under a random id that only the browser that
  * started the sign-in holds (in an HttpOnly cookie). An entry can be taken
  * once: a callback that is replayed finds nothing
+ *
+ * Anyone can start a sign-in, so the store is bounded twice: `max` entries in
+ * all, and `perOwner` per client address. A client that starts more loses
+ * its own oldest attempt first, so strangers starting sign-ins in a loop do
+ * not push out the real users' attempts; only a crowd of addresses filling
+ * all of `max` within the ten minutes could
  */
 import crypto from 'node:crypto';
 
 const ID = /^[A-Za-z0-9_-]{43}$/;
 const hashOf = (id) => crypto.createHash('sha256').update(id).digest('hex');
 
-export function createPendingLogins({ ttlMs = 10 * 60_000, max = 500, now = Date.now } = {}) {
-  const entries = new Map(); // hash of the id → { data, expiresAt }, oldest first
+export function createPendingLogins({ ttlMs = 10 * 60_000, max = 5000, perOwner = 10, now = Date.now } = {}) {
+  const entries = new Map(); // hash of the id → { data, expiresAt, owner }, oldest first
+  const owners = new Map();  // owner → Set of hashes, oldest first
+
+  function forget(hash) {
+    const entry = entries.get(hash);
+    if (!entry) return null;
+    entries.delete(hash);
+    const mine = owners.get(entry.owner);
+    mine?.delete(hash);
+    if (mine && !mine.size) owners.delete(entry.owner);
+    return entry;
+  }
 
   return {
     ttlMs,
 
-    /** Remember `data`; returns the id to hand to the browser */
-    put(data) {
+    /** Remember `data` for `owner` (the client address); returns the id to hand to the browser */
+    put(data, { owner = '' } = {}) {
       const at = now();
       for (const [hash, entry] of entries) {
-        if (entry.expiresAt > at && entries.size < max) break; // the rest is younger
-        entries.delete(hash); // expired, or the oldest one giving way: the map never grows past `max`
+        if (entry.expiresAt > at) break; // the rest is younger
+        forget(hash);
       }
+      const key = String(owner);
+      const mine = owners.get(key);
+      while (mine && mine.size >= perOwner) forget(mine.values().next().value); // this client's oldest gives way
+      while (entries.size >= max) forget(entries.keys().next().value); // then the oldest of all
       const id = crypto.randomBytes(32).toString('base64url');
-      entries.set(hashOf(id), { data, expiresAt: at + ttlMs });
+      const hash = hashOf(id);
+      entries.set(hash, { data, expiresAt: at + ttlMs, owner: key });
+      if (!owners.has(key)) owners.set(key, new Set());
+      owners.get(key).add(hash);
       return id;
     },
 
     /** Hand the data back and forget it. null when unknown, expired or already taken */
     take(id) {
       if (typeof id !== 'string' || !ID.test(id)) return null;
-      const hash = hashOf(id);
-      const entry = entries.get(hash);
+      const entry = forget(hashOf(id));
       if (!entry) return null;
-      entries.delete(hash);
       return entry.expiresAt > now() ? entry.data : null;
     },
 
     /** Forget without using (the browser started over) */
     discard(id) {
-      if (typeof id === 'string' && ID.test(id)) entries.delete(hashOf(id));
+      if (typeof id === 'string' && ID.test(id)) forget(hashOf(id));
     },
 
     get size() { return entries.size; },

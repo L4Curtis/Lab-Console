@@ -1,8 +1,8 @@
 /**
  * The building blocks of the sign-in, one by one: TOTP and HOTP against the
  * RFC test vectors, password hashes, cookies, return paths, the attempt
- * limiter, sessions (expiry, rotation, revocation, persistence), account
- * providers, roles and claims, OIDC settings
+ * limiter and known browsers, aggregated refusals, sessions (expiry,
+ * rotation, revocation, persistence, credential binding), account providers, roles and claims, OIDC settings
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,7 +15,9 @@ import { createPendingLogins, safeReturnPath } from '../src/modules/auth/pending
 import { createLoginThrottle } from '../src/modules/auth/throttle.js';
 import { createSessionStore, SESSION_IDLE_MS, SESSION_ABSOLUTE_MS } from '../src/modules/auth/sessions.js';
 import { createAccountProviders } from '../src/modules/auth/accounts.js';
-import { createEnvAdminProvider } from '../src/modules/auth/envAdmin.js';
+import { createEnvAdminProvider, adminDerivedKey } from '../src/modules/auth/envAdmin.js';
+import { createDeviceCookies, DEVICE_MAX_AGE_MS } from '../src/modules/auth/devices.js';
+import { createRefusalAudit } from '../src/modules/auth/refusals.js';
 import { resolveRole, isAllowed } from '../src/modules/auth/roles.js';
 import { readClaim, toGroups, groupsFrom, userFromClaims, needsUserinfo } from '../src/modules/auth/claims.js';
 import { normalizeOidcSettings } from '../src/modules/auth/oidcSettings.js';
@@ -147,10 +149,10 @@ describe('password hashes', () => {
 describe('cookies', () => {
   test('names and flags: __Host- and Secure over https, plain names over http', () => {
     const https = cookieSettings('https://lab.example.org');
-    assert.deepEqual({ ...https }, { secure: true, session: '__Host-lc_sid', login: '__Host-lc_login' });
+    assert.deepEqual({ ...https }, { secure: true, session: '__Host-lc_sid', login: '__Host-lc_login', device: '__Host-lc_device' });
     assert.equal(serializeCookie(https.session, 'abc', { secure: true }), '__Host-lc_sid=abc; Path=/; HttpOnly; SameSite=Lax; Secure');
     const http = cookieSettings('http://127.0.0.1:3000');
-    assert.deepEqual({ ...http }, { secure: false, session: 'lc_sid', login: 'lc_login' });
+    assert.deepEqual({ ...http }, { secure: false, session: 'lc_sid', login: 'lc_login', device: 'lc_device' });
     assert.equal(serializeCookie(http.session, 'abc', {}), 'lc_sid=abc; Path=/; HttpOnly; SameSite=Lax');
     assert.equal(clearCookie('lc_sid', {}), 'lc_sid=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0');
     assert.throws(() => serializeCookie('lc_sid', 'a;b'), TypeError);
@@ -193,6 +195,21 @@ describe('pending sign-ins', () => {
     for (let i = 0; i < 10; i++) pending.put({ i });
     assert.ok(pending.size <= 3);
     assert.equal(pending.take('not-an-id'), null);
+  });
+
+  test('one client starting sign-ins in a loop only pushes out its own', () => {
+    const c = clock();
+    const pending = createPendingLogins({ max: 100, perOwner: 10, now: c.now });
+    const real = pending.put({ who: 'student' }, { owner: '192.0.2.1' });
+    const ids = [];
+    for (let i = 0; i < 1000; i++) ids.push(pending.put({ i }, { owner: '203.0.113.66' }));
+    assert.equal(pending.size, 11, 'ten for the noisy client, one for the student');
+    assert.deepEqual(pending.take(real), { who: 'student' }, 'the real sign-in is still there');
+    assert.equal(pending.take(ids[0]), null, 'the noisy client lost its oldest');
+    assert.deepEqual(pending.take(ids.at(-1)), { i: 999 });
+    // Many clients together are still bounded by max, the oldest giving way
+    for (let i = 0; i < 300; i++) pending.put({ i }, { owner: `198.51.100.${i}` });
+    assert.equal(pending.size, 100);
   });
 });
 
@@ -288,6 +305,137 @@ describe('login throttle', () => {
     assert.equal(throttle.take({ client: '10.9.9.9', username: 'fresh' }).scope, 'global');
     c.advance(15 * 60_000);
     assert.equal(throttle.take({ client: '10.9.9.9', username: 'fresh' }).allowed, true);
+  });
+
+  test('a known browser is neither refused by the name\'s backoff nor by the global count', () => {
+    const c = clock();
+    const throttle = createLoginThrottle({ now: c.now });
+    const fail = (client, username) => {
+      const slot = throttle.take({ client, username });
+      if (slot.allowed) throttle.failed({ client, username });
+      return slot;
+    };
+    // A stranger keeps the name at its longest backoff, and fills the global count
+    for (let i = 0; i < 12; i++) { fail(`198.51.100.${i}`, 'root'); c.advance(16 * 60_000); }
+    for (let i = 0; i < 50; i++) fail(`10.1.${i}.1`, `n${i}`);
+    assert.equal(throttle.take({ client: '192.0.2.1', username: 'root' }).allowed, false, 'a new browser is kept out');
+
+    const slot = throttle.take({ client: '192.0.2.1', username: 'root', device: 'browser-a' });
+    assert.equal(slot.allowed, true, 'the known browser gets in');
+    throttle.succeeded({ client: '192.0.2.1', username: 'root', device: 'browser-a' });
+    assert.equal(throttle.take({ client: '192.0.2.9', username: 'root' }).allowed, false, 'its success gives strangers no fresh tries');
+  });
+
+  test('a known browser is still limited on its own: backoff, one in flight, 5 per window', () => {
+    const c = clock();
+    const throttle = createLoginThrottle({ now: c.now });
+    const device = 'browser-a';
+    const at = (n) => ({ client: `192.0.2.${n}`, username: 'root', device });
+    assert.equal(throttle.take(at(1)).allowed, true);
+    assert.deepEqual(throttle.take(at(2)), { allowed: false, scope: 'device', retryAfterSeconds: 1 }, 'one in flight');
+    throttle.failed(at(1));
+    assert.equal(throttle.take(at(1)).allowed, true);
+    throttle.failed(at(1));
+    assert.deepEqual(throttle.take(at(3)), { allowed: false, scope: 'device', retryAfterSeconds: 1 }, 'backoff, whatever the address');
+    assert.equal(throttle.take({ client: '192.0.2.4', username: 'root' }).allowed, true, 'its failures are not the name\'s');
+    throttle.failed({ client: '192.0.2.4', username: 'root' });
+    c.advance(1000);
+    assert.equal(throttle.take(at(1)).allowed, true);
+    throttle.succeeded(at(1));
+    assert.equal(throttle.take(at(1)).allowed, true);
+    throttle.succeeded(at(1));
+    for (let i = 0; i < 5; i++) { assert.equal(throttle.take(at(1)).allowed, true); throttle.succeeded(at(1)); }
+    assert.equal(throttle.take({ client: '192.0.2.1', username: 'root', device: 'browser-b' }).allowed, true, 'another browser has its own count');
+  });
+});
+
+// ── Known browsers ──────────────────────────────────────────────────────────
+
+describe('known-browser cookies', () => {
+  const key = adminDerivedKey(TEST_ADMIN, 'device cookies');
+
+  test('valid for the name it was issued for, and nothing else', () => {
+    const c = clock();
+    const devices = createDeviceCookies({ key, now: c.now });
+    const value = devices.issue('root');
+    assert.match(value, /^[\w-]{71}$/);
+    assert.ok(!Buffer.from(value, 'base64url').includes('root'), 'the name is not in the cookie');
+    const id = devices.check(value, 'root');
+    assert.match(id, /^[0-9a-f]{32}$/);
+    assert.equal(devices.check(value, ' ROOT '), id, 'the name as a person types it');
+    assert.notEqual(devices.check(devices.issue('root'), 'root'), id, 'one id per issue');
+    assert.equal(devices.check(value, 'admin'), null, 'another name');
+    assert.equal(devices.check(value, ''), null);
+    for (const bad of [undefined, '', 'x'.repeat(71), value.slice(0, -1), `${value}A`]) assert.equal(devices.check(bad, 'root'), null, String(bad));
+    const raw = Buffer.from(value, 'base64url');
+    raw[3] ^= 1; // a later issue date
+    assert.equal(devices.check(raw.toString('base64url'), 'root'), null, 'tampered');
+  });
+
+  test('expires, and dies with a change of the administrator\'s credentials', () => {
+    const c = clock();
+    const devices = createDeviceCookies({ key, now: c.now });
+    const value = devices.issue('root');
+    c.advance(DEVICE_MAX_AGE_MS - 1000);
+    assert.ok(devices.check(value, 'root'));
+    c.advance(1000);
+    assert.equal(devices.check(value, 'root'), null, '180 days');
+
+    const fresh = devices.issue('root');
+    for (const change of [{ username: 'root2' }, { totpSecret: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP' }, { passwordHash: `${TEST_ADMIN.passwordHash}x` }]) {
+      const rotated = createDeviceCookies({ key: adminDerivedKey({ ...TEST_ADMIN, ...change }, 'device cookies'), now: c.now });
+      assert.equal(rotated.check(fresh, 'root'), null, Object.keys(change)[0]);
+    }
+    assert.ok(createDeviceCookies({ key: adminDerivedKey(TEST_ADMIN, 'device cookies'), now: c.now }).check(fresh, 'root'), 'same credentials, same key');
+    assert.notDeepEqual(adminDerivedKey(TEST_ADMIN, 'device cookies'), adminDerivedKey(TEST_ADMIN, 'session binding'), 'one key per purpose');
+  });
+});
+
+// ── Refusals anyone can send for free ───────────────────────────────────────
+
+describe('aggregated refusals', () => {
+  const recorder = () => {
+    const entries = [];
+    return { entries, audit: { log: (actor, action, details) => { entries.push({ actor, action, details }); return Promise.resolve(true); } } };
+  };
+
+  test('one entry per client and kind per window, then one summary', () => {
+    const c = clock();
+    const { entries, audit } = recorder();
+    const refusals = createRefusalAudit({ audit, now: c.now });
+    for (let i = 0; i < 2000; i++) refusals.record({}, '203.0.113.5', 'no_pending_login', { reason: 'no_pending_login' });
+    for (let i = 0; i < 500; i++) refusals.record({}, '203.0.113.5', 'throttled:client', { reason: 'throttled' });
+    refusals.record({}, '198.51.100.1', 'no_pending_login', { reason: 'no_pending_login' });
+    assert.deepEqual(entries.map((e) => [e.action, e.details.reason]), [
+      ['auth.login.failed', 'no_pending_login'], ['auth.login.failed', 'throttled'], ['auth.login.failed', 'no_pending_login'],
+    ]);
+    refusals.flush();
+    assert.equal(entries.length, 3, 'nothing more inside the window');
+    c.advance(15 * 60_000);
+    refusals.flush();
+    const summary = entries.at(-1);
+    assert.equal(summary.actor, 'system');
+    assert.equal(summary.action, 'auth.login.suppressed');
+    assert.equal(summary.details.count, 1999 + 499);
+    assert.deepEqual(summary.details.top, [
+      { ip: '203.0.113.5', reason: 'no_pending_login', count: 1999 }, { ip: '203.0.113.5', reason: 'throttled:client', count: 499 },
+    ]);
+    refusals.record({}, '203.0.113.5', 'no_pending_login', {});
+    assert.equal(entries.at(-1).action, 'auth.login.failed', 'a new window audits that client again');
+  });
+
+  test('a crowd of addresses is bounded too', () => {
+    const c = clock();
+    const { entries, audit } = recorder();
+    const refusals = createRefusalAudit({ audit, now: c.now, maxKeys: 100 });
+    for (let i = 0; i < 5000; i++) refusals.record({}, `2001:db8::${i.toString(16)}`, 'throttled:global', {});
+    assert.equal(entries.length, 100);
+    refusals.flush({ force: true });
+    assert.equal(entries.length, 101);
+    assert.equal(entries.at(-1).details.otherClients, 4900);
+    assert.equal(entries.at(-1).details.count, 4900);
+    refusals.flush({ force: true });
+    assert.equal(entries.length, 101, 'an empty window writes nothing');
   });
 });
 
@@ -429,6 +577,36 @@ describe('sessions', () => {
     assert.equal(Object.isFrozen(found.user), true);
     assert.equal(restarted.find(revoked.token), null);
     await restarted.shutdown();
+  }));
+
+  test('credential binding: a session opened with credentials that changed since is not restored', () => withStore(async (store, dir) => {
+    const local = createUser({ id: 'local:root', username: 'root', name: 'root', role: 'admin', via: 'local' });
+    const first = createSessionStore({ store, bindingOf: (u) => (u.id === 'local:root' ? 'binding-1' : undefined) });
+    const kept = first.create(student(1));
+    const admin1 = first.create(local);
+    await first.shutdown();
+    await store.flush();
+    const saved = Object.values(JSON.parse(fs.readFileSync(store.resolve('auth/sessions.json'), 'utf8')).sessions);
+    assert.deepEqual(saved.map((r) => [r.user.id, r.binding]).sort(), [['local:root', 'binding-1'], ['oidc:student1', undefined]]);
+
+    const same = createSessionStore({ store: createStore(dir), bindingOf: (u) => (u.id === 'local:root' ? 'binding-1' : undefined) });
+    assert.ok(same.find(admin1.token), 'same credentials: restored');
+    await same.shutdown();
+
+    const warnings = [];
+    const rotated = createSessionStore({
+      store: createStore(dir), logger: { warn: (m) => warnings.push(m), error() {} },
+      bindingOf: (u) => (u.id === 'local:root' ? 'binding-2' : undefined),
+    });
+    assert.equal(rotated.find(admin1.token), null, 'rotated credentials: gone');
+    assert.ok(rotated.find(kept.token), 'other people are not concerned');
+    assert.match(warnings.join(), /1 saved session\(s\) not restored/);
+    await rotated.shutdown();
+    await store.flush();
+
+    const renamed = createSessionStore({ store: createStore(dir), bindingOf: (u) => (u.id === 'local:admin2' ? 'binding-2' : undefined) });
+    assert.equal(renamed.size, 1, 'the file was rewritten without it');
+    await renamed.shutdown();
   }));
 
   test('a damaged sessions file signs everyone out instead of failing', () => withStore(async (store, dir) => {
