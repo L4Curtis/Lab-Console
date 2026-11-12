@@ -53,6 +53,11 @@ export class LabRegistry extends EventEmitter {
     });
   }
 
+  /** Stop watching the diagram file (shutdown, tests) */
+  close() {
+    fs.unwatchFile(this.diagramPath);
+  }
+
   getDevice(key) {
     return this.#devices.get(key) || null;
   }

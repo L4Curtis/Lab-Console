@@ -23,7 +23,7 @@ import { ConsoleSession } from './consoleSession.js';
 import { isOriginAllowed, createRateLimiter, clientIp } from '../../lib/security.js';
 import { createAutomationHandler } from '../../lib/automationProtocol.js';
 
-export function createConsolesModule({ config, events, logger, infra }) {
+export function createConsolesModule({ config, events, logger, infra, services }) {
   const log = logger.child('consoles');
   const { allowedHosts, portRange, networkPrefix } = config.consoles;
 
@@ -45,6 +45,9 @@ export function createConsolesModule({ config, events, logger, infra }) {
   registry.load();
   registry.watch();
   events.publish('consoles:busy', [], { sticky: true });
+
+  // What other modules may use (ARCHITECTURE §7); read lazily, inside handlers
+  if (services) services.consoles = { registry };
 
   // ── HTTP API ──────────────────────────────────────────────────────────────
   const router = express.Router();
@@ -72,7 +75,7 @@ export function createConsolesModule({ config, events, logger, infra }) {
   }
 
   function onTerminal(ws, req, url) {
-    const clientId = clientIp(req, config.server.trustProxy);
+    const clientId = clientIp(req, config.server);
     const send = (msg) => ws.readyState === ws.OPEN && ws.send(JSON.stringify(msg));
     const refuse = (message) => { send({ type: 'error', message }); ws.close(1008, 'refused'); };
 
@@ -148,7 +151,10 @@ export function createConsolesModule({ config, events, logger, infra }) {
     upgrade,
     shutdown() {
       clearInterval(heartbeat);
+      registry.close();
       sessions.closeAll('Platform is restarting');
+      // A browser that never answers the closing handshake must not hold the process
+      setTimeout(() => { for (const ws of wss.clients) ws.terminate(); }, 1000).unref();
     },
   };
 }

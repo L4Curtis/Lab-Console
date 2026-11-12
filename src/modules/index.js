@@ -2,6 +2,12 @@
  * Module registry. Each feature area of the platform is a self-contained
  * module mounted under /api/<id> (HTTP) and optionally /ws/<id> (WebSocket).
  * Adding a feature = adding one line here + one folder.
+ *
+ * Every module receives the same `deps` (ARCHITECTURE §6):
+ *   { config, logger, events, infra, store, audit, auth, services }
+ * and takes what it needs. A module publishes its API for the others as
+ * `services.<id> = {...}` while being created; the others read it lazily,
+ * inside handlers, so the order of the list below never matters.
  */
 import { createConsolesModule } from './consoles/index.js';
 import { createProxmoxModule } from './proxmox/index.js';
