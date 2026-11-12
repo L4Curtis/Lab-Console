@@ -33,7 +33,7 @@
     "credentials": "The VM asked for a password the platform did not expect"
   },
   "session": {
-    "serial": "Serial",
+    "serial": "Serial console",
     "screen": "Screen",
     "vmAddress": "VM {vmid} on {node}"
   },
@@ -118,7 +118,11 @@
       "ssh_unreachable": "Jump server {host} is unreachable from the platform",
       "ssh_identity": "Jump server identity check failed (SSH_HOST_FINGERPRINT mismatch)",
       "ssh_error": "SSH error: {detail}",
-      "ssh_closed": "Connection to the jump server closed"
+      "ssh_closed": "Connection to the jump server closed",
+      "diagram_load_failed": "Diagram could not be loaded: {detail}",
+      "warn_not_allowed": "{lab}/{name}: {target} is outside the allow-list (disabled)",
+      "warn_different_devices": "Console {target} is used by different devices: {devices}",
+      "warn_several_pages": "Console {target} ({name}) appears on several pages: {labs} — treated as shared equipment"
     },
     "automation": {
       "busy": "Another task is still running on this console.",
@@ -148,10 +152,7 @@
         "one": "Exported {count} line of {hostname}'s running-config (paging could not be disabled; --More-- pages were skipped through)",
         "other": "Exported {count} lines of {hostname}'s running-config (paging could not be disabled; --More-- pages were skipped through)"
       },
-      "sent": {
-        "one": "Sent {sent} of {total} line",
-        "other": "Sent {sent} of {total} lines"
-      },
+      "sent": "Sent {sent} of {total} lines",
       "device_errors": {
         "one": "{count} device error (line {lines})",
         "other": "{count} device errors (lines {lines})"

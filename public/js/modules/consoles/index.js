@@ -7,12 +7,13 @@ import { t, tNode, loadNamespace, onLocaleChange } from '../../core/i18n.js';
 import { workspace } from '../../shared/workspace.js';
 import { SplitView } from '../../shared/splitView.js';
 import { consoleSession } from '../../shared/sessions.js';
+import { serverText } from '../../shared/serverText.js';
 import { DiagramView } from './diagramView.js';
 import { LabPicker } from './labPicker.js';
 import { QuickOpen } from './quickOpen.js';
 
 export async function mount(el, { navigate }) {
-  await loadNamespace('consoles');
+  await loadNamespace('consoles', 'terminal');
   let labs = [];
   let current = null;
   let busy = new Set();
@@ -43,7 +44,7 @@ export async function mount(el, { navigate }) {
   // Live reload when an instructor edits the diagram (the first load doesn't
   // depend on the event stream, so a proxy that buffers SSE can't blank the page)
   live.on('labs:version', ({ version: v, error }) => {
-    if (error) toast(error, 'error', 8000);
+    if (error) toast(serverText(error), 'error', 8000);
     if (version !== null && v !== version) loadLabs();
   });
   loadLabs();
@@ -113,12 +114,12 @@ export async function mount(el, { navigate }) {
     picker.setLive(new Set(labs.filter((l) => l.devices.some((d) => mine.has(targetOf(d)))).map((l) => l.id)));
   }
 
-  // The warnings themselves come from the server, in English
+  // Each warning is { code, params, message }: translated by code, English sentence otherwise
   function renderNotes(warnings = notesList) {
     notesList = warnings;
     notesBtn.hidden = !warnings.length;
     notesBtn.replaceChildren(icon('warning'), h('span', t('consoles.notes', { count: warnings.length })));
-    notes.replaceChildren(h('p', tNode('consoles.notesIntro')), h('ul', warnings.map((w) => h('li', w))));
+    notes.replaceChildren(h('p', tNode('consoles.notesIntro')), h('ul', warnings.map((w) => h('li', serverText(w)))));
   }
 
   // Sentences made with a number or a name are written again when the language changes

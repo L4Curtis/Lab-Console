@@ -33,7 +33,7 @@
     "credentials": "La VM demande un mot de passe que la plateforme n’attendait pas"
   },
   "session": {
-    "serial": "Série",
+    "serial": "Console série",
     "screen": "Écran",
     "vmAddress": "VM {vmid} sur {node}"
   },
@@ -118,7 +118,11 @@
       "ssh_unreachable": "Le serveur de rebond {host} est injoignable depuis la plateforme",
       "ssh_identity": "La vérification de l’identité du serveur de rebond a échoué (SSH_HOST_FINGERPRINT ne correspond pas)",
       "ssh_error": "Erreur SSH : {detail}",
-      "ssh_closed": "La connexion au serveur de rebond s’est fermée"
+      "ssh_closed": "La connexion au serveur de rebond s’est fermée",
+      "diagram_load_failed": "Le schéma n’a pas pu être chargé : {detail}",
+      "warn_not_allowed": "{lab}/{name} : {target} n’est pas dans la liste autorisée (équipement désactivé)",
+      "warn_different_devices": "La console {target} est utilisée par plusieurs équipements : {devices}",
+      "warn_several_pages": "La console {target} ({name}) apparaît sur plusieurs pages : {labs}. Équipement considéré comme partagé."
     },
     "automation": {
       "busy": "Une autre tâche tourne encore sur cette console.",
@@ -148,10 +152,7 @@
         "one": "{count} ligne exportée de la running-config de {hostname} (la pagination n’a pas pu être désactivée : les pages --More-- ont été passées)",
         "other": "{count} lignes exportées de la running-config de {hostname} (la pagination n’a pas pu être désactivée : les pages --More-- ont été passées)"
       },
-      "sent": {
-        "one": "{sent} ligne envoyée sur {total}",
-        "other": "{sent} lignes envoyées sur {total}"
-      },
+      "sent": "Lignes envoyées : {sent} sur {total}",
       "device_errors": {
         "one": "{count} erreur de l’équipement (ligne {lines})",
         "other": "{count} erreurs de l’équipement (lignes {lines})"

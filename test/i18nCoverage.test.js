@@ -123,6 +123,8 @@ test('server messages: the placeholders of a translation are the params the serv
     'automation.device_answered': ['detail'], 'automation.sending_line': ['line', 'total'], 'automation.exported': ['count', 'hostname'],
     'automation.exported_paging': ['count', 'hostname'], 'automation.sent': ['sent', 'total', 'count'], 'automation.device_errors': ['count', 'lines'],
     'automation.no_prompt_after': ['lines', 'count'], 'automation.waiting_for': ['question'],
+    'consoles.diagram_load_failed': ['detail'], 'consoles.warn_not_allowed': ['lab', 'name', 'target'],
+    'consoles.warn_different_devices': ['target', 'devices'], 'consoles.warn_several_pages': ['target', 'name', 'labs'],
   };
   for (const lang of ['fr', 'en']) {
     const all = allKeys(lang);

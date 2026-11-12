@@ -44,7 +44,7 @@ test('the shipped lab diagram: 8 labs, 71 devices, typo on B5H detected', () => 
   const { labs, warnings } = parseDrawio(fs.readFileSync('diagrams/diagram.drawio', 'utf8'));
   assert.equal(labs.length, 8);
   assert.equal(labs.reduce((n, l) => n + l.devices.length, 0), 71);
-  assert.ok(warnings.some((w) => w.includes('10.22.9.212:2005') && w.includes('different devices')));
+  assert.ok(warnings.some((w) => w.code === 'consoles.warn_different_devices' && w.message.includes('10.22.9.212:2005') && w.params.target === '10.22.9.212:2005'));
 });
 
 test('labelLines strips HTML and entities', () => {
