@@ -65,8 +65,12 @@ export function withEnv(env) {
   };
 }
 
-/** Read a configuration from baseEnv + overrides, without touching the caller's environment */
-export async function loadTestConfig(env = {}, dataDir = tempDataDir()) {
+/**
+ * Read a configuration from baseEnv + overrides, without touching the
+ * caller's environment. Nothing is created on disk: the default DATA_DIR is
+ * only a path (startTestApp passes a real temporary directory)
+ */
+export async function loadTestConfig(env = {}, dataDir = path.join(os.tmpdir(), `lab-console-test-${process.pid}-unused`)) {
   const restoreBase = withEnv(baseEnv(dataDir));
   try {
     // src/config.js also evaluates the environment when it is first imported,
