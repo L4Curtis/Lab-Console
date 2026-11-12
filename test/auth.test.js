@@ -415,6 +415,69 @@ describe('replacing the local administrator\'s credentials ends its sessions', (
       fs.rmSync(dataDir, { recursive: true, force: true });
     }
   });
+
+  test('a stranger keeping the name backed off after a rotation does not keep the administrator out of a browser it signed in from before', async () => {
+    const { createApp } = await import('../src/server.js');
+    const { hashPassword } = await import('../src/modules/auth/password.js');
+    const { generateSecret, base32Decode, totp } = await import('../src/modules/auth/totp.js');
+    const dataDir = tempDataDir();
+    const c = clock();
+    const boot = async (env = {}) => {
+      const config = await loadTestConfig({ PUBLIC_URL: 'http://127.0.0.1:1', TRUSTED_PROXIES: '127.0.0.1', ...env }, dataDir);
+      const app = createApp({ config, logger: silentLogger, createAuth: (deps) => createAuth({ ...deps, now: c.now }) });
+      const { port } = await app.listen({ port: 0 });
+      return { app, url: `http://127.0.0.1:${port}` };
+    };
+    /** A browser whose cookies are given by hand: the port changes at every restart */
+    const browserWith = (cookie) => ({ fetch: (url, { headers = {}, ...options }) => fetch(url, { ...options, headers: { ...headers, ...(cookie ? { cookie } : {}) } }) });
+    let run;
+    try {
+      run = await boot();
+      const first = await postLocalSignIn(run, { ip: '192.0.2.70', code: adminCode(c.ms) });
+      assert.equal(first.status, 200);
+      await first.arrayBuffer();
+      const set = first.headers.getSetCookie();
+      const session = set.find((line) => line.startsWith('lc_sid=')).split(';')[0];
+      const device = set.find((line) => line.startsWith('lc_device=')).split(';')[0];
+      await run.app.close();
+
+      // Suspected compromise: new password, new code, restart
+      const password = 'a-brand-new-long-password';
+      const secret = generateSecret();
+      const code = () => totp(base32Decode(secret), c.ms);
+      run = await boot({ LOCAL_ADMIN_PASSWORD_HASH: await hashPassword(password, { N: 16384, r: 8, p: 1 }), LOCAL_ADMIN_TOTP_SECRET: secret });
+      c.advance(60_000);
+      assert.equal((await fetch(`${run.url}/api/modules`, { headers: { cookie: session } })).status, 401, 'the old session is gone');
+
+      // The attacker keeps the name backed off from many addresses
+      let failures = 0;
+      for (let i = 0; failures < 10; i++) {
+        const res = await postLocalSignIn(run, { ip: `198.19.0.${i + 1}`, password: 'guess-guess-guess', code: '123456' });
+        await res.arrayBuffer();
+        if (res.status === 401) failures += 1;
+        else {
+          assert.equal(res.status, 429);
+          c.advance(Number(res.headers.get('retry-after')) * 1000);
+        }
+      }
+      const stranger = await postLocalSignIn(run, { ip: '192.0.2.71', password, code: code() });
+      assert.equal(stranger.status, 429, 'a browser that never signed in is kept waiting');
+      assert.ok(Number(stranger.headers.get('retry-after')) >= 60);
+      await stranger.arrayBuffer();
+
+      const back = await postLocalSignIn(run, { ip: '192.0.2.72', password, code: code() }, browserWith(device));
+      assert.equal(back.status, 200, 'the browser the administrator signed in from before the rotation gets in');
+      await back.arrayBuffer();
+      const [entry] = await run.app.deps.audit.query({ action: 'auth.login' });
+      assert.equal(entry.details.knownBrowser, true);
+      const old = await postLocalSignIn(run, { ip: '192.0.2.73', code: adminCode(c.ms) }, browserWith(device));
+      assert.equal(old.status, 401, 'the cookie is no credential: the old password and code are dead');
+      await old.arrayBuffer();
+    } finally {
+      await run?.app.close();
+      fs.rmSync(dataDir, { recursive: true, force: true });
+    }
+  });
 });
 
 // ── Cookies over https ──────────────────────────────────────────────────────

@@ -236,8 +236,9 @@ at every sign-in.
   in one `auth.login.suppressed` entry (`refusals.js`).
 - The local administrator's sessions are stored with a fingerprint of its
   credentials (`envAdmin.js` `binding`); after a restart with other
-  credentials they are not restored. The known-browser key derives from the
-  same credentials.
+  credentials they are not restored. The known-browser key does not: it is
+  a random secret in `data/auth/device-key.json`, so the administrator's
+  known browsers keep their own limits across a change of credentials.
 
 **Roles.** `resolveRole({ groups, adminGroups, storedRole })` in `roles.js`
 is the only place a role is decided: admin when a group is in
@@ -501,7 +502,7 @@ SSE topics: `consoles:rooms` (sticky, all room summaries), `consoles:activity`.
 
 ```
 data/
-  auth/sessions.json        auth/local-admin.json (last TOTP step used)
+  auth/sessions.json        auth/local-admin.json (last TOTP step used)   auth/device-key.json (known-browser key)
   audit/<yyyy-mm>.jsonl
   diagrams/current.drawio   diagrams/versions/<ts>-<user>.drawio   diagrams/index.json
   journal/<bench>/<device>/<yyyy-mm-dd>.log

@@ -13,12 +13,12 @@
  *     gets a single yes or no: nothing tells which of the three was wrong,
  *     nor whether the user name exists
  *
- * Its secrets also seed two derived values (adminDerivedKey), so that
- * replacing the credentials after a suspected compromise also throws out
- * whatever was obtained with the old ones:
- *   - `binding`, stored with each of its sessions: a session whose binding no
- *     longer matches is not restored at start-up (sessions.js);
- *   - the key of the known-browser cookies (devices.js)
+ * Its secrets also seed `binding` (adminDerivedKey), stored with each of its
+ * sessions: a session whose binding no longer matches is not restored at
+ * start-up (sessions.js), so replacing the credentials after a suspected
+ * compromise also ends whatever was opened with the old ones. The
+ * known-browser cookies deliberately have a key of their own (devices.js):
+ * they must outlive such a replacement
  */
 import crypto from 'node:crypto';
 import { createUser } from './user.js';

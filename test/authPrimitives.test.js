@@ -16,7 +16,7 @@ import { createLoginThrottle } from '../src/modules/auth/throttle.js';
 import { createSessionStore, SESSION_IDLE_MS, SESSION_ABSOLUTE_MS } from '../src/modules/auth/sessions.js';
 import { createAccountProviders } from '../src/modules/auth/accounts.js';
 import { createEnvAdminProvider, adminDerivedKey } from '../src/modules/auth/envAdmin.js';
-import { createDeviceCookies, DEVICE_MAX_AGE_MS } from '../src/modules/auth/devices.js';
+import { createDeviceCookies, loadDeviceKey, DEVICE_MAX_AGE_MS } from '../src/modules/auth/devices.js';
 import { createRefusalAudit } from '../src/modules/auth/refusals.js';
 import { resolveRole, isAllowed } from '../src/modules/auth/roles.js';
 import { readClaim, toGroups, groupsFrom, userFromClaims, needsUserinfo } from '../src/modules/auth/claims.js';
@@ -352,7 +352,7 @@ describe('login throttle', () => {
 // ── Known browsers ──────────────────────────────────────────────────────────
 
 describe('known-browser cookies', () => {
-  const key = adminDerivedKey(TEST_ADMIN, 'device cookies');
+  const key = Buffer.alloc(32, 7);
 
   test('valid for the name it was issued for, and nothing else', () => {
     const c = clock();
@@ -372,7 +372,7 @@ describe('known-browser cookies', () => {
     assert.equal(devices.check(raw.toString('base64url'), 'root'), null, 'tampered');
   });
 
-  test('expires, and dies with a change of the administrator\'s credentials', () => {
+  test('expires after 180 days, and only counts with the key it was signed with', () => {
     const c = clock();
     const devices = createDeviceCookies({ key, now: c.now });
     const value = devices.issue('root');
@@ -380,15 +380,49 @@ describe('known-browser cookies', () => {
     assert.ok(devices.check(value, 'root'));
     c.advance(1000);
     assert.equal(devices.check(value, 'root'), null, '180 days');
-
     const fresh = devices.issue('root');
-    for (const change of [{ username: 'root2' }, { totpSecret: 'JBSWY3DPEHPK3PXPJBSWY3DPEHPK3PXP' }, { passwordHash: `${TEST_ADMIN.passwordHash}x` }]) {
-      const rotated = createDeviceCookies({ key: adminDerivedKey({ ...TEST_ADMIN, ...change }, 'device cookies'), now: c.now });
-      assert.equal(rotated.check(fresh, 'root'), null, Object.keys(change)[0]);
-    }
-    assert.ok(createDeviceCookies({ key: adminDerivedKey(TEST_ADMIN, 'device cookies'), now: c.now }).check(fresh, 'root'), 'same credentials, same key');
-    assert.notDeepEqual(adminDerivedKey(TEST_ADMIN, 'device cookies'), adminDerivedKey(TEST_ADMIN, 'session binding'), 'one key per purpose');
+    assert.equal(createDeviceCookies({ key: Buffer.alloc(32, 8), now: c.now }).check(fresh, 'root'), null, 'another key');
   });
+
+  test('the key is a secret of its own in the data directory: it survives a restart and a change of the administrator\'s credentials', () => withStore(async (store, dir) => {
+    const c = clock();
+    const first = loadDeviceKey({ store });
+    assert.equal(first.length, 32);
+    await store.flush();
+    const file = `${dir}/auth/device-key.json`;
+    assert.equal(fs.statSync(file).mode & 0o777, 0o600);
+    const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+    assert.deepEqual(Object.keys(saved), ['key']);
+    for (const secret of [TEST_ADMIN.passwordHash, TEST_ADMIN.totpSecret]) assert.ok(!fs.readFileSync(file, 'utf8').includes(secret));
+    assert.notDeepEqual(first, adminDerivedKey(TEST_ADMIN, 'session binding'));
+
+    // A restart reads the same key, whatever the administrator's credentials are now
+    const value = createDeviceCookies({ key: first, now: c.now }).issue('root');
+    const restarted = loadDeviceKey({ store: createStore(dir) });
+    assert.deepEqual(restarted, first);
+    assert.ok(createDeviceCookies({ key: restarted, now: c.now }).check(value, 'root'));
+
+    // Deleting the file forgets every known browser; a damaged file is replaced
+    fs.rmSync(file);
+    const fresh = loadDeviceKey({ store: createStore(dir) });
+    assert.notDeepEqual(fresh, first);
+    assert.equal(createDeviceCookies({ key: fresh, now: c.now }).check(value, 'root'), null);
+    const warnings = [];
+    fs.writeFileSync(file, '{"key":"short"}\n');
+    const replaced = loadDeviceKey({ store: createStore(dir), logger: { warn: (m) => warnings.push(m), error() {} } });
+    assert.equal(replaced.length, 32);
+    assert.equal(warnings.length, 1);
+  }));
+
+  test('an unreadable key file is never overwritten: a key for this run only', () => withStore(async (store, dir) => {
+    fs.mkdirSync(`${dir}/auth/device-key.json`, { recursive: true }); // reading it fails with EISDIR
+    const errors = [];
+    const key = loadDeviceKey({ store, logger: { warn() {}, error: (m) => errors.push(m) } });
+    assert.equal(key.length, 32);
+    assert.equal(errors.length, 1);
+    await store.flush();
+    assert.ok(fs.statSync(`${dir}/auth/device-key.json`).isDirectory());
+  }));
 });
 
 // ── Refusals anyone can send for free ───────────────────────────────────────

@@ -76,9 +76,13 @@ wrong.
   days, signed, only valid for that user name). Its attempts are counted on
   that browser alone, 5 per 15 minutes with its own backoff, and the shared
   refusals no longer apply to it. It is not a credential: the name, the
-  password and the code are still required. **Sign in once from the browser
-  you would use in an emergency**: a browser that never signed in can still be
-  kept waiting by someone hammering the form.
+  password and the code are still required. It stays valid when the password
+  or the code is replaced (see below), so the administrator's own browsers
+  still get in while someone is hammering the form. **Sign in once from the
+  browser you would use in an emergency**: a browser that never signed in can
+  still be kept waiting by someone hammering the form. The cookies are signed
+  with a random key kept in `data/auth/device-key.json`; delete that file and
+  restart to forget every known browser.
 - Every attempt whose credentials were checked, successful or not, is in the
   audit trail (`auth.login`, `auth.login.failed`), with the client's address.
   Refusals that cost the sender nothing (a throttled attempt, a provider
@@ -92,10 +96,16 @@ wrong.
 Run `npm run setup-admin` again, replace the three lines, restart. The old
 password and the old code stop working, and so does everything obtained with
 them: the local administrator's open sessions end at the restart (each one is
-stored with a fingerprint of the credentials it was opened with), and the
-known-browser cookies are no longer valid (their key derives from the same
-credentials). Changing only the user name has the same effect. This is the
-thing to do after a suspected compromise.
+stored with a fingerprint of the credentials it was opened with). Changing
+only the user name has the same effect. This is the thing to do after a
+suspected compromise.
+
+Known browsers stay known across the change (a known-browser cookie only
+counts for the user name it was issued for, so a new name starts without
+any): the browsers you already signed in from get past the shared refusals
+with the new password and code even if someone is attacking the form right
+then. To forget them too, delete `data/auth/device-key.json` before the
+restart.
 
 ## 2. An identity provider (OpenID Connect)
 

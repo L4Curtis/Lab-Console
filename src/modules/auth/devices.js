@@ -14,12 +14,46 @@
  *
  * The HMAC covers the first three fields and the user name, so the name is
  * not in the cookie, a cookie only counts for the name it was issued for,
- * and nobody can make one without the key. The key is derived from the
- * local administrator's secrets (envAdmin.js): changing them invalidates every
- * cookie issued before. A cookie lives `maxAgeMs` (180 days)
+ * and nobody can make one without the key. A cookie lives `maxAgeMs` (180 days)
+ *
+ * The key is a random secret of its own, kept in data/auth/device-key.json
+ * (loadDeviceKey). It does not derive from the administrator's credentials on
+ * purpose: replacing them after a suspected compromise - exactly when someone
+ * is likely to be hammering the form - must not turn the administrator's own
+ * browsers into strangers that the shared refusals keep out. Whatever was
+ * obtained with the old credentials ends anyway: the sessions through their
+ * binding (envAdmin.js, sessions.js), and a cookie on its own opens nothing.
+ * Deleting the file (then restarting) forgets every known browser
  */
 import crypto from 'node:crypto';
 import { nameKey } from './throttle.js';
+
+const KEY_FILE = 'auth/device-key.json';
+const KEY_TEXT = /^[A-Za-z0-9_-]{43}$/; // 32 bytes in base64url, no padding
+
+/**
+ * The key of the known-browser cookies: the one saved in the data directory,
+ * or a new one, saved there, when there is none yet (or it is not usable).
+ * If the file cannot be read, a key for this run only: known browsers are
+ * strangers until the file is readable again, and it is never overwritten
+ */
+export function loadDeviceKey({ store, logger }) {
+  const log = logger ?? { warn() {}, error() {} };
+  const doc = store.json(KEY_FILE, null);
+  let saved;
+  try {
+    saved = doc.get();
+  } catch (err) {
+    log.error(`${KEY_FILE} could not be read (${err.message}): known browsers are not recognised until it can be`);
+    return crypto.randomBytes(32);
+  }
+  if (typeof saved?.key === 'string' && KEY_TEXT.test(saved.key)) return Buffer.from(saved.key, 'base64url');
+  if (saved !== null) log.warn(`${KEY_FILE} holds no usable key: a new one replaces it, known browsers have to sign in again`);
+  const key = crypto.randomBytes(32);
+  doc.set({ key: key.toString('base64url') })
+    .catch((err) => log.error(`${KEY_FILE} could not be saved (${err.message}): known browsers will not be recognised after a restart`));
+  return key;
+}
 
 const VERSION = 1;
 const BYTES = 1 + 4 + 16 + 32;
