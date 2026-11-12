@@ -10,10 +10,10 @@ import { fakeRequest, fakeResponse } from './helpers/fakes.js';
 
 const from = (remoteAddress, forwardedFor) =>
   fakeRequest({ remoteAddress, headers: forwardedFor === undefined ? {} : { 'x-forwarded-for': forwardedFor } });
-const proxied = { trustProxy: false, trustedProxies: ['192.168.10.112', '10.0.0.0/8'] };
+const proxied = { trustedProxies: ['192.168.10.112', '10.0.0.0/8'] };
 
 test('no proxy configured: the peer address, whatever the headers say', () => {
-  const direct = { trustProxy: false, trustedProxies: [] };
+  const direct = { trustedProxies: [] };
   assert.equal(clientIp(from('192.168.10.20'), direct), '192.168.10.20');
   assert.equal(clientIp(from('192.168.10.20', '1.2.3.4'), direct), '192.168.10.20');
   assert.equal(clientIp(from('192.168.10.20', '1.2.3.4'), false), '192.168.10.20');
@@ -73,17 +73,24 @@ test('IPv6 proxies and blocks work too', () => {
   assert.equal(clientIp(from('2001:db8::2', '203.0.113.7'), v6), '2001:db8::2');
 });
 
-test('legacy TRUST_PROXY=true: any peer is believed, first address wins (upstream behaviour)', () => {
-  assert.equal(clientIp(from('192.168.10.20', '203.0.113.7, 10.0.0.1'), true), '203.0.113.7');
-  assert.equal(clientIp(from('192.168.10.20', '203.0.113.7'), { trustProxy: true, trustedProxies: [] }), '203.0.113.7');
-  assert.equal(clientIp(from('192.168.10.20'), true), '192.168.10.20');
-  assert.equal(clientIp(from('192.168.10.20', '<script>alert(1)</script>'), true), '192.168.10.20', 'but only an address is accepted');
-});
-
-test('TRUSTED_PROXIES wins over the legacy switch when both are set', () => {
+test('the upstream "trust every peer" switch is gone: nothing but the list makes a peer trusted', () => {
+  // With it, any client could put any address first in X-Forwarded-For
+  assert.equal(clientIp(from('192.168.10.20', '203.0.113.7, 10.0.0.1'), true), '192.168.10.20');
+  assert.equal(clientIp(from('192.168.10.20', '203.0.113.7'), { trustProxy: true, trustedProxies: [] }), '192.168.10.20');
+  assert.equal(clientIp(from('192.168.10.20', '203.0.113.7'), { trustProxy: true }), '192.168.10.20');
   const both = { trustProxy: true, trustedProxies: ['192.168.10.112'] };
   assert.equal(clientIp(from('192.168.10.20', '203.0.113.7'), both), '192.168.10.20');
   assert.equal(clientIp(from('192.168.10.112', '203.0.113.7'), both), '203.0.113.7');
+});
+
+test('behind a proxy that appends (NPM, then Cloudflare): every hop listed, the real client comes out', () => {
+  // client → Cloudflare edge (appends the client) → NPM 192.168.10.112 (appends the edge) → app.
+  // The client may have sent its own X-Forwarded-For first: it stays on the left, ignored
+  const chain = { trustedProxies: ['192.168.10.112', '173.245.48.0/20', '2400:cb00::/32'] };
+  assert.equal(clientIp(from('192.168.10.112', '6.6.6.6, 203.0.113.7, 173.245.48.9'), chain), '203.0.113.7');
+  assert.equal(clientIp(from('192.168.10.112', '203.0.113.7, 2400:cb00::12'), chain), '203.0.113.7');
+  // Only the reverse proxy listed: every visitor would look like the edge address
+  assert.equal(clientIp(from('192.168.10.112', '203.0.113.7, 173.245.48.9'), { trustedProxies: ['192.168.10.112'] }), '173.245.48.9');
 });
 
 test('no socket address at all: "unknown", never a header value', () => {
@@ -105,7 +112,7 @@ test('proxyTrust: one compiled matcher per configuration, usable as Express "tru
   assert.equal(proxyTrust(proxied), trust);
   assert.equal(trust.isTrusted('10.1.1.1'), true);
   assert.equal(trust.isTrusted('192.168.10.20'), false);
-  assert.equal(proxyTrust({ trustProxy: true }).isTrusted('8.8.8.8'), true);
+  assert.equal(proxyTrust({ trustProxy: true }).isTrusted('8.8.8.8'), false);
   assert.equal(proxyTrust({}).isTrusted('127.0.0.1'), false);
 });
 

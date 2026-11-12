@@ -99,8 +99,8 @@ test('config: defaults of the global keys, and the upstream sections unchanged',
   const config = await loadTestConfig();
   assert.equal(config.defaultLocale, 'fr');
   assert.equal(config.server.publicUrl, 'http://127.0.0.1', 'the base test environment sets one: it is required');
-  assert.equal(config.server.trustProxy, false);
   assert.deepEqual(config.server.trustedProxies, []);
+  assert.equal('trustProxy' in config.server, false, 'the upstream switch is gone');
   assert.ok(path.isAbsolute(config.dataDir));
   assert.deepEqual(Object.keys(config).sort(),
     ['auth', 'consoles', 'dataDir', 'defaultLocale', 'diagramPath', 'infraConfigPath', 'limits', 'proxmox', 'server', 'ssh', 'telnet']);
@@ -116,12 +116,22 @@ test('config: DATA_DIR defaults to ./data and is made absolute', async () => {
 
 test('config: the global keys are read from the environment', async () => {
   const config = await loadTestConfig({
-    PUBLIC_URL: 'https://lab.example.org/', DEFAULT_LOCALE: 'EN', TRUSTED_PROXIES: '192.168.10.112, 10.0.0.0/8', TRUST_PROXY: 'true',
+    PUBLIC_URL: 'https://lab.example.org/', DEFAULT_LOCALE: 'EN', TRUSTED_PROXIES: '192.168.10.112, 10.0.0.0/8', TRUST_PROXY: 'false',
   });
   assert.equal(config.server.publicUrl, 'https://lab.example.org');
   assert.equal(config.defaultLocale, 'en');
   assert.deepEqual(config.server.trustedProxies, ['192.168.10.112', '10.0.0.0/8']);
-  assert.equal(config.server.trustProxy, true);
+});
+
+test('config: the upstream TRUST_PROXY=true (believe any peer) is refused, with or without a list', async () => {
+  // It let any client pick the address the sign-in limits and the audit trail see
+  for (const env of [{ TRUST_PROXY: 'true' }, { TRUST_PROXY: '1', TRUSTED_PROXIES: '192.168.10.112' }]) {
+    await assert.rejects(loadTestConfig(env), (err) => {
+      assert.equal(err.name, 'ConfigError');
+      assert.match(err.problems.join('\n'), /TRUST_PROXY=true is no longer supported.*TRUSTED_PROXIES/);
+      return true;
+    }, JSON.stringify(env));
+  }
 });
 
 test('config: frozen all the way down', async () => {

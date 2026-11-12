@@ -113,17 +113,15 @@ const trustCache = new WeakMap();
 
 /**
  * Turn the server configuration into `{ isTrusted(address), clientIp(req) }`.
- * `trust` is `config.server` ({ trustProxy, trustedProxies }); a bare boolean
- * is the upstream signature and means "trust any peer" when true.
- * A non-empty TRUSTED_PROXIES list wins over the legacy TRUST_PROXY=true
+ * `trust` is `config.server` ({ trustedProxies }). Nothing else makes a peer
+ * trusted: without a list (or with anything that is not a configuration
+ * object, such as the upstream boolean) the TCP peer is the client
  */
 export function proxyTrust(trust) {
   const key = trust !== null && typeof trust === 'object' ? trust : null;
   if (key && trustCache.has(key)) return trustCache.get(key);
 
-  const listed = key?.trustedProxies?.length ? parseTrustedProxies(key.trustedProxies) : null;
-  const trustAll = !listed && (key ? Boolean(key.trustProxy) : Boolean(trust));
-  const isTrusted = listed || (() => trustAll);
+  const isTrusted = key?.trustedProxies?.length ? parseTrustedProxies(key.trustedProxies) : () => false;
 
   const resolved = {
     isTrusted,
@@ -131,9 +129,6 @@ export function proxyTrust(trust) {
       const peer = normalizeIp(req.socket?.remoteAddress) || 'unknown';
       if (!isTrusted(peer)) return peer;
       const hops = String(req.headers?.['x-forwarded-for'] ?? '').split(',').map(normalizeIp).filter(Boolean);
-      if (!hops.length) return peer;
-      // Upstream behaviour, kept for TRUST_PROXY=true: the first address wins
-      if (trustAll) return net.isIP(hops[0]) ? hops[0] : peer;
       // Walk back from our own proxy: the first hop that is not one of our
       // proxies is the client; whatever precedes it was written by the client
       let client = peer;

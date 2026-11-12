@@ -26,8 +26,17 @@ export class ConfigError extends Error {
   }
 }
 
-/** Client addresses are only read from X-Forwarded-For behind these proxies */
+/**
+ * Client addresses are only read from X-Forwarded-For behind these proxies.
+ * The upstream TRUST_PROXY=true believed the header from any peer, so any
+ * client could choose the address that the sign-in limits and the audit
+ * trail see: a deployment that still sets it is refused, not silently changed
+ */
 function trustedProxies() {
+  if (bool('TRUST_PROXY', false)) {
+    fail('TRUST_PROXY=true is no longer supported: it let any client choose its own address. '
+      + 'Remove it and list every proxy in front of Lab Console in TRUSTED_PROXIES instead (see docs/v2/AUTH.md, "Exposed to the Internet")');
+  }
   const entries = list('TRUSTED_PROXIES');
   try {
     parseTrustedProxies(entries);
@@ -45,9 +54,6 @@ function readServerConfig() {
     // Public origin of the platform, e.g. https://lab.example.org: OIDC redirect
     // URIs and cookie security derive from it. Required
     publicUrl: origin('PUBLIC_URL'),
-    // Legacy switch: believe X-Forwarded-For from ANY peer. Prefer TRUSTED_PROXIES,
-    // which wins when both are set
-    trustProxy: bool('TRUST_PROXY', false),
     trustedProxies: trustedProxies(),
     // Extra origins allowed to open terminal WebSockets (same-origin is always allowed)
     allowedOrigins: list('ALLOWED_ORIGINS'),
