@@ -91,6 +91,24 @@ export function toast(message, kind = 'info', ms = 4500) {
   setTimeout(() => { el.classList.remove('in'); setTimeout(() => el.remove(), 250); }, ms);
 }
 
+const stylesheets = new Map(); // href → promise
+
+/**
+ * Load a module's stylesheet once: loadCss('benches') → /css/benches.css.
+ * Resolves when the rules apply, so a screen can wait before it shows; a
+ * stylesheet that fails to load resolves too (an unstyled screen still works)
+ */
+export function loadCss(name) {
+  const href = name.includes('/') ? name : `/css/${name}.css`;
+  if (!stylesheets.has(href)) {
+    stylesheets.set(href, new Promise((resolve) => {
+      const link = h('link', { rel: 'stylesheet', href, onload: () => resolve(true), onerror: () => resolve(false) });
+      document.head.append(link);
+    }));
+  }
+  return stylesheets.get(href);
+}
+
 /** localStorage that never throws (private windows, blocked storage…) */
 export const prefs = {
   get(key, fallback) {

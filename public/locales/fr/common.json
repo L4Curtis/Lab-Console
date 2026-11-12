@@ -1,0 +1,27 @@
+{
+  "actions": {
+    "ok": "OK",
+    "cancel": "Annuler",
+    "confirm": "Confirmer",
+    "close": "Fermer"
+  },
+  "dialog": {
+    "typeToConfirm": "Tapez {text} pour confirmer"
+  },
+  "tabs": {
+    "loadFailed": "Impossible de charger cet écran. Rechargez la page."
+  },
+  "errors": {
+    "server": {
+      "internal": "Erreur interne du serveur.",
+      "not_found": "Introuvable.",
+      "bad_request": "Requête invalide.",
+      "too_large": "Envoi trop volumineux.",
+      "cross_origin": "Requête refusée : elle ne vient pas de cette page."
+    },
+    "auth": {
+      "required": "Connectez-vous pour continuer.",
+      "forbidden": "Vous n'avez pas le droit de faire ça."
+    }
+  }
+}

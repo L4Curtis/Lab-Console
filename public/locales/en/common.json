@@ -1,0 +1,27 @@
+{
+  "actions": {
+    "ok": "OK",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "close": "Close"
+  },
+  "dialog": {
+    "typeToConfirm": "Type {text} to confirm"
+  },
+  "tabs": {
+    "loadFailed": "This screen could not be loaded. Reload the page."
+  },
+  "errors": {
+    "server": {
+      "internal": "Internal server error.",
+      "not_found": "Not found.",
+      "bad_request": "Invalid request.",
+      "too_large": "Upload too large.",
+      "cross_origin": "Request refused: it does not come from this page."
+    },
+    "auth": {
+      "required": "Sign in to continue.",
+      "forbidden": "You are not allowed to do this."
+    }
+  }
+}

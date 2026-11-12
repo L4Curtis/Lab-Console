@@ -1,10 +1,15 @@
 /** HTTP + live-event access to the backend. */
+import { tError } from './i18n.js';
 
 export async function getJson(url) {
   return request('GET', url);
 }
 
-/** JSON request; errors carry the server's message and HTTP status. */
+/**
+ * JSON request; errors carry the HTTP status and the server's `code` and
+ * `params`. The message is the translation of `code` when the dictionaries
+ * know it, else the server's own sentence (kept in `serverMessage`).
+ */
 export async function request(method, url, body) {
   const res = await fetch(url, {
     method,
@@ -15,8 +20,12 @@ export async function request(method, url, body) {
   let data = null;
   try { data = await res.json(); } catch { /* empty or non-JSON body */ }
   if (!res.ok) {
-    const err = new Error(data?.error || `${url} answered HTTP ${res.status}`);
+    const fallback = data?.error || `${url} answered HTTP ${res.status}`;
+    const err = new Error(data?.code ? tError(data.code, data.params, fallback) : fallback);
     err.status = res.status;
+    err.code = data?.code ?? null;
+    err.params = data?.params ?? {};
+    err.serverMessage = fallback;
     throw err;
   }
   return data;
