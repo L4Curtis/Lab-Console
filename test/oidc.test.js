@@ -9,8 +9,10 @@
  */
 import { test, describe, before, after, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { startMockOidc } from '../dev/mock-oidc.js';
-import { startTestApp } from './helpers/app.js';
+import fs from 'node:fs';
+import path from 'node:path';
+import { startMockOidc, DEFAULT_CLIENTS, DEFAULT_USERS } from '../dev/mock-oidc.js';
+import { startTestApp, loadTestConfig, repoRoot } from './helpers/app.js';
 import { TestBrowser, signInWithOidc } from './helpers/browser.js';
 
 const oidcEnv = (idp, extra = {}) => ({
@@ -261,6 +263,29 @@ describe('OpenID Connect with a public client (no secret, PKCE only)', () => {
   });
 });
 
+describe('OpenID Connect: starting sign-ins is limited per client address', () => {
+  let idp;
+  let lab;
+  before(async () => {
+    idp = await startMockOidc({ port: 0 });
+    lab = await startTestApp({ env: oidcEnv(idp, { TRUSTED_PROXIES: '127.0.0.1' }) });
+  });
+  after(async () => { await lab.close(); await idp.close(); });
+
+  const start = async (ip) => {
+    const res = await fetch(`${lab.url}/auth/login`, { redirect: 'manual', headers: { 'x-forwarded-for': ip } });
+    await res.arrayBuffer();
+    return res.headers.get('location');
+  };
+
+  test('the 31st start in a minute from one address goes back to the login page; another address is not affected', async () => {
+    for (let i = 0; i < 30; i++) assert.ok((await start('198.51.100.7')).startsWith(`${idp.issuer}/authorize?`), `start ${i + 1}`);
+    assert.equal(await start('198.51.100.7'), '/login?error=throttled');
+    assert.equal(await start('198.51.100.7'), '/login?error=throttled', 'and stays refused');
+    assert.ok((await start('198.51.100.8')).startsWith(`${idp.issuer}/authorize?`), 'another address still starts');
+  });
+});
+
 describe('OpenID Connect: the provider is down', () => {
   let lab;
   before(async () => {
@@ -304,6 +329,67 @@ describe('the mock provider cannot be switched on by accident', () => {
       const discovery = await (await fetch(`${idp.issuer}/.well-known/openid-configuration`)).json();
       assert.deepEqual(discovery.code_challenge_methods_supported, ['S256']);
       assert.equal((await (await fetch(`${idp.issuer}/jwks`)).json()).keys[0].alg, 'RS256');
+    } finally {
+      await idp.close();
+    }
+  });
+});
+
+describe('the pre-production stack signs in through the mock provider', () => {
+  const compose = fs.readFileSync(path.join(repoRoot, 'docker-compose.preprod.yml'), 'utf8');
+  /** The lines of one service, without the comments */
+  const service = (name) => {
+    const lines = compose.split('\n').filter((l) => !/^\s*#/.test(l));
+    const startAt = lines.indexOf(`  ${name}:`);
+    assert.notEqual(startAt, -1, `service ${name}`);
+    const rest = lines.slice(startAt + 1);
+    const end = rest.findIndex((l) => /^ {2}\S/.test(l) || /^\S/.test(l));
+    return end === -1 ? rest : rest.slice(0, end);
+  };
+  /** `KEY: value` pairs of a service's environment block */
+  const environment = (lines) => {
+    const from = lines.indexOf('    environment:');
+    const pairs = [];
+    for (const line of lines.slice(from + 1)) {
+      const m = /^ {6}([A-Z_]+): ?(.*)$/.exec(line);
+      if (!m) break;
+      pairs.push([m[1], m[2].replace(/^"(.*)"$/, '$1')]);
+    }
+    return Object.fromEntries(pairs);
+  };
+  const issuer = 'http://192.0.2.250:9100';
+  const expand = (value) => value.replace(/\$\{MOCK_OIDC_ISSUER:\?[^}]*\}/g, issuer);
+
+  test('the mock runs from dev/, outside the production image, never under NODE_ENV=production', () => {
+    const mock = service('mock-oidc');
+    assert.ok(mock.includes('      - ./dev/mock-oidc.js:/mock/mock-oidc.js:ro'), 'the file is mounted read-only');
+    assert.ok(fs.existsSync(path.join(repoRoot, 'dev', 'mock-oidc.js')));
+    assert.equal(environment(mock).NODE_ENV, 'development');
+    const command = mock.slice(mock.indexOf('    command:') + 1).map((l) => /^ {6}- (.*)$/.exec(l)?.[1]).filter(Boolean);
+    assert.deepEqual(command.slice(0, 2), ['node', '/mock/mock-oidc.js']);
+    assert.ok(command.includes('--expose'));
+    assert.equal(expand(command[command.indexOf('--issuer') + 1]), issuer);
+    assert.match(fs.readFileSync(path.join(repoRoot, '.dockerignore'), 'utf8'), /^dev$/m, 'the production image still has no dev/');
+  });
+
+  test('what it gives Lab Console is a valid configuration for the mock\'s own client and groups', async () => {
+    const env = Object.fromEntries(Object.entries(environment(service('lab-console'))).map(([k, v]) => [k, expand(v)]));
+    assert.equal(env.OIDC_ISSUER, issuer);
+    assert.equal(DEFAULT_CLIENTS[env.OIDC_CLIENT_ID]?.secret, env.OIDC_CLIENT_SECRET);
+    assert.ok(DEFAULT_USERS.some((u) => u.groups.includes(env.OIDC_ADMIN_GROUPS)), 'one mock user is an administrator');
+    const config = await loadTestConfig(env);
+    assert.equal(config.auth.oidc.enabled, true);
+    assert.equal(config.auth.oidc.issuer, issuer);
+  });
+
+  test('--issuer: the mock announces the address browsers use, whatever it listens on', async () => {
+    const idp = await startMockOidc({ port: 0, issuer: `${issuer}/` });
+    try {
+      assert.equal(idp.issuer, issuer);
+      const discovery = await (await fetch(`http://127.0.0.1:${idp.port}/.well-known/openid-configuration`)).json();
+      assert.equal(discovery.issuer, issuer);
+      assert.ok(discovery.authorization_endpoint.startsWith(`${issuer}/`));
+      assert.ok(discovery.token_endpoint.startsWith(`${issuer}/`));
     } finally {
       await idp.close();
     }

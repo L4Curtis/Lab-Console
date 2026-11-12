@@ -93,7 +93,7 @@ Global keys added by the skeleton:
 |---|---|---|---|
 | `PUBLIC_URL` | — | `server.publicUrl` | Public origin, e.g. `https://lab.example.org` (no path). Required. Drives OIDC redirect URIs and cookie security. |
 | `DATA_DIR` | `./data` | `dataDir` (absolute) | Writable state directory. The Docker image sets `/data`. |
-| `TRUSTED_PROXIES` | empty | `server.trustedProxies` (string[]) | Comma list of proxy IPs / CIDRs (IPv4, IPv6) whose `X-Forwarded-For` is believed. `TRUST_PROXY=true` (legacy, `server.trustProxy`) trusts every peer; a non-empty list wins over it. |
+| `TRUSTED_PROXIES` | empty | `server.trustedProxies` (string[]) | Comma list of proxy IPs / CIDRs (IPv4, IPv6) whose `X-Forwarded-For` is believed: every hop, CDN ranges included. The upstream `TRUST_PROXY=true` (trust every peer) is refused at start-up and `server.trustProxy` no longer exists. |
 | `DEFAULT_LOCALE` | `fr` | `defaultLocale` | UI language for a first visit (`fr` or `en`). |
 
 `PORT=0` is accepted and binds any free port (tests, the e2e harness).
@@ -227,7 +227,17 @@ at every sign-in.
   (5 per 15 min), per user name (exponential backoff after 2 failures, one
   attempt in flight), and globally (50 failures per 15 min): 429
   `auth.throttled` with `Retry-After` and `params.seconds`, identical for an
-  unknown name.
+  unknown name. A browser that already signed in with that name carries a
+  signed `lc_device` cookie (`devices.js`, 180 days) and is limited on its
+  own instead (5 per 15 min, its own backoff), so strangers cannot keep the
+  administrator out. Refusals that cost nothing (throttled attempts, callbacks
+  without a sign-in in progress, the latter limited to 60 a minute per
+  address) are audited once per address and kind per 15 min, then summed up
+  in one `auth.login.suppressed` entry (`refusals.js`).
+- The local administrator's sessions are stored with a fingerprint of its
+  credentials (`envAdmin.js` `binding`); after a restart with other
+  credentials they are not restored. The known-browser key derives from the
+  same credentials.
 
 **Roles.** `resolveRole({ groups, adminGroups, storedRole })` in `roles.js`
 is the only place a role is decided: admin when a group is in

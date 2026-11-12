@@ -43,7 +43,8 @@ To try the identity provider as well, `npm run mock-oidc` starts a fake one
 on `http://127.0.0.1:9100` with a user picker (three students, one admin) and
 prints the `OIDC_*` lines to put in `.env`. Anyone can sign in as anyone
 there: it is a development tool, and it refuses to start with
-`NODE_ENV=production`.
+`NODE_ENV=production`. A pre-production Docker stack can use it through
+`docker-compose.preprod.yml` (docs/v2/AUTH.md §6).
 
 `MOCK_DOWN_PORTS=2003` simulates an unplugged console.
 `MOCK_LOGIN_PORTS=2001` simulates a terminal server that shows `login:`
@@ -110,9 +111,10 @@ is down. There is no mode without sign-in: the platform refuses to start until
 `LOCAL_ADMIN_*` is set (`npm run setup-admin`). Configuration:
 [docs/v2/AUTH.md](docs/v2/AUTH.md).
 
-Behind a reverse proxy, list its address in `TRUSTED_PROXIES` (IP addresses or
-CIDR blocks) so that client addresses are read from `X-Forwarded-For`; the
-header is ignored when it comes from anyone else. State (sessions, audit trail,
+Behind a reverse proxy, list every hop in `TRUSTED_PROXIES` (IP addresses or
+CIDR blocks; behind a CDN, its published ranges too) so that client addresses
+are read from `X-Forwarded-For`; the header is ignored when it comes from
+anyone else. The upstream `TRUST_PROXY=true` is refused at start-up. State (sessions, audit trail,
 and later backups) is written to `DATA_DIR` only: the Docker image runs with
 a read-only root filesystem and a volume on `/data`.
 

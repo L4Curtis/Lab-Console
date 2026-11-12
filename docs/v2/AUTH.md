@@ -70,14 +70,32 @@ wrong.
   50 failures per 15 minutes in total. The answer and its timing are the same
   whether or not the name exists. These limits only apply to this form: people
   who sign in through the identity provider never meet them.
-- Every attempt, successful or not, is in the audit trail (`auth.login`,
-  `auth.login.failed`), with the client's address.
+- **Known browsers.** The last two limits are shared by everybody, so a
+  stranger could keep them on for good. A browser that has signed in
+  successfully keeps a `lc_device` cookie (`__Host-lc_device` over https, 180
+  days, signed, only valid for that user name). Its attempts are counted on
+  that browser alone, 5 per 15 minutes with its own backoff, and the shared
+  refusals no longer apply to it. It is not a credential: the name, the
+  password and the code are still required. **Sign in once from the browser
+  you would use in an emergency**: a browser that never signed in can still be
+  kept waiting by someone hammering the form.
+- Every attempt whose credentials were checked, successful or not, is in the
+  audit trail (`auth.login`, `auth.login.failed`), with the client's address.
+  Refusals that cost the sender nothing (a throttled attempt, a provider
+  callback that matches no sign-in in progress) are written once per address
+  and kind per 15 minutes; the rest are counted, and one
+  `auth.login.suppressed` entry per quarter of an hour gives the total and
+  the ten busiest addresses. The audit trail cannot be used to fill the disk.
 
 ### Change the password, or a lost phone
 
 Run `npm run setup-admin` again, replace the three lines, restart. The old
-password and the old code stop working; the sessions already open stay until
-they expire or are revoked.
+password and the old code stop working, and so does everything obtained with
+them: the local administrator's open sessions end at the restart (each one is
+stored with a fingerprint of the credentials it was opened with), and the
+known-browser cookies are no longer valid (their key derives from the same
+credentials). Changing only the user name has the same effect. This is the
+thing to do after a suspected compromise.
 
 ## 2. An identity provider (OpenID Connect)
 
@@ -258,9 +276,24 @@ OIDC_PROVIDER_NAME=Authelia
 
 The sign-in is built to face the Internet directly:
 
-- `TRUSTED_PROXIES` must list the reverse proxy's address: the client's real
-  address (used by the attempt limits and the audit trail) is then read from
-  `X-Forwarded-For`, and from nobody else.
+- `TRUSTED_PROXIES` must list **every hop** between the Internet and Lab
+  Console. `X-Forwarded-For` is read from the right: each address that is one
+  of ours is skipped, and the first one that is not is the client (used by the
+  attempt limits and the audit trail). What the client wrote itself further
+  left is ignored, and a peer that is not listed is never believed.
+  - Behind Nginx Proxy Manager, then Cloudflare: Cloudflare appends the
+    visitor's address, NPM appends Cloudflare's. List NPM's address **and**
+    Cloudflare's published ranges (<https://www.cloudflare.com/ips/>, IPv4 and
+    IPv6), for example
+    `TRUSTED_PROXIES=192.168.10.112,173.245.48.0/20,103.21.244.0/22,…,2400:cb00::/32,…`.
+    With NPM alone listed, every visitor appears as a Cloudflare edge
+    address and they all share one attempt budget. Re-check the list when
+    Cloudflare announces a change.
+  - The proxies must append to `X-Forwarded-For`, not replace it (NPM and
+    nginx's `$proxy_add_x_forwarded_for` do). `CF-Connecting-IP` is not read.
+  - The upstream `TRUST_PROXY=true` (believe the header from any peer) let
+    any client choose its own address: Lab Console refuses to start while it
+    is set. Remove it and fill `TRUSTED_PROXIES`.
 - `PUBLIC_URL` must be the https address: it sets the cookie prefix and
   `Secure`, and the callback URL given to the provider.
 - The login page and every `/auth/*` answer carry `X-Robots-Tag: noindex` and
@@ -277,3 +310,38 @@ anyone, without a password. It refuses to start with `NODE_ENV=production`,
 listens on the loopback interface unless given `--expose`, and is not in the
 Docker image. `--misbehave wrongNonce,groupsInUserinfoOnly,groupsAsString`
 makes it misbehave on purpose.
+
+## 6. A pre-production stack
+
+`docker-compose.preprod.yml` adds the mock provider to the Docker stack and
+points Lab Console at it, so testers sign in as `student1`…`student3` or
+`admin` by clicking a name. Anyone who reaches the mock can do the same: use
+it only on a stack without real accounts, reachable by the testers only.
+
+1. In the `.env` next to the compose files, besides the usual settings
+   (`PUBLIC_URL`, `LOCAL_ADMIN_*`…):
+
+   ```bash
+   MOCK_OIDC_ISSUER=http://192.168.10.250:9100   # as BOTH the browsers and the container reach it
+   MOCK_OIDC_PUBLISH=192.168.10.250:9100         # where the host publishes the mock (default 127.0.0.1:9100)
+   ```
+
+   The issuer must be the same address for the browsers (sent there to pick
+   a user) and for the `lab-console` container (discovery, token, keys): the
+   host's LAN address and the published port usually serve both.
+2. Start both:
+
+   ```bash
+   docker compose -f docker-compose.yml -f docker-compose.preprod.yml up -d --build
+   ```
+
+   The `OIDC_*` values of the override (the mock's client `lab-console` /
+   `mock-secret`, admin group `admins`, `OIDC_ALLOW_INSECURE=true` for its
+   plain http) win over those of `.env`. The local administrator still works.
+3. Check that the container reaches the issuer:
+   `docker compose exec lab-console wget -qO- "$MOCK_OIDC_ISSUER/.well-known/openid-configuration"`.
+   If not, the sign-in button leads to "provider unavailable".
+
+The production image is unchanged and still has no `dev/`: the mock runs in a
+plain `node:22-alpine` container from `dev/mock-oidc.js` mounted read-only,
+with `NODE_ENV=development` (it refuses `production`).
