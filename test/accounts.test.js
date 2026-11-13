@@ -71,7 +71,7 @@ describe('links: hashed tokens, constant-time lookup, expiry, uses, revocation',
 
       assert.equal(links.find(token).problem, null);
       assert.equal(links.find(token, { kind: 'reset' }).problem, 'unknown', 'an invitation is not a reset link');
-      assert.equal(links.find(`${token.slice(0, -1)}A`).problem, 'unknown');
+      assert.equal(links.find(`${token.slice(0, -1)}${token.endsWith('A') ? 'B' : 'A'}`).problem, 'unknown');
       assert.equal(links.find('not a token').problem, 'unknown');
       assert.equal(await links.use(link.id, 'local:a'), null);
       assert.equal(await links.use(link.id, 'local:b'), null);

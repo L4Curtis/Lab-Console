@@ -18,7 +18,8 @@ import express from 'express';
 import { createLogger } from './lib/logger.js';
 import { EventHub } from './lib/events.js';
 import { securityHeaders, isOriginAllowed, requireSameOrigin, proxyTrust } from './lib/security.js';
-import { loadInfrastructure } from './lib/infrastructure.js';
+import { createInfrastructure } from './lib/infrastructure.js';
+import { createDiagrams } from './lib/diagrams.js';
 import { createStore } from './lib/store.js';
 import { createAudit } from './lib/audit.js';
 import { createSettings } from './lib/settings.js';
@@ -46,11 +47,13 @@ export function createApp({ config, logger = createLogger, createAuth: makeAuth 
   const store = createStore(config.dataDir, { logger: logger('store') });
   const events = new EventHub({ logger: logger('events') });
   const audit = createAudit({ store, logger: logger('audit'), clientIp: trust.clientIp });
-  const infra = loadInfrastructure(config.infraConfigPath, logger('infra'));
-  const settings = createSettings({ config, store, audit, events, logger: logger('settings') });
+  const infra = createInfrastructure({ file: config.infraConfigPath, store, audit, logger: logger('infra') });
+  const settings = createSettings({ config, store, audit, logger: logger('settings') });
+  // The active diagram lives in the data directory (seeded from DIAGRAM_PATH on the first start)
+  const diagrams = createDiagrams({ config, store, logger: logger('diagrams') });
   const services = {};
   const auth = makeAuth({ config, logger: logger('auth'), events, store, audit, services });
-  const deps = { config, logger: logger('app'), events, infra, store, audit, auth, settings, services };
+  const deps = { config, logger: logger('app'), events, infra, store, audit, auth, settings, diagrams, services };
   const modules = makeModules(deps);
 
   const app = express();

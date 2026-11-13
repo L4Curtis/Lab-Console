@@ -25,20 +25,29 @@ import { ConsoleSession } from './consoleSession.js';
 import { isOriginAllowed, createRateLimiter, clientIp } from '../../lib/security.js';
 import { createAutomationHandler } from '../../lib/automationProtocol.js';
 
-export function createConsolesModule({ config, events, logger, infra, services }) {
+export function createConsolesModule({ config, events, logger, infra, services, settings, diagrams }) {
   const log = logger.child('consoles');
-  const { allowedHosts, portRange, networkPrefix } = config.consoles;
+  // Lab parameters are read when a console opens: an administrator may change them at run time
+  const lab = () => settings?.get('lab') ?? { ssh: config.ssh, telnet: config.telnet, consoles: config.consoles };
 
-  const isTargetAllowed = (t) =>
-    allowedHosts.includes(t.host) && Number.isInteger(t.port) && t.port >= portRange.min && t.port <= portRange.max;
+  const isTargetAllowed = (t) => {
+    const { allowedHosts, portRange } = lab().consoles;
+    return allowedHosts.includes(t.host) && Number.isInteger(t.port) && t.port >= portRange.min && t.port <= portRange.max;
+  };
 
-  const registry = new LabRegistry({ diagramPath: config.diagramPath, networkPrefix, isTargetAllowed, logger: log });
+  // The active diagram is the data directory's (deps.diagrams); an activation or a new allow-list reloads it
+  const registry = new LabRegistry({ diagramPath: diagrams?.currentPath ?? config.diagramPath, networkPrefix: config.consoles.networkPrefix, isTargetAllowed, logger: log });
+  const stopFollowing = [
+    diagrams?.on('change', () => registry.load()),
+    settings?.on('change', (ns) => { if (ns === 'lab') registry.load(); }),
+  ];
   const sessions = new SessionManager({ limits: config.limits, logger: log });
   const allowOpen = createRateLimiter({ limit: config.limits.opensPerMinute, windowMs: 60_000 });
 
-  // Admin switches: console devices that live outside the lab diagrams
-  const adminSwitches = new Map(infra.adminSwitches.map((s) => [s.key, { ...s, allowed: isTargetAllowed(s.target) }]));
-  for (const s of adminSwitches.values()) {
+  // Admin switches: console devices that live outside the lab diagrams; the list is editable, read it each time
+  const adminSwitches = () => infra.adminSwitches.map((s) => ({ ...s, allowed: isTargetAllowed(s.target) }));
+  const adminSwitch = (key) => adminSwitches().find((s) => s.key === key) ?? null;
+  for (const s of adminSwitches()) {
     if (!s.allowed) log.warn(`admin switch ${s.labName}: ${s.target.host}:${s.target.port} is outside the allow-list (disabled)`);
   }
 
@@ -58,7 +67,7 @@ export function createConsolesModule({ config, events, logger, infra, services }
     res.set('Cache-Control', 'no-store').json({ labs, warnings, version, error });
   });
   router.get('/admin-switches', (_req, res) => {
-    res.set('Cache-Control', 'no-store').json({ switches: [...adminSwitches.values()] });
+    res.set('Cache-Control', 'no-store').json({ switches: adminSwitches() });
   });
 
   // ── WebSocket terminals ───────────────────────────────────────────────────
@@ -84,7 +93,7 @@ export function createConsolesModule({ config, events, logger, infra, services }
     if (!allowOpen(clientId)) return refuse('Too many consoles opened in the last minute. Wait a moment and try again.', 'consoles.rate_limited');
 
     const key = url.searchParams.get('device') || '';
-    const device = key.startsWith('admin:') ? adminSwitches.get(key) : registry.getDevice(key);
+    const device = key.startsWith('admin:') ? adminSwitch(key) : registry.getDevice(key);
     if (!device) return refuse('This device no longer exists. Reload the page.', 'consoles.device_gone');
     if (!device.allowed) return refuse(`${device.name}'s console address is not on the platform's allow-list.`, 'consoles.not_allowed', { name: device.name });
 
@@ -93,12 +102,13 @@ export function createConsolesModule({ config, events, logger, infra, services }
 
     let session;
     try {
+      const { ssh, telnet } = lab();
       session = new ConsoleSession({
         target: device.target,
         cols: Number(url.searchParams.get('cols')),
         rows: Number(url.searchParams.get('rows')),
-        ssh: config.ssh,
-        telnet: config.telnet,
+        ssh,
+        telnet,
         logger: log,
       });
     } catch (err) {
@@ -153,6 +163,7 @@ export function createConsolesModule({ config, events, logger, infra, services }
     upgrade,
     shutdown() {
       clearInterval(heartbeat);
+      for (const stop of stopFollowing) stop?.();
       registry.close();
       sessions.closeAll('Platform is restarting', { code: 'consoles.restarting' });
       // A browser that never answers the closing handshake must not hold the process

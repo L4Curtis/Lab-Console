@@ -131,6 +131,7 @@ describe('signed in: the application behaves as upstream', () => {
       { id: 'consoles', title: 'Lab consoles', enabled: true },
       { id: 'proxmox', title: 'Infrastructure', enabled: true },
       { id: 'accounts', title: 'Accounts', enabled: true },
+      { id: 'admin', title: 'Administration', enabled: true },
     ]);
     const labs = await (await get(lab, '/api/consoles/labs')).json();
     assert.deepEqual(Object.keys(labs).sort(), ['error', 'labs', 'version', 'warnings']);
@@ -192,8 +193,9 @@ describe('signed in: the application behaves as upstream', () => {
     const res = await get(lab, '/api/events');
     assert.equal(res.status, 200);
     assert.ok(res.headers.get('content-type').startsWith('text/event-stream'));
-    const events = await readEvents(res, 2);
-    assert.deepEqual(events.map((e) => e.topic).sort(), ['consoles:busy', 'labs:version']);
+    const events = await readEvents(res, 3);
+    assert.deepEqual(events.map((e) => e.topic).sort(), ['admin:announcement', 'consoles:busy', 'labs:version']);
+    assert.equal(events.find((e) => e.topic === 'admin:announcement').data, null, 'no announcement yet');
     assert.deepEqual(events.find((e) => e.topic === 'consoles:busy').data, []);
   });
 
@@ -221,7 +223,7 @@ describe('signed in: the application behaves as upstream', () => {
   });
 
   test('every module received the platform services, and the registry is shared', () => {
-    assert.deepEqual(Object.keys(lab.deps).sort(), ['audit', 'auth', 'config', 'events', 'infra', 'logger', 'services', 'settings', 'store']);
+    assert.deepEqual(Object.keys(lab.deps).sort(), ['audit', 'auth', 'config', 'diagrams', 'events', 'infra', 'logger', 'services', 'settings', 'store']);
     assert.equal(typeof lab.deps.services.consoles.registry.getDevice, 'function');
     assert.equal(typeof lab.deps.settings.get('lab').ssh, 'object');
     assert.equal(lab.deps.store.root, lab.dataDir);
