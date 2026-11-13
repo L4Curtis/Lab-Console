@@ -3,9 +3,10 @@
    both themes work */
 
 /* ── Bench bar ─────────────────────────────────────────────────────────── */
+/* One line when it can: the bar takes height from the consoles below it */
 .bench-bar {
-  display: grid; gap: 6px;
-  padding: 8px 20px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px;
+  padding: 6px 20px;
   background: var(--surface);
   border-bottom: 1px solid var(--line);
   font-size: 13px;
@@ -14,7 +15,8 @@
 .bench-bar[data-state="taken"] { box-shadow: inset 3px 0 0 var(--led-amber); }
 .bench-bar[data-state="taken"][data-mine="true"] { box-shadow: inset 3px 0 0 var(--led-green); }
 .bench-bar[data-state="locked"] { box-shadow: inset 3px 0 0 var(--led-red); }
-.bench-main { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; }
+.bench-main { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; flex: 1 1 auto; }
+.bench-lock, .bench-requests { flex: 1 1 100%; }
 .bench-status { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; }
 .bench-status .icon { width: 17px; height: 17px; }
 .bench-people { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; list-style: none; }
@@ -45,7 +47,7 @@
   background: color-mix(in srgb, var(--led-amber) 14%, var(--surface));
 }
 .bench-request-actions { display: inline-flex; gap: 6px; margin-left: auto; }
-.bench-slots { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+.bench-slots { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; flex: 0 1 auto; }
 .bench-slot { padding: 1px 8px; border-radius: 99px; border: 1px solid var(--line); }
 .bench-slots a.btn { margin-left: auto; text-decoration: none; }
 .bench-history ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; max-height: 60vh; overflow: auto; }
@@ -53,7 +55,7 @@
 .bench-history time { color: var(--ink-3); font-variant-numeric: tabular-nums; }
 
 /* ── Team section ──────────────────────────────────────────────────────── */
-.view-teams .view-head { justify-content: space-between; flex-wrap: wrap; }
+.view-team .view-head { justify-content: space-between; flex-wrap: wrap; }
 .team-view { flex: 1; min-height: 0; overflow: auto; background: var(--paper); display: flex; flex-direction: column; }
 .team-panel { max-width: 760px; }
 .team-card {

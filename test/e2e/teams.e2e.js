@@ -26,10 +26,10 @@ test('Alice\'s team takes B4M, Bilal asks to join, Alice accepts and Bilal reach
 
   // Alice creates her team in the Team section
   await alice.click('#rail-items a[href="#/team"]');
-  const create = alice.locator('section.view-teams form.team-form');
+  const create = alice.locator('section.view-team form.team-form');
   await create.locator('input[name="name"]').fill('Les routeurs');
   await create.locator('button[data-action="create"]').click();
-  await alice.waitForSelector('section.view-teams .team-mine .team-name:text-is("Les routeurs")');
+  await alice.waitForSelector('section.view-team .team-mine .team-name:text-is("Les routeurs")');
 
   // …and takes B4M for it
   await showBench(alice, 'B4M');
@@ -125,12 +125,12 @@ test('the reservation calendar books a slot for the team and shows it on the ben
     if (!mine) await fetch('/api/teams', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Les switchs' }) });
   });
   await chloe.goto(`${h.url}/#/team/calendar/B5M`);
-  await chloe.waitForSelector('section.view-teams .cal-grid .cal-col');
+  await chloe.waitForSelector('section.view-team .cal-grid .cal-col');
   // Next week, so that the hour is never in the past
-  await chloe.click('section.view-teams .cal-panel .panel-toolbar .icon-btn >> nth=1');
-  await chloe.locator('section.view-teams .cal-col').nth(2).locator('button.cal-cell[data-hour="10"]').click();
+  await chloe.click('section.view-team .cal-panel .panel-toolbar .icon-btn >> nth=1');
+  await chloe.locator('section.view-team .cal-col').nth(2).locator('button.cal-cell[data-hour="10"]').click();
   await chloe.click('dialog button[data-action="confirm"]');
-  const slot = chloe.locator('section.view-teams .cal-slot[data-mine="true"]', { hasText: 'Les switchs' });
+  const slot = chloe.locator('section.view-team .cal-slot[data-mine="true"]', { hasText: 'Les switchs' });
   await slot.waitFor();
   assert.match(await slot.textContent(), /10:00.12:00/);
 
@@ -159,7 +159,7 @@ test('the calendar places slots right on a daylight-saving day and lists the one
   await page.clock.setFixedTime(new Date('2027-03-25T11:00:00Z'));
   await page.goto(`${h.url}/#/team/calendar/B5M`);
   await page.reload();
-  const sunday = page.locator('section.view-teams .cal-col').nth(6);
+  const sunday = page.locator('section.view-team .cal-col').nth(6);
   const slot = sunday.locator('.cal-slot', { hasText: '10:00' });
   await slot.waitFor();
   // 10:00 is 2 hours into a 12-hour grid, whatever the length of the day
@@ -169,7 +169,7 @@ test('the calendar places slots right on a daylight-saving day and lists the one
   assert.equal(await sunday.locator('.cal-slot').count(), 1, 'the evening slot is not in the grid');
 
   // …but the week does not look free: it is listed under the grid
-  const outside = page.locator('section.view-teams .cal-outside-list li');
+  const outside = page.locator('section.view-team .cal-outside-list li');
   await outside.first().waitFor();
   assert.equal(await outside.count(), 1);
   assert.match(await outside.first().textContent(), /Les admins.*20:30.22:00/);

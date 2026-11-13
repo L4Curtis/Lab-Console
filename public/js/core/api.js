@@ -46,29 +46,48 @@ export async function request(method, url, body) {
 /**
  * One shared EventSource for the whole app; modules subscribe by topic.
  *   const off = live.on('consoles:busy', (targets) => …)
+ *
+ * Sticky topics are replayed by the server when a stream opens, and a named
+ * event that has no listener yet is lost. So when a section subscribes to a
+ * new topic after the stream is open (the announcement banner opens it at
+ * start-up, before any section is mounted), the stream is opened again, once
+ * for the topics added in the same turn, and every topic is replayed.
  */
 class LiveEvents {
   #source = null;
   #handlers = new Map();
   #last = new Map();
+  #reopen = null;
 
   on(topic, fn) {
-    this.#connect();
     if (!this.#handlers.has(topic)) {
       this.#handlers.set(topic, new Set());
-      this.#source.addEventListener(topic, (e) => {
-        const data = JSON.parse(e.data);
-        this.#last.set(topic, data);
-        for (const h of this.#handlers.get(topic)) h(data);
-      });
+      if (this.#source) this.#scheduleReopen();
+      else this.#open();
     }
     this.#handlers.get(topic).add(fn);
     if (this.#last.has(topic)) fn(this.#last.get(topic));
     return () => this.#handlers.get(topic).delete(fn);
   }
 
-  #connect() {
-    if (!this.#source) this.#source = new EventSource('/api/events');
+  #open() {
+    this.#source = new EventSource('/api/events');
+    for (const topic of this.#handlers.keys()) {
+      this.#source.addEventListener(topic, (e) => {
+        const data = JSON.parse(e.data);
+        this.#last.set(topic, data);
+        for (const h of this.#handlers.get(topic)) h(data);
+      });
+    }
+  }
+
+  #scheduleReopen() {
+    if (this.#reopen) return;
+    this.#reopen = setTimeout(() => {
+      this.#reopen = null;
+      this.#source.close();
+      this.#open();
+    }, 0);
   }
 }
 export const live = new LiveEvents();
