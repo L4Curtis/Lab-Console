@@ -93,12 +93,15 @@ describe('service surface (ARCHITECTURE §5)', () => {
       assert.equal(typeof hasRole, 'function');
     } finally {
       await auth.shutdown();
+      fs.rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  test('createAuth refuses to exist without a local administrator or a PUBLIC_URL', async () => {
+  test('createAuth refuses to exist without a local administrator or a PUBLIC_URL', async (t) => {
     const config = await loadTestConfig();
-    const store = createStore(tempDataDir());
+    const dir = tempDataDir();
+    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+    const store = createStore(dir);
     const without = (patch) => ({ ...config, ...patch });
     for (const localAdmin of [undefined, { ...config.auth.localAdmin, username: '' }, { ...config.auth.localAdmin, passwordHash: '' }, { ...config.auth.localAdmin, totpSecret: '' }]) {
       assert.throws(() => createAuth({ config: without({ auth: { ...config.auth, localAdmin } }), store }), /local administrator is not configured/);
