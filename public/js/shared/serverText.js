@@ -5,8 +5,8 @@
  * translation of the code, or the English sentence when the code is unknown
  * (for example a message produced by the Proxmox module)
  *
- *   { type: 'error', message: "R1's console is already in use…", code: 'consoles.line_busy', params: { name: 'R1' } }
- *     → t('terminal.server.consoles.line_busy', { name: 'R1' })
+ *   { type: 'error', message: "R1's console address is not…", code: 'consoles.not_allowed', params: { name: 'R1' } }
+ *     → t('terminal.server.consoles.not_allowed', { name: 'R1' })
  *
  * A summary made of several sentences carries them as `parts`
  * ([{ code, params }]); they are joined with ". "
@@ -20,6 +20,12 @@ function one({ code, params, message }) {
 }
 
 export function serverText(msg) {
+  if (!msg) return '';
   if (Array.isArray(msg.parts) && msg.parts.length) return msg.parts.map(one).join('. ');
   return one(msg);
+}
+
+/** An API error thrown by core/api.js (status, code, params, serverMessage), in the user's language */
+export function errorText(err) {
+  return serverText({ code: err?.code, params: err?.params ?? {}, message: err?.serverMessage ?? err?.message ?? '' });
 }

@@ -190,9 +190,10 @@ describe('signed in: the application behaves as upstream', () => {
     const res = await get(lab, '/api/events');
     assert.equal(res.status, 200);
     assert.ok(res.headers.get('content-type').startsWith('text/event-stream'));
-    const events = await readEvents(res, 2);
-    assert.deepEqual(events.map((e) => e.topic).sort(), ['consoles:busy', 'labs:version']);
+    const events = await readEvents(res, 3);
+    assert.deepEqual(events.map((e) => e.topic).sort(), ['consoles:busy', 'consoles:rooms', 'labs:version']);
     assert.deepEqual(events.find((e) => e.topic === 'consoles:busy').data, []);
+    assert.deepEqual(events.find((e) => e.topic === 'consoles:rooms').data, []);
   });
 
   test('WebSocket /ws/console: the upgrade is accepted and the console protocol starts', async () => {
@@ -221,6 +222,8 @@ describe('signed in: the application behaves as upstream', () => {
   test('every module received the platform services, and the registry is shared', () => {
     assert.deepEqual(Object.keys(lab.deps).sort(), ['audit', 'auth', 'config', 'events', 'infra', 'logger', 'services', 'settings', 'store']);
     assert.equal(typeof lab.deps.services.consoles.registry.getDevice, 'function');
+    assert.equal(typeof lab.deps.services.consoles.rooms.open, 'function');
+    assert.ok(lab.deps.services.consoles.sharedTargets() instanceof Set);
     assert.equal(typeof lab.deps.settings.get('lab').ssh, 'object');
     assert.equal(lab.deps.store.root, lab.dataDir);
   });

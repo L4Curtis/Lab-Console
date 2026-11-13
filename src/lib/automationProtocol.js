@@ -9,24 +9,37 @@
  *                      `message` is the English sentence; `code` and `params` (and, for a summary made of
  *                      several sentences, `parts`: a list of { code, params }) let the browser translate it
  *                      {"type":"export-result","filename","content"}
+ *
+ * Who runs the task: by default the handler takes the keyboard itself
+ * (`cli.perform`). A shared console passes `run(label, fn)` instead (its
+ * room's runExclusive: the pilot is asked, spectators are refused) and
+ * `report` to show the progress to everyone on the console; the exported
+ * file only goes back to the person who asked (`send`). An error carrying a
+ * `code` (a refusal of the room) is reported with that code
  */
 const MAX_SCRIPT_BYTES = 256 * 1024;
 const MAX_SCRIPT_LINES = 5000;
 
-export function createAutomationHandler({ cli, send, canExport, log, label }) {
+export function createAutomationHandler({
+  cli, send, canExport, log, label,
+  run = (task, fn) => cli.perform(task, fn),
+  cancel = () => cli.cancel(),
+  busy = () => cli.running,
+  report: broadcast = send,
+}) {
   return function handle(msg) {
-    if (msg.type === 'automation-cancel') { cli.cancel(); return true; }
+    if (msg.type === 'automation-cancel') { cancel(); return true; }
     if (msg.type !== 'export-config' && msg.type !== 'inject') return false;
 
     const task = msg.type === 'export-config' ? 'export' : 'inject';
-    const report = (state, message, extra = {}) => send({ type: 'automation', task, state, message, ...extra });
-    const refuse = (message, code, params = {}) => (report('error', message, { code, params }), true);
-    if (cli.running) return refuse('Another task is still running on this console.', 'automation.busy');
+    const report = (state, message, extra = {}) => broadcast({ type: 'automation', task, state, message, ...extra });
+    const refuse = (message, code, params = {}) => (send({ type: 'automation', task, state: 'error', message, code, params }), true);
+    if (busy()) return refuse('Another task is still running on this console.', 'automation.busy');
     if (task === 'export' && !canExport) return refuse('Config export is available on Cisco console devices only.', 'automation.export_unsupported');
 
-    let run;
+    let done;
     if (task === 'export') {
-      run = cli.exportRunningConfig((message, p = {}) => report('running', message, p)).then(({ hostname, config, pagingFallback }) => {
+      done = run('export', (c) => c.readRunningConfig((message, p = {}) => report('running', message, p))).then(({ hostname, config, pagingFallback }) => {
         send({ type: 'export-result', filename: exportFilename(hostname), content: config });
         const lines = config.split('\n').length - 1;
         report('done', `Exported ${lines} lines of ${hostname}'s running-config${pagingFallback ? ' (paging could not be disabled; --More-- pages were skipped through)' : ''}`,
@@ -45,7 +58,7 @@ export function createAutomationHandler({ cli, send, canExport, log, label }) {
         stopOnError: Boolean(o.stopOnError),
         skipComments: o.skipComments !== false,
       };
-      run = cli.injectScript(script, options, (message, p = {}) => report('running', message, p)).then((result) => {
+      done = run('inject', (c) => c.sendScript(script, options, (message, p = {}) => report('running', message, p))).then((result) => {
         const { sent, total, errors, slow } = result;
         const parts = [`Sent ${sent} of ${total} lines`];
         const coded = [{ code: 'automation.sent', params: { sent, total, count: total } }];
@@ -70,8 +83,12 @@ export function createAutomationHandler({ cli, send, canExport, log, label }) {
         log.info(`${label}: injected ${sent}/${total} lines, ${errors.length} errors`);
       });
     }
-    run.catch((err) => report(err.cancelled ? 'cancelled' : 'error', err.cancelled ? 'Stopped' : err.message,
-      err.code ? { code: err.code, params: err.params ?? {} } : {}));
+    done.catch((err) => {
+      const coded = err.code ? { code: err.code, params: err.params ?? {} } : {};
+      // The console said no before anything ran (control refused, a spectator): only the asker hears it
+      if (!err.cancelled && String(err.code).startsWith('consoles.')) return send({ type: 'automation', task, state: 'error', message: err.message, ...coded });
+      report(err.cancelled ? 'cancelled' : 'error', err.cancelled ? 'Stopped' : err.message, coded);
+    });
     return true;
   };
 }
