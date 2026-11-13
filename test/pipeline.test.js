@@ -129,6 +129,8 @@ describe('signed in: the application behaves as upstream', () => {
   test('the API payloads keep their upstream shape', async () => {
     assert.deepEqual(await (await get(lab, '/api/modules')).json(), [
       { id: 'consoles', title: 'Lab consoles', enabled: true },
+      { id: 'teams', title: 'Teams', enabled: true },
+      { id: 'benches', title: 'Benches', enabled: true },
       { id: 'proxmox', title: 'Infrastructure', enabled: true },
     ]);
     const labs = await (await get(lab, '/api/consoles/labs')).json();
@@ -190,8 +192,8 @@ describe('signed in: the application behaves as upstream', () => {
     const res = await get(lab, '/api/events');
     assert.equal(res.status, 200);
     assert.ok(res.headers.get('content-type').startsWith('text/event-stream'));
-    const events = await readEvents(res, 2);
-    assert.deepEqual(events.map((e) => e.topic).sort(), ['consoles:busy', 'labs:version']);
+    const events = await readEvents(res, 3);
+    assert.deepEqual(events.map((e) => e.topic).sort(), ['benches:state', 'consoles:busy', 'labs:version']);
     assert.deepEqual(events.find((e) => e.topic === 'consoles:busy').data, []);
   });
 

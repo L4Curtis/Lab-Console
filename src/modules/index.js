@@ -11,7 +11,8 @@
  */
 import { createConsolesModule } from './consoles/index.js';
 import { createProxmoxModule } from './proxmox/index.js';
+import { createTeamsModules } from './teams/index.js';
 
 export function createModules(deps) {
-  return [createConsolesModule(deps), createProxmoxModule(deps)];
+  return [createConsolesModule(deps), ...createTeamsModules(deps), createProxmoxModule(deps)];
 }

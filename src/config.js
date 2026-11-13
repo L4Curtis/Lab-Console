@@ -15,6 +15,7 @@ import path from 'node:path';
 import { loadEnvFile, takeErrors, fail, str, required, int, bool, list, portRange, oneOf, origin } from './lib/env.js';
 import { parseTrustedProxies } from './lib/security.js';
 import { readConfig as readAuthConfig } from './modules/auth/config.js';
+import { readConfig as readBenchesConfig } from './modules/teams/config.js';
 
 export const LOCALES = Object.freeze(['fr', 'en']);
 
@@ -190,6 +191,7 @@ export function loadConfig() {
 
     // ── Module fragments: one line per module that has settings ─────────────
     auth: readAuthConfig(),
+    benches: readBenchesConfig(),
   };
 
   if (!assembled.server.publicUrl && !str('PUBLIC_URL')) {

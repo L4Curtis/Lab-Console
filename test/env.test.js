@@ -103,7 +103,7 @@ test('config: defaults of the global keys, and the upstream sections unchanged',
   assert.equal('trustProxy' in config.server, false, 'the upstream switch is gone');
   assert.ok(path.isAbsolute(config.dataDir));
   assert.deepEqual(Object.keys(config).sort(),
-    ['auth', 'consoles', 'dataDir', 'defaultLocale', 'diagramPath', 'infraConfigPath', 'limits', 'proxmox', 'server', 'ssh', 'telnet']);
+    ['auth', 'benches', 'consoles', 'dataDir', 'defaultLocale', 'diagramPath', 'infraConfigPath', 'limits', 'proxmox', 'server', 'ssh', 'telnet']);
   assert.deepEqual(config.consoles, { networkPrefix: '10.22.9', allowedHosts: ['10.22.9.211', '10.22.9.212'], portRange: { min: 2000, max: 2099 } });
   assert.equal(config.limits.maxSessions, 40);
   assert.deepEqual(config.proxmox, { enabled: false });
