@@ -245,10 +245,14 @@ for everyone with Health and What is recorded.
   two different devices on one console line (`admin.diagram_lint`; rolling
   back is never refused). The preview lists the devices whose console is
   outside the allow-list; that does not block (they stay inert for students).
-- **Health.** A console server is up when it answers on the network: a
-  connection accepted or actively refused; its telnet port (23) was not
-  checked against the real equipment, so only silence reads as down.
-  Proxmox must accept its API port. The Proxmox tunnel state is read from
+- **Health.** A console server is probed on its console lines (the ports
+  the lab diagram uses on it, else the start of the allowed range), never
+  on telnet's port 23: it is up when one of up to three lines answers, a
+  connection accepted or actively refused, so only silence on all of them
+  reads as down. Whether the jump server's `nc -z` prints anything on a
+  refusal could not be checked without touching the lab: a server whose
+  probed lines are all busy may read as down. Proxmox must accept its API
+  port. The Proxmox tunnel state is read from
   `services.proxmox.tunnel()` as soon as the Proxmox module publishes it.
 
 *Not met, owner decision pending:* **Proxmox URL and credentials are shown,

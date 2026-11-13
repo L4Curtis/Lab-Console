@@ -21,7 +21,7 @@ import { createAccountsModule } from '../src/modules/accounts/index.js';
 import { createAdminModule } from '../src/modules/admin/index.js';
 import { startMockLab } from '../dev/mock-lab.js';
 import { startMockOidc } from '../dev/mock-oidc.js';
-import { createHealth, probe } from '../src/modules/admin/health.js';
+import { createHealth, probe, linePorts } from '../src/modules/admin/health.js';
 import { TICKET_TTL_MS } from '../src/modules/admin/confirm.js';
 import { MAX_DIAGRAM_BYTES } from '../src/lib/diagrams.js';
 
@@ -762,6 +762,37 @@ describe('with the simulated lab: health, and lab parameters used by the next co
     const admin = await call(lab, 'admin', 'GET', '/api/admin/health?fresh=1');
     assert.deepEqual(admin.body.details.consoleServers.map((s) => [s.host, s.state]), [['10.22.9.211', 'ok'], ['10.22.9.212', 'ok']]);
     assert.equal(admin.body.details.jump.host, `127.0.0.1:${mock.port}`);
+    for (const s of admin.body.details.consoleServers) {
+      assert.notEqual(s.port, 23, 'a console server is probed on its console lines, not on telnet\'s port');
+      assert.ok(s.port >= 2000 && s.port <= 2099, `${s.host}: port ${s.port} is a console line`);
+    }
+  });
+
+  test('the console lines probed are the diagram\'s allowed ones on that host, else the start of the range', () => {
+    const portRange = { min: 2000, max: 2099 };
+    const dev = (host, port, allowed = true) => ({ allowed, target: { host, port } });
+    const registry = { model: { labs: [{ devices: [dev('10.22.9.211', 2013), dev('10.22.9.211', 2001), dev('10.22.9.211', 2013), dev('10.22.9.212', 2040, false), dev('10.22.9.211', 2200)] }, { devices: [dev('10.22.9.211', 2005), dev('10.22.9.211', 2009)] }] } };
+    assert.deepEqual(linePorts('10.22.9.211', { registry, portRange }), [2001, 2005, 2009], 'lowest first, at most three, outside the range ignored');
+    assert.deepEqual(linePorts('10.22.9.212', { registry, portRange }), [2000, 2001, 2002], 'a host with no usable device: the start of the range');
+    assert.deepEqual(linePorts('10.22.9.211', { registry: null, portRange }), [2000, 2001, 2002], 'no registry');
+    assert.deepEqual(linePorts('10.22.9.211', { registry: { model: { labs: [{ devices: [dev('10.22.9.211', 2013)] }] } }, portRange }), [2013, 2000, 2001], 'one real line, then the start of the range');
+  });
+
+  test('health: one dead line does not make a console server down, silence on all its lines does', async () => {
+    const dead = await startMockLab({ port: 0, ssh: SSH, telnet: TELNET, downPorts: [2000, 2001, 2002, 2013] });
+    try {
+      const settings = { get: () => ({ ssh: { host: '127.0.0.1', port: dead.port, ...SSH }, consoles: { allowedHosts: ['10.22.9.211', '10.22.9.212'], portRange: { min: 2000, max: 2099 } } }) };
+      const dev = (port) => ({ allowed: true, target: { host: '10.22.9.211', port } });
+      const services = { consoles: { registry: { model: { labs: [{ devices: [dev(2013), dev(2014)] }] } } } };
+      const result = await createHealth({ settings, config: { proxmox: { enabled: false } }, services }).check({ fresh: true });
+      const by = Object.fromEntries(result.consoleServers.map((s) => [s.host, s]));
+      assert.equal(by['10.22.9.211'].state, 'ok', '2013 is dead but 2014 accepts');
+      assert.equal(by['10.22.9.211'].port, 2014, 'the line that answered');
+      assert.equal(by['10.22.9.212'].state, 'down', 'the three first lines of the range are all dead');
+      assert.equal(by['10.22.9.212'].port, 2000);
+    } finally {
+      await dead.close();
+    }
   });
 
   test('a console server counts as up when it answers, even by refusing; Proxmox must accept; silence is down', async () => {
@@ -773,13 +804,13 @@ describe('with the simulated lab: health, and lab parameters used by the next co
         setImmediate(() => { if (text) stream.stderr.emit('data', Buffer.from(text)); stream.emit('exit', code); });
       },
     });
-    const refused = 'nc: connect to 10.22.9.211 port 23 (tcp) failed: Connection refused\n';
-    assert.deepEqual(await probe(said(0, ''), '10.22.9.211', 23, { answers: true }), { state: 'ok' });
-    assert.deepEqual(await probe(said(1, refused), '10.22.9.211', 23, { answers: true }), { state: 'ok', note: 'refused' }, 'a reset comes from the host');
+    const refused = 'nc: connect to 10.22.9.211 port 2013 (tcp) failed: Connection refused\n';
+    assert.deepEqual(await probe(said(0, ''), '10.22.9.211', 2013, { answers: true }), { state: 'ok' });
+    assert.deepEqual(await probe(said(1, refused), '10.22.9.211', 2013, { answers: true }), { state: 'ok', note: 'refused' }, 'a reset comes from the host');
     assert.equal((await probe(said(1, refused), '10.22.9.71', 8006)).state, 'down', 'the Proxmox API port must accept');
-    assert.equal((await probe(said(1, 'nc: connect to 10.22.9.211 port 23 (tcp) timed out: Operation now in progress\n'), '10.22.9.211', 23, { answers: true })).state, 'down', 'silence');
-    assert.equal((await probe(said(1, ''), '10.22.9.211', 23, { answers: true })).state, 'down');
-    assert.equal((await probe(said(0, ''), 'bad host;rm', 23)).state, 'down', 'nothing odd reaches the shell');
+    assert.equal((await probe(said(1, 'nc: connect to 10.22.9.211 port 2013 (tcp) timed out: Operation now in progress\n'), '10.22.9.211', 2013, { answers: true })).state, 'down', 'silence');
+    assert.equal((await probe(said(1, ''), '10.22.9.211', 2013, { answers: true })).state, 'down');
+    assert.equal((await probe(said(0, ''), 'bad host;rm', 2013)).state, 'down', 'nothing odd reaches the shell');
   });
 
   test('the Proxmox tunnel state comes from the Proxmox module when it publishes one', async () => {

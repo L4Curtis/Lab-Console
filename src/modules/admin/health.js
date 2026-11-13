@@ -7,12 +7,14 @@
  * `nc -z -w 3 <host> <port>` per console server and for Proxmox: the same
  * probe the consoles use, nothing is typed on a line.
  *
- * A console server is "up" when it ANSWERS on the network: a connection
- * accepted, or one actively refused (the TCP reset comes from the host). Its
- * telnet port (23) was not checked against the real equipment, whose
- * console lines are on 20xx ports: a server that does not listen on 23 must
- * not read as down. Only silence (a timeout, no route) is "down". Proxmox is
- * stricter: its API port must accept the connection.
+ * A console server is probed on its console LINES, the only ports the lab
+ * uses on it (20xx, see `linePorts`), never on telnet's port 23: the real
+ * equipment does not necessarily listen there. It is "up" when it ANSWERS on
+ * the network: a connection accepted, or one actively refused (the TCP reset
+ * comes from the host). A line that is busy or whose device is off may refuse,
+ * so up to three lines are tried and the first answer wins; only silence on
+ * all of them (a timeout, no route) is "down". Proxmox is stricter: its API
+ * port must accept the connection.
  *
  * The Proxmox tunnel itself (the shared SSH connection its module keeps open
  * for the API and the console sockets) is read from the Proxmox module when
@@ -32,8 +34,35 @@ const CACHE_MS = 30_000;
 const FRESH_MIN_MS = 10_000;
 const CONNECT_TIMEOUT_MS = 8_000;
 const PROBE_TIMEOUT_MS = 6_000;
-export const CONSOLE_SERVER_PORT = 23;
+const LINES_PROBED = 3;
 const SAFE_HOST = /^[\w.-]{1,253}$/;
+
+/**
+ * The console lines to probe on `host`: the lines the active diagram really
+ * uses on it (allowed ones, lowest first), else the start of the allowed port
+ * range. At most LINES_PROBED, all inside the range.
+ */
+export function linePorts(host, { registry, portRange }) {
+  const inRange = (p) => Number.isInteger(p) && p >= portRange.min && p <= portRange.max;
+  const used = new Set();
+  for (const lab of registry?.model?.labs ?? []) {
+    for (const d of lab.devices) if (d.allowed && d.target.host === host && inRange(d.target.port)) used.add(d.target.port);
+  }
+  const ports = [...used].sort((a, b) => a - b);
+  for (let p = portRange.min; ports.length < LINES_PROBED && p <= portRange.max; p++) if (!used.has(p)) ports.push(p);
+  return ports.slice(0, LINES_PROBED);
+}
+
+/** The first line of `ports` that answers, else the first one's failure */
+async function probeLines(conn, host, ports) {
+  let first = null;
+  for (const port of ports) {
+    const r = await probe(conn, host, port, { answers: true });
+    if (r.state === 'ok') return { port, ...r };
+    first ??= { port, ...r };
+  }
+  return first ?? { port: null, state: 'down', error: 'no console line to probe' };
+}
 
 /**
  * One `nc -z` through the jump server → { state: 'ok' | 'down' | 'unknown', error? }.
@@ -81,7 +110,7 @@ export function createHealth({ settings, config, services, logger, now = Date.no
     const result = {
       checkedAt: new Date(started).toISOString(),
       jump: { state: 'unknown', host: `${lab.ssh.host}:${lab.ssh.port}` },
-      consoleServers: lab.consoles.allowedHosts.map((host) => ({ host, port: CONSOLE_SERVER_PORT, state: 'unknown' })),
+      consoleServers: lab.consoles.allowedHosts.map((host) => ({ host, port: null, state: 'unknown' })),
       proxmox: config.proxmox?.enabled
         ? { state: 'unknown', host: new URL(config.proxmox.url).host, tunnel: tunnelState() }
         : { state: 'off' },
@@ -95,7 +124,8 @@ export function createHealth({ settings, config, services, logger, now = Date.no
         conn.connect({ ...sshConnectOptions(lab.ssh, log), readyTimeout: CONNECT_TIMEOUT_MS, keepaliveInterval: 0 });
       });
       result.jump = { ...result.jump, state: 'ok', ms: now() - started };
-      await Promise.all(result.consoleServers.map(async (s) => Object.assign(s, await probe(conn, s.host, s.port, { answers: true }))));
+      const registry = services?.consoles?.registry;
+      await Promise.all(result.consoleServers.map(async (s) => Object.assign(s, await probeLines(conn, s.host, linePorts(s.host, { registry, portRange: lab.consoles.portRange })))));
       if (config.proxmox?.enabled) {
         const url = new URL(config.proxmox.url);
         Object.assign(result.proxmox, await probe(conn, url.hostname, Number(url.port || 8006)));
