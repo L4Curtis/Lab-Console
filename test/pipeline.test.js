@@ -9,6 +9,7 @@
 import { test, before, after, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
+import path from 'node:path';
 import express from 'express';
 import WebSocket, { WebSocketServer } from 'ws';
 import { startTestApp } from './helpers/app.js';
@@ -219,19 +220,22 @@ describe('signed in: the application behaves as upstream', () => {
   });
 
   test('every module received the platform services, and the registry is shared', () => {
-    assert.deepEqual(Object.keys(lab.deps).sort(), ['audit', 'auth', 'config', 'events', 'infra', 'logger', 'services', 'settings', 'store']);
+    assert.deepEqual(Object.keys(lab.deps).sort(), ['audit', 'auth', 'config', 'events', 'infra', 'logger', 'repos', 'services', 'settings', 'store']);
+    assert.equal(lab.deps.db, undefined, 'modules reach the database through repositories only');
     assert.equal(typeof lab.deps.services.consoles.registry.getDevice, 'function');
     assert.equal(typeof lab.deps.settings.get('lab').ssh, 'object');
     assert.equal(lab.deps.store.root, lab.dataDir);
   });
 
-  test('the audit trail lands in DATA_DIR, signed with the request\'s user and address', async () => {
+  test('the audit trail lands in the database in DATA_DIR, signed with the request\'s user and address', async () => {
     const req = { headers: {}, socket: { remoteAddress: '127.0.0.1' }, user: student(1) };
     assert.equal(await lab.deps.audit.log(req, 'console.open', { bench: 'B4M', device: 'R1' }), true);
     const [entry] = await lab.deps.audit.query({ bench: 'B4M' });
     assert.equal(entry.actor.id, 'oidc:student1');
     assert.equal(entry.ip, '127.0.0.1');
-    assert.ok(fs.readdirSync(lab.deps.store.resolve('audit')).length === 1);
+    assert.equal(await lab.deps.repos.audit.count(), 1);
+    assert.equal(lab.db.file, path.join(lab.dataDir, 'lab-console.db'));
+    assert.ok(fs.statSync(lab.db.file).isFile());
   });
 });
 

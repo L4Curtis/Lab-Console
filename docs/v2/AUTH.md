@@ -62,7 +62,7 @@ wrong.
 
 - A code is valid for its 30-second step and one step either side (clock
   drift). Once accepted, that step cannot be used again, even after a restart
-  (`data/auth/local-admin.json` remembers the last one): wait for the next code
+  (the database, `data/lab-console.db`, remembers the last one): wait for the next code
   to sign in a second time.
 - Attempts are limited: 5 per 15 minutes from one address; after two failures
   on a user name, each new attempt on that name waits twice as long as the
@@ -81,8 +81,8 @@ wrong.
   still get in while someone is hammering the form. **Sign in once from the
   browser you would use in an emergency**: a browser that never signed in can
   still be kept waiting by someone hammering the form. The cookies are signed
-  with a random key kept in `data/auth/device-key.json`; delete that file and
-  restart to forget every known browser.
+  with a random key kept in the database; `npm run forget-browsers` then a
+  restart forgets every known browser.
 - Every attempt whose credentials were checked, successful or not, is in the
   audit trail (`auth.login`, `auth.login.failed`), with the client's address.
   Refusals that cost the sender nothing (a throttled attempt, a provider
@@ -104,7 +104,8 @@ Known browsers stay known across the change (a known-browser cookie only
 counts for the user name it was issued for, so a new name starts without
 any): the browsers you already signed in from get past the shared refusals
 with the new password and code even if someone is attacking the form right
-then. To forget them too, delete `data/auth/device-key.json` before the
+then. To forget them too, run `npm run forget-browsers` (in Docker:
+`docker compose exec lab-console node scripts/forget-browsers.js`) before the
 restart.
 
 ## 2. An identity provider (OpenID Connect)
@@ -277,8 +278,9 @@ OIDC_PROVIDER_NAME=Authelia
   otherwise. The cookie ends with the browser.
 - 8 hours without activity (an open console counts as activity), 24 hours at
   most, 10 sessions per person. A new id at every sign-in.
-- Sessions survive a restart: `data/auth/sessions.json` keeps them, keyed by
-  the SHA-256 of the token; the token itself is never written anywhere.
+- Sessions survive a restart: the database (`data/lab-console.db`) keeps
+  them, keyed by the SHA-256 of the token; the token itself is never written
+  anywhere.
 - When a session ends (sign-out, revocation by an administrator, expiry) the
   consoles and live updates opened with it are closed at once.
 

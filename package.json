@@ -5,13 +5,14 @@
   "description": "Web platform giving students console access to physical lab equipment (SSH jump host -> Telnet console server)",
   "type": "module",
   "engines": {
-    "node": ">=20.12"
+    "node": ">=22.13"
   },
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "check-diagram": "node scripts/check-diagram.js",
     "setup-admin": "node scripts/setup-admin.js",
+    "forget-browsers": "node scripts/forget-browsers.js",
     "mock-lab": "node dev/mock-lab.js",
     "mock-oidc": "node dev/mock-oidc.js",
     "lint": "eslint .",

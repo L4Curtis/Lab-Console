@@ -6,7 +6,6 @@
  */
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
 import { EventEmitter } from 'node:events';
 import { base32Encode, base32Decode, hotp, totp, verifyTotp, stepAt, generateSecret, otpauthUri } from '../src/modules/auth/totp.js';
 import { hashPassword, verifyPassword, parseHash, safeEqual } from '../src/modules/auth/password.js';
@@ -22,23 +21,17 @@ import { resolveRole, isAllowed } from '../src/modules/auth/roles.js';
 import { readClaim, toGroups, groupsFrom, userFromClaims, needsUserinfo } from '../src/modules/auth/claims.js';
 import { normalizeOidcSettings } from '../src/modules/auth/oidcSettings.js';
 import { createUser, hasRole, initialsOf, colorOf, ROLES } from '../src/modules/auth/user.js';
-import { createStore } from '../src/lib/store.js';
 import { student, admin } from './helpers/fakes.js';
-import { tempDataDir, TEST_ADMIN, adminCode } from './helpers/app.js';
+import { TEST_ADMIN, adminCode } from './helpers/app.js';
+import { withMemoryDatabase } from './helpers/db.js';
 
 const clock = (ms = Date.UTC(2026, 10, 12, 9, 0, 0)) => {
   const c = { ms, now: () => c.ms, advance: (delta) => { c.ms += delta; } };
   return c;
 };
 
-function withStore(fn) {
-  const dir = tempDataDir();
-  const store = createStore(dir);
-  return Promise.resolve(fn(store, dir)).finally(async () => {
-    await store.flush();
-    fs.rmSync(dir, { recursive: true, force: true });
-  });
-}
+/** fn({ db, repos }) with a database of its own; "a restart" is a new service on the same database */
+const withDb = (fn) => withMemoryDatabase(fn);
 
 // ── TOTP / HOTP ─────────────────────────────────────────────────────────────
 
@@ -384,45 +377,51 @@ describe('known-browser cookies', () => {
     assert.equal(createDeviceCookies({ key: Buffer.alloc(32, 8), now: c.now }).check(fresh, 'root'), null, 'another key');
   });
 
-  test('the key is a secret of its own in the data directory: it survives a restart and a change of the administrator\'s credentials', () => withStore(async (store, dir) => {
+  test('the key is a secret of its own in the database: it survives a restart and a change of the administrator\'s credentials', () => withDb(async ({ db, repos }) => {
     const c = clock();
-    const first = loadDeviceKey({ store });
+    const first = await loadDeviceKey({ state: repos.authState });
     assert.equal(first.length, 32);
-    await store.flush();
-    const file = `${dir}/auth/device-key.json`;
-    assert.equal(fs.statSync(file).mode & 0o777, 0o600);
-    const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
-    assert.deepEqual(Object.keys(saved), ['key']);
-    for (const secret of [TEST_ADMIN.passwordHash, TEST_ADMIN.totpSecret]) assert.ok(!fs.readFileSync(file, 'utf8').includes(secret));
+    const rows = await db.query('SELECT name, data FROM auth_state');
+    assert.deepEqual(rows.map((r) => r.name), ['device-key']);
+    assert.deepEqual(Object.keys(JSON.parse(rows[0].data)), ['key']);
+    for (const secret of [TEST_ADMIN.passwordHash, TEST_ADMIN.totpSecret]) assert.ok(!rows[0].data.includes(secret));
     assert.notDeepEqual(first, adminDerivedKey(TEST_ADMIN, 'session binding'));
 
     // A restart reads the same key, whatever the administrator's credentials are now
     const value = createDeviceCookies({ key: first, now: c.now }).issue('root');
-    const restarted = loadDeviceKey({ store: createStore(dir) });
+    const restarted = await loadDeviceKey({ state: repos.authState });
     assert.deepEqual(restarted, first);
     assert.ok(createDeviceCookies({ key: restarted, now: c.now }).check(value, 'root'));
 
-    // Deleting the file forgets every known browser; a damaged file is replaced
-    fs.rmSync(file);
-    const fresh = loadDeviceKey({ store: createStore(dir) });
+    // Deleting the value forgets every known browser; a damaged value is replaced
+    await db.run('DELETE FROM auth_state WHERE name = ?', ['device-key']);
+    const fresh = await loadDeviceKey({ state: repos.authState });
     assert.notDeepEqual(fresh, first);
     assert.equal(createDeviceCookies({ key: fresh, now: c.now }).check(value, 'root'), null);
     const warnings = [];
-    fs.writeFileSync(file, '{"key":"short"}\n');
-    const replaced = loadDeviceKey({ store: createStore(dir), logger: { warn: (m) => warnings.push(m), error() {} } });
+    await repos.authState.set('device-key', { key: 'short' });
+    const replaced = await loadDeviceKey({ state: repos.authState, logger: { warn: (m) => warnings.push(m), error() {} } });
     assert.equal(replaced.length, 32);
     assert.equal(warnings.length, 1);
+    assert.deepEqual(await loadDeviceKey({ state: repos.authState }), replaced, 'and the replacement is saved');
   }));
 
-  test('an unreadable key file is never overwritten: a key for this run only', () => withStore(async (store, dir) => {
-    fs.mkdirSync(`${dir}/auth/device-key.json`, { recursive: true }); // reading it fails with EISDIR
+  test('an unreadable key is never overwritten: a key for this run only', () => withDb(async ({ db, repos }) => {
+    await db.run('INSERT INTO auth_state (name, data, updated_at) VALUES (?, ?, ?)', ['device-key', '{not json', '2026-11-12T09:00:00.000Z']);
     const errors = [];
-    const key = loadDeviceKey({ store, logger: { warn() {}, error: (m) => errors.push(m) } });
+    const key = await loadDeviceKey({ state: repos.authState, logger: { warn() {}, error: (m) => errors.push(m) } });
     assert.equal(key.length, 32);
     assert.equal(errors.length, 1);
-    await store.flush();
-    assert.ok(fs.statSync(`${dir}/auth/device-key.json`).isDirectory());
+    assert.equal((await db.get('SELECT data FROM auth_state WHERE name = ?', ['device-key'])).data, '{not json');
   }));
+
+  test('a key that cannot be saved still works for this run, and says so', async () => {
+    const errors = [];
+    const state = { get: async () => undefined, set: async () => { throw new Error('disk full'); } };
+    const key = await loadDeviceKey({ state, logger: { warn() {}, error: (m) => errors.push(m) } });
+    assert.equal(key.length, 32);
+    assert.match(errors.join(), /could not be saved \(disk full\)/);
+  });
 });
 
 // ── Refusals anyone can send for free ───────────────────────────────────────
@@ -476,8 +475,8 @@ describe('aggregated refusals', () => {
 // ── Sessions ────────────────────────────────────────────────────────────────
 
 describe('sessions', () => {
-  test('create / find: a 256-bit token, a public id, the user back', () => withStore((store) => {
-    const sessions = createSessionStore({ store });
+  test('create / find: a 256-bit token, a public id, the user back', () => withDb(async ({ repos }) => {
+    const sessions = await createSessionStore({ repo: repos.sessions });
     const { token, session } = sessions.create(student(1), { ip: '203.0.113.5', userAgent: 'Firefox' });
     assert.match(token, /^[\w-]{43}$/);
     assert.notEqual(session.id, token);
@@ -490,10 +489,10 @@ describe('sessions', () => {
     return sessions.shutdown();
   }));
 
-  test('expiry: 8 hours idle, 24 hours at most, whatever the activity', () => withStore((store) => {
+  test('expiry: 8 hours idle, 24 hours at most, whatever the activity', () => withDb(async ({ repos }) => {
     const c = clock();
     const ended = [];
-    const sessions = createSessionStore({ store, now: c.now, onEnd: (s, reason) => ended.push(reason) });
+    const sessions = await createSessionStore({ repo: repos.sessions, now: c.now, onEnd: (s, reason) => ended.push(reason) });
     assert.equal(SESSION_IDLE_MS, 8 * 3600_000);
     assert.equal(SESSION_ABSOLUTE_MS, 24 * 3600_000);
 
@@ -519,10 +518,10 @@ describe('sessions', () => {
     return sessions.shutdown();
   }));
 
-  test('the sweep ends expired sessions on its own and closes their sockets', () => withStore((store) => {
+  test('the sweep ends expired sessions on its own and closes their sockets', () => withDb(async ({ repos }) => {
     const c = clock();
     const ended = [];
-    const sessions = createSessionStore({ store, now: c.now, onEnd: (s, reason) => ended.push([s.user.id, reason]) });
+    const sessions = await createSessionStore({ repo: repos.sessions, now: c.now, onEnd: (s, reason) => ended.push([s.user.id, reason]) });
     const { token } = sessions.create(student(1));
     const socket = Object.assign(new EventEmitter(), { destroyed: false, destroy() { this.destroyed = true; this.emit('close'); } });
     sessions.trackSocket(token, socket);
@@ -536,8 +535,8 @@ describe('sessions', () => {
     return sessions.shutdown();
   }));
 
-  test('rotation: a new token for the same session, the old one stops working', () => withStore((store) => {
-    const sessions = createSessionStore({ store });
+  test('rotation: a new token for the same session, the old one stops working', () => withDb(async ({ repos }) => {
+    const sessions = await createSessionStore({ repo: repos.sessions });
     const { token, session } = sessions.create(student(1));
     const rotated = sessions.rotate(token);
     assert.notEqual(rotated, token);
@@ -547,9 +546,9 @@ describe('sessions', () => {
     return sessions.shutdown();
   }));
 
-  test('revocation: by id, by user, by token; sockets are destroyed; the hook is told', () => withStore((store) => {
+  test('revocation: by id, by user, by token; sockets are destroyed; the hook is told', () => withDb(async ({ repos }) => {
     const ended = [];
-    const sessions = createSessionStore({ store, onEnd: (s, reason) => ended.push([s.user.id, reason]) });
+    const sessions = await createSessionStore({ repo: repos.sessions, onEnd: (s, reason) => ended.push([s.user.id, reason]) });
     const a = sessions.create(student(1));
     const b = sessions.create(student(1));
     const c = sessions.create(student(2));
@@ -570,17 +569,17 @@ describe('sessions', () => {
     return sessions.shutdown();
   }));
 
-  test('a socket opened with an unknown or ended session is destroyed at once', () => withStore((store) => {
-    const sessions = createSessionStore({ store });
+  test('a socket opened with an unknown or ended session is destroyed at once', () => withDb(async ({ repos }) => {
+    const sessions = await createSessionStore({ repo: repos.sessions });
     const socket = Object.assign(new EventEmitter(), { destroyed: false, destroy() { this.destroyed = true; } });
     sessions.trackSocket('y'.repeat(43), socket);
     assert.equal(socket.destroyed, true);
     return sessions.shutdown();
   }));
 
-  test('at most 10 sessions per user: the least recently used gives way', () => withStore((store) => {
+  test('at most 10 sessions per user: the least recently used gives way', () => withDb(async ({ repos }) => {
     const c = clock();
-    const sessions = createSessionStore({ store, now: c.now });
+    const sessions = await createSessionStore({ repo: repos.sessions, now: c.now });
     const tokens = [];
     for (let i = 0; i < 11; i++) { tokens.push(sessions.create(student(1)).token); c.advance(1000); }
     assert.equal(sessions.size, 10);
@@ -589,22 +588,23 @@ describe('sessions', () => {
     return sessions.shutdown();
   }));
 
-  test('persistence: a restart keeps everyone signed in; the file holds hashes, never tokens', () => withStore(async (store, dir) => {
-    const first = createSessionStore({ store });
+  test('persistence: a restart keeps everyone signed in; the database holds hashes, never tokens', () => withDb(async ({ db, repos }) => {
+    const first = await createSessionStore({ repo: repos.sessions });
     const { token, session } = first.create(student(1, { email: 's1@example.test' }), { ip: '203.0.113.9', idToken: 'header.payload.signature' });
     const revoked = first.create(student(2));
     first.revoke(revoked.session.id);
-    await first.shutdown();
-    await store.flush();
+    assert.equal(await first.shutdown(), true);
 
-    const raw = fs.readFileSync(store.resolve('auth/sessions.json'), 'utf8');
-    assert.ok(!raw.includes(token), 'the token is not on disk');
+    const rows = await db.query('SELECT * FROM auth_sessions');
+    const raw = JSON.stringify(rows);
+    assert.ok(!raw.includes(token), 'the token is not stored');
     assert.ok(!raw.includes('header.payload.signature'), 'nor the ID token');
-    const saved = JSON.parse(raw);
-    assert.deepEqual(Object.keys(saved.sessions).map((k) => /^[0-9a-f]{64}$/.test(k)), [true]);
-    assert.equal((fs.statSync(store.resolve('auth/sessions.json')).mode & 0o777).toString(8), '600');
+    assert.equal(rows.length, 1);
+    assert.match(rows[0].token_hash, /^[0-9a-f]{64}$/);
+    assert.equal(rows[0].created_at, new Date(session.createdAt).toISOString(), 'times are ISO-8601 text');
+    assert.deepEqual(JSON.parse(rows[0].user_data), { id: 'oidc:student1', username: 'student1', name: 'Student 1', email: 's1@example.test', role: 'student', groups: ['students'], via: 'oidc' });
 
-    const restarted = createSessionStore({ store: createStore(dir) });
+    const restarted = await createSessionStore({ repo: repos.sessions });
     const found = restarted.find(token);
     assert.equal(found.id, session.id);
     assert.equal(found.user.email, 's1@example.test');
@@ -613,51 +613,118 @@ describe('sessions', () => {
     await restarted.shutdown();
   }));
 
-  test('credential binding: a session opened with credentials that changed since is not restored', () => withStore(async (store, dir) => {
+  test('persistence: a rotation, an expiry and the last activity are written too', () => withDb(async ({ db, repos }) => {
+    const c = clock();
+    const first = await createSessionStore({ repo: repos.sessions, now: c.now });
+    const rotatedFrom = first.create(student(1)).token;
+    const rotated = first.rotate(rotatedFrom);
+    const stale = first.create(student(2)).token;
+    c.advance(SESSION_IDLE_MS / 2);
+    assert.ok(first.find(rotated), 'activity');
+    c.advance(SESSION_IDLE_MS / 2 + 1);
+    assert.equal(first.sweep(), 1, 'the untouched one expired');
+    assert.equal(stale.length, 43);
+    await first.shutdown();
+    const [row] = await db.query('SELECT last_seen_at FROM auth_sessions');
+    assert.equal(row.last_seen_at, new Date(c.ms - SESSION_IDLE_MS / 2 - 1).toISOString(), 'the activity was saved at shutdown');
+
+    const restarted = await createSessionStore({ repo: repos.sessions, now: c.now });
+    assert.ok(restarted.find(rotated));
+    assert.equal(restarted.find(rotatedFrom), null);
+    assert.equal(restarted.size, 1);
+    await restarted.shutdown();
+  }));
+
+  test('persistence: sessions that expired while the service was stopped are not restored, and are removed', () => withDb(async ({ db, repos }) => {
+    const c = clock();
+    const first = await createSessionStore({ repo: repos.sessions, now: c.now });
+    const { token } = first.create(student(1));
+    await first.shutdown();
+    c.advance(SESSION_IDLE_MS);
+    const restarted = await createSessionStore({ repo: repos.sessions, now: c.now });
+    assert.equal(restarted.find(token), null);
+    await restarted.shutdown();
+    assert.equal((await db.query('SELECT id FROM auth_sessions')).length, 0);
+  }));
+
+  test('credential binding: a session opened with credentials that changed since is not restored', () => withDb(async ({ db, repos }) => {
     const local = createUser({ id: 'local:root', username: 'root', name: 'root', role: 'admin', via: 'local' });
-    const first = createSessionStore({ store, bindingOf: (u) => (u.id === 'local:root' ? 'binding-1' : undefined) });
+    const first = await createSessionStore({ repo: repos.sessions, bindingOf: (u) => (u.id === 'local:root' ? 'binding-1' : undefined) });
     const kept = first.create(student(1));
     const admin1 = first.create(local);
     await first.shutdown();
-    await store.flush();
-    const saved = Object.values(JSON.parse(fs.readFileSync(store.resolve('auth/sessions.json'), 'utf8')).sessions);
-    assert.deepEqual(saved.map((r) => [r.user.id, r.binding]).sort(), [['local:root', 'binding-1'], ['oidc:student1', undefined]]);
+    const saved = await db.query('SELECT user_id, binding FROM auth_sessions ORDER BY user_id');
+    assert.deepEqual(saved.map((r) => [r.user_id, r.binding]), [['local:root', 'binding-1'], ['oidc:student1', null]]);
 
-    const same = createSessionStore({ store: createStore(dir), bindingOf: (u) => (u.id === 'local:root' ? 'binding-1' : undefined) });
+    const same = await createSessionStore({ repo: repos.sessions, bindingOf: (u) => (u.id === 'local:root' ? 'binding-1' : undefined) });
     assert.ok(same.find(admin1.token), 'same credentials: restored');
     await same.shutdown();
 
     const warnings = [];
-    const rotated = createSessionStore({
-      store: createStore(dir), logger: { warn: (m) => warnings.push(m), error() {} },
+    const rotated = await createSessionStore({
+      repo: repos.sessions, logger: { warn: (m) => warnings.push(m), error() {} },
       bindingOf: (u) => (u.id === 'local:root' ? 'binding-2' : undefined),
     });
     assert.equal(rotated.find(admin1.token), null, 'rotated credentials: gone');
     assert.ok(rotated.find(kept.token), 'other people are not concerned');
     assert.match(warnings.join(), /1 saved session\(s\) not restored/);
     await rotated.shutdown();
-    await store.flush();
 
-    const renamed = createSessionStore({ store: createStore(dir), bindingOf: (u) => (u.id === 'local:admin2' ? 'binding-2' : undefined) });
-    assert.equal(renamed.size, 1, 'the file was rewritten without it');
+    const renamed = await createSessionStore({ repo: repos.sessions, bindingOf: (u) => (u.id === 'local:admin2' ? 'binding-2' : undefined) });
+    assert.equal(renamed.size, 1, 'the row was removed');
+    assert.equal((await db.query('SELECT id FROM auth_sessions')).length, 1);
     await renamed.shutdown();
   }));
 
-  test('a damaged sessions file signs everyone out instead of failing', () => withStore(async (store, dir) => {
-    fs.mkdirSync(store.resolve('auth'), { recursive: true });
-    fs.writeFileSync(store.resolve('auth/sessions.json'), JSON.stringify({ version: 1, sessions: { nothex: {}, ['a'.repeat(64)]: { id: 'x', user: { id: 'u', via: 'oidc', role: 'god' } } } }));
-    const sessions = createSessionStore({ store: createStore(dir) });
+  test('a damaged session record signs that session out instead of failing', () => withDb(async ({ db, repos }) => {
+    const at = '2026-11-12T09:00:00.000Z';
+    const later = '2099-01-01T00:00:00.000Z';
+    const insert = (id, hash, userData, created = at) => db.run(
+      'INSERT INTO auth_sessions (id, token_hash, user_id, user_data, created_at, last_seen_at, expires_at, ip, user_agent, binding) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, hash, 'u', userData, created, '2099-01-01T00:00:00.000Z', later, '', '', null],
+    );
+    await insert('bad-role', 'a'.repeat(64), JSON.stringify({ id: 'u', via: 'oidc', role: 'god' }));
+    await insert('bad-json', 'b'.repeat(64), '{not json');
+    await insert('bad-hash', 'nothex', JSON.stringify({ id: 'u', via: 'oidc', role: 'student' }));
+    await insert('bad-time', 'c'.repeat(64), JSON.stringify({ id: 'u', via: 'oidc', role: 'student' }), 'yesterday');
+    const sessions = await createSessionStore({ repo: repos.sessions });
     assert.equal(sessions.size, 0);
     await sessions.shutdown();
+    assert.equal((await db.query('SELECT id FROM auth_sessions')).length, 0, 'and the records are gone');
   }));
+
+  test('a database that refuses writes never breaks a sign-in, and says so', async () => {
+    const errors = [];
+    const failing = () => Promise.reject(new Error('SQLITE_FULL'));
+    const repo = { all: async () => [], insert: failing, remove: failing, rehash: failing, touchAll: failing };
+    const sessions = await createSessionStore({ repo, logger: { warn() {}, error: (m) => errors.push(m) } });
+    const { token } = sessions.create(student(1));
+    assert.ok(sessions.find(token));
+    assert.ok(sessions.rotate(token));
+    assert.equal(sessions.revokeUser('oidc:student1'), 1);
+    assert.equal(await sessions.shutdown(), false);
+    assert.deepEqual(errors.map((m) => m.match(/\(([a-z-]+)\)/)[1]), ['sign-in', 'rotation', 'end']);
+  });
+
+  test('an unreadable sessions table signs everyone out instead of failing', async () => {
+    const errors = [];
+    const sessions = await createSessionStore({ repo: { all: () => Promise.reject(new Error('locked')) }, logger: { warn() {}, error: (m) => errors.push(m) } });
+    assert.equal(sessions.size, 0);
+    assert.match(errors.join(), /everyone has to sign in again/);
+    await sessions.shutdown();
+  });
+
+  test('the store needs its repository', async () => {
+    await assert.rejects(createSessionStore({}), /sessions repository/);
+  });
 });
 
 // ── Account providers ───────────────────────────────────────────────────────
 
 describe('account providers', () => {
-  test('the administrator of the environment: user name, password and code together', () => withStore(async (store) => {
+  test('the administrator of the environment: user name, password and code together', () => withDb(async ({ repos }) => {
     const c = clock();
-    const provider = createEnvAdminProvider({ settings: TEST_ADMIN, store, now: c.now });
+    const provider = await createEnvAdminProvider({ settings: TEST_ADMIN, state: repos.authState, now: c.now });
     assert.equal(provider.id, 'env-admin');
     const ok = await provider.verify({ username: 'root', password: TEST_ADMIN.password, code: adminCode(c.ms) });
     assert.equal(ok.user.id, 'local:root');
@@ -671,14 +738,14 @@ describe('account providers', () => {
     assert.ok(await provider.verify({ username: 'root', password: TEST_ADMIN.password, code: adminCode(c.ms) }), 'failures burn nothing');
   }));
 
-  test('an accepted code is dead, even after a restart', () => withStore(async (store, dir) => {
+  test('an accepted code is dead, even after a restart', () => withDb(async ({ repos }) => {
     const c = clock();
     const code = adminCode(c.ms);
-    const provider = createEnvAdminProvider({ settings: TEST_ADMIN, store, now: c.now });
+    const provider = await createEnvAdminProvider({ settings: TEST_ADMIN, state: repos.authState, now: c.now });
     assert.ok(await provider.verify({ username: 'root', password: TEST_ADMIN.password, code }));
     assert.equal(await provider.verify({ username: 'root', password: TEST_ADMIN.password, code }), null);
-    await store.flush();
-    const restarted = createEnvAdminProvider({ settings: TEST_ADMIN, store: createStore(dir), now: c.now });
+    assert.deepEqual(await repos.authState.get('local-admin'), { lastTotpStep: Math.floor(c.ms / 30_000) });
+    const restarted = await createEnvAdminProvider({ settings: TEST_ADMIN, state: repos.authState, now: c.now });
     assert.equal(await restarted.verify({ username: 'root', password: TEST_ADMIN.password, code }), null);
   }));
 

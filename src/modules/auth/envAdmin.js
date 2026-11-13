@@ -25,6 +25,8 @@ import { createUser } from './user.js';
 import { parseHash, verifyPassword, safeEqual } from './password.js';
 import { base32Decode, verifyTotp } from './totp.js';
 
+const STATE = 'local-admin';
+
 /**
  * A 32-byte key for `purpose`, derived (HKDF-SHA256) from the user name, the
  * password hash and the TOTP secret: one-way, and different as soon as any
@@ -39,7 +41,12 @@ export function adminDerivedKey(settings, purpose) {
   return Buffer.from(crypto.hkdfSync('sha256', material, 'lab-console local administrator', purpose, 32));
 }
 
-export function createEnvAdminProvider({ settings, store, logger, now = Date.now }) {
+/**
+ * settings: config.auth.localAdmin; state: the auth state repository
+ * (createRepositories(db).authState), where the last accepted time step is
+ * kept under 'local-admin'. Resolves once that step is loaded
+ */
+export async function createEnvAdminProvider({ settings, state, logger, now = Date.now }) {
   const log = logger ?? { warn() {}, error() {} };
   const hash = parseHash(settings.passwordHash);
   const key = base32Decode(settings.totpSecret);
@@ -48,10 +55,9 @@ export function createEnvAdminProvider({ settings, store, logger, now = Date.now
 
   // The last accepted time step survives a restart, so a code cannot be
   // replayed by restarting the service inside its 90-second validity
-  const state = store.json('auth/local-admin.json', { lastTotpStep: -1 });
   let lastStep = -1;
   try {
-    const saved = Number(state.get()?.lastTotpStep);
+    const saved = Number((await state.get(STATE))?.lastTotpStep);
     if (Number.isInteger(saved)) lastStep = saved;
   } catch (err) {
     log.error(`local administrator state could not be read: ${err.message}`);
@@ -74,7 +80,7 @@ export function createEnvAdminProvider({ settings, store, logger, now = Date.now
       // Burn the code only on a complete success: a stranger who guesses or
       // sees a code must not be able to lock the real administrator out with it
       lastStep = step;
-      await state.set({ lastTotpStep: step }).catch((err) => log.error(`local administrator state could not be saved: ${err.message}`));
+      await state.set(STATE, { lastTotpStep: step }).catch((err) => log.error(`local administrator state could not be saved: ${err.message}`));
       return { user };
     },
   };

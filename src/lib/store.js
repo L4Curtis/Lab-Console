@@ -1,7 +1,10 @@
 /**
  * The data directory: the only place the platform writes to (the image runs
- * read-only, see ARCHITECTURE §10). No database - state is a handful of JSON
- * documents and append-only JSONL logs, small enough to keep in memory
+ * read-only, see ARCHITECTURE §10). It holds the database (lab-console.db)
+ * and the documents people download or diff: backed-up configurations,
+ * console journals, diagram versions. Structured state (sessions, the audit
+ * trail, settings, ...) goes through the repositories of src/lib/db, never
+ * through this store (ARCHITECTURE §6, "database")
  *
  *   store.resolve('snapshots', bench, name)   absolute path inside DATA_DIR
  *   store.dir('journal', bench)               same, and creates the directory

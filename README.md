@@ -19,7 +19,7 @@ docker compose up -d --build
 
 Open http://localhost:3000.
 
-Without Docker (Node.js 20.12 or newer):
+Without Docker (Node.js 22.13 or newer):
 
 ```bash
 npm ci
