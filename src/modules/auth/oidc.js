@@ -12,11 +12,19 @@
  * still signs in, and the provider is tried again at the next attempt.
  * One instance serves one set of settings; when they change, the sign-in
  * module builds a new instance (createAuth().oidc.configure)
+ *
+ * Every request to the provider (discovery, keys, token, userinfo) goes
+ * through the guarded fetch of src/lib/safeFetch.js: the issuer an
+ * administrator typed may be on the local network, but the endpoints its
+ * discovery document lists may not lead anywhere else inside it, and
+ * nothing is fetched without a deadline and a size limit
  */
 import * as client from 'openid-client';
 import { isInsecureIssuer } from './oidcSettings.js';
+import { createSafeFetch } from '../../lib/safeFetch.js';
 
 const DISCOVERY_TIMEOUT_S = 10;
+const MAX_RESPONSE_BYTES = 1024 * 1024;
 const RETRY_AFTER_FAILURE_MS = 10_000;
 
 /** What went wrong, in terms the sign-in page can explain: `kind` is 'unavailable' or 'rejected' */
@@ -50,7 +58,12 @@ export function createOidc({ settings, publicUrl, logger, now = Date.now }) {
     const execute = [client.enableNonRepudiationChecks]; // always verify the ID token's signature against the provider's keys
     if (insecure) execute.push(client.allowInsecureRequests);
 
-    const attempt = client.discovery(new URL(settings.issuer), settings.clientId, undefined, authentication, { execute, timeout: DISCOVERY_TIMEOUT_S })
+    const issuer = new URL(settings.issuer);
+    const guarded = createSafeFetch({
+      trustedHost: issuer.hostname, allowInsecure: settings.allowInsecure, timeoutMs: DISCOVERY_TIMEOUT_S * 1000, maxBytes: MAX_RESPONSE_BYTES,
+    });
+    const options = { execute, timeout: DISCOVERY_TIMEOUT_S, [client.customFetch]: guarded };
+    const attempt = client.discovery(issuer, settings.clientId, undefined, authentication, options)
       .then((found) => {
         log.info(`identity provider discovered: ${found.serverMetadata().issuer}`);
         return found;
