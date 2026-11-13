@@ -226,6 +226,18 @@ Same worktree as the accounts lot, after it.
   Proxmox tunnel state (read-only for students, details for admins); a page
   saying what is journaled and for how long.
 
+*As built (admin lot):* Administration tabs Lab parameters, Diagram, Admin
+switches, Sessions, Audit trail, Announcement; a "Lab status" rail section
+for everyone with Health and What is recorded. Not met, owner decision
+pending: **an SSO administrator cannot confirm** a lab parameter change (it
+has neither a passkey nor a password here): the page says to sign in with
+the environment's administrator or a local administrator account; a
+re-authentication at the provider could be added. **Proxmox URL and
+credentials are shown, not editable**: the Proxmox module stays out of scope
+(its tunnel does follow the jump server's parameters). The health page
+probes the console servers on their telnet port (23) and Proxmox through the
+jump server with `nc -z`; it does not read the Proxmox module's tunnel state.
+
 ## Wave 3
 
 ### Lot jobs — backup, injection, reset

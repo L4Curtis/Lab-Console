@@ -25,7 +25,10 @@ Feature decisions live in [SPEC.md](SPEC.md). Base: upstream v1.1.1.
 5. **No database.** State lives in JSON / JSONL files under the data directory.
 6. **The Proxmox module is out of scope.** Do not modify `src/modules/proxmox/`,
    `src/lib/sshTunnel.js` or `public/js/modules/infra/` beyond what
-   authentication and i18n strictly require: upstream is reworking it.
+   authentication and i18n strictly require: upstream is reworking it. One
+   exception (admin lot): its SSH tunnel follows the lab settings and
+   reconnects on their `'change'` event; its Proxmox URL and credentials
+   still come from the environment only.
 
 ## 2. Repository layout
 
@@ -37,6 +40,10 @@ src/
     env.js                  env readers + validation errors      (lot: skeleton)
     store.js                data directory, JSON / JSONL files   (lot: skeleton)
     audit.js                audit trail                          (lot: skeleton)
+    settings.js             run-time settings, labSettings.js the "lab" namespace   (lot: admin)
+    sealed.js               secrets saved from the admin pages, encrypted with APP_SECRET
+    diagrams.js             the active diagram in DATA_DIR, its versions and checks   (lot: admin)
+    infrastructure.js       the admin switches list (shipped file, then DATA_DIR)    (lot: admin)
     events.js               SSE hub, with per-user audiences     (lot: skeleton)
     httpError.js            API error shape: HttpError, sendError (lot: skeleton)
     security.js             headers, origin check, rate limiter, client IP, trusted proxies
@@ -46,7 +53,8 @@ src/
     auth/                   sessions, OIDC, local accounts + TOTP, roles   (lot: auth)
     consoles/               diagram, rooms, console WebSocket    (lot: rooms)
     benches/                occupancy, reservations, history     (lot: benches)
-    admin/                  diagram import, sessions, audit, announcements, health
+    admin/                  lab parameters + confirmation, diagram versions, switches, sessions,
+                            audit viewer, announcements, health, journaling   (lot: admin)
     jobs/                   bench jobs, snapshots                (lot: jobs)
     collab/                 device notes, bench chat, notifications
     scripts/                shared script library
@@ -97,7 +105,7 @@ Global keys added by the skeleton:
 | `DATA_DIR` | `./data` | `dataDir` (absolute) | Writable state directory. The Docker image sets `/data`. |
 | `TRUSTED_PROXIES` | empty | `server.trustedProxies` (string[]) | Comma list of proxy IPs / CIDRs (IPv4, IPv6) whose `X-Forwarded-For` is believed: every hop, CDN ranges included. The upstream `TRUST_PROXY=true` (trust every peer) is refused at start-up and `server.trustProxy` no longer exists. |
 | `DEFAULT_LOCALE` | `fr` | `defaultLocale` | UI language for a first visit (`fr` or `en`). |
-| `APP_SECRET` | empty | `appSecret` | Optional, 32 characters at least. Encrypts (AES-256-GCM, key derived with HKDF) the secrets saved from the administration pages: today the SSO client secret in `data/auth/oidc.json`. Without it they are kept in clear in files of mode 600. Changing it makes them unreadable (the page says so). |
+| `APP_SECRET` | empty | `appSecret` | Optional, 32 characters at least. Encrypts (AES-256-GCM, key derived with HKDF) the secrets saved from the administration pages: the SSO client secret in `data/auth/oidc.json` and the lab parameters' secrets in `data/settings/lab.json`. Without it they are kept in clear in files of mode 600. Changing it makes them unreadable (the page says so). |
 
 `PORT=0` is accepted and binds any free port (tests, the e2e harness).
 
@@ -205,6 +213,9 @@ auth.steps.peek(req) / .complete(req, res, { method, user }) / .fail(req, res) /
                                // a sign-in whose password was right and that still owes a passkey;
                                //   peek() hands back the provider's `binding` (see Ways in)
 auth.extend(router, { describe })    // public routes mounted above the gate; describe(req) adds fields to /auth/me
+auth.reauthenticate(user, { password, code })   // → boolean: the environment's administrator proves itself
+                               //   again before a sensitive change (an accepted code is burnt); false for anyone else
+auth.environmentAdminId        // 'local:<LOCAL_ADMIN_USERNAME>'
 auth.oidc.settings             // current OIDC settings, without the secret ({ …, hasClientSecret })
 auth.oidc.configure(raw)       // replace them at run time (validated; open sessions untouched); an omitted
                                //   clientSecret keeps the current one for the same issuer and client id only
@@ -322,7 +333,7 @@ valid session.
 ## 6. Platform services
 
 Created once in `server.js` and passed to every module in `deps`:
-`{ config, logger, events, infra, store, audit, auth, settings, services }`.
+`{ config, logger, events, infra, store, audit, auth, settings, diagrams, services }`.
 
 **store** (`src/lib/store.js`)
 
@@ -416,15 +427,70 @@ A module must release in `shutdown()` whatever would keep the process alive
 (timers that are not `unref`'d, file watchers, sockets).
 
 **settings** (`src/lib/settings.js`, passed as `deps.settings`) — values an
-administrator may change at run time. `settings.get('lab')` returns
-`{ ssh, telnet, consoles }` with the shapes of `config.ssh`, `config.telnet`
-and `config.consoles`. **Read it each time a connection or a console is
-opened**, never once at start-up. Today it mirrors the environment; the admin
-lot adds `describe(ns)` (values with secrets replaced by `{ set: true }`),
-`update(ns, patch, actor)`, `register(ns, spec)`, persistence in
-`data/settings/<ns>.json` (mode 600) and the `'change'` event
-(`settings.on('change', (ns, values) => …)`). Modules that keep a long-lived
-connection (the Proxmox tunnel) listen for `'change'` and reconnect.
+administrator may change at run time. **Read them each time a connection or
+a console is opened**, never once at start-up.
+
+```js
+settings.get(ns)                    // current values, a private copy (secrets included: server side only)
+settings.describe(ns)               // { values (secrets as { set: true|false }), fields, saved: [paths], unreadable: [paths],
+                                    //   updatedAt, updatedBy, encrypted }
+settings.update(ns, patch, actor)   // → describe(ns) + { changed, reset }; 400 settings.invalid { problems: [{ field, code }] }
+settings.register(ns, { defaults: () => values, fields: { 'dotted.path': { type, … } }, check?(values) → problems })
+settings.on('change', (ns, values) => …)   // → off(); after a save that changed something
+```
+
+- `get('lab')` returns `{ ssh, telnet, consoles }` with the shapes of
+  `config.ssh`, `config.telnet` and `config.consoles` (an SSH key read from a
+  file is handed out as text). Editable fields (`src/lib/labSettings.js`):
+  `ssh.host|port|username|password|privateKey|passphrase|hostFingerprint`,
+  `telnet.username|password|autoLogin|wakeIdleMs`,
+  `consoles.allowedHosts|portRange`. Everything else (timeouts, tunnel
+  transport, the diagram's network prefix) stays with the environment.
+- The environment gives the starting values; a saved field wins; saving
+  `null` for a field brings the environment's value back. A patch carries
+  only what changes; a secret left out is kept. Types: `string`, `int`,
+  `bool`, `list`, `range`, `secret`; every field is checked, then the
+  namespace's `check()` on the values that would apply (lab: a password or a
+  key, a key that parses, a passphrase that opens it). Nothing is saved when
+  one problem is found.
+- Saved in `data/settings/<ns>.json` (mode 600), one entry per field.
+  Secrets are sealed with `src/lib/sealed.js` (AES-256-GCM under a key
+  derived from `APP_SECRET`, in clear without it); one that cannot be opened
+  any more falls back to the environment and is listed in `unreadable`.
+- `update()` audits `settings.update` with `{ ns, changed, reset, values }`:
+  field names only for secrets, new values for the others.
+- Modules that keep a long-lived connection listen for `'change'`: the
+  consoles registry reloads (the allow-list may have moved), the Proxmox
+  tunnel reconnects, the health cache is dropped.
+- Confirmation is not the service's job: the admin module's `PUT /api/admin/lab`
+  requires a ticket (`src/modules/admin/confirm.js`).
+
+**diagrams** (`src/lib/diagrams.js`, passed as `deps.diagrams`) — the active
+lab diagram is `data/diagrams/current.drawio`, seeded from `DIAGRAM_PATH` on
+the first start (which becomes the first version).
+
+```js
+diagrams.currentPath                 // what the consoles registry reads and watches
+diagrams.list()                      // { active, canRollback, previous, versions: [...] } newest first
+diagrams.add(buffer, { name, actor }) → { version, warnings }   // checked, kept, NOT active
+diagrams.model(id) / diagrams.compare(id)   // parsed labs / what changes against the active one
+diagrams.activate(id, actor) / diagrams.rollback(actor)
+diagrams.fileOf(id)                  // absolute path of a version (download)
+diagrams.on('change', fn)            // after an activation or a rollback
+```
+
+A file is refused (`admin.diagram_*`) over 5 MB, with a DOCTYPE or an entity
+declaration anywhere (compressed pages are inflated and checked too), when
+the parser rejects it, or without a single console device. 30 versions are
+kept (never the active one nor the last ones a rollback may need). A rollback
+returns to the diagram active before the current one (a stack of activations).
+
+**infra** (`src/lib/infrastructure.js`, `deps.infra`) — the admin switches.
+`infra.adminSwitches` is the current list (read it when a console opens);
+`infra.describe()`, `infra.replace(list, actor)` (validated, audited
+`admin.switches.update`), `infra.on('change')`. The shipped file
+(`INFRA_CONFIG_PATH`) is the starting point; an edited list lives in
+`data/admin/switches.json` and wins.
 
 ## 7. Server modules
 
@@ -463,7 +529,13 @@ services.accounts = {                          // lot accounts
   list() → Account[]                           // the environment's administrator first ({ environment: true })
   roleOverride(userId) → 'student' | 'admin' | null   // forced on an SSO account; null = its groups decide
   admit(user, { groupRole }) → Promise<boolean>       // called by the sign-in module at each SSO sign-in
+  confirmation: {                              // a local administrator proves itself again with a passkey
+    available(user) → boolean
+    options(req, res) → PublicKeyCredentialRequestOptionsJSON   // challenge bound to browser, account and session
+    verify(req, res, response) → Promise<boolean>
+  }
 }
+services.admin = { announcement() → { text, level, at, expiresAt, by } | null }   // lot admin
 services.jobs = { running(labName) → Job | null, list({ bench }) }
 ```
 
@@ -476,8 +548,12 @@ services.jobs = { running(labName) → Job | null, list({ bench }) }
   away from students, `rail: false` leaves it out of the rail. The
   **Administration** section (`#/admin/<tab>`, `modules/admin/index.js`) is
   for administrators, built with `shared/tabs.js`; the accounts lot's tabs are
-  `users`, `invitations`, `sso`, and the admin lot adds its own there (one
-  file in `modules/admin/tabs/`, one line). **My account** (`#/account`) is
+  `users`, `invitations`, `sso`; the admin lot's are `lab`, `diagram`,
+  `switches`, `sessions`, `audit`, `announcement` (one file in
+  `modules/admin/tabs/`, one line each). **Lab status** (`#/status/<tab>`,
+  `modules/status/index.js`, every signed-in user): `health` and
+  `journaling`. The **announcement banner** (`shared/announcement.js`,
+  mounted once by `main.js`) follows the sticky SSE topic `admin:announcement`. **My account** (`#/account`) is
   reached from the user menu. Passkeys in the browser go through
   `core/passkeys.js` (public: the login page and `/join` use it).
 - **Tabs.** A section with several screens uses `shared/tabs.js`:
@@ -652,7 +728,7 @@ device per console port for its whole life and answers `nc -z -w <s> <host>
 data/
   auth/sessions.json        auth/local-admin.json (last TOTP step used)   auth/device-key.json (known-browser key)
   audit/<yyyy-mm>.jsonl
-  diagrams/current.drawio   diagrams/versions/<ts>-<user>.drawio   diagrams/index.json
+  diagrams/current.drawio   diagrams/versions/<ts>-<user>-<rand>.drawio   diagrams/index.json
   journal/<bench>/<device>/<yyyy-mm-dd>.log
   teams/teams.json          benches/occupancy.json    benches/locks.json    benches/reservations.json
   accounts/users.json       accounts/invitations.json    auth/oidc.json (600)
@@ -661,7 +737,7 @@ data/
   templates/<name>/...      same layout as a snapshot
   collab/notes.json         collab/chat/<bench>.jsonl
   scripts/library.json
-  admin/announcements.json
+  admin/announcements.json  admin/switches.json
 ```
 
 The image runs read-only; `DATA_DIR` is the only writable path. Bench and
@@ -755,10 +831,12 @@ device names used in paths go through `store.resolve`, never string concat.
 - Upload → size limit, type check, no path from the archive trusted?
 - Output shown to other users → rendered as text, never as HTML?
 - Secret → never logged, never sent to the browser, never written to `data/`
-  unless it is a hash? One exception: the SSO client secret set on the
-  administration page must be sent to the provider, so `data/auth/oidc.json`
-  (mode 600) keeps it, encrypted when `APP_SECRET` is set; no answer and no
-  audit entry ever contains it.
+  unless it is a hash? Two exceptions, secrets the server must send on:
+  the SSO client secret (`data/auth/oidc.json`) and the lab parameters'
+  secrets (jump server password, key and passphrase, console server password,
+  `data/settings/lab.json`). Both files are mode 600 and the secrets are
+  encrypted when `APP_SECRET` is set (`src/lib/sealed.js`); no answer and no
+  audit entry ever contains them.
 - Limits → per user, not per IP.
 
 ## 14. Recipes
