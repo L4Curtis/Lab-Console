@@ -15,6 +15,7 @@ export const consoleSession = (device, subtitle) => ({
   subtitle,
   address: `${device.target.host}:${device.target.port}`,
   target: device.target,
+  device: device.key, // what the server knows the device by ("tell me when it is free")
   ws: { path: '/ws/console', query: { device: device.key } },
 });
 

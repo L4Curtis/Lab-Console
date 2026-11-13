@@ -1,7 +1,7 @@
 /**
  * What the server really puts on the console sockets: the frames of the
  * refusals, the exits and the automation results are produced by the real
- * code (a running application, a SessionManager, the automation handler, a
+ * code (a running application, a RoomManager, the automation handler, a
  * ConsoleSession against a small SSH server), then rendered the way the
  * browser does (serverText) in French and in English. A misspelt parameter
  * name shows up here as a literal "{name}" in the sentence
@@ -10,11 +10,10 @@ import { test, before, after, mock } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { EventEmitter } from 'node:events';
 import ssh2 from 'ssh2';
 import WebSocket from 'ws';
 import { startTestApp, tempDataDir, repoRoot, silentLogger } from './helpers/app.js';
-import { SessionManager } from '../src/modules/consoles/sessionManager.js';
+import { RoomManager } from '../src/modules/consoles/roomManager.js';
 import { ConsoleSession } from '../src/modules/consoles/consoleSession.js';
 import { createAutomationHandler } from '../src/lib/automationProtocol.js';
 import { AutomationError, CliAutomation } from '../src/lib/cliAutomation.js';
@@ -102,70 +101,84 @@ test('frames: the twenty-first console opened within a minute is rate limited', 
   }
 });
 
-// ── Refusals and closings of the SessionManager ─────────────────────────────
+// ── Refusals and closings of the RoomManager ────────────────────────────────
 
-const device = (name, port) => ({ name, labName: 'B4M', target: { host: '10.22.9.211', port } });
-function fakeSession() {
-  const s = new EventEmitter();
-  s.lastActivity = Date.now();
-  s.closed = [];
-  s.close = (reason, code, info) => { s.closed.push({ reason, info }); s.emit('close', { reason, code, info: { params: {}, ...info } }); };
-  return s;
+const device = (name, port) => ({ key: `k${port}`, name, labName: 'B4M', target: { host: '10.22.9.211', port } });
+const LAB = { ssh: { host: '127.0.0.1', port: 1, username: 'u', password: 'p' }, telnet: {}, consoles: { allowedHosts: ['10.22.9.211'], portRange: { min: 2000, max: 2099 } } };
+/** Lines that stay "connecting" for ever: the pool never answers */
+const stuckPool = { exec: () => new Promise(() => {}) };
+const managers = [];
+function manager(limits, extra = {}) {
+  const m = new RoomManager({ settings: { get: () => structuredClone(LAB) }, pool: stuckPool, limits: { idleTimeoutMs: 60 * 60_000, ...limits }, logger: silentLogger(), ...extra });
+  managers.push(m);
+  return m;
 }
+const userOf = (id) => ({ id, name: id, username: id, role: 'student' });
+const client = (user) => ({ user, frames: [], send(f) { this.frames.push(f); }, sendBytes() {}, close() {} });
 
-test('frames: line busy, platform full, client full carry the params their sentence needs', async () => {
-  const mgr = new SessionManager({ limits: { maxSessions: 2, maxSessionsPerClient: 1, idleTimeoutMs: 1 }, logger: silentLogger() });
-  const r1 = device('R1', 2001);
-  mgr.register(fakeSession(), r1, 'alice');
+test('frames: platform full, client full, a bench of another team and an address off the list carry their params', async () => {
+  const mgr = manager({ maxSessions: 2, maxSessionsPerClient: 1 }, { canPilot: (u) => u.id !== 'eve' });
+  const alice = userOf('alice');
+  mgr.open(device('R1', 2001), alice).attach(client(alice));
+  // Joining the line someone opened is not "busy" any more: it is the same room
+  assert.equal(mgr.open(device('R1', 2001), userOf('bob')), mgr.get('10.22.9.211:2001'));
 
-  const busy = mgr.canOpen(r1, 'bob');
-  assert.equal(busy.ok, false);
-  assert.equal(busy.code, 'consoles.line_busy_since');
-  assert.match(busy.params.since, /^\d\d:\d\d$/);
-  const busyText = await render({ type: 'error', message: busy.reason, code: busy.code, params: busy.params });
-  assert.ok(busyText.fr.includes('R1') && busyText.fr.includes(busy.params.since));
-
-  const own = mgr.canOpen(device('R2', 2002), 'alice');
+  const own = mgr.canOpen(device('R2', 2002), alice);
   assert.equal(own.code, 'consoles.client_full');
   assert.deepEqual(own.params, { max: 1 });
-  assert.match((await render({ type: 'error', message: own.reason, ...own })).fr, /1 consoles/);
+  assert.match((await render({ type: 'error', ...own })).fr, /1 consoles/);
 
-  mgr.register(fakeSession(), device('R3', 2003), 'carol');
-  const full = mgr.canOpen(device('R4', 2004), 'dave');
+  mgr.open(device('R3', 2003), userOf('carol'));
+  const full = mgr.canOpen(device('R4', 2004), userOf('dave'));
   assert.equal(full.code, 'consoles.platform_full');
-  await render({ type: 'error', message: full.reason, code: full.code, params: full.params });
+  await render({ type: 'error', ...full });
+
+  const eve = mgr.canOpen(device('R1', 2001), userOf('eve'));
+  assert.equal(eve.ok, true, 'anyone may join an open line, to watch');
+  const closedBench = manager({ maxSessions: 5, maxSessionsPerClient: 5 }, { canPilot: () => false }).canOpen(device('R9', 2009), userOf('eve'));
+  assert.equal(closedBench.code, 'consoles.open_not_allowed');
+  assert.ok((await render({ type: 'error', ...closedBench })).fr.includes('R9'));
+
+  const off = mgr.canOpen({ ...device('X', 2001), target: { host: '10.9.9.9', port: 2001 } }, alice);
+  assert.equal(off.code, 'consoles.not_allowed');
+  const gone = mgr.canOpen(device('R7', 2007), alice, { readOnly: true });
+  assert.equal(gone.code, 'consoles.room_gone');
+  assert.ok((await render({ type: 'error', ...gone })).en.includes('R7'));
 });
 
 test('frames: the idle timeout and the shutdown close a console with a code, a name and a number', async () => {
-  mock.timers.enable({ apis: ['setInterval', 'Date'] });
-  try {
-    const mgr = new SessionManager({ limits: { maxSessions: 5, maxSessionsPerClient: 5, idleTimeoutMs: 20 * 60_000 }, logger: silentLogger() });
-    const idle = fakeSession();
-    mgr.register(idle, device('SW7', 2007), 'alice');
-    mock.timers.tick(30_000); // not idle yet
-    assert.equal(idle.closed.length, 0);
-    mock.timers.tick(21 * 60_000);
-    assert.equal(idle.closed.length, 1);
-    const { reason, info } = idle.closed[0];
-    assert.deepEqual(info, { code: 'consoles.idle_timeout', params: { minutes: 20, name: 'SW7' } });
-    const text = await render({ type: 'exit', message: reason, ...info });
-    assert.ok(text.fr.includes('20') && text.fr.includes('SW7'));
+  const clock = { ms: Date.now() };
+  const mgr = manager({ maxSessions: 5, maxSessionsPerClient: 5, idleTimeoutMs: 20 * 60_000 }, { now: () => clock.ms });
+  const sw7 = mgr.open(device('SW7', 2007), userOf('alice'));
+  const watcher = client(userOf('alice'));
+  sw7.attach(watcher);
+  sw7.session.lastActivity = clock.ms;
+  clock.ms += 30_000;
+  mgr.sweepIdle(); // not idle yet
+  assert.equal(sw7.closed, false);
+  clock.ms += 21 * 60_000;
+  mgr.sweepIdle();
+  assert.equal(sw7.closed, true);
+  const exit = watcher.frames.find((f) => f.type === 'exit');
+  assert.equal(exit.code, 'consoles.idle_timeout');
+  assert.deepEqual(exit.params, { minutes: 20, name: 'SW7' });
+  const text = await render(exit);
+  assert.ok(text.fr.includes('20') && text.fr.includes('SW7'));
 
-    const other = fakeSession();
-    mgr.register(other, device('SW8', 2008), 'alice');
-    mgr.closeAll('Platform is restarting', { code: 'consoles.restarting' });
-    assert.equal(other.closed[0].info.code, 'consoles.restarting');
-    await render({ type: 'exit', message: 'Platform is restarting', code: 'consoles.restarting', params: {} });
-  } finally {
-    mock.timers.reset();
-  }
+  const sw8 = mgr.open(device('SW8', 2008), userOf('alice'));
+  const other = client(userOf('alice'));
+  sw8.attach(other);
+  mgr.shutdown('Platform is restarting', { code: 'consoles.restarting' });
+  assert.equal(other.frames.at(-1).code, 'consoles.restarting');
+  await render(other.frames.at(-1));
 });
 
 // ── Automation refusals and results ─────────────────────────────────────────
 
 function automation({ canExport = true, cli = {} } = {}) {
   const frames = [];
-  const fakeCli = { running: null, cancel() {}, exportRunningConfig: async () => ({}), injectScript: async () => ({}), ...cli };
+  const fakeCli = { running: null, cancel() {}, readRunningConfig: async () => ({}), sendScript: async () => ({}), ...cli };
+  fakeCli.perform = (_label, fn) => fn(fakeCli);
   const handle = createAutomationHandler({ cli: fakeCli, send: (f) => frames.push(f), canExport, log: silentLogger(), label: 'test' });
   return { handle, frames };
 }
@@ -191,7 +204,7 @@ test('frames: the automation refusals', async () => {
 });
 
 test('frames: a task that fails reports the code and params of its error', async () => {
-  const { handle, frames } = automation({ cli: { exportRunningConfig: async () => { throw new AutomationError('S1 is in user mode', 'automation.user_mode', { host: 'S1' }); } } });
+  const { handle, frames } = automation({ cli: { readRunningConfig: async () => { throw new AutomationError('S1 is in user mode', 'automation.user_mode', { host: 'S1' }); } } });
   handle({ type: 'export-config' });
   await settle();
   assert.equal(frames.at(-1).code, 'automation.user_mode');
@@ -200,7 +213,7 @@ test('frames: a task that fails reports the code and params of its error', async
 
 test('frames: the summary of a script that stopped early agrees with the total, not with the number sent', async () => {
   const result = { sent: 1, total: 5, errors: [{ line: 1 }], slow: [2, 3], waitingFor: 'Proceed? [confirm]', stoppedOnError: true };
-  const { handle, frames } = automation({ cli: { injectScript: async () => result } });
+  const { handle, frames } = automation({ cli: { sendScript: async () => result } });
   handle({ type: 'inject', script: 'a\nb\nc\nd\ne' });
   await settle();
   const frame = frames.find((f) => f.state === 'warning');
@@ -218,8 +231,8 @@ test('frames: the summary of a script that stopped early agrees with the total, 
 test('frames: progress and results of an export and of a script', async () => {
   const { handle, frames } = automation({
     cli: {
-      exportRunningConfig: async (progress) => { progress('Reading', { code: 'automation.reading_config' }); return { hostname: 'S1', config: 'a\nb\n', pagingFallback: true }; },
-      injectScript: async (_s, _o, progress) => { progress('Sending line 2 of 3', { done: 1, total: 3, code: 'automation.sending_line', params: { line: 2, total: 3 } }); return { sent: 3, total: 3, errors: [], slow: [], waitingFor: null }; },
+      readRunningConfig: async (progress) => { progress('Reading', { code: 'automation.reading_config' }); return { hostname: 'S1', config: 'a\nb\n', pagingFallback: true }; },
+      sendScript: async (_s, _o, progress) => { progress('Sending line 2 of 3', { done: 1, total: 3, code: 'automation.sending_line', params: { line: 2, total: 3 } }); return { sent: 3, total: 3, errors: [], slow: [], waitingFor: null }; },
     },
   });
   handle({ type: 'export-config' });
@@ -265,9 +278,9 @@ test('frames: a jump server that refuses the connection', async () => {
   assert.match((await render({ type: 'exit', message: reason, ...info })).fr, /127\.0\.0\.1:1/);
 });
 
-test('frames: a telnet that exits with a code, and one that simply ends', async () => {
-  for (const [exit, code, params] of [[3, 'consoles.closed_exit', { code: 3 }], [0, 'consoles.closed', {}]]) {
-    const jump = await startJump((stream) => { if (exit) stream.exit(exit); stream.end(); });
+test('frames: a telnet that exits with a code, one that simply ends, and a channel lost with its connection', async () => {
+  for (const [exit, code, params] of [[3, 'consoles.closed_exit', { code: 3 }], [0, 'consoles.closed', {}], [null, 'consoles.ssh_closed', {}]]) {
+    const jump = await startJump((stream) => { if (exit !== null) stream.exit(exit); stream.end(); });
     try {
       const { statuses, closing } = runSession(jump.port);
       const { reason, info } = await closing;
@@ -338,7 +351,7 @@ test('frames: a diagram that cannot be read is reported with a code, and its not
   }
 });
 
-after(() => { mock.timers.reset(); });
+after(() => { mock.timers.reset(); for (const m of managers) m.shutdown(); });
 
 test('pane names read as noun groups in both languages', async () => {
   const label = async (lang, kind) => {

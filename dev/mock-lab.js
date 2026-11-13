@@ -33,14 +33,22 @@
  *   MOCK_LINE_PASSWORD=cisco    # console-line password for the "linepass" devices
  *   MOCK_TIME_SCALE=0.02        # boot lengths × this factor (a 4331 boots in 8 s)
  *
+ * Like OpenSSH's sshd, one SSH connection carries at most `maxSessions`
+ * session channels at a time (MaxSessions, 10 by default): one more is refused
+ * with "open failed", which is what the application's connection pool must
+ * respect. `stats()` says how many connections and channels are open:
+ *   MOCK_MAX_SESSIONS=10
+ *
  * It also does SSH port forwarding (direct-tcpip), like a real jump server, so
  * the Proxmox tunnel can be tested; MOCK_FORWARD maps lab addresses to local
  * ones; anything else is refused, as an unreachable lab host would be:
  *   MOCK_FORWARD=<PROXMOX_URL host:port>=127.0.0.1:8006   (default)
  *
  * Importable: startMockLab({ port: 0, ssh, telnet, … }) resolves
- * { port, close(), device(target) } - device('10.22.9.4:2001') is the FakeIos
- * behind that console port (created on first use).
+ * { port, close(), device(target), stats(), setBusy(port, on), setDown(port, on) } -
+ * device('10.22.9.4:2001') is the FakeIos behind that console port (created on
+ * first use); stats() → { connections, channels, peakChannels, refusedChannels }
+ * (peakChannels is the most channels one connection ever had open at once).
  */
 import fs from 'node:fs';
 import net from 'node:net';
@@ -61,6 +69,7 @@ const PROBE = /^nc -z -w ([1-9]|[12]\d|30) ([\w.-]{1,253}) (\d{1,5})$/;
  * @param defaults    FakeIos options for every device (timeScale, enableSecret…)
  * @param downPorts / busyPorts / loginPorts   console ports (numbers)
  * @param slowConsole true for 9600-baud-like devices
+ * @param maxSessions session channels per SSH connection (sshd MaxSessions, default 10)
  * @param forwards    Map 'labHost:port' → 'localHost:port' for direct-tcpip
  * @param log         (message) => void
  */
@@ -79,6 +88,7 @@ function hostKeyPair() {
 export function startMockLab({
   port = 2222, host = '127.0.0.1', ssh = {}, telnet = null, names = new Map(), devices = {}, defaults = {},
   downPorts = [], busyPorts = [], loginPorts = [], slowConsole = false, forwards = new Map(), log = () => {},
+  maxSessions = 10,
 } = {}) {
   const down = new Set(downPorts.map(Number));
   const busy = new Set(busyPorts.map(Number));
@@ -87,6 +97,8 @@ export function startMockLab({
   const inUse = new Set();      // console ports with a session
   const clients = new Set();
   const hostKey = hostKeyPair();
+  const counters = { peakChannels: 0, refusedChannels: 0 };
+  const channelsOf = new Map(); // client → session channels open
 
   const keyOf = (target) => (typeof target === 'string' ? target : `${target.host}:${target.port}`);
   function device(target) {
@@ -108,7 +120,8 @@ export function startMockLab({
 
   const server = new ssh2.Server({ hostKeys: [hostKey] }, (client) => {
     clients.add(client);
-    client.on('close', () => clients.delete(client));
+    channelsOf.set(client, 0);
+    client.on('close', () => { clients.delete(client); channelsOf.delete(client); });
     client.on('authentication', (ctx) => {
       if (ctx.method === 'password' && ssh.username && ctx.username === ssh.username && ctx.password === ssh.password) return ctx.accept();
       ctx.reject(['password']);
@@ -128,12 +141,19 @@ export function startMockLab({
         });
         upstream.once('error', () => reject());
       });
-      client.on('session', (accept) => {
+      client.on('session', (accept, reject) => {
+        // sshd's MaxSessions: one channel too many is refused ("open failed")
+        if (channelsOf.get(client) >= maxSessions) { counters.refusedChannels++; return reject(); }
+        channelsOf.set(client, channelsOf.get(client) + 1);
+        counters.peakChannels = Math.max(counters.peakChannels, channelsOf.get(client));
+        let counted = true;
+        const release = () => { if (counted && channelsOf.has(client)) channelsOf.set(client, channelsOf.get(client) - 1); counted = false; };
         const session = accept();
         session.on('pty', (ok) => ok?.());
         session.on('window-change', (ok) => ok?.());
         session.on('exec', (acceptExec, _reject, info) => {
           const stream = acceptExec();
+          stream.on('close', release);
           const probe = info.command.match(PROBE);
           if (probe) {
             const p = Number(probe[3]);
@@ -221,6 +241,15 @@ export function startMockLab({
       resolve({
         port: bound,
         device,
+        stats: () => ({
+          connections: clients.size,
+          channels: [...channelsOf.values()].reduce((a, b) => a + b, 0),
+          ...counters,
+        }),
+        /** A console port held (or freed) by someone outside the application */
+        setBusy: (p, on = true) => { if (on) busy.add(Number(p)); else busy.delete(Number(p)); },
+        /** A console port that refuses connections (unplugged, dead line), or works again */
+        setDown: (p, on = true) => { if (on) down.add(Number(p)); else down.delete(Number(p)); },
         close: () => new Promise((done) => {
           for (const dev of fleet.values()) dev.stop();
           for (const c of clients) c.end();
@@ -279,6 +308,7 @@ async function main() {
     busyPorts: portList(env.MOCK_BUSY_PORTS),
     loginPorts: portList(env.MOCK_LOGIN_PORTS),
     slowConsole: Boolean(env.MOCK_SLOW_CONSOLE),
+    ...(env.MOCK_MAX_SESSIONS ? { maxSessions: Number(env.MOCK_MAX_SESSIONS) } : {}),
     forwards,
     log: (m) => console.log(m),
   });

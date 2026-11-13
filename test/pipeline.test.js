@@ -135,7 +135,9 @@ describe('signed in: the application behaves as upstream', () => {
       { id: 'proxmox', title: 'Infrastructure', enabled: true },
     ]);
     const labs = await (await get(lab, '/api/consoles/labs')).json();
-    assert.deepEqual(Object.keys(labs).sort(), ['error', 'labs', 'version', 'warnings']);
+    // The upstream keys, plus how long console journals are kept (for the journal notice)
+    assert.deepEqual(Object.keys(labs).sort(), ['error', 'journal', 'labs', 'version', 'warnings']);
+    assert.deepEqual(labs.journal, { retentionDays: 14 });
     assert.ok(labs.labs.length > 0);
     assert.deepEqual(await (await get(lab, '/api/proxmox/status')).json(), { proxmox: false });
     const vms = await get(lab, '/api/proxmox/vms');
@@ -193,9 +195,10 @@ describe('signed in: the application behaves as upstream', () => {
     const res = await get(lab, '/api/events');
     assert.equal(res.status, 200);
     assert.ok(res.headers.get('content-type').startsWith('text/event-stream'));
-    const events = await readEvents(res, 3);
-    assert.deepEqual(events.map((e) => e.topic).sort(), ['benches:state', 'consoles:busy', 'labs:version']);
+    const events = await readEvents(res, 4);
+    assert.deepEqual(events.map((e) => e.topic).sort(), ['benches:state', 'consoles:busy', 'consoles:rooms', 'labs:version']);
     assert.deepEqual(events.find((e) => e.topic === 'consoles:busy').data, []);
+    assert.deepEqual(events.find((e) => e.topic === 'consoles:rooms').data, []);
   });
 
   test('WebSocket /ws/console: the upgrade is accepted and the console protocol starts', async () => {
@@ -225,17 +228,20 @@ describe('signed in: the application behaves as upstream', () => {
     assert.deepEqual(Object.keys(lab.deps).sort(), ['audit', 'auth', 'config', 'events', 'infra', 'logger', 'repos', 'services', 'settings', 'store']);
     assert.equal(lab.deps.db, undefined, 'modules reach the database through repositories only');
     assert.equal(typeof lab.deps.services.consoles.registry.getDevice, 'function');
+    assert.equal(typeof lab.deps.services.consoles.rooms.open, 'function');
+    assert.ok(lab.deps.services.consoles.sharedTargets() instanceof Set);
     assert.equal(typeof lab.deps.settings.get('lab').ssh, 'object');
     assert.equal(lab.deps.store.root, lab.dataDir);
   });
 
   test('the audit trail lands in the database in DATA_DIR, signed with the request\'s user and address', async () => {
     const req = { headers: {}, socket: { remoteAddress: '127.0.0.1' }, user: student(1) };
-    assert.equal(await lab.deps.audit.log(req, 'console.open', { bench: 'B4M', device: 'R1' }), true);
-    const [entry] = await lab.deps.audit.query({ bench: 'B4M' });
+    const before = await lab.deps.repos.audit.count(); // the WebSocket test above may have opened a console
+    assert.equal(await lab.deps.audit.log(req, 'console.test', { bench: 'B4M', device: 'R1' }), true);
+    const [entry] = await lab.deps.audit.query({ bench: 'B4M', action: 'console.test' });
     assert.equal(entry.actor.id, 'oidc:student1');
     assert.equal(entry.ip, '127.0.0.1');
-    assert.equal(await lab.deps.repos.audit.count(), 1);
+    assert.equal(await lab.deps.repos.audit.count(), before + 1);
     assert.equal(lab.db.file, path.join(lab.dataDir, 'lab-console.db'));
     assert.ok(fs.statSync(lab.db.file).isFile());
   });

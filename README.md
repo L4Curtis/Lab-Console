@@ -102,9 +102,20 @@ top/middle/bottom). Any other naming falls back to plain tabs.
 - **Credentials stay on the server.** Auto-login answers only the first
   Username/Password prompt of a line, once, within 30 s, and stops as soon as
   a device prompt appears. `enable` passwords are never sent.
-- **One student per console line**, idle sessions closed after
-  `IDLE_TIMEOUT_MINUTES`, per-client and global session limits, and a rate
-  limit on opening consoles.
+- **One keyboard per console line.** A line belongs to the server: everyone
+  who opens the device joins it and sees the same output, one person types
+  (the pilot), the others watch; the keyboard passes on request (the pilot
+  answers, or after 30 s, or at once when the pilot has been idle 2 min).
+  Keys from a spectator are dropped by the server. Lines close 30 s after the
+  last person leaves or after `IDLE_TIMEOUT_MINUTES` without input; per-user
+  and global limits, and a rate limit on opening consoles.
+- **Console journal.** What the devices print (never keystrokes) is kept
+  `JOURNAL_RETENTION_DAYS` days with who held the keyboard, session by
+  session, readable by the people who were on that session, the team that
+  held the bench during it and admins only.
+- **Few SSH connections.** Console lines share connections to the jump
+  server, `SSH_CHANNELS_PER_CONNECTION` each (keep it under sshd's
+  `MaxSessions`).
 - WebSockets accept only the platform's own origin (`ALLOWED_ORIGINS` adds
   more). The UI is fully self-hosted under a strict Content-Security-Policy.
 - Set `SSH_HOST_FINGERPRINT` to pin the jump server's identity. Until you do,

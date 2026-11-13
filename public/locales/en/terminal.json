@@ -11,14 +11,17 @@
     "disconnected": "Disconnected",
     "tryAgain": "Try again",
     "connectionLost": "Connection to the platform was lost",
-    "sessionClosed": "Session closed"
+    "sessionClosed": "Session closed",
+    "notifyFree": "Tell me when it is free",
+    "notifyArmed": "Noted: you will be told when the line of {name} is free (for 30 minutes at most)."
   },
   "phase": {
     "ssh": "Reaching jump server",
     "telnet": "Opening console",
     "proxmox": "Opening VM console",
     "connected": "Connected",
-    "login": "Connected"
+    "login": "Connected",
+    "silent": "Device silent"
   },
   "actions": {
     "break": "Send BREAK (password recovery, ROMMON)",
@@ -104,8 +107,6 @@
       "browser_gone": "Browser disconnected",
       "restarting": "Platform is restarting",
       "idle_timeout": "Closed after {minutes} minutes without input. {name}'s console is free again.",
-      "line_busy": "{name}'s console is already in use by another session",
-      "line_busy_since": "{name}'s console is already in use by another session (since {since})",
       "platform_full": "The platform has reached its maximum number of open consoles. Try again shortly.",
       "client_full": "You can keep at most {max} consoles open. Close one first.",
       "rate_limited": "Too many consoles opened in the last minute. Wait a moment and try again.",
@@ -122,7 +123,29 @@
       "diagram_load_failed": "Diagram could not be loaded: {detail}",
       "warn_not_allowed": "{lab}/{name}: {target} is outside the allow-list (disabled)",
       "warn_different_devices": "Console {target} is used by different devices: {devices}",
-      "warn_several_pages": "Console {target} ({name}) appears on several pages: {labs} — treated as shared equipment"
+      "warn_several_pages": "Console {target} ({name}) appears on several pages: {labs} — treated as shared equipment",
+      "line_refused": "The console server refuses the line of {name} ({target}): someone outside Lab Console is connected to it, or the line is out of order.",
+      "console_server_unreachable": "The jump server cannot reach the console server {host}.",
+      "device_silent": "{name} does not answer: the console server opened the line, but nothing comes back {seconds} s after Enter. Check on site that the device is powered on and that its console cable is plugged in.",
+      "open_not_allowed": "{name} belongs to a bench taken by another team: you can watch its console once they open it.",
+      "room_gone": "Nobody has the console of {name} open any more.",
+      "room_closed": "This console has just closed.",
+      "control_not_allowed": "You may watch the console of {name}, not drive it.",
+      "control_pending": "{name} has already asked for the keyboard: wait for the answer.",
+      "control_not_pilot": "Only the person at the keyboard (or an admin) can do that.",
+      "control_no_request": "Nobody is asking for the keyboard right now.",
+      "control_admin_only": "Only an admin can take the keyboard over.",
+      "control_gone": "The person asking for the keyboard has left.",
+      "wall_read_only": "A bench wall tile only watches: open the console to ask for the keyboard.",
+      "control_refused": "{name} keeps the keyboard of this console.",
+      "task_running": "A task ({task}) holds this console: wait until it ends.",
+      "no_task": "No task is running on this console.",
+      "freed": "{name} freed the line of {device}.",
+      "too_many_watches": "You are already waiting for {max} lines. Cancel one first.",
+      "no_watch": "You were not waiting for this line.",
+      "bad_journal": "Unknown journal.",
+      "no_journal": "This console journal does not exist (any more).",
+      "journal_forbidden": "Only the people who were on this console session, their team and the admins may read this journal."
     },
     "automation": {
       "busy": "Another task is still running on this console.",
@@ -166,6 +189,53 @@
       "bad_pattern": "A wait pattern must be a regular expression or a function.",
       "stopped_on_error": "Stopped at the first error",
       "waiting_for": "The device is waiting for an answer: \"{question}\""
+    }
+  },
+  "journal": {
+    "badge": "Journaled",
+    "badgeHint": "What the device prints on this console is kept in a journal, with who had the keyboard."
+  },
+  "presence": {
+    "you": "You have the keyboard.",
+    "youShared": "You have the keyboard, shared.",
+    "pilot": "{name} has the keyboard.",
+    "pilotShared": "{name} has the keyboard, shared.",
+    "nobody": "Nobody has the keyboard.",
+    "watchOnly": "You may watch, not type.",
+    "task": "Task “{task}” running ({name}): keyboard paused.",
+    "waiting": "Request sent…",
+    "request": "Ask for the keyboard",
+    "release": "Give the keyboard back",
+    "share": "Share the keyboard",
+    "unshare": "Take the keyboard back",
+    "take": "Take the keyboard",
+    "hangup": "Free the line",
+    "hangupTitle": "Free the line of {name}?",
+    "hangupBody": {
+      "one": "{count} other person is watching this console: it will close for them too.",
+      "other": "{count} other people are watching this console: it will close for them too."
+    },
+    "hangupAlone": "The console will close and the line goes back to the console server.",
+    "ask": "{name} asks for the keyboard",
+    "askTask": "{name} wants to run “{task}”",
+    "autoIn": {
+      "one": "it passes in {count} s without an answer",
+      "other": "it passes in {count} s without an answer"
+    },
+    "grant": "Give the keyboard",
+    "deny": "Refuse",
+    "avatarPilot": "{name} has the keyboard",
+    "typingHint": "You are watching this console: ask for the keyboard to type.",
+    "notice": {
+      "granted": "{name} gave you the keyboard.",
+      "timeout": "You have the keyboard: no answer in time.",
+      "idle": "You have the keyboard: the pilot was idle.",
+      "takeover": "You took the keyboard.",
+      "released": "{name} gave the keyboard back to you.",
+      "left": "You have the keyboard: {name} left.",
+      "denied": "{name} keeps the keyboard.",
+      "superseded": "Your request was replaced by an automatic task.",
+      "takenOver": "{name} (admin) took the keyboard."
     }
   }
 }

@@ -16,6 +16,7 @@ import { loadEnvFile, takeErrors, fail, str, required, int, bool, list, portRang
 import { parseTrustedProxies } from './lib/security.js';
 import { readConfig as readAuthConfig } from './modules/auth/config.js';
 import { readConfig as readBenchesConfig } from './modules/teams/config.js';
+import { readConfig as readRoomsConfig } from './modules/consoles/config.js';
 
 export const LOCALES = Object.freeze(['fr', 'en']);
 
@@ -151,10 +152,12 @@ function readProxmoxConfig() {
 
 function readLimitsConfig() {
   return {
+    // Console lines open on the whole platform (joining an open line does not count)
     maxSessions: int('MAX_SESSIONS', 40, { min: 1, max: 1000 }),
+    // Consoles one signed-in user may have open at once (per user, not per address)
     maxSessionsPerClient: int('MAX_SESSIONS_PER_CLIENT', 6, { min: 1, max: 100 }),
     idleTimeoutMs: int('IDLE_TIMEOUT_MINUTES', 60, { min: 1, max: 24 * 60 }) * 60_000,
-    opensPerMinute: 20, // per client IP; stops click-spam from hammering the jump host
+    opensPerMinute: 20, // per user; stops click-spam from hammering the jump host
   };
 }
 
@@ -192,6 +195,7 @@ export function loadConfig() {
     // ── Module fragments: one line per module that has settings ─────────────
     auth: readAuthConfig(),
     benches: readBenchesConfig(),
+    rooms: readRoomsConfig(),
   };
 
   if (!assembled.server.publicUrl && !str('PUBLIC_URL')) {
