@@ -17,7 +17,7 @@ import { h, icon, toast, loadCss } from '../../core/dom.js';
 import { live, request } from '../../core/api.js';
 import { t, loadNamespace, onLocaleChange } from '../../core/i18n.js';
 import { confirmDialog, formDialog, openDialog } from '../../shared/dialog.js';
-import { onBenches, call, benchUrl, mayPilot, isOccupant, fmtTime, fmtSlot, fmtDateTime } from './data.js';
+import { onBenches, call, benchUrl, mayPilot, isOccupant, benchSummary, fmtTime, fmtSlot, fmtDateTime } from './data.js';
 
 const SLOTS_SHOWN = 3;
 
@@ -260,8 +260,10 @@ export function mountBenchBar(host) {
     mayOpen: (device, benchNames) => mayPilot(device, benchNames),
     /** Why a console is refused, for the toast */
     refusal(benchNames) {
-      const locked = benchNames.find((n) => detail?.bench === n && detail.lock);
-      if (locked) return t('benches.refused.locked', { bench: locked, reason: detail.lock.reason });
+      // Any of the device's benches may hold the lock: a console line shared with a locked bench is refused too
+      const lockOf = (n) => (detail?.bench === n ? detail.lock : null) ?? benchSummary(n)?.lock ?? null;
+      const locked = benchNames.find((n) => lockOf(n));
+      if (locked) return t('benches.refused.locked', { bench: locked, reason: lockOf(locked).reason });
       return t('benches.refused.taken', { bench: benchNames[0] ?? '' });
     },
     isOccupant: () => isOccupant(detail),

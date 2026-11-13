@@ -169,14 +169,19 @@ export class Benches {
    * May this user open or pilot this device's console? (SPEC "Permissions")
    *   - admin switches: every signed-in user;
    *   - admins: always, locked benches included;
-   *   - otherwise through any bench the device belongs to that is not locked
-   *     and is either free or occupied by this user
+   *   - otherwise never when any bench the device belongs to is locked (a
+   *     console line shared by two benches is out of reach while either is
+   *     locked: a lock means nobody works on that bench's lines);
+   *   - else through any bench the device belongs to that is either free or
+   *     occupied by this user
    */
   canPilot(user, device) {
     if (!user?.id || !device) return false;
     if (String(device.key ?? '').startsWith('admin:')) return true;
     if (isAdmin(user)) return true;
-    return this.benchesOfDevice(device).some((name) => !this.lock(name) && (!this.#occupancy(name) || this.isOccupant(user, name)));
+    const names = this.benchesOfDevice(device);
+    if (names.some((name) => this.lock(name))) return false;
+    return names.some((name) => !this.#occupancy(name) || this.isOccupant(user, name));
   }
 
   /** Activity on a bench (console output, a job): postpones the automatic release */
@@ -249,6 +254,7 @@ export class Benches {
         canRelease: Boolean(o) && (member || admin),
         canJoin: Boolean(o) && !occupant && !pending && !locked,
         canAnswer: Boolean(o) && (member || admin),
+        // This bench's own answer; a line it shares with a locked bench is refused per device (canPilot)
         canPilot: admin || (!locked && (!o || occupant)),
         admin,
       },

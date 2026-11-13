@@ -38,15 +38,17 @@ export const isOccupant = (summary) => Boolean(summary?.occupants?.some((o) => o
 
 /**
  * The same rule as services.benches.canPilot, for showing things only:
- * admins and admin switches always; else any of the device's benches that is
- * unlocked and free or occupied by me
+ * admins and admin switches always; never when any of the device's benches
+ * is locked (a shared console line included); else any of them that is free
+ * or occupied by me
  */
 export function mayPilot(device, benchNames) {
   if (session.isAdmin || String(device?.key ?? '').startsWith('admin:')) return true;
   if (!summaries.size) return true; // state not received yet: let the server decide
+  if (benchNames.some((name) => summaries.get(name)?.lock)) return false;
   return benchNames.some((name) => {
     const s = summaries.get(name);
-    return !s || (!s.lock && (!s.holder || isOccupant(s)));
+    return !s || !s.holder || isOccupant(s);
   });
 }
 

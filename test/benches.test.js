@@ -197,20 +197,36 @@ describe('benches: taking, joining and the permission matrix', () => {
     assert.equal(res.body.code, 'benches.not_taken');
   });
 
-  test('a shared device follows any of its benches', async () => {
+  test('a shared device follows any of its benches, and a lock on any of them closes it to all but admins', async () => {
     const s5 = device(t, 'B4M', 'S5'); // the same console line as B4H S5 and B5B S5
     assert.deepEqual(t.benches.benchesOfDevice(s5).sort(), ['B4H', 'B4M', 'B5B']);
     assert.equal(pilot(outsider, s5), true, 'B4H and B5B are free');
     await t.api(S(5), 'POST', '/api/benches/B4H/take');
-    await t.api(ADMIN, 'PUT', '/api/benches/B5B/lock', { reason: 'Prepared for the graded lab' });
-    assert.equal(pilot(outsider, s5), false, 'every bench of the device is taken by others or locked');
     assert.equal(t.services.benches.holder('B4H').teamId, teamB);
     assert.equal(pilot(S(5), s5), true, 'team B pilots it through B4H');
     assert.equal(pilot(S(1), s5), true, 'team A pilots it through B4M');
+    await t.api(ADMIN, 'PUT', '/api/benches/B5B/lock', { reason: 'Prepared for the graded lab' });
+    // A lock means nobody works on that bench's lines: the line shared with B5B is closed through B4H and B4M too
+    for (const u of [outsider, S(5), S(1)]) assert.equal(pilot(u, s5), false, `${u.username} on a line shared with a locked bench`);
     assert.equal(pilot(ADMIN, s5), true);
+    assert.equal(pilot(S(5), device(t, 'B4H', 'R1')), true, 'the other lines of B4H stay open to team B');
     await t.api(ADMIN, 'DELETE', '/api/benches/B5B/lock');
     assert.equal(pilot(outsider, s5), true, 'B5B is open again');
+    assert.equal(pilot(S(5), s5), true);
     assert.equal(pilot(outsider, device(t, 'B5B', 'R1')), true);
+  });
+
+  test('a locked bench is not reachable through a free bench sharing one of its lines', async () => {
+    const r5 = device(t, 'B5H', 'R5'); // the same console line as B4B R5
+    assert.deepEqual(t.benches.benchesOfDevice(r5).sort(), ['B4B', 'B5H']);
+    assert.equal(t.services.benches.holder('B4B'), null);
+    await t.api(ADMIN, 'PUT', '/api/benches/B5H/lock', { reason: 'Graded lab' });
+    assert.equal(pilot(outsider, r5), false, 'B4B is free, B5H is locked: refused');
+    assert.equal(pilot(outsider, device(t, 'B4B', 'R5')), false, 'the same line, as listed on B4B');
+    assert.equal(pilot(outsider, device(t, 'B4B', 'R1')), true, 'B4B\'s own lines stay open');
+    assert.equal(pilot(ADMIN, r5), true, 'admins work on locked benches');
+    await t.api(ADMIN, 'DELETE', '/api/benches/B5H/lock');
+    assert.equal(pilot(outsider, r5), true);
   });
 
   test('admin switches stay open to every signed-in user, whatever the locks', async () => {
