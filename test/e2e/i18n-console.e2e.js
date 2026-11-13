@@ -1,72 +1,48 @@
 /**
  * Changing the language while a console is open: the console stays connected
  * (same WebSocket, same terminal), only the texts around it change
- *
- * Starts the application and the mock lab (dev/mock-lab.js, a fake jump
- * server) on ephemeral ports, and drives the system Chromium
  */
-import { test, before, after } from 'node:test';
+import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
-import net from 'node:net';
-import { spawn } from 'node:child_process';
-import { chromium } from 'playwright-core';
-import { startTestApp, repoRoot } from '../helpers/app.js';
+import { useHarness, waitForApp, openConsole, setLanguage } from './harness.js';
 
-let lab;
-let browser;
+const h = useHarness({ oidc: false });
 let page;
-let mock;
-
-const freePort = () => new Promise((resolve) => { const s = net.createServer().listen(0, '127.0.0.1', () => { const { port } = s.address(); s.close(() => resolve(port)); }); });
 
 before(async () => {
-  const sshPort = await freePort();
-  mock = spawn(process.execPath, ['dev/mock-lab.js'], {
-    cwd: repoRoot,
-    env: { ...process.env, MOCK_SSH_PORT: String(sshPort), SSH_USERNAME: 'test', SSH_PASSWORD: 'test', TELNET_USERNAME: '', TELNET_PASSWORD: '', ENV_FILE: '/nonexistent' },
-    stdio: ['ignore', 'pipe', 'inherit'],
+  await h.ready;
+  page = await h.newPage();
+  await h.session(page, 'student1'); // a real session, its cookie handed to the browser
+  await page.addInitScript(() => {
+    window.__sockets = [];
+    const Native = window.WebSocket;
+    window.WebSocket = class extends Native { constructor(...a) { super(...a); window.__sockets.push(this); } };
   });
-  await new Promise((resolve, reject) => {
-    mock.once('error', reject);
-    mock.stdout.on('data', (d) => { if (String(d).includes('Mock jump server')) resolve(); });
-  });
-  lab = await startTestApp({ env: { SSH_PORT: String(sshPort), SSH_HOST: '127.0.0.1', ALLOWED_CONSOLE_HOSTS: '10.22.9.211,10.22.9.212' } });
-  browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium', args: ['--no-sandbox'] });
-  // Signed in as a student: a real session, its cookie handed to the browser
-  const context = await browser.newContext();
-  await context.addCookies([{ name: lab.deps.auth.cookieName, value: lab.signIn('student1').token, url: lab.url, httpOnly: true, sameSite: 'Lax' }]);
-  page = await context.newPage();
-  await page.goto(lab.url);
-  await page.waitForSelector('section.view-consoles .device');
-});
-after(async () => {
-  await browser?.close();
-  await lab?.close();
-  mock?.kill();
+  await page.goto(h.url);
+  await waitForApp(page);
 });
 
 test('language switch: an open console stays connected and keeps its terminal', async () => {
-  await page.evaluate(() => { window.__sockets = []; const Native = window.WebSocket; window.WebSocket = class extends Native { constructor(...a) { super(...a); window.__sockets.push(this); } }; });
-  await page.locator('section.view-consoles .device[data-state="idle"]').first().click();
-  await page.waitForSelector('article.pane .xterm-rows');
-  await page.waitForFunction(() => window.__sockets.length === 1 && window.__sockets[0].readyState === 1);
-  const status = () => page.locator('.pane-status').first().textContent();
-  await page.waitForFunction(() => /^(Connecté|Connected)$/.test(document.querySelector('.pane-status')?.textContent || '')).catch(async () => { throw new Error('status: ' + await status()); });
-  assert.match(await status(), /^Connecté$/);
-  const terminal = await page.evaluate(() => { const el = document.querySelector('article.pane .xterm'); el.dataset.probe = 'same'; return document.querySelectorAll('article.pane .xterm').length; });
+  const pane = await openConsole(page, 'B4M', 'S1');
+  const status = pane.locator('.pane-status');
+  assert.equal(await page.evaluate(() => window.__sockets.filter((s) => s.url.includes('/ws/console')).length), 1);
+  assert.equal(await status.textContent(), 'Connecté');
+  await pane.locator('.xterm').evaluate((el) => { el.dataset.probe = 'same'; });
 
-  await page.click('.lang-btn[data-lang="en"]');
-  await page.waitForFunction(() => document.documentElement.lang === 'en');
-  assert.match(await status(), /^Connected$/, 'the status line follows the language');
-  await page.click('.lang-btn[data-lang="fr"]');
-  await page.waitForFunction(() => document.documentElement.lang === 'fr');
-  assert.match(await status(), /^Connecté$/);
+  await setLanguage(page, 'en');
+  assert.equal(await status.textContent(), 'Connected', 'the status line follows the language');
+  await setLanguage(page, 'fr');
+  assert.equal(await status.textContent(), 'Connecté');
 
-  const after = await page.evaluate(() => ({
-    sockets: window.__sockets.length,
-    state: window.__sockets[0].readyState,
-    same: document.querySelector('article.pane .xterm')?.dataset.probe,
-    terminals: document.querySelectorAll('article.pane .xterm').length,
-  }));
-  assert.deepEqual(after, { sockets: 1, state: 1, same: 'same', terminals: terminal }, 'no new socket, the same terminal element, still open');
+  const after = await page.evaluate(() => {
+    const consoles = window.__sockets.filter((s) => s.url.includes('/ws/console'));
+    return {
+      sockets: consoles.length,
+      state: consoles[0].readyState,
+      same: document.querySelector('article.pane .xterm')?.dataset.probe,
+      terminals: document.querySelectorAll('article.pane .xterm').length,
+    };
+  });
+  assert.deepEqual(after, { sockets: 1, state: 1, same: 'same', terminals: 1 }, 'no new socket, the same terminal element, still open');
+  assert.deepEqual(page.errors, []);
 });

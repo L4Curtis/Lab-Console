@@ -3,35 +3,25 @@
  * and the language, and the shared helpers behave (dialogs: focus trap,
  * Escape, ARIA, typed confirmation; tabs: lazy loading, keyboard, address)
  *
- * Self-contained on purpose: it starts the application itself (ephemeral
- * port, an administrator's session opened by the test helper and handed to
- * the browser as its cookie) and drives the system Chromium through
- * playwright-core. Nothing here needs the mock lab
+ * Nothing here needs the mock lab or the identity provider: an
+ * administrator's session is opened by the test helper and handed to the
+ * browser as its cookie
  */
-import { test, before, after } from 'node:test';
+import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { chromium } from 'playwright-core';
-import { startTestApp } from '../helpers/app.js';
+import { useHarness, waitForApp, setLanguage } from './harness.js';
 
-let lab;
-let browser;
+const h = useHarness({ oidc: false, mockLab: false });
 let page;
-const pageErrors = [];
+let pageErrors;
 
 before(async () => {
-  lab = await startTestApp();
-  browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium', args: ['--no-sandbox'] });
-  const context = await browser.newContext();
-  await context.addCookies([{ name: lab.deps.auth.cookieName, value: lab.signIn('admin').token, url: lab.url, httpOnly: true, sameSite: 'Lax' }]);
-  page = await context.newPage();
-  page.on('pageerror', (err) => pageErrors.push(err.message));
-  page.on('console', (msg) => { if (msg.type() === 'error') pageErrors.push(msg.text()); });
-  await page.goto(lab.url);
-  await page.waitForSelector('#rail-items .rail-btn');
-});
-after(async () => {
-  await browser?.close();
-  await lab?.close();
+  await h.ready;
+  page = await h.newPage();
+  pageErrors = page.errors;
+  await h.session(page, 'admin');
+  await page.goto(h.url);
+  await waitForApp(page);
 });
 
 /** Our dialogs are removed from the page once closed (the app shell has a <dialog> of its own) */
@@ -65,7 +55,7 @@ test('i18n: setLocale persists, updates <html lang> and static markup, and survi
   });
   assert.deepEqual(result, { text: 'Close', title: 'Cancel', lang: 'en', cancel: 'Cancel', stored: '"en"' });
   await page.reload();
-  await page.waitForSelector('#rail-items .rail-btn');
+  await waitForApp(page);
   assert.equal(await page.getAttribute('html', 'lang'), 'en', 'the choice wins over the server default');
   await page.evaluate(async () => { const { setLocale } = await import('/js/core/i18n.js'); await setLocale('fr'); });
 });
@@ -282,8 +272,11 @@ test('openDialog: custom content, close(value), not dismissible when asked', asy
   assert.equal(await dlg.getAttribute('aria-label'), 'Compte à rebours');
   assert.equal(await dlg.locator('.modal-head').count(), 0);
   assert.equal(await page.evaluate(() => document.activeElement.id), 'stop');
+  // Wait for the key to have been handled (seen on the window, after the dialog's own listeners, plus a frame)
+  await page.evaluate(() => { window.__escapes = 0; addEventListener('keydown', (e) => { if (e.key === 'Escape') window.__escapes++; }); });
   await page.keyboard.press('Escape');
-  await page.waitForTimeout(100);
+  await page.waitForFunction(() => window.__escapes === 1);
+  await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
   assert.equal(await dlg.count(), 1, 'Escape is refused');
   await page.locator('#stop').click();
   await gone();
@@ -384,17 +377,56 @@ test('no error was logged by the page during the whole run', () => {
   assert.deepEqual(pageErrors.filter((m) => !expected.some((e) => m.includes(e))), []);
 });
 
-test('language switch: the FR / EN buttons in the rail change the screen at once and persist', async () => {
-  await page.click('.lang-btn[data-lang="en"]');
-  await page.waitForFunction(() => document.documentElement.lang === 'en');
+test('language switch: the FR / EN buttons in the rail change the visible texts at once and survive a reload', async () => {
+  const texts = () => page.evaluate(() => ({
+    rail: [...document.querySelectorAll('#rail-items .rail-btn')].map((a) => a.textContent.trim()),
+    theme: document.querySelector('#theme-toggle span').textContent,
+    title: document.querySelector('section.view-consoles .view-title h1').textContent,
+  }));
+  assert.deepEqual(await texts(), { rail: ['Consoles', 'Infra'], theme: 'Thème', title: 'Consoles du labo' });
+  const before = await texts();
+  await setLanguage(page, 'en');
   assert.equal(await page.getAttribute('.lang-btn[data-lang="en"]', 'aria-pressed'), 'true');
   assert.equal(await page.getAttribute('.lang-btn[data-lang="fr"]', 'aria-pressed'), 'false');
-  assert.equal(await page.locator('#theme-toggle span').textContent(), 'Theme');
+  const english = await texts();
+  assert.equal(english.theme, 'Theme');
+  assert.notDeepEqual(english, before, 'visible texts changed');
   assert.ok(await page.locator('section.view-consoles svg').count() > 0, 'the open screen was not rebuilt');
+
   await page.reload();
-  await page.waitForSelector('#rail-items .rail-btn');
+  await waitForApp(page);
   assert.equal(await page.getAttribute('html', 'lang'), 'en', 'the choice survives a reload');
-  await page.click('.lang-btn[data-lang="fr"]');
-  await page.waitForFunction(() => document.documentElement.lang === 'fr');
-  assert.equal(await page.locator('#theme-toggle span').textContent(), 'Thème');
+  assert.deepEqual(await texts(), english, 'the reloaded page shows the English texts');
+  await setLanguage(page, 'fr');
+  assert.deepEqual(await texts(), before);
+});
+
+test('routing: an address change while a section is still loading mounts it once and shows the last address', async () => {
+  const fresh = await h.newPage();
+  await h.session(fresh, 'student1');
+  // The consoles section's code is requested: the router is mounting it. Change the address twice meanwhile
+  let changed = false;
+  await fresh.route('**/js/modules/consoles/index.js', async (route) => {
+    if (!changed) {
+      changed = true;
+      await fresh.evaluate(async () => {
+        const hashchange = () => new Promise((resolve) => addEventListener('hashchange', resolve, { once: true }));
+        let seen = hashchange();
+        location.hash = '#/infra';
+        await seen;
+        seen = hashchange();
+        location.hash = '#/consoles/B4M';
+        await seen;
+      });
+    }
+    await route.continue();
+  });
+  await fresh.goto(`${h.url}/#/consoles`);
+  await waitForApp(fresh);
+  await fresh.waitForFunction(() => document.querySelector('section.view-consoles .canvas-title')?.textContent === 'B4M');
+  const views = await fresh.evaluate(() => [...document.querySelectorAll('#views > section.view')].map((s) => `${s.className}:${s.hidden ? 'hidden' : 'shown'}`));
+  assert.deepEqual(views.filter((v) => v.includes('view-consoles')), ['view view-consoles:shown'], 'one consoles section, the one shown');
+  assert.ok(views.every((v) => v.includes('view-consoles') || v.endsWith(':hidden')), `nothing else is shown: ${views}`);
+  assert.deepEqual(fresh.errors, []);
+  await fresh.context().close();
 });
