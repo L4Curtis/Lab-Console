@@ -237,7 +237,7 @@ export class CliAutomation {
     this.#needTask();
     if (nudge) { this.#clear(); this.write('\r'); }
     const ok = await this.#waitFor((b) => CISCO_PROMPT.test(screenTail(b)), { timeout, settle: 150 });
-    if (ok !== 'match') throw new AutomationError('No Cisco prompt answered. Log in to the device first (until you see a prompt such as R1# ), then try again.');
+    if (ok !== 'match') throw new AutomationError('No Cisco prompt answered. Log in to the device first (until you see a prompt such as R1# ), then try again.', 'automation.no_prompt');
     const [, host, configMode, mark] = screenTail(this.#buf).match(CISCO_PROMPT);
     return { host, configMode: Boolean(configMode), mark };
   }
@@ -259,37 +259,39 @@ export class CliAutomation {
    * 4. restore `terminal length <restoreLength>` (24 = IOS default)
    */
   async readRunningConfig(progress = () => {}, { restoreLength = 24 } = {}) {
-    progress('Looking for the device prompt');
+    progress('Looking for the device prompt', { code: 'automation.looking_for_prompt' });
     let p = await this.findPrompt();
     if (p.configMode) {
-      progress('Leaving configuration mode');
+      progress('Leaving configuration mode', { code: 'automation.leaving_config' });
       this.reset(); this.sendLine('end');
       p = await this.findPrompt({ nudge: false });
     }
     if (p.mark === '>') {
-      throw new AutomationError(`${p.host} is in user mode (${p.host}>). Type "enable" to reach ${p.host}#, then export again.`);
+      throw new AutomationError(`${p.host} is in user mode (${p.host}>). Type "enable" to reach ${p.host}#, then export again.`, 'automation.user_mode', { host: p.host });
     }
     const promptAtEnd = new RegExp(`(?:^|\\n)${escapeRe(p.host)}# ?$`);
     const atPrompt = (b) => promptAtEnd.test(screenTail(b));
 
-    progress('Turning paging off (terminal length 0)');
+    progress('Turning paging off (terminal length 0)', { code: 'automation.paging_off' });
     const off = await this.command('terminal length 0', { until: atPrompt, paging: false, timeout: 6000, idle: Infinity, settle: 80 });
     const pagingOff = !DEVICE_ERROR.test(off.output);
 
-    progress('Reading the running configuration');
+    progress('Reading the running configuration', { code: 'automation.reading_config' });
     // Safety net: some platforms (or old images) ignore terminal length, so keep the --More-- answerer on.
     const run = await this.command('show running-config', { until: atPrompt, paging: true, timeout: 180_000, idle: 20_000, settle: 400 });
 
     if (pagingOff) {
-      progress(`Restoring paging (terminal length ${restoreLength})`);
+      progress(`Restoring paging (terminal length ${restoreLength})`, { code: 'automation.restoring_paging', params: { length: restoreLength } });
       await this.command(`terminal length ${restoreLength}`, { until: atPrompt, paging: false, timeout: 6000, idle: Infinity, settle: 80 });
     }
-    if (!run.complete) throw new AutomationError('The device stopped sending before the end of the configuration. Nothing was saved.');
+    if (!run.complete) throw new AutomationError('The device stopped sending before the end of the configuration. Nothing was saved.', 'automation.device_stopped');
 
     const config = cleanRunningConfig(run.output, promptAtEnd);
     const deviceError = config.match(DEVICE_ERROR);
     if (!/^(version|hostname|end)\b/m.test(config)) {
-      throw new AutomationError(deviceError ? `The device answered: ${deviceError[0]}` : 'The output does not look like a running configuration.');
+      throw deviceError
+        ? new AutomationError(`The device answered: ${deviceError[0]}`, 'automation.device_answered', { detail: deviceError[0] })
+        : new AutomationError('The output does not look like a running configuration.', 'automation.not_a_config');
     }
     return { hostname: p.host, config, pagingFallback: !pagingOff };
   }
@@ -330,7 +332,7 @@ export class CliAutomation {
     let sent = 0;
     for (const { n, text } of lines) {
       this.throwIfCancelled();
-      progress(`Sending line ${sent + 1} of ${lines.length}`, { done: sent, total: lines.length });
+      progress(`Sending line ${sent + 1} of ${lines.length}`, { done: sent, total: lines.length, code: 'automation.sending_line', params: { line: sent + 1, total: lines.length } });
       this.reset();
       await this.type(`${text}\r`, o);
       sent++;
@@ -355,7 +357,7 @@ export class CliAutomation {
       }
       await this.pause(o.delayMs);
     }
-    progress('Done', { done: sent, total: lines.length });
+    progress('Done', { done: sent, total: lines.length, code: 'automation.done' });
     // Left at a question after the last line? ("Destination filename [startup-config]?")
     const lastLine = screenTail(this.buffer).split('\n').at(-1).trim();
     const waitingFor = QUESTION.test(lastLine) && !ANY_PROMPT.test(`\n${lastLine}`) ? lastLine : null;
@@ -365,7 +367,7 @@ export class CliAutomation {
   // ── Internals ─────────────────────────────────────────────────────────────
 
   async #run(task, fn) {
-    if (this.#task) throw new AutomationError(`Another task (${this.#task}) is still running on this console.`);
+    if (this.#task) throw new AutomationError(`Another task (${this.#task}) is still running on this console.`, 'automation.busy_task', { task: this.#task });
     this.#task = task;
     this.#cancelled = false;
     this.#clear();

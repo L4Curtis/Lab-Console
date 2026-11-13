@@ -1,0 +1,171 @@
+{
+  "pane": {
+    "starting": "Démarrage…",
+    "console": "Console",
+    "label": "{subtitle} de {title}",
+    "reconnect": "Se reconnecter",
+    "maximize": "Agrandir",
+    "restore": "Rétablir la disposition",
+    "disconnectAndClose": "Se déconnecter et fermer",
+    "couldNotConnect": "Connexion impossible",
+    "disconnected": "Déconnecté",
+    "tryAgain": "Réessayer",
+    "connectionLost": "La connexion à la plateforme a été perdue",
+    "sessionClosed": "Session terminée"
+  },
+  "phase": {
+    "ssh": "Accès au serveur de rebond",
+    "telnet": "Ouverture de la console",
+    "proxmox": "Ouverture de la console de la VM",
+    "connected": "Connecté",
+    "login": "Connecté"
+  },
+  "actions": {
+    "break": "Envoyer un BREAK (récupération de mot de passe, ROMMON)",
+    "export": "Exporter la config : télécharge le show running-config dans un fichier .txt",
+    "inject": "Injecter un script : envoie une liste de commandes, ligne par ligne",
+    "ctrlAltDel": "Envoyer Ctrl+Alt+Suppr"
+  },
+  "vnc": {
+    "opening": "Ouverture de l’écran",
+    "closed": "Session d’écran terminée",
+    "lost": "La connexion à l’écran de la VM a été perdue",
+    "credentials": "La VM demande un mot de passe que la plateforme n’attendait pas"
+  },
+  "session": {
+    "serial": "Console série",
+    "screen": "Écran",
+    "vmAddress": "VM {vmid} sur {node}"
+  },
+  "split": {
+    "sidePanel": "Panneau latéral",
+    "resize": "Redimensionner le panneau et les consoles"
+  },
+  "workspace": {
+    "label": "Consoles ouvertes",
+    "togglePanel": "Afficher ou masquer le panneau latéral",
+    "layoutGroup": "Disposition",
+    "layout": {
+      "grid": "Disposition en grille",
+      "columns": "Disposition en colonnes",
+      "rows": "Disposition en lignes"
+    },
+    "textSize": "Taille du texte",
+    "smaller": "Texte plus petit",
+    "larger": "Texte plus grand",
+    "closeAll": "Tout fermer",
+    "count": {
+      "one": "{count} console ouverte",
+      "other": "{count} consoles ouvertes"
+    }
+  },
+  "task": {
+    "stop": "Arrêter",
+    "showErrors": "Afficher les erreurs",
+    "hideErrors": "Masquer les erreurs",
+    "dismiss": "Masquer",
+    "keyboardPaused": "Clavier suspendu jusqu’à la fin",
+    "line": "ligne {line}",
+    "startingExport": "Démarrage de l’export",
+    "startingScript": "Démarrage du script",
+    "connectFirst": "Connectez-vous d’abord à l’équipement."
+  },
+  "script": {
+    "title": "Injecter un script dans {title}",
+    "commands": "Commandes à envoyer",
+    "upload": "Charger un fichier",
+    "hint": "Une commande par ligne, comme si vous les tapiez. Les lignes vides sont envoyées comme un appui sur Entrée (pour répondre aux questions du type « [confirm] »). Vous pouvez aussi glisser un fichier .txt ici.",
+    "count": {
+      "one": "{count} ligne à envoyer",
+      "other": "{count} lignes à envoyer"
+    },
+    "fileTooLarge": "{name} dépasse 256 Ko.",
+    "tooLarge": "Le script dépasse 256 Ko.",
+    "pacing": "Cadence",
+    "waitPrompt": "Attendre le prompt après chaque ligne",
+    "waitPromptHint": "Recommandé. La ligne suivante part seulement quand l’équipement a répondu.",
+    "delay": "Délai entre deux lignes",
+    "delayLabel": "Délai entre les lignes, en millisecondes",
+    "ms": "ms",
+    "skipComments": "Ignorer les lignes de commentaire qui commencent par « ! »",
+    "stopOnError": "S’arrêter à la première erreur de l’équipement (« % Invalid input… »)",
+    "send": "Envoyer les commandes"
+  },
+  "server": {
+    "consoles": {
+      "status_ssh": "Connexion au serveur de rebond {host}…",
+      "status_telnet": "Ouverture de la console {target}…",
+      "status_connected": "Console connectée",
+      "status_login": "Connexion automatique à la console effectuée",
+      "telnet_failed": "Impossible de lancer telnet sur le serveur de rebond : {detail}",
+      "closed": "Console fermée",
+      "closed_exit": "Console fermée (code de sortie telnet {code})",
+      "session_closed": "Session terminée",
+      "browser_gone": "Navigateur déconnecté",
+      "restarting": "La plateforme redémarre",
+      "idle_timeout": "Fermée après {minutes} minutes sans activité. La console de {name} est de nouveau libre.",
+      "line_busy": "La console de {name} est déjà utilisée par une autre session",
+      "line_busy_since": "La console de {name} est déjà utilisée par une autre session (depuis {since})",
+      "platform_full": "La plateforme a atteint son nombre maximal de consoles ouvertes. Réessayez dans un instant.",
+      "client_full": "Vous pouvez garder {max} consoles ouvertes au maximum. Fermez-en une d’abord.",
+      "rate_limited": "Trop de consoles ouvertes en une minute. Patientez un instant et réessayez.",
+      "device_gone": "Cet équipement n’existe plus. Rechargez la page.",
+      "not_allowed": "L’adresse de console de {name} n’est pas dans la liste autorisée de la plateforme.",
+      "invalid_target": "Adresse de console invalide : {detail}",
+      "ssh_rejected": "Le serveur de rebond a refusé les identifiants SSH (vérifiez SSH_USERNAME et SSH_PASSWORD)",
+      "ssh_refused": "Le serveur de rebond {host}:{port} a refusé la connexion",
+      "ssh_timeout": "Le serveur de rebond {host} n’a pas répondu à temps",
+      "ssh_unreachable": "Le serveur de rebond {host} est injoignable depuis la plateforme",
+      "ssh_identity": "La vérification de l’identité du serveur de rebond a échoué (SSH_HOST_FINGERPRINT ne correspond pas)",
+      "ssh_error": "Erreur SSH : {detail}",
+      "ssh_closed": "La connexion au serveur de rebond s’est fermée",
+      "diagram_load_failed": "Le schéma n’a pas pu être chargé : {detail}",
+      "warn_not_allowed": "{lab}/{name} : {target} n’est pas dans la liste autorisée (équipement désactivé)",
+      "warn_different_devices": "La console {target} est utilisée par plusieurs équipements : {devices}",
+      "warn_several_pages": "La console {target} ({name}) apparaît sur plusieurs pages : {labs}. Équipement considéré comme partagé."
+    },
+    "automation": {
+      "busy": "Une autre tâche tourne encore sur cette console.",
+      "busy_task": "Une autre tâche ({task}) tourne encore sur cette console.",
+      "export_unsupported": "L’export de config n’existe que pour les équipements Cisco.",
+      "script_empty": "Le script est vide.",
+      "script_too_large": "Le script dépasse 256 Ko.",
+      "script_too_long": "Le script dépasse {max} lignes.",
+      "looking_for_prompt": "Recherche du prompt de l’équipement",
+      "leaving_config": "Sortie du mode configuration",
+      "paging_off": "Désactivation de la pagination (terminal length 0)",
+      "reading_config": "Lecture de la running-config",
+      "restoring_paging": "Rétablissement de la pagination (terminal length {length})",
+      "user_mode": "{host} est en mode utilisateur ({host}>). Tapez « enable » pour passer en {host}#, puis relancez l’export.",
+      "device_stopped": "L’équipement a arrêté d’envoyer avant la fin de la configuration. Rien n’a été enregistré.",
+      "device_answered": "L’équipement a répondu : {detail}",
+      "not_a_config": "Le résultat ne ressemble pas à une running-config.",
+      "no_prompt": "Aucun prompt Cisco n’a répondu. Connectez-vous d’abord à l’équipement (jusqu’à voir un prompt comme R1#), puis réessayez.",
+      "sending_line": "Envoi de la ligne {line} sur {total}",
+      "done": "Terminé",
+      "stopped": "Arrêté",
+      "exported": {
+        "one": "{count} ligne exportée de la running-config de {hostname}",
+        "other": "{count} lignes exportées de la running-config de {hostname}"
+      },
+      "exported_paging": {
+        "one": "{count} ligne exportée de la running-config de {hostname} (la pagination n’a pas pu être désactivée : les pages --More-- ont été passées)",
+        "other": "{count} lignes exportées de la running-config de {hostname} (la pagination n’a pas pu être désactivée : les pages --More-- ont été passées)"
+      },
+      "sent": "Lignes envoyées : {sent} sur {total}",
+      "device_errors": {
+        "one": "{count} erreur de l’équipement (ligne {lines})",
+        "other": "{count} erreurs de l’équipement (lignes {lines})"
+      },
+      "no_prompt_after": {
+        "one": "Pas de prompt après la ligne {lines}",
+        "other": "Pas de prompt après les lignes {lines}"
+      },
+      "timeout": "L’équipement n’a pas répondu à temps.",
+      "no_task": "Une étape de console a été lancée hors d’une tâche : rien n’aurait été capturé.",
+      "bad_pattern": "Un motif d’attente doit être une expression régulière ou une fonction.",
+      "stopped_on_error": "Arrêt à la première erreur",
+      "waiting_for": "L’équipement attend une réponse : « {question} »"
+    }
+  }
+}

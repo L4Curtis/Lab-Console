@@ -9,12 +9,12 @@
 import { h, icon, prefs } from './core/dom.js';
 import { getJson } from './core/api.js';
 import { loadSession } from './core/session.js';
-import { initI18n } from './core/i18n.js';
+import { initI18n, setLocale, getLocale, onLocaleChange, t, tNode } from './core/i18n.js';
 
 const MODULES = [
-  { id: 'consoles', path: 'consoles', title: 'Consoles', icon: 'topology', load: () => import('./modules/consoles/index.js') },
+  { id: 'consoles', path: 'consoles', titleKey: 'common.shell.consoles', icon: 'topology', load: () => import('./modules/consoles/index.js') },
   // Backend module "proxmox" serves this section (admin switches + Proxmox VMs)
-  { id: 'proxmox', path: 'infra', title: 'Infra', icon: 'rack', load: () => import('./modules/infra/index.js') },
+  { id: 'proxmox', path: 'infra', titleKey: 'common.shell.infra', icon: 'rack', load: () => import('./modules/infra/index.js') },
 ];
 
 const views = document.getElementById('views');
@@ -29,16 +29,27 @@ async function init() {
 
   // Who is signed in, then the language: both must be known before any screen is built
   const session = await loadSession();
-  await initI18n({ defaultLocale: session.locale });
+  // 'terminal' is needed as soon as the shared workspace is imported, by any section
+  await initI18n({ defaultLocale: session.locale, namespaces: ['common', 'terminal'] });
+  bindLanguageSwitch();
 
   // The backend says which modules are live; disabled ones show a "soon" tag
   let status = [];
   try { status = await getJson('/api/modules'); } catch { /* render all as enabled */ }
   for (const m of MODULES) {
     m.enabled = status.find((s) => s.id === m.id)?.enabled ?? true;
-    rail.append(h(`a.rail-btn${m.enabled ? '' : '.soon'}`, { href: `#/${m.path}`, dataset: { module: m.id }, title: m.enabled ? m.title : `${m.title} (turned off)` },
-      icon(m.icon), h('span', m.title), m.enabled ? null : h('em', 'off')));
+    m.link = h(`a.rail-btn${m.enabled ? '' : '.soon'}`, { href: `#/${m.path}`, dataset: { module: m.id } },
+      icon(m.icon), tNode(m.titleKey), m.enabled ? null : tNode('common.shell.off', 'em'));
+    rail.append(m.link);
   }
+  const labelRail = () => {
+    for (const m of MODULES) {
+      const title = t(m.titleKey);
+      m.link.title = m.enabled ? title : t('common.shell.turnedOff', { title });
+    }
+  };
+  labelRail();
+  onLocaleChange(labelRail);
   addEventListener('hashchange', route);
   route();
 }
@@ -69,6 +80,15 @@ async function route() {
 function navigate(hash, { replace = true } = {}) {
   if (location.hash === hash) return;
   history[replace ? 'replaceState' : 'pushState'](null, '', hash);
+}
+
+/** FR / EN buttons in the rail: the language follows at once, open consoles stay connected */
+function bindLanguageSwitch() {
+  const buttons = [...document.querySelectorAll('.lang-btn')];
+  const mark = () => { for (const b of buttons) b.setAttribute('aria-pressed', String(b.dataset.lang === getLocale())); };
+  for (const b of buttons) b.addEventListener('click', () => setLocale(b.dataset.lang));
+  onLocaleChange(mark);
+  mark();
 }
 
 function applyTheme(theme, persist = false) {

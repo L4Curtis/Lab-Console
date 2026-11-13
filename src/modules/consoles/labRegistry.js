@@ -29,18 +29,22 @@ export class LabRegistry extends EventEmitter {
       for (const lab of labs) {
         for (const d of lab.devices) {
           d.allowed = this.isTargetAllowed(d.target);
-          if (!d.allowed) warnings.push(`${lab.name}/${d.name}: ${d.target.host}:${d.target.port} is outside the allow-list (disabled)`);
+          if (!d.allowed) {
+            const target = `${d.target.host}:${d.target.port}`;
+            warnings.push({ code: 'consoles.warn_not_allowed', params: { lab: lab.name, name: d.name, target }, message: `${lab.name}/${d.name}: ${target} is outside the allow-list (disabled)` });
+          }
           devices.set(d.key, { ...d, labName: lab.name });
         }
       }
       this.#devices = devices;
       this.model = { labs, warnings, version: Date.now(), error: null };
       this.log.info(`Loaded ${labs.length} labs / ${devices.size} devices from ${this.diagramPath}`);
-      for (const w of warnings) this.log.warn(w);
+      for (const w of warnings) this.log.warn(w.message);
     } catch (err) {
       // Keep serving the last good model; surface the error to the UI
-      this.model = { ...this.model, error: `Diagram could not be loaded: ${err.message}` };
-      this.log.error(this.model.error);
+      const error = { code: 'consoles.diagram_load_failed', params: { detail: err.message }, message: `Diagram could not be loaded: ${err.message}` };
+      this.model = { ...this.model, error };
+      this.log.error(error.message);
     }
     this.emit('change', this.model);
   }

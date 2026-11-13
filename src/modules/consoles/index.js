@@ -6,9 +6,11 @@
  *
  * WebSocket protocol on /ws/console?device=<key>&cols=<n>&rows=<n>
  *   server → client  binary frame  raw terminal bytes
- *                    text frame    {"type":"status","phase","message"}
- *                                  {"type":"error","message"}     (session will not start)
- *                                  {"type":"exit","message"}      (session ended)
+ *                    text frame    {"type":"status","phase","message","code","params"}
+ *                                  {"type":"error","message","code","params"}   (session will not start)
+ *                                  {"type":"exit","message","code","params"}    (session ended)
+ *                    `message` is the English sentence; `code` is stable (`consoles.<reason>`) and
+ *                    `params` fill its placeholders: the browser translates by code
  *   client → server  text frame    {"type":"input","data"} | {"type":"resize","cols","rows"} | {"type":"break"}
  *
  * The browser only ever names a device *key* from the diagram. Host and port
@@ -77,17 +79,17 @@ export function createConsolesModule({ config, events, logger, infra, services }
   function onTerminal(ws, req, url) {
     const clientId = clientIp(req, config.server);
     const send = (msg) => ws.readyState === ws.OPEN && ws.send(JSON.stringify(msg));
-    const refuse = (message) => { send({ type: 'error', message }); ws.close(1008, 'refused'); };
+    const refuse = (message, code, params = {}) => { send({ type: 'error', message, code, params }); ws.close(1008, 'refused'); };
 
-    if (!allowOpen(clientId)) return refuse('Too many consoles opened in the last minute. Wait a moment and try again.');
+    if (!allowOpen(clientId)) return refuse('Too many consoles opened in the last minute. Wait a moment and try again.', 'consoles.rate_limited');
 
     const key = url.searchParams.get('device') || '';
     const device = key.startsWith('admin:') ? adminSwitches.get(key) : registry.getDevice(key);
-    if (!device) return refuse('This device no longer exists. Reload the page.');
-    if (!device.allowed) return refuse(`${device.name}'s console address is not on the platform's allow-list.`);
+    if (!device) return refuse('This device no longer exists. Reload the page.', 'consoles.device_gone');
+    if (!device.allowed) return refuse(`${device.name}'s console address is not on the platform's allow-list.`, 'consoles.not_allowed', { name: device.name });
 
     const verdict = sessions.canOpen(device, clientId);
-    if (!verdict.ok) return refuse(verdict.reason);
+    if (!verdict.ok) return refuse(verdict.reason, verdict.code, verdict.params);
 
     let session;
     try {
@@ -100,15 +102,15 @@ export function createConsolesModule({ config, events, logger, infra, services }
         logger: log,
       });
     } catch (err) {
-      return refuse(err.message);
+      return refuse(err.message, 'consoles.invalid_target', { detail: err.message });
     }
     sessions.register(session, device, clientId);
 
     session.on('data', (buf) => ws.readyState === ws.OPEN && ws.send(buf, { binary: true }));
     session.on('status', (s) => send({ type: 'status', ...s }));
-    session.on('close', ({ reason }) => {
+    session.on('close', ({ reason, info }) => {
       session.cli.cancel();
-      send({ type: 'exit', message: reason });
+      send({ type: 'exit', message: reason, ...info });
       ws.close(1000, 'session ended');
     });
 
@@ -126,7 +128,7 @@ export function createConsolesModule({ config, events, logger, infra, services }
     });
 
     // Tab closed / network dropped → hang up telnet so the console line is freed
-    ws.on('close', () => session.close('Browser disconnected'));
+    ws.on('close', () => session.close('Browser disconnected', null, { code: 'consoles.browser_gone' }));
     ws.isAlive = true;
     ws.on('pong', () => { ws.isAlive = true; });
 
@@ -152,7 +154,7 @@ export function createConsolesModule({ config, events, logger, infra, services }
     shutdown() {
       clearInterval(heartbeat);
       registry.close();
-      sessions.closeAll('Platform is restarting');
+      sessions.closeAll('Platform is restarting', { code: 'consoles.restarting' });
       // A browser that never answers the closing handshake must not hold the process
       setTimeout(() => { for (const ws of wss.clients) ws.terminate(); }, 1000).unref();
     },

@@ -10,6 +10,7 @@
  *   view.render(lab); view.setStates(device => 'idle' | 'open' | 'busy' | 'disabled')
  */
 import { svg, h, icon } from '../../core/dom.js';
+import { t, tAttr, onLocaleChange } from '../../core/i18n.js';
 
 // Device glyphs, drawn in a 24×24 box centred in the device tile
 const GLYPHS = {
@@ -22,12 +23,8 @@ const GLYPHS = {
   generic: 'M4 5h16v14H4z M8 10h8 M8 14h5',
 };
 
-const STATE_TEXT = {
-  idle: 'Free. Click to open the console',
-  open: 'Open in your workspace',
-  busy: 'In use by another session',
-  disabled: 'Console address not allowed by the platform',
-};
+// What a device's state says (consoles.state.<state>)
+const stateText = (state) => t(`consoles.state.${state}`);
 
 export class DiagramView {
   #lab = null;
@@ -44,12 +41,13 @@ export class DiagramView {
     this.tooltip = h('div.diagram-tip', { role: 'tooltip' });
     this.zoomLabel = h('span.zoom-level', '100%');
     this.controls = h('div.zoom-controls',
-      h('button.icon-btn', { type: 'button', title: 'Zoom out', onclick: () => this.zoomBy(1 / 1.25) }, icon('minus')),
+      h('button.icon-btn', { type: 'button', ...tAttr('title', 'consoles.diagram.zoomOut'), onclick: () => this.zoomBy(1 / 1.25) }, icon('minus')),
       this.zoomLabel,
-      h('button.icon-btn', { type: 'button', title: 'Zoom in', onclick: () => this.zoomBy(1.25) }, icon('plus')),
-      h('button.icon-btn', { type: 'button', title: 'Fit diagram to view', onclick: () => this.fit(true) }, icon('fit')));
+      h('button.icon-btn', { type: 'button', ...tAttr('title', 'consoles.diagram.zoomIn'), onclick: () => this.zoomBy(1.25) }, icon('plus')),
+      h('button.icon-btn', { type: 'button', ...tAttr('title', 'consoles.diagram.fit'), onclick: () => this.fit(true) }, icon('fit')));
     container.append(this.svg, this.controls, this.tooltip);
     this.#bindPanZoom();
+    onLocaleChange(() => this.#relabel());
     new ResizeObserver(() => this.#autoFit && this.fit()).observe(container);
   }
 
@@ -61,7 +59,7 @@ export class DiagramView {
       svg('g', { class: 'layer-edges' }, lab.edges.map((e) => this.#edge(e))),
       svg('g', { class: 'layer-devices' }, lab.devices.map((d) => this.#device(d))),
     );
-    this.svg.setAttribute('aria-label', `Topology of ${lab.name}`);
+    this.#relabel();
     // One transparent hit area per device covering icon *and* label, so the
     // gap between them is clickable too
     for (const { el } of this.#deviceEls.values()) {
@@ -76,7 +74,15 @@ export class DiagramView {
     for (const [key, { el, device }] of this.#deviceEls) {
       const state = stateOf(device);
       el.dataset.state = state;
-      el.setAttribute('aria-label', `${device.name}: ${STATE_TEXT[state]}`);
+    }
+    this.#relabel();
+  }
+
+  /** Accessible names made of a device name and a state: written again when either changes */
+  #relabel() {
+    if (this.#lab) this.svg.setAttribute('aria-label', t('consoles.diagram.topology', { name: this.#lab.name }));
+    for (const { el, device } of this.#deviceEls.values()) {
+      el.setAttribute('aria-label', t('consoles.diagram.device', { name: device.name, state: stateText(el.dataset.state) }));
     }
   }
 
@@ -166,7 +172,7 @@ export class DiagramView {
     this.tooltip.replaceChildren(
       h('strong', d.name),
       h('code', `${d.target.host}:${d.target.port}`),
-      h(`span.tip-state.${state}`, STATE_TEXT[state]));
+      h(`span.tip-state.${state}`, stateText(state)));
     const box = g.getBoundingClientRect();
     const host = this.el.getBoundingClientRect();
     this.tooltip.style.left = `${box.left - host.left + box.width / 2}px`;

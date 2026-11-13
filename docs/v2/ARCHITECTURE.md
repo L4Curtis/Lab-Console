@@ -142,7 +142,11 @@ answers. Any other thrown error is logged and answered as a 500
 `server.internal` without detail. Codes used by the platform itself:
 `server.not_found`, `server.bad_request` (malformed body), `server.too_large`,
 `server.cross_origin`, `server.internal`, `auth.required`, `auth.forbidden`.
-The Proxmox module is unchanged and still answers `{ error }` without a code.
+The Proxmox module is unchanged and still answers `{ error }` without a code:
+its job labels and messages, its serial and status frames and its API error
+bodies reach the UI in English (known gap, to translate when the module is
+opened). Diagram `warnings` and `error` (`/api/consoles/labs`, `labs:version`)
+are `{ code, params, message }` objects, not strings.
 
 **Client address.** `clientIp(req, config.server)` (`src/lib/security.js`) is
 the only way to read it: the TCP peer, unless that peer is listed in

@@ -360,11 +360,14 @@ test('every reason and step of the driver has its French and English text', () =
   const source = fs.readFileSync(path.join(repoRoot, 'src', 'lib', 'drivers', 'ciscoIos.js'), 'utf8');
   const steps = new Set([...source.matchAll(/#say\('[^']*', '([a-z_]+)'/g), ...source.matchAll(/ios\.steps\.([a-z_]+)/g)].map((m) => m[1]));
   const warnings = new Set([...source.matchAll(/warnings\.push\('([a-z_]+)'\)/g)].map((m) => m[1]));
+  const stages = new Set([...source.matchAll(/stage(?: =|:) '([a-z_]+)'/g)].map((m) => m[1]));
+  assert.ok(stages.size >= 8, 'the scan found the stages of eraseAndReload');
   for (const lang of ['fr', 'en']) {
     const d = dict(lang);
     for (const r of REASONS) assert.ok(d.errors[r], `${lang}: errors.${r}`);
     for (const s of steps) assert.ok(d.steps[s], `${lang}: steps.${s}`);
     for (const w of warnings) assert.ok(d.warnings[w], `${lang}: warnings.${w}`);
+    for (const st of stages) assert.ok(d.stages[st], `${lang}: stages.${st}`);
   }
   for (const r of REASONS) assert.equal(dict('en').errors[r], reasonText(r), `en.errors.${r} matches the driver's sentence`);
 });

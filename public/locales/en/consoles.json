@@ -1,0 +1,48 @@
+{
+  "title": "Lab consoles",
+  "subtitle": "Choose a bench, then click a device.",
+  "find": "Find a device",
+  "topology": "Topology",
+  "noLabs": "No labs found in the diagram file",
+  "loadFailed": "The diagram could not be loaded",
+  "loadFailedHint": "{error}. Check that the platform is running, then reload the page.",
+  "hint": {
+    "one": "{count} device. Click it to open its console.",
+    "other": "{count} devices. Click one to open its console."
+  },
+  "noDevice": "This page has no device with a console address.",
+  "notAllowed": "{name}'s console address is not on the platform's allow-list.",
+  "busy": "{name}'s console is in use by another session. Try again when it is free.",
+  "notes": {
+    "one": "{count} diagram note",
+    "other": "{count} diagram notes"
+  },
+  "notesIntro": "Found while reading the diagram file:",
+  "picker": {
+    "label": "Labs",
+    "bay": "Bay {bay}",
+    "devices": {
+      "one": "{name}: {count} device",
+      "other": "{name}: {count} devices"
+    }
+  },
+  "quickOpen": {
+    "placeholder": "Find a device by name, lab or port",
+    "label": "Find a device",
+    "hint": "Enter opens the console. Esc closes.",
+    "empty": "No device matches. Try a lab name like B4B or a port like 2001."
+  },
+  "diagram": {
+    "zoomOut": "Zoom out",
+    "zoomIn": "Zoom in",
+    "fit": "Fit diagram to view",
+    "topology": "Topology of {name}",
+    "device": "{name}: {state}"
+  },
+  "state": {
+    "idle": "Free. Click to open the console",
+    "open": "Open in your workspace",
+    "busy": "In use by another session",
+    "disabled": "Console address not allowed by the platform"
+  }
+}

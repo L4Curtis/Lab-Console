@@ -3,13 +3,31 @@
     "ok": "OK",
     "cancel": "Cancel",
     "confirm": "Confirm",
-    "close": "Close"
+    "close": "Close",
+    "retry": "Try again"
   },
   "dialog": {
     "typeToConfirm": "Type {text} to confirm"
   },
   "tabs": {
     "loadFailed": "This screen could not be loaded. Reload the page."
+  },
+  "shell": {
+    "appTitle": "Lab Console",
+    "sections": "Sections",
+    "consoles": "Consoles",
+    "infra": "Infra",
+    "off": "off",
+    "turnedOff": "{title} (turned off)",
+    "theme": {
+      "toggle": "Switch between light and dark",
+      "label": "Theme"
+    },
+    "language": {
+      "label": "Language",
+      "fr": "Français",
+      "en": "English"
+    }
   },
   "errors": {
     "server": {
