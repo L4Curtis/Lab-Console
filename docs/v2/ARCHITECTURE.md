@@ -220,8 +220,11 @@ auth.oidc.settings             // current OIDC settings, without the secret ({ �
 auth.oidc.configure(raw)       // replace them at run time (validated; open sessions untouched); an omitted
                                //   clientSecret keeps the current one for the same issuer and client id only
 auth.oidc.redirectUri          // the callback URL to give the provider
-auth.oidc.trial(req, res, { returnTo, onResult })   // → { url }: a sign-in at the provider that opens no
-                               //   session; onResult gets the claims and the role they give
+auth.oidc.trial(req, res, { returnTo, onResult, reauth })   // → { url }: a sign-in at the provider that opens no
+                               //   session; onResult gets the claims, the user id and the role they give.
+                               //   `reauth: true` asks for a fresh sign-in (prompt=login, max_age=0) and refuses
+                               //   an answer whose auth_time/iat is older than 2 minutes (an SSO administrator
+                               //   confirming a lab change: admin/confirm.js)
 auth.router                    // /login, /js/login.js, /auth/*; mounted before the gate
 auth.cookieName                // '__Host-lc_sid' | 'lc_sid'
 auth.shutdown()                // stops the timers, writes the sessions; called when the application closes
@@ -434,7 +437,9 @@ a console is opened**, never once at start-up.
 settings.get(ns)                    // current values, a private copy (secrets included: server side only)
 settings.describe(ns)               // { values (secrets as { set: true|false }), fields, saved: [paths], unreadable: [paths],
                                     //   updatedAt, updatedBy, encrypted }
+settings.check(ns, patch)           // update()'s validation alone → { changed, reset }, or the same 400; nothing saved
 settings.update(ns, patch, actor)   // → describe(ns) + { changed, reset }; 400 settings.invalid { problems: [{ field, code }] }
+                                    //   only the fields a namespace lists exist: 'constructor' or '__proto__' are { code: 'unknown' }
 settings.register(ns, { defaults: () => values, fields: { 'dotted.path': { type, … } }, check?(values) → problems })
 settings.on('change', (ns, values) => …)   // → off(); after a save that changed something
 ```
@@ -472,16 +477,22 @@ the first start (which becomes the first version).
 ```js
 diagrams.currentPath                 // what the consoles registry reads and watches
 diagrams.list()                      // { active, canRollback, previous, versions: [...] } newest first
-diagrams.add(buffer, { name, actor }) → { version, warnings }   // checked, kept, NOT active
+diagrams.add(buffer, { name, actor }) → { version, warnings, labs }   // checked, kept, NOT active
 diagrams.model(id) / diagrams.compare(id)   // parsed labs / what changes against the active one
 diagrams.activate(id, actor) / diagrams.rollback(actor)
 diagrams.fileOf(id)                  // absolute path of a version (download)
 diagrams.on('change', fn)            // after an activation or a rollback
 ```
 
-A file is refused (`admin.diagram_*`) over 5 MB, with a DOCTYPE or an entity
-declaration anywhere (compressed pages are inflated and checked too), when
-the parser rejects it, or without a single console device. 30 versions are
+A file is refused (`admin.diagram_*`) over 5 MB or when its pages inflate to
+more than 20 MB in all (`diagram_too_large`; the inflate itself is capped),
+with a DOCTYPE or an entity declaration anywhere (`diagram_doctype`: checked
+by the parser, `parseDrawio`, on the file and on every page it decodes, so
+CDATA, comments or character references around a compressed page hide
+nothing), when the parser rejects it, without a single console device, and
+at import or activation while two different devices share a console line
+(`diagram_lint`, what `npm run check-diagram` fails on; a rollback is never
+refused for it). 30 versions are
 kept (never the active one nor the last ones a rollback may need). A rollback
 returns to the diagram active before the current one (a stack of activations).
 

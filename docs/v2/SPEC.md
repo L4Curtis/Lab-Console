@@ -228,15 +228,37 @@ Same worktree as the accounts lot, after it.
 
 *As built (admin lot):* Administration tabs Lab parameters, Diagram, Admin
 switches, Sessions, Audit trail, Announcement; a "Lab status" rail section
-for everyone with Health and What is recorded. Not met, owner decision
-pending: **an SSO administrator cannot confirm** a lab parameter change (it
-has neither a passkey nor a password here): the page says to sign in with
-the environment's administrator or a local administrator account; a
-re-authentication at the provider could be added. **Proxmox URL and
-credentials are shown, not editable**: the Proxmox module stays out of scope
-(its tunnel does follow the jump server's parameters). The health page
-probes the console servers on their telnet port (23) and Proxmox through the
-jump server with `nc -z`; it does not read the Proxmox module's tunnel state.
+for everyone with Health and What is recorded.
+- **Confirmation.** The environment's administrator confirms with password +
+  code, a local administrator with a passkey, **an SSO administrator by signing
+  in again at the identity provider** (a fresh sign-in is asked for with
+  `prompt=login&max_age=0` and checked; it must be the same person, still an
+  administrator). The browser leaves the page, so the values are checked
+  first and wait on the server; the change is applied when the person comes
+  back and the lab page shows the outcome once. Tickets: 2 minutes, one use,
+  10 attempts per 15 minutes; a ticket is spent only when the values are
+  valid (a typo does not cost a new confirmation).
+- **Diagram import.** DOCTYPE / entities are refused by the parser on every
+  document it builds, compressed pages written in CDATA, with comments or
+  with character references included; the pages may not inflate to more than
+  20 MB in all. An import or an activation is refused while the linter finds
+  two different devices on one console line (`admin.diagram_lint`; rolling
+  back is never refused). The preview lists the devices whose console is
+  outside the allow-list; that does not block (they stay inert for students).
+- **Health.** A console server is up when it answers on the network: a
+  connection accepted or actively refused; its telnet port (23) was not
+  checked against the real equipment, so only silence reads as down.
+  Proxmox must accept its API port. The Proxmox tunnel state is read from
+  `services.proxmox.tunnel()` as soon as the Proxmox module publishes it.
+
+*Not met, owner decision pending:* **Proxmox URL and credentials are shown,
+not editable**: the Proxmox module stays out of scope (its tunnel does follow
+the jump server's parameters). The Proxmox module does not publish
+`services.proxmox.tunnel()` yet (a three-line addition in
+`src/modules/proxmox/index.js`, which the working rules keep untouched), so
+the health page shows no tunnel line until it does. The page on what is
+journaled shows the console journal's retention only once the rooms lot adds
+`config.rooms.journal`; until then it says console output is not recorded.
 
 ## Wave 3
 
