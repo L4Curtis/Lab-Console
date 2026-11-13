@@ -27,13 +27,17 @@ export async function waitFor(check, timeoutMs = 2000) {
   }
 }
 
-export async function startTeamsApp({ env = {} } = {}) {
+/**
+ * `extra(deps)` adds modules that sit on teams and benches (the collab module's tests):
+ * it returns a list of modules, or one
+ */
+export async function startTeamsApp({ env = {}, extra } = {}) {
   const clock = { ms: T0 };
   let modules = [];
   const lab = await startTestApp({
     env,
     modules: (deps) => {
-      modules = [createConsolesModule(deps), ...createTeamsModules(deps, { now: () => clock.ms, tickMs: 0 })];
+      modules = [createConsolesModule(deps), ...createTeamsModules(deps, { now: () => clock.ms, tickMs: 0 }), ...[extra?.(deps) ?? []].flat()];
       return modules;
     },
   });

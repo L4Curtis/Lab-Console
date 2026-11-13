@@ -22,6 +22,7 @@ import { createAccountLinksRepository } from './accountLinks.js';
 import { createAnnouncementsRepository } from './announcements.js';
 import { createDiagramsRepository } from './diagrams.js';
 import { createJournalDaysRepository } from './journalDays.js';
+import { createCollabRepository } from './collab.js';
 
 export function createRepositories(db, { now = () => new Date() } = {}) {
   const options = { now };
@@ -38,6 +39,7 @@ export function createRepositories(db, { now = () => new Date() } = {}) {
     announcements: createAnnouncementsRepository(db, options),
     diagrams: createDiagramsRepository(db, options),
     journalDays: createJournalDaysRepository(db, options),
+    collab: createCollabRepository(db, options),
     /** Run fn(repos) in one transaction: every repository inside works on it */
     transaction: (fn) => db.transaction((tx) => fn(createRepositories(tx, options))),
   };

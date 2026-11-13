@@ -135,6 +135,7 @@ describe('signed in: the application behaves as upstream', () => {
       { id: 'proxmox', title: 'Infrastructure', enabled: true },
       { id: 'accounts', title: 'Accounts', enabled: true },
       { id: 'admin', title: 'Administration', enabled: true },
+      { id: 'collab', title: 'Group work', enabled: true },
     ]);
     const labs = await (await get(lab, '/api/consoles/labs')).json();
     // The upstream keys, plus how long console journals are kept (for the journal notice)
