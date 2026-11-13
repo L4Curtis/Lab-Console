@@ -192,6 +192,29 @@ describe('teams: lifecycle', () => {
   });
 });
 
+describe('teams: size', () => {
+  let t;
+  before(async () => { t = await startTeamsApp(); });
+  after(async () => { await t.close(); });
+
+  test('a team has at most 8 seats; an invitation holds one until it is answered', async () => {
+    const created = await t.api('student1', 'POST', '/api/teams', { name: 'Grande équipe' });
+    const id = created.body.team.id;
+    for (let n = 10; n < 17; n += 1) {
+      const res = await t.api('student1', 'POST', `/api/teams/${id}/invitations`, { username: `guest${n}` });
+      assert.equal(res.status, 201, `guest${n}`);
+    }
+    const full = await t.api('student1', 'POST', `/api/teams/${id}/invitations`, { username: 'guest17' });
+    assert.equal(full.status, 409);
+    assert.equal(full.body.code, 'teams.full');
+    assert.equal(full.body.params.max, 8);
+    assert.equal(t.services.teams.get(id).invitations.length, 7);
+    // Withdrawing one frees a seat
+    await t.api('student1', 'DELETE', `/api/teams/${id}/invitations/guest10`);
+    assert.equal((await t.api('student1', 'POST', `/api/teams/${id}/invitations`, { username: 'guest17' })).status, 201);
+  });
+});
+
 describe('teams: configuration', () => {
   test('defaults and bounds of the bench settings', async () => {
     const config = await loadTestConfig();

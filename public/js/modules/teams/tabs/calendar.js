@@ -15,6 +15,13 @@ const FIRST_HOUR = 8;
 const LAST_HOUR = 20;
 const DAY = 24 * 3_600_000;
 
+/** The local time `hour`:00 of the day that starts at `day` (setHours, not an addition: days of 23 or 25 hours exist) */
+function atHour(day, hour) {
+  const d = new Date(day);
+  d.setHours(hour, 0, 0, 0);
+  return d.getTime();
+}
+
 /** Monday 00:00 (local time) of the week that contains `date` */
 function weekStart(date) {
   const d = new Date(date);
@@ -39,7 +46,8 @@ export function mount(el, { navigate }) {
   const next = h('button.icon-btn', { type: 'button', onclick: () => move(7) }, icon('chevronRight'));
   const note = h('p.muted.cal-note');
   const grid = h('div.cal-grid', { role: 'grid' });
-  el.append(h('div.panel.cal-panel', h('div.panel-toolbar', select, prev, today, next, title), note, h('div.cal-scroll', grid)));
+  const outside = h('div.cal-outside');
+  el.append(h('div.panel.cal-panel', h('div.panel-toolbar', select, prev, today, next, title), note, h('div.cal-scroll', grid), outside));
 
   function move(days) {
     monday = new Date(monday.getTime() + days * DAY);
@@ -55,7 +63,9 @@ export function mount(el, { navigate }) {
     }
     if (!bench) { grid.replaceChildren(h('p.muted', t('teams.calendar.noBench'))); return; }
     const from = monday.toISOString();
-    const to = new Date(monday.getTime() + 7 * DAY + 3_600_000).toISOString();
+    const nextMonday = new Date(monday);
+    nextMonday.setDate(nextMonday.getDate() + 7);
+    const to = nextMonday.toISOString();
     const data = await call('GET', `/api/benches/reservations?bench=${encodeURIComponent(bench)}&from=${from}&to=${to}`);
     reservations = data?.reservations ?? [];
     limits = data?.limits ?? limits;
@@ -113,7 +123,8 @@ export function mount(el, { navigate }) {
     prev.setAttribute('aria-label', prev.title);
     next.title = t('teams.calendar.next');
     next.setAttribute('aria-label', next.title);
-    const sunday = new Date(monday.getTime() + 6 * DAY);
+    const sunday = new Date(monday);
+    sunday.setDate(sunday.getDate() + 6);
     title.textContent = t('teams.calendar.week', { from: fmtDay(monday), to: fmtDay(sunday) });
     note.textContent = t('teams.calendar.hint');
 
@@ -128,11 +139,10 @@ export function mount(el, { navigate }) {
 
     const head = h('div.cal-row.cal-head', h('div.cal-corner'), days.map((d) => h('div.cal-day', { role: 'columnheader' }, fmtDay(d))));
     const columns = days.map((d) => {
-      const dayStart = d.getTime() + FIRST_HOUR * 3_600_000;
-      const dayEnd = d.getTime() + LAST_HOUR * 3_600_000;
+      const dayStart = atHour(d, FIRST_HOUR);
+      const dayEnd = atHour(d, LAST_HOUR);
       const cells = hours.map((hour) => {
-        const at = d.getTime() + hour * 3_600_000;
-        const past = at + 3_600_000 <= now;
+        const past = atHour(d, hour + 1) <= now;
         return h('button.cal-cell', { type: 'button', disabled: past, dataset: { hour: String(hour) }, title: `${fmtDay(d)} ${String(hour).padStart(2, '0')}:00`, onclick: () => book(d, hour) });
       });
       const blocks = reservations.filter((r) => Date.parse(r.end) > dayStart && Date.parse(r.start) < dayEnd).map((r) => {
@@ -154,6 +164,22 @@ export function mount(el, { navigate }) {
     });
     const times = h('div.cal-times', hours.map((hour) => h('div.cal-time', new Intl.DateTimeFormat(getLocale(), { hour: '2-digit', minute: '2-digit' }).format(new Date(2026, 0, 1, hour)))));
     grid.replaceChildren(head, h('div.cal-row.cal-body', times, columns));
+    renderOutside(days, myTeamId);
+  }
+
+  /** The grid shows 08:00 to 20:00 only: a booking that does not fit in it is listed below, so the week never looks free when it is not */
+  function renderOutside(days, myTeamId) {
+    const fits = (r) => days.some((d) => Date.parse(r.start) >= atHour(d, FIRST_HOUR) && Date.parse(r.end) <= atHour(d, LAST_HOUR));
+    const rest = reservations.filter((r) => !fits(r));
+    if (!rest.length) { outside.replaceChildren(); return; }
+    outside.replaceChildren(
+      h('p.muted.cal-note', t('teams.calendar.outside', { from: `${String(FIRST_HOUR).padStart(2, '0')}:00`, to: `${String(LAST_HOUR).padStart(2, '0')}:00` })),
+      h('ul.cal-outside-list', rest.map((r) => {
+        const canCancel = r.teamId === myTeamId || session.isAdmin;
+        return h('li', { dataset: { team: r.teamId } },
+          h('strong', r.teamName ?? '?'), ' ', h('span', fmtSlot(r)),
+          canCancel ? h('button.icon-btn.small', { type: 'button', title: t('teams.slots.cancel'), 'aria-label': t('teams.slots.cancel'), onclick: () => cancel(r) }, icon('close')) : null);
+      })));
   }
 
   return {

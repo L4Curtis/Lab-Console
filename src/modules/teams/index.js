@@ -208,10 +208,7 @@ export function createTeamsModules(deps, { now = () => Date.now(), tickMs = TICK
 
   benchesRouter.post('/:bench/release', async (req, res) => {
     const name = benchOf(req);
-    if (!benches.holder(name)) throw httpError(409, 'benches.not_taken', 'Nobody holds this bench');
-    if (!isAdmin(req) && !benches.isHolderMember(req.user, name)) {
-      throw httpError(403, 'benches.not_member', 'Only the team that holds the bench may release it');
-    }
+    // Who may release is decided inside the release itself, against the bench as it is when it runs
     const { offers } = await benches.release(req.user, name);
     res.json({ ok: true, offers });
   });

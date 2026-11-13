@@ -102,4 +102,6 @@
 button.cal-slot { cursor: pointer; }
 .cal-slot[data-mine="true"] { background: var(--console-soft); border-color: var(--console); color: var(--console-strong); }
 .cal-slot span { color: var(--ink-3); }
+.cal-outside-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 12.5px; }
+.cal-outside-list li { display: flex; align-items: center; gap: 6px; }
 .team-bench a { color: var(--console-strong); }

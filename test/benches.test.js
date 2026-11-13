@@ -4,7 +4,7 @@
  * locks, the automatic release on a fake clock, reservations and their
  * warning, the audiences of the events, and what only admins may do
  */
-import { describe, test, before, after } from 'node:test';
+import { describe, test, before, after, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { startTeamsApp, waitFor, T0, MIN, HOUR } from './helpers/teams.js';
 import { student, admin } from './helpers/fakes.js';
@@ -172,10 +172,23 @@ describe('benches: taking, joining and the permission matrix', () => {
     assert.equal(t.services.benches.isOccupant(outsider, 'B4M'), false);
     const gone = await t.api(S(1), 'POST', '/api/benches/B4M/requests/oidc:student4/accept');
     assert.equal(gone.status, 404);
+    assert.equal(gone.body.code, 'benches.no_request', 'answering a request that is not there');
     // A request can also be withdrawn by the one who made it
     await t.api(outsider, 'POST', '/api/benches/B4M/join');
     assert.equal((await t.api(outsider, 'DELETE', '/api/benches/B4M/join')).status, 200);
-    assert.equal((await t.api(outsider, 'DELETE', '/api/benches/B4M/join')).status, 404);
+    const nothing = await t.api(outsider, 'DELETE', '/api/benches/B4M/join');
+    assert.equal(nothing.status, 404);
+    assert.equal(nothing.body.code, 'benches.no_request', 'withdrawing a request that is not there');
+  });
+
+  test('at most 20 requests wait on a bench; asking twice is still one', async () => {
+    const people = Array.from({ length: 20 }, (_, i) => S(100 + i));
+    for (const p of people) assert.equal((await t.api(p, 'POST', '/api/benches/B4M/join')).status, 202, p.username);
+    const late = await t.api(S(120), 'POST', '/api/benches/B4M/join');
+    assert.equal(late.status, 429);
+    assert.equal(late.body.code, 'benches.too_many_requests');
+    assert.equal((await t.api(people[0], 'POST', '/api/benches/B4M/join')).status, 202, 'a request already waiting is not refused');
+    for (const p of people) await t.api(p, 'DELETE', '/api/benches/B4M/join');
   });
 
   test('joining a free bench makes no sense', async () => {
@@ -257,6 +270,13 @@ describe('benches: taking, joining and the permission matrix', () => {
     assert.equal(res.status, 200);
     const actions = res.body.history.map((e) => e.action);
     for (const a of ['bench.take', 'bench.join.request', 'bench.join.accept', 'bench.lock', 'bench.unlock']) assert.ok(actions.includes(a), a);
+    // The jobs lot records what it does on a bench as 'job.<something>': the history shows those too, and only those
+    t.lab.deps.audit.log(S(1), 'job.backup', { bench: 'B4M', device: 'R1' });
+    t.lab.deps.audit.log(S(1), 'console.open', { bench: 'B4M', device: 'R1' });
+    t.lab.deps.audit.log(S(1), 'job.backup', { bench: 'B5M', device: 'R1' });
+    const withJobs = (await t.api(guest, 'GET', '/api/benches/B4M/history')).body.history;
+    assert.equal(withJobs.filter((e) => e.action === 'job.backup').length, 1, 'a job on this bench, not on another');
+    assert.ok(!withJobs.some((e) => e.action === 'console.open'));
     assert.ok(res.body.history.every((e) => !('ip' in e)), 'no addresses');
     assert.equal(res.body.history.find((e) => e.action === 'bench.take').actor.name, 'Student 1');
     assert.equal((await t.api(outsider, 'GET', '/api/benches/B4M/history')).status, 403);
@@ -273,6 +293,13 @@ describe('benches: taking, joining and the permission matrix', () => {
     const notGuest = await t.api(S(1), 'POST', '/api/benches/B4M/leave');
     assert.equal(notGuest.status, 409, 'a member leaves the team, not the bench');
     assert.equal(notGuest.body.code, 'benches.member_of_holder');
+    const stranger = await t.api(outsider, 'POST', '/api/benches/B4M/leave');
+    assert.equal(stranger.status, 404);
+    assert.equal(stranger.body.code, 'benches.not_guest', 'leaving a bench where you are no guest');
+    const again = await t.api(guest, 'POST', '/api/benches/B4M/leave');
+    assert.equal(again.body.code, 'benches.not_guest', 'leaving twice');
+    const adminRemove = await t.api(ADMIN, 'DELETE', '/api/benches/B4M/guests/oidc:student4');
+    assert.equal(adminRemove.body.code, 'benches.not_guest');
   });
 
   test('releasing calls the onRelease hooks and offers what they return', async () => {
@@ -489,7 +516,9 @@ describe('benches: reservations', () => {
     assert.equal(outsider.status, 403);
     assert.equal(outsider.body.code, 'benches.not_your_reservation');
     assert.equal((await t.api(S(5), 'DELETE', `/api/benches/reservations/${mine.id}`)).status, 200);
-    assert.equal((await t.api(S(5), 'DELETE', `/api/benches/reservations/${mine.id}`)).status, 404);
+    const gone = await t.api(S(5), 'DELETE', `/api/benches/reservations/${mine.id}`);
+    assert.equal(gone.status, 404);
+    assert.equal(gone.body.code, 'benches.no_reservation');
     const b6h = (await t.api(S(5), 'GET', '/api/benches/reservations?bench=B6H')).body.reservations[0];
     assert.equal((await t.api(ADMIN, 'DELETE', `/api/benches/reservations/${b6h.id}`)).status, 200);
     for (const a of ['bench.reserve', 'bench.reservation.cancel']) assert.ok((await t.lab.deps.audit.query({ action: a })).length > 0, a);
@@ -551,5 +580,185 @@ describe('benches: reservations', () => {
     assert.equal((await book(S(7), 'B6B', T0 + 30 * HOUR, T0 + 31 * HOUR)).status, 201);
     await t.api(ADMIN, 'DELETE', `/api/teams/${teamC}`);
     await waitFor(async () => (await t.api(S(1), 'GET', '/api/benches/reservations?bench=B6B')).body.reservations.every((r) => r.teamId !== teamC));
+  });
+});
+
+describe('benches: a booking cannot be used to evict the holder', () => {
+  let t;
+  let teamA; // S1
+  let teamB; // S5
+  const iso = (ms) => new Date(ms).toISOString();
+  const book = (who, bench, from, to, extra = {}) => t.api(who, 'POST', '/api/benches/reservations', { bench, start: iso(from), end: iso(to), ...extra });
+
+  before(async () => {
+    t = await startTeamsApp();
+    teamA = await makeTeam(t, 'Équipe A', S(1));
+    teamB = await makeTeam(t, 'Équipe B', S(5));
+    t.clock.ms = T0 + 7 * MIN;
+    assert.equal((await t.api(S(1), 'POST', '/api/benches/B4M/take')).status, 200);
+  });
+  after(async () => { await t.close(); });
+
+  test('a slot that has started is refused, and so the holder cannot be replaced at once', async () => {
+    const started = await book(S(5), 'B4M', T0, T0 + 4 * HOUR);
+    assert.equal(started.status, 400);
+    assert.equal(started.body.code, 'benches.slot_in_past');
+    const take = await t.api(S(5), 'POST', '/api/benches/B4M/take');
+    assert.equal(take.status, 409);
+    assert.equal(take.body.code, 'benches.taken');
+    assert.equal(t.services.benches.holder('B4M').teamId, teamA);
+    // Team A was not released, and nobody was told it was
+    const releases = await t.lab.deps.audit.query({ bench: 'B4M', action: 'bench.release' });
+    assert.equal(releases.length, 0);
+  });
+
+  test('on a bench held by another team a slot starts at least ten minutes ahead', async () => {
+    const soon = await book(S(5), 'B4M', T0 + 15 * MIN, T0 + 2 * HOUR); // eight minutes from now
+    assert.equal(soon.status, 409);
+    assert.equal(soon.body.code, 'benches.slot_too_soon');
+    assert.equal(soon.body.params.minutes, 10);
+    const ok = await book(S(5), 'B4M', T0 + 30 * MIN, T0 + 2 * HOUR); // twenty-three minutes from now
+    assert.equal(ok.status, 201);
+    assert.equal((await t.api(S(5), 'POST', '/api/benches/B4M/take')).body.code, 'benches.taken', 'not before the slot');
+  });
+
+  test('the holder is warned for that slot', async () => {
+    const holder = await t.listen(S(1));
+    t.clock.ms = T0 + 20 * MIN;
+    await t.tick();
+    const warning = await holder.until((e) => e.topic === 'benches:warning');
+    assert.equal(warning.data.bench, 'B4M');
+    assert.equal(warning.data.minutes, 10);
+    t.clock.ms = T0 + 7 * MIN;
+  });
+
+  test('the holder itself, a free bench and admins are not held to the ten minutes', async () => {
+    assert.equal((await book(S(1), 'B4M', T0 + 2 * HOUR, T0 + 3 * HOUR)).status, 201, 'its own bench');
+    assert.equal((await book(S(5), 'B5M', T0 + 15 * MIN, T0 + HOUR)).status, 201, 'a free bench');
+    const byAdmin = await book(ADMIN, 'B4M', T0 + 3 * HOUR, T0 + 4 * HOUR, { teamId: teamB });
+    assert.equal(byAdmin.status, 201);
+    const past = await book(ADMIN, 'B6H', T0, T0 + 2 * HOUR, { teamId: teamB });
+    assert.equal(past.status, 201, 'admins arrange the calendar as they wish');
+    const over = await book(S(5), 'B6B', T0 - 2 * HOUR, T0 - HOUR);
+    assert.equal(over.body.code, 'benches.slot_in_past');
+  });
+
+  test('a team that takes a bench after the warning time was passed is warned in its turn', async () => {
+    // B5M is free and booked by team B from T0 + 15 min: a tick finds nobody to warn
+    await t.api(S(1), 'POST', '/api/benches/B4M/release');
+    t.clock.ms = T0 + 7 * MIN;
+    await t.tick();
+    const teamC = await makeTeam(t, 'Équipe C', S(7));
+    t.clock.ms = T0 + 8 * MIN;
+    assert.equal((await t.api(S(7), 'POST', '/api/benches/B5M/take')).status, 200);
+    const holder = await t.listen(S(7));
+    await t.tick();
+    const warning = await holder.until((e) => e.topic === 'benches:warning');
+    assert.equal(warning.data.bench, 'B5M');
+    assert.equal(warning.data.team, 'Équipe B');
+    assert.equal(warning.data.minutes, 7);
+    assert.equal(t.services.benches.holder('B5M').teamId, teamC);
+    await t.tick();
+    await t.settle(holder);
+    assert.equal(holder.events.filter((e) => e.topic === 'benches:warning').length, 1, 'once');
+  });
+});
+
+describe('benches: decisions are taken on the bench as it is when the change runs', () => {
+  let t;
+  const occupancyDoc = () => t.lab.deps.store.json('benches/occupancy.json', {});
+  beforeEach(async () => { t = await startTeamsApp(); });
+  afterEach(async () => { await t.close(); });
+
+  test('a member of the team that lost a bench cannot release the bench of the team that took it', async () => {
+    await makeTeam(t, 'Équipe A', S(1), S(2));
+    const teamB = await makeTeam(t, 'Équipe B', S(5));
+    await t.api(S(1), 'POST', '/api/benches/B4M/take');
+    // Sent together: A releases, B takes, a second member of A releases "again"
+    const [first, take, second] = await Promise.allSettled([
+      t.benches.release(S(1), 'B4M'),
+      t.benches.take(S(5), 'B4M'),
+      t.benches.release(S(2), 'B4M'),
+    ]);
+    assert.equal(first.status, 'fulfilled');
+    assert.equal(take.status, 'fulfilled');
+    assert.equal(second.status, 'rejected');
+    assert.equal(second.reason.status, 403);
+    assert.equal(second.reason.code, 'benches.not_member');
+    assert.equal(t.services.benches.holder('B4M')?.teamId, teamB, 'team B still holds the bench');
+  });
+
+  test('…nor answer the join requests of the bench of the team that took it', async () => {
+    await makeTeam(t, 'Équipe A', S(1));
+    const teamB = await makeTeam(t, 'Équipe B', S(5));
+    await t.api(S(1), 'POST', '/api/benches/B4M/take');
+    await t.api(S(3), 'POST', '/api/benches/B4M/join');
+    const [released, take, answer] = await Promise.allSettled([
+      t.benches.release(S(1), 'B4M'),
+      t.benches.take(S(5), 'B4M'),
+      t.benches.answer(S(1), 'B4M', 'oidc:student3', true),
+    ]);
+    assert.equal(released.status, 'fulfilled');
+    assert.equal(take.status, 'fulfilled');
+    assert.equal(answer.status, 'rejected');
+    assert.equal(answer.reason.code, 'benches.not_member');
+    assert.equal(t.services.benches.holder('B4M').teamId, teamB);
+    assert.deepEqual(t.services.benches.occupants('B4M'), ['oidc:student5'], 'nobody was let in');
+  });
+
+  test('a release that expects another occupancy changes nothing', async () => {
+    await makeTeam(t, 'Équipe A', S(1));
+    await t.api(S(1), 'POST', '/api/benches/B4M/take');
+    await assert.rejects(
+      t.benches.release('system', 'B4M', 'dissolved', { expect: (o) => o.teamId === 'another-team' }),
+      (err) => err.status === 409 && err.code === 'benches.changed',
+    );
+    assert.ok(t.services.benches.holder('B4M'));
+  });
+
+  test('the automatic release does not delete a team that took the bench while a hook was running', async () => {
+    await makeTeam(t, 'Équipe A', S(1));
+    await makeTeam(t, 'Équipe B', S(5));
+    const teamC = await makeTeam(t, 'Équipe C', S(7));
+    await t.api(S(1), 'POST', '/api/benches/B4M/take');
+    await t.api(S(5), 'POST', '/api/benches/B5M/take');
+    // Both are idle. While B4M is being released, the hook (slow, like a backup) lets B give B5M back and C take it
+    t.services.benches.onRelease(async ({ labName }) => {
+      if (labName !== 'B4M') return;
+      assert.equal((await t.api(S(5), 'POST', '/api/benches/B5M/release')).status, 200);
+      assert.equal((await t.api(S(7), 'POST', '/api/benches/B5M/take')).status, 200);
+    });
+    t.clock.ms = T0 + 3 * HOUR;
+    await t.tick();
+    assert.equal(t.services.benches.holder('B4M'), null, 'B4M was idle');
+    assert.equal(t.services.benches.holder('B5M')?.teamId, teamC, 'team C keeps the bench it just took');
+  });
+
+  test('"we are still here" sent just before the release saves the bench', async () => {
+    const team = await makeTeam(t, 'Équipe A', S(1));
+    await t.api(S(1), 'POST', '/api/benches/B4M/take');
+    t.clock.ms = T0 + 3 * HOUR;
+    t.services.benches.touch('B4M', { force: true }); // queued before the release the tick is about to ask for
+    await t.tick();
+    assert.equal(t.services.benches.holder('B4M')?.teamId, team);
+    await t.lab.deps.store.flush();
+    t.clock.ms = T0 + 6 * HOUR;
+    await t.tick();
+    assert.equal(t.services.benches.holder('B4M'), null, 'and three hours later it goes');
+  });
+
+  test('a lock set while a take was waiting in the queue wins', async () => {
+    await makeTeam(t, 'Équipe A', S(1));
+    let open;
+    const gate = new Promise((resolve) => { open = resolve; });
+    const blocker = occupancyDoc().update(async () => { await gate; }); // holds the occupancy queue
+    const taking = t.benches.take(S(1), 'B4M'); // has already looked at the lock: none
+    assert.equal((await t.api(ADMIN, 'PUT', '/api/benches/B4M/lock', { reason: 'Exam' })).status, 200);
+    open();
+    await blocker;
+    await assert.rejects(taking, (err) => err.status === 423 && err.code === 'benches.locked');
+    assert.equal(t.services.benches.holder('B4M'), null);
+    const admin = await t.api(ADMIN, 'POST', '/api/benches/B4M/assign', { teamId: t.services.teams.teamOf(S(1)).id });
+    assert.equal(admin.status, 200, 'admins still assign a locked bench');
   });
 });

@@ -139,3 +139,86 @@ test('the reservation calendar books a slot for the team and shows it on the ben
   assert.deepEqual(chloe.errors, []);
   await chloe.context().close();
 });
+
+test('the calendar places slots right on a daylight-saving day and lists the ones outside 08:00-20:00', async () => {
+  // Paris, Sunday 28 March 2027: the clocks jump from 02:00 to 03:00, so this day lasts 23 hours
+  const page = await h.newPage();
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Emulation.setTimezoneOverride', { timezoneId: 'Europe/Paris' });
+  await signInAs(page, 'ada');
+  const booked = await page.evaluate(async () => {
+    const post = (url, body) => fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then((r) => r.status);
+    const out = [await post('/api/teams', { name: 'Les admins' })];
+    // 10:00-12:00 and 20:30-22:00 local time on that Sunday (UTC+2 once the clocks have moved)
+    out.push(await post('/api/benches/reservations', { bench: 'B5M', start: '2027-03-28T08:00:00Z', end: '2027-03-28T10:00:00Z' }));
+    out.push(await post('/api/benches/reservations', { bench: 'B5M', start: '2027-03-28T18:30:00Z', end: '2027-03-28T20:00:00Z' }));
+    return out;
+  });
+  assert.deepEqual(booked, [201, 201, 201]);
+
+  await page.clock.setFixedTime(new Date('2027-03-25T11:00:00Z'));
+  await page.goto(`${h.url}/#/team/calendar/B5M`);
+  await page.reload();
+  const sunday = page.locator('section.view-teams .cal-col').nth(6);
+  const slot = sunday.locator('.cal-slot', { hasText: '10:00' });
+  await slot.waitFor();
+  // 10:00 is 2 hours into a 12-hour grid, whatever the length of the day
+  const place = await slot.evaluate((el) => ({ top: parseFloat(el.style.top), height: parseFloat(el.style.height) }));
+  assert.ok(Math.abs(place.top - 100 / 6) < 0.01, `top ${place.top}`);
+  assert.ok(Math.abs(place.height - 100 / 6) < 0.01, `height ${place.height}`);
+  assert.equal(await sunday.locator('.cal-slot').count(), 1, 'the evening slot is not in the grid');
+
+  // …but the week does not look free: it is listed under the grid
+  const outside = page.locator('section.view-teams .cal-outside-list li');
+  await outside.first().waitFor();
+  assert.equal(await outside.count(), 1);
+  assert.match(await outside.first().textContent(), /Les admins.*20:30.22:00/);
+  assert.deepEqual(page.errors, []);
+  await page.context().close();
+});
+
+test('the bench bar decorates the diagram: ours, taken, locked, nothing on a free bench', async () => {
+  // The rooms lot's DiagramView provides decorate(layer, fn); until then a stand-in records the function the bar registers
+  const ada = await h.newPage();
+  await signInAs(ada, 'ada');
+  const locked = await ada.evaluate(() => fetch('/api/benches/B5H/lock', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ reason: 'Préparée pour le TP noté' }) }).then((r) => r.status));
+  assert.equal(locked, 200);
+
+  const mount = (page, bench) => page.evaluate(async (name) => {
+    const { mountBenchBar } = await import('/js/modules/teams/benchBar.js');
+    const host = document.createElement('div');
+    host.id = `decor-${name}`;
+    document.body.append(host);
+    const bar = mountBenchBar(host);
+    const layers = {};
+    bar.decorate({ decorate(layer, fn) { layers[layer] = fn; } });
+    window.decorations = window.decorations ?? {};
+    window.decorations[name] = (device) => layers.benches(device);
+    await bar.ready;
+    bar.setBench(name);
+  }, bench);
+  const ringOf = async (page, bench) => {
+    await mount(page, bench);
+    await page.waitForSelector(`#decor-${bench} .bench-status`);
+    return page.evaluate((name) => window.decorations[name]({ labName: name }), bench);
+  };
+
+  const alice = await h.newPage(); // her team holds B4M since the first scenario
+  await signInAs(alice, 'alice');
+  assert.deepEqual(await ringOf(alice, 'B4M'), { ring: 'ours' });
+
+  const chloe = await h.newPage();
+  await signInAs(chloe, 'chloe');
+  const taken = await ringOf(chloe, 'B4M');
+  assert.equal(taken.ring, 'taken');
+  assert.match(taken.tooltip, /Les routeurs/);
+  const lockedRing = await ringOf(chloe, 'B5H');
+  assert.equal(lockedRing.ring, 'locked');
+  assert.equal(await ringOf(chloe, 'B6H'), null, 'a free bench has no ring');
+  assert.equal(await chloe.evaluate(() => window.decorations.B4M({ labName: 'B6H' })), null, 'another bench\'s device is not decorated');
+
+  for (const page of [ada, alice, chloe]) {
+    assert.deepEqual(page.errors, []);
+    await page.context().close();
+  }
+});

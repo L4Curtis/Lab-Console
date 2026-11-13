@@ -19,6 +19,11 @@
  *   benches/locks.json         { [bench]: { reason, by: Person, at } }
  *   benches/reservations.json  { reservations: [{ id, bench, teamId, start, end, by, createdAt, warnedAt?, startedAt? }] }
  *
+ * Every decision that depends on the state of a bench (who may release it,
+ * whether it is still idle, whether it is locked) is taken inside the update
+ * that changes it, never before: updates are queued, so what was true when a
+ * request arrived may not be true when its turn comes
+ *
  * Time comes from an injectable clock and the periodic work is one public
  * method, tick(), so the tests drive both
  */
@@ -265,6 +270,8 @@ export class Benches {
     await this.#occ.update((all) => {
       const o = all[name];
       if (o?.teamId === team.id) { already = true; return all; }
+      // The lock is another document: read it again here, as late as possible
+      if (this.lock(name) && !isAdmin(user)) throw httpError(423, 'benches.locked', 'This bench is locked', { reason: this.lock(name).reason });
       const elsewhere = Object.keys(all).find((b) => all[b].teamId === team.id);
       if (elsewhere) throw httpError(409, 'benches.team_has_bench', 'Your team already holds another bench', { bench: elsewhere });
       if (slot && slot.teamId !== team.id && !isAdmin(user)) {
@@ -309,17 +316,32 @@ export class Benches {
     return this.summary(name);
   }
 
-  /** Release by a member of the holding team or an admin (reason 'hand' / 'admin'), or by the system */
-  async release(actor, name, reason) {
+  /**
+   * Release by a member of the holding team or an admin (reason 'hand' /
+   * 'admin'), or by the system. Everything that decides whether the release
+   * may happen is checked inside the serialized update, against the bench as
+   * it is at that moment: the actor belongs to the holding team (or is an
+   * admin), and `expect(occupancy)`, when given, still holds. When it does
+   * not, the bench changed hands since the caller looked: 409 benches.changed
+   * and nothing is released
+   */
+  async release(actor, name, reason, { expect } = {}) {
     this.bench(name);
     let released = null;
+    let why = reason;
     await this.#occ.update((all) => {
-      released = all[name] ?? null;
-      if (!released) throw httpError(409, 'benches.not_taken', 'Nobody holds this bench');
+      const o = all[name];
+      if (!o) throw httpError(409, 'benches.not_taken', 'Nobody holds this bench');
+      const member = actor !== 'system' && this.#teams.isMember(actor, o.teamId);
+      if (actor !== 'system' && !member && !isAdmin(actor)) {
+        throw httpError(403, 'benches.not_member', 'Only the team that holds the bench may release it');
+      }
+      if (expect && !expect(o)) throw httpError(409, 'benches.changed', 'This bench changed hands in the meantime');
+      why ??= member ? 'hand' : 'admin';
+      released = o;
       delete all[name];
       return all;
     });
-    const why = reason ?? (actor !== 'system' && isAdmin(actor) && !this.#teams.isMember(actor, released.teamId) ? 'admin' : 'hand');
     const offers = await this.#afterRelease(name, released, actor, why);
     this.publishState();
     return { offers };
@@ -390,12 +412,13 @@ export class Benches {
   /** A member of the holding team (or an admin) accepts or refuses a request */
   async answer(user, name, userId, accept) {
     this.bench(name);
-    if (!this.isHolderMember(user, name) && !isAdmin(user)) {
-      throw httpError(403, 'benches.not_member', 'Only the team that holds the bench answers its requests');
-    }
     let request = null;
     await this.#occ.update((all) => {
       const o = all[name];
+      // Checked here, not before: the bench may have changed hands while this call was queued
+      if (!isAdmin(user) && !(o && this.#teams.isMember(user, o.teamId))) {
+        throw httpError(403, 'benches.not_member', 'Only the team that holds the bench answers its requests');
+      }
       const i = o?.requests?.findIndex((r) => r.id === userId) ?? -1;
       if (i < 0) throw httpError(404, 'benches.no_request', 'There is no such request');
       [request] = o.requests.splice(i, 1);
@@ -498,6 +521,8 @@ export class Benches {
     }
     const now = this.#now();
     if (e <= now) throw httpError(400, 'benches.slot_in_past', 'This slot is already over');
+    // A slot that has begun would let its team take the bench from the holder at once
+    if (!admin && s < now) throw httpError(400, 'benches.slot_in_past', 'This slot has already started');
     const { maxFuture, maxHours, maxDaysAhead } = this.#limits;
     if (!admin) {
       if (e - s > maxHours * HOUR) throw httpError(400, 'benches.slot_too_long', `A slot lasts at most ${maxHours} h`, { hours: maxHours });
@@ -510,6 +535,11 @@ export class Benches {
       doc.reservations = Array.isArray(doc.reservations) ? doc.reservations : [];
       const clash = doc.reservations.find((r) => r.bench === name && Date.parse(r.start) < e && s < Date.parse(r.end));
       if (clash) throw httpError(409, 'benches.slot_overlap', 'This slot overlaps another booking', { team: this.#teams.get(clash.teamId)?.name ?? '', start: clash.start, end: clash.end });
+      // The holder of the moment is promised a warning WARNING_MINUTES before: no slot may start sooner than that
+      const held = this.#occupancy(name);
+      if (!admin && held && held.teamId !== team.id && s - now < WARNING_MINUTES * 60_000) {
+        throw httpError(409, 'benches.slot_too_soon', `Another team holds this bench: a slot starts at least ${WARNING_MINUTES} minutes ahead`, { minutes: WARNING_MINUTES });
+      }
       const future = doc.reservations.filter((r) => r.teamId === team.id && Date.parse(r.end) > now).length;
       if (!admin && future >= maxFuture) throw httpError(409, 'benches.too_many_slots', `Your team already has ${maxFuture} slots booked`, { max: maxFuture });
       doc.reservations.push(created);
@@ -540,7 +570,10 @@ export class Benches {
   async teamChanged({ before, dissolved }) {
     if (dissolved && before) {
       const held = Object.entries(this.#occ.get()).find(([, o]) => o.teamId === before.id)?.[0];
-      if (held) await this.release('system', held, 'dissolved').catch((err) => this.#log.warn(`release of ${held}: ${err.message}`));
+      if (held) {
+        await this.release('system', held, 'dissolved', { expect: (o) => o.teamId === before.id })
+          .catch((err) => { if (err.code !== 'benches.changed') this.#log.warn(`release of ${held}: ${err.message}`); });
+      }
       const slots = this.#reservations().filter((r) => r.teamId === before.id);
       if (slots.length) {
         await this.#resv.update((doc) => {
@@ -555,6 +588,11 @@ export class Benches {
 
   // ── Periodic work ─────────────────────────────────────────────────────────
 
+  #idle(occupancy, at) {
+    const last = Date.parse(occupancy.lastActivity);
+    return Number.isFinite(last) && at - last >= this.#idleMs;
+  }
+
   /**
    * Release idle benches, warn the occupants of a bench booked by another
    * team ten minutes before the slot, tell a team its slot has started
@@ -562,11 +600,13 @@ export class Benches {
   async tick() {
     const now = this.#now();
     if (this.#published !== this.names().join('\n')) this.publishState(); // the diagram changed
-    for (const [name, o] of Object.entries(this.#occ.get())) {
-      const last = Date.parse(o.lastActivity);
-      if (Number.isFinite(last) && now - last >= this.#idleMs) {
-        await this.release('system', name, 'idle').catch((err) => this.#log.warn(`automatic release of ${name}: ${err.message}`));
-      }
+    // The snapshot may be stale by the time a bench comes up (a release hook takes time): the release
+    // checks again, inside the update, that this very occupancy is still there and still idle
+    for (const [name, snap] of Object.entries(this.#occ.get())) {
+      if (!this.#idle(snap, now)) continue;
+      await this.release('system', name, 'idle', {
+        expect: (o) => o.teamId === snap.teamId && o.since === snap.since && this.#idle(o, this.#now()),
+      }).catch((err) => { if (err.code !== 'benches.changed') this.#log.warn(`automatic release of ${name}: ${err.message}`); });
     }
 
     const marks = new Map(); // id → { warnedAt?, startedAt? }
@@ -574,13 +614,15 @@ export class Benches {
       const start = Date.parse(r.start);
       const end = Date.parse(r.end);
       const team = this.#teams.get(r.teamId);
-      if (!r.warnedAt && start > now && start - now <= WARNING_MINUTES * 60_000) {
+      if (start > now && start - now <= WARNING_MINUTES * 60_000) {
+        // Each holder is warned once: one who took the bench after the last warning is warned in turn
         const held = this.#occupancy(r.bench);
-        if (held && held.teamId !== r.teamId) {
+        const warned = r.warnedAt && held && Date.parse(r.warnedAt) >= Date.parse(held.since);
+        if (held && held.teamId !== r.teamId && !warned) {
           const data = { bench: r.bench, start: r.start, end: r.end, team: team?.name ?? null, minutes: Math.ceil((start - now) / 60_000) };
           this.#events.publish('benches:warning', data, { audience: (u) => this.isOccupant(u, r.bench) });
+          marks.set(r.id, { ...marks.get(r.id), warnedAt: iso(now) });
         }
-        marks.set(r.id, { ...marks.get(r.id), warnedAt: iso(now) });
       }
       if (!r.startedAt && start <= now && now < end) {
         if (team) this.#events.publish('benches:slot', { bench: r.bench, start: r.start, end: r.end }, { audience: (u) => team.members.includes(u.id) });

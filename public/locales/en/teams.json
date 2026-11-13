@@ -72,6 +72,7 @@
     "week": "{from} to {to}",
     "hint": "Click a free hour to book the bench for your team; click your slot to cancel it.",
     "noBench": "No bench in the diagram.",
+    "outside": "Bookings that do not fit between {from} and {to}:",
     "bookTitle": "Book {bench}, {day}",
     "limits": "At most {max} upcoming bookings per team, {hours} h each.",
     "start": "Start",
@@ -107,7 +108,6 @@
     "not_member": "Only the members of this team may do that.",
     "already_in_team": "{username} is already in the team.",
     "full": "A team has at most {max} members.",
-    "too_many_invitations": "Too many invitations are waiting ({max} at most).",
     "no_invitation": "This invitation does not exist (any more)."
   }
 }

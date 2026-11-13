@@ -71,6 +71,7 @@
     "thisWeek": "Cette semaine",
     "week": "Du {from} au {to}",
     "hint": "Cliquez sur une heure libre pour réserver la baie pour votre équipe ; cliquez sur votre créneau pour l’annuler.",
+    "outside": "Réservations qui ne tiennent pas entre {from} et {to} :",
     "noBench": "Aucune baie dans le schéma.",
     "bookTitle": "Réserver {bench}, {day}",
     "limits": "Au plus {max} réservations à venir par équipe, {hours} h chacune.",
@@ -107,7 +108,6 @@
     "not_member": "Réservé aux membres de cette équipe.",
     "already_in_team": "{username} fait déjà partie de l’équipe.",
     "full": "Une équipe compte au plus {max} membres.",
-    "too_many_invitations": "Trop d’invitations en attente ({max} au plus).",
     "no_invitation": "Cette invitation n’existe pas (ou plus)."
   }
 }

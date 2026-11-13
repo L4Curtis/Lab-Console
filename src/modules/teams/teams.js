@@ -19,7 +19,6 @@ import { EventEmitter } from 'node:events';
 import { httpError } from '../../lib/httpError.js';
 
 export const MAX_MEMBERS = 8;
-export const MAX_INVITATIONS = 10;
 
 /** A user, reduced to what other people may see of them */
 export const personOf = (user) => ({ id: String(user.id), username: String(user.username ?? ''), name: String(user.name || user.username || user.id) });
@@ -161,8 +160,8 @@ export class Teams extends EventEmitter {
         throw httpError(409, 'teams.already_in_team', 'This person is already in the team', { username });
       }
       if (t.invitations.some((i) => fold(i.username) === fold(username))) return false; // already invited: nothing new
+      // An invitation holds a seat until it is answered, so a team never has more invitations than free seats
       if (t.members.length + t.invitations.length >= MAX_MEMBERS) throw httpError(409, 'teams.full', `A team has at most ${MAX_MEMBERS} members`, { max: MAX_MEMBERS });
-      if (t.invitations.length >= MAX_INVITATIONS) throw httpError(409, 'teams.too_many_invitations', 'Too many invitations are waiting', { max: MAX_INVITATIONS });
       t.invitations.push({ username, by: personOf(by), at: new Date(this.#now()).toISOString() });
       return true;
     });
