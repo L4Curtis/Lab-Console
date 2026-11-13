@@ -362,8 +362,8 @@ an audience changes.
 **services** — a plain object. A module publishes its API as
 `services.<id> = {...}` while being created and other modules read it lazily,
 inside handlers, never at creation time (creation order must not matter).
-Today the consoles module publishes `services.consoles = { registry }`; the
-rooms lot adds `rooms` and `sharedTargets()`.
+The consoles module publishes `services.consoles = { registry, rooms,
+sharedTargets(), journal }` (§7, §9).
 
 `createApp().close()` calls every module's `shutdown()`, `auth.shutdown?.()`,
 ends the SSE streams, closes the HTTP server and waits for `store.flush()`.
@@ -397,6 +397,7 @@ services.consoles = {
   registry,                      // LabRegistry: model, getDevice(key), on('change')
   rooms,                         // RoomManager, see §9
   sharedTargets(),               // Set of 'host:port' used by several labs
+  journal,                       // ConsoleJournal: list(), meta(), canRead(user, meta, teamOf), paths() (§9)
 }
 services.teams = {                           // lot teams
   teamOf(userOrId) → Team | null               // { id, name, members: userId[] }
@@ -494,39 +495,121 @@ services.jobs = { running(labName) → Job | null, list({ bench }) }
 - **Diagram decorations** (owned by the rooms lot): `DiagramView` exposes
   `decorate(layer, fn)` where `fn(device) → { ring?, badges?, tooltip? } | null`
   and `refresh()`. Presence, line status, job progress and notes are layers.
-- **Pane actions** (owned by the rooms lot): `registerPaneAction({ id, icon,
-  title, when(session), run(pane) })` adds a button to console tiles.
+  `ring` is a class name (`.deco-ring.ring-<ring>`; the last layer's wins),
+  `badges` is `[{ text, color?, title?, kind? }]` (at most four drawn, then
+  "+n"), `tooltip` is extra lines of the device's tooltip; `decorate(layer,
+  null)` removes a layer. Call `refresh()` when the data behind a layer
+  changes; the consoles section exposes its view to later lots as it grows.
+  Device states (`setStates`): `idle`, `open` (in my workspace), `live` (open
+  in the application by someone else: a click joins), `busy` (refused by the
+  console server lately: busy outside the application), `disabled`.
+- **Pane actions** (owned by the rooms lot, `shared/paneActions.js`):
+  `registerPaneAction({ id, icon, title, when(session), enabled?(pane), run(pane), order? })`
+  adds a button to console tiles → `unregister()`. `title` is a dictionary
+  key or a function; `enabled(pane)` is asked again whenever the tile's state,
+  the keyboard or a task changes (`pane.mayType`, `pane.canAutomate`,
+  `pane.presenceBar.presence`). Break, export and inject are registered this
+  way (order 10, 20, 30). A session descriptor of a lab console carries
+  `device` (the device key).
 
 ## 9. Consoles and rooms
 
 One **room** per console line. The room owns the SSH → telnet session; browsers
-attach to it. `RoomManager` (`services.consoles.rooms`):
+attach to it. `RoomManager` (`services.consoles.rooms`, `src/modules/consoles/roomManager.js`):
 
 ```js
 rooms.get(targetKey) → ConsoleRoom | undefined
 rooms.list() → RoomSummary[]
-rooms.open(device, user, { cols, rows }) → ConsoleRoom    // creates or returns
-rooms.on('change', (summaries) => {})
+rooms.canOpen(device, user, { readOnly }) → { ok } | { ok: false, code, params, message }
+rooms.open(device, user, { cols, rows, readOnly }) → ConsoleRoom    // creates or returns; throws RoomError { code, params }
+rooms.busyOutside() → ['host:port']     // lines the console server refused in the last 15 min
+rooms.on('change', (summaries) => {}) · rooms.on('activity', (entry) => {}) · rooms.on('busy', (targets) => {})
 
-room.attach(client)                     // client: { user, send(msg), sendBytes(buf), close() }
-room.write(user, data)                  // ignored unless user is the pilot
-room.requestControl(user) / room.grantControl(to, by) / room.releaseControl(user)
-room.runExclusive(actor, label, async (cli) => { ... })   // automation takes the keyboard
+room.attach(client) → detach()          // client: { user, send(msg), sendBytes(buf), close(), readOnly? }
+room.write(user, data) → boolean        // ignored (false) unless the user may type: the pilot, or anyone
+                                        //   who may pilot when the keyboard is shared; nobody while a task runs
+room.requestControl(user) / room.grantControl(to, by) / room.denyControl(to, by) / room.releaseControl(user)
+room.takeControl(admin) / room.setShared(user, on) / room.hangUp(user)   // → { ok } | { ok: false, code, params }
+room.runExclusive(actor, label, async (cli) => { ... }, { signal })   // actor: User | 'system'
+room.cancelTask(user | 'system')
 room.cli                                // CliAutomation bound to this line
-room.summary()                          // { target, bench, device, users, pilot, task, since, lastActivity }
+room.summary()                          // { target, key, bench, device, state, users, pilot, shared, task,
+                                        //   since, lastActivity, lastCommand }
+room.presence(user)                     // the presence frame for that user
 ```
 
-`runExclusive` follows the same handover rule as a human request: if another
-user is piloting, they are asked, and control passes automatically after 30 s
-without an answer or when they have been idle for 2 min. It rejects with
-`code: 'console.control.refused'` when the pilot refuses.
+Who may pilot is `services.benches.canPilot(user, device)` when the teams lot
+provides it, every signed-in user otherwise (one call site, `mayPilot` in
+`src/modules/consoles/index.js`). Anyone signed in may watch an open line;
+opening a new line needs the right to pilot it (`consoles.open_not_allowed`).
+Limits are per user: `MAX_SESSIONS` lines on the platform (joining is free),
+`MAX_SESSIONS_PER_CLIENT` consoles per user (a read-only wall tile does not
+count), 20 openings a minute per user.
 
-WebSocket `/ws/console?device=<key>&cols&rows` keeps the upstream frames and
-adds, server → client: `{type:'replay'}` followed by the buffered bytes,
-`{type:'presence', users, pilot, you}`, `{type:'control', event, by, to}`;
-client → server: `{type:'control', action:'request'|'grant'|'deny'|'release'}`.
+Handover rule (people and tasks alike): no pilot or a pilot idle for 2 min →
+at once; otherwise the pilot is asked and control passes after 30 s without
+an answer; an admin takes it at once. One pending request at a time
+(`consoles.control_pending`); a task's request replaces a person's.
 
-SSE topics: `consoles:rooms` (sticky, all room summaries), `consoles:activity`.
+`runExclusive` refuses at once when the room is closed (`consoles.room_closed`),
+a task already holds it (`consoles.task_running`) or the actor may not pilot
+(`consoles.control_not_allowed`: spectators); it rejects with
+`code: 'consoles.control_refused'` when the pilot refuses (the contract said
+`console.control.refused`: codes of this module start with `consoles.`). Then
+it waits for the line to be ready (console server login done), locks every
+keyboard and runs `fn` inside `cli.perform()`. `signal` or `cancelTask()`
+(actor, pilot, admin, or 'system') stops it while it waits for the pilot,
+for the line, or while it runs (`err.cancelled`). Afterwards a person keeps
+the keyboard; a 'system' task gives it back to the previous pilot.
+
+The line stays open while someone is attached, 30 s after the last one
+leaves, 60 min without input (`IDLE_TIMEOUT_MINUTES`); "free the line"
+(`hangUp`: the pilot, an admin, or anyone who may pilot an unowned line).
+Lab parameters (`settings.get('lab')`: jump server, console login, allowed
+hosts) are read when a line opens. Lines share SSH connections
+(`src/lib/sshPool.js`: `SSH_CHANNELS_PER_CONNECTION`, 8 by default, under
+sshd's MaxSessions; a refused channel moves to another connection).
+
+What can go wrong, as codes: `consoles.ssh_*` (jump server), 
+`consoles.line_refused` (the console server refused the line: busy outside
+the application or dead), `consoles.console_server_unreachable`, and the
+status phase `silent` with `consoles.device_silent` (accepted, but nothing
+visible within 6 s of an Enter; the line stays open).
+
+WebSocket `/ws/console?device=<key>&cols&rows[&mode=wall]` keeps the upstream
+frames and adds, server → client: `{type:'replay', bytes}` followed by the
+buffered bytes (about 200 KB), `{type:'presence', users, pilot, you,
+canPilot, mayType, shared, task, pending, state}`, `{type:'control', event,
+by, to, until?, label?}` (events: request, granted, denied, released,
+timeout, idle, takeover, left, shared, unshared, cancelled, superseded, task,
+returned, free), `{type:'control-refused', action, code, params}`, status
+phase `silent`; client → server: `{type:'control',
+action:'request'|'grant'|'deny'|'release'|'take'|'share'|'unshare'|'hangup', to?}`.
+`mode=wall` joins an open line read-only (no keyboard, no automation, not
+counted in the per-user limit). Automation (`export-config`, `inject`) goes
+through `runExclusive`; its progress is sent to everyone on the line, the
+exported file and the refusals only to the person who asked.
+
+SSE topics: `consoles:rooms` (sticky, all room summaries), `consoles:activity`
+(`{ ts, kind: open|join|leave|control|task|freed|close|command, user, bench,
+device, target, event?, label?, state?, command? }`), `consoles:busy`
+(sticky, `busyOutside()`), `consoles:free` (to one user: "tell me when it is
+free" answered, `state: free|open|expired`).
+
+HTTP (`/api/consoles`): `GET /rooms` → `{ rooms, busy }`; `GET /activity` →
+the last 100 entries; `POST /notify { device }` → `{ target, until }` (probe
+every 30 s for 30 min, `nc -z` through the jump server; at most 10 per user),
+`GET /notify`, `DELETE /notify/:target`; `GET /journal` → the days this user
+may read; `GET /journal/:bench/:device/:day` → the day as a text file.
+
+**Console journal** (`src/modules/consoles/journal.js`): the device output
+per device and day, with marker lines (who took the keyboard, tasks, the
+end), never keystrokes; a sidecar `<day>.json` lists who attached, who held
+the keyboard and the team that held the bench (`services.benches.holder`),
+which is what `canRead` checks (those people, that team through
+`services.teams.teamOf`, admins). Capped per device and day
+(`JOURNAL_MAX_KB_PER_DAY`), swept daily (`JOURNAL_RETENTION_DAYS`).
+Downloads are audited (`console.journal.download`).
 
 ### Device automation (lot: ios)
 
@@ -598,7 +681,7 @@ data/
   auth/sessions.json        auth/local-admin.json (last TOTP step used)   auth/device-key.json (known-browser key)
   audit/<yyyy-mm>.jsonl
   diagrams/current.drawio   diagrams/versions/<ts>-<user>.drawio   diagrams/index.json
-  journal/<bench>/<device>/<yyyy-mm-dd>.log
+  journal/<bench>/<device>/<yyyy-mm-dd>.log   journal/<bench>/<device>/<yyyy-mm-dd>.json (who was there)
   teams/teams.json          benches/occupancy.json    benches/locks.json    benches/reservations.json
   accounts/users.json       accounts/invitations.json    auth/oidc.json (600)
   settings/<ns>.json (600)
@@ -666,8 +749,11 @@ device names used in paths go through `store.resolve`, never string concat.
   of public paths may answer. A new route is covered without touching it.
 - `npm run lint` (ESLint flat config) must pass.
 - The mocks are importable: `startMockLab({ port: 0, ssh, telnet, devices, ... })`
-  returns `{ port, close(), device(target) }` (`device('10.22.9.4:2001')` is
-  the simulated device behind that console port); `startMockOidc({ port: 0,
+  returns `{ port, close(), device(target), stats(), setBusy(port, on),
+  setDown(port, on) }` (`device('10.22.9.4:2001')` is the simulated device
+  behind that console port; like sshd, the jump server refuses a session
+  channel past `maxSessions`, 10 by default, and `stats()` counts connections
+  and channels); `startMockOidc({ port: 0,
   users })` returns `{ issuer, close() }`. `test/helpers/ios.js` wires a
   simulated device to the engine and the driver (`rig()`, `roundTrip()`).
   The mock provider also has `misbehave({ wrongNonce, groupsInUserinfoOnly,
