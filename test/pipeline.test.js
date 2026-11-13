@@ -219,8 +219,9 @@ describe('signed in: the application behaves as upstream', () => {
   });
 
   test('every module received the platform services, and the registry is shared', () => {
-    assert.deepEqual(Object.keys(lab.deps).sort(), ['audit', 'auth', 'config', 'events', 'infra', 'logger', 'services', 'store']);
+    assert.deepEqual(Object.keys(lab.deps).sort(), ['audit', 'auth', 'config', 'events', 'infra', 'logger', 'services', 'settings', 'store']);
     assert.equal(typeof lab.deps.services.consoles.registry.getDevice, 'function');
+    assert.equal(typeof lab.deps.settings.get('lab').ssh, 'object');
     assert.equal(lab.deps.store.root, lab.dataDir);
   });
 
