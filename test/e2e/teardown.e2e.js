@@ -28,7 +28,9 @@ const profiles = () => fs.readdirSync(os.tmpdir()).filter((n) => n.startsWith('p
 /** Run the broken scenario; → { code, signal, info } once the child has exited */
 function runBroken(mode) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [fixture], { cwd: repoRoot, env: { ...process.env, BROKEN: mode }, stdio: ['ignore', 'pipe', 'pipe'] });
+    // Without the runner's NODE_TEST_CONTEXT the child reports in plain TAP, not to our runner
+    const { NODE_TEST_CONTEXT: _runner, ...env } = process.env;
+    const child = spawn(process.execPath, [fixture], { cwd: repoRoot, env: { ...env, BROKEN: mode }, stdio: ['ignore', 'pipe', 'pipe'] });
     let output = '';
     let info = null;
     const onData = (d) => {
