@@ -503,6 +503,8 @@ services.jobs = { running(labName) → Job | null, list({ bench }) }
   `registerDiagramLayer(layer, fn)` → `unregister()` and `refreshDiagram()`
   from `shared/diagramLayers.js`; every diagram view on the page, drawn
   before or after, uses those layers after its own (presence).
+  `destroy()` stops a thrown-away view listening to that registry and to
+  the language; the consoles section's `destroy()` calls it.
   Device states (`setStates`): `idle`, `open` (in my workspace), `live` (open
   in the application by someone else: a click joins), `busy` (refused by the
   console server lately: busy outside the application), `disabled`.
@@ -624,7 +626,11 @@ keyboard and the teams that held the bench during the session
 and with each marker), which is what `canRead` checks (those people, those
 teams through `services.teams.teamOf`, admins). Read rights cover that
 session only: watching R1 in the afternoon does not open the morning's
-session of another team. Capped per device and day, all sessions together
+session of another team. Accepted limit: rights are per session, not per
+interval of presence, so someone who joins a session still open reads it
+from its first byte, including what was printed before they arrived. A
+session ends after the grace period or the idle timeout, which bounds this.
+Capped per device and day, all sessions together
 (`JOURNAL_MAX_KB_PER_DAY`), swept daily (`JOURNAL_RETENTION_DAYS`).
 Downloads are audited (`console.journal.download`).
 

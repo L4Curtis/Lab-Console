@@ -171,6 +171,23 @@ test('journal: read rights cover one session: bob, who watched in the afternoon,
   }
 });
 
+test('journal: someone who joins a session still open reads it from its start (accepted limit, documented)', async () => {
+  const { dir, journal, cleanup } = setup();
+  try {
+    const w = journal.open({ bench: 'B4M', device: 'R1', target: 't' });
+    w.attended(user('alice'));
+    w.output(Buffer.from('R1#before bob\r\n'));
+    w.attended(user('bob'));
+    w.output(Buffer.from('R1#with bob\r\n'));
+    await w.close();
+    const [s] = sessions(dir, 'B4M', 'R1', '2026-11-13');
+    assert.equal(journal.canRead(user('bob'), s.meta, () => null), true);
+    assert.match(s.log, /before bob[\s\S]*with bob/, 'one file per session: no per-person interval');
+  } finally {
+    await cleanup();
+  }
+});
+
 test('journal: a line driven only by a job names the team; a session past midnight goes on in a new file with its people', async () => {
   const { dir, clock, journal, cleanup } = setup({ teamOf: () => 'team-7' });
   try {

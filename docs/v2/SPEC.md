@@ -112,6 +112,9 @@ exposed directly to the Internet (no Cloudflare Access in front).
 - **Console journal**: what the device printed, with who held the keyboard,
   kept 14 days (`JOURNAL_RETENTION_DAYS`), size-capped, readable by the
   participants, the team that held the bench, and admins; downloadable.
+  Rights are per console session: someone who joins a session still open
+  reads it from its start (accepted limit, bounded by the grace period and
+  idle timeout).
   Output only, never keystrokes. A banner tells users that sessions are
   journaled.
 - Lab connection parameters (jump server, console login, allowed hosts) are
