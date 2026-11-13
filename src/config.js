@@ -165,6 +165,17 @@ function deepFreeze(value) {
 }
 
 /**
+ * APP_SECRET: the key material that encrypts secrets saved from the
+ * administration pages (today the SSO client secret, data/auth/oidc.json).
+ * Optional: without it they are kept in clear in files of mode 600
+ */
+function readAppSecret() {
+  const value = str('APP_SECRET');
+  if (value && value.length < 32) fail('APP_SECRET must be at least 32 characters long, e.g. the output of: openssl rand -base64 48');
+  return value;
+}
+
+/**
  * Read the whole configuration from the environment. Throws a ConfigError
  * listing every problem; never returns a partly valid object
  */
@@ -178,6 +189,8 @@ export function loadConfig() {
     dataDir: path.resolve(str('DATA_DIR', './data')),
     // UI language for a first visit; the browser remembers the user's choice
     defaultLocale: oneOf('DEFAULT_LOCALE', LOCALES, 'fr'),
+    // Encrypts the secrets saved from the administration pages (optional, see .env.example)
+    appSecret: readAppSecret(),
 
     diagramPath: path.resolve(str('DIAGRAM_PATH', './diagrams/diagram.drawio')),
     ssh: readSshConfig(),

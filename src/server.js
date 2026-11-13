@@ -67,6 +67,8 @@ export function createApp({ config, logger = createLogger, createAuth: makeAuth 
   app.use('/vendor/xterm', vendor('@xterm/xterm'));
   app.use('/vendor/xterm-addon-fit', vendor('@xterm/addon-fit'));
   app.use('/vendor/novnc', vendor('@novnc/novnc'));
+  // WebAuthn in the browser (the login page uses it: public, like the rest of /vendor)
+  app.use('/vendor/simplewebauthn', vendor(path.join('@simplewebauthn', 'browser', 'esm')));
   app.use('/vendor/fonts/plex-sans', vendor('@fontsource/ibm-plex-sans'));
   app.use('/vendor/fonts/plex-mono', vendor('@fontsource/ibm-plex-mono'));
   // fallthrough off: a missing public asset is a 404, never a redirect to the login page

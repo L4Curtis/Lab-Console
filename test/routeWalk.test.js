@@ -30,6 +30,10 @@ const PUBLIC = [
   'GET /login', 'GET /js/login.js',
   'GET /auth/me', 'GET /auth/login', 'GET /auth/callback',
   'POST /auth/local', 'POST /auth/logout',
+  // Accounts (invitation and reset links, passkeys): each checks its token or its challenge itself
+  'GET /join', 'GET /reset', 'GET /js/join.js',
+  'POST /auth/invitation', 'POST /auth/signup', 'POST /auth/reset-link', 'POST /auth/reset',
+  'POST /auth/passkey/options', 'POST /auth/passkey/verify', 'POST /auth/passkey/step/options', 'POST /auth/passkey/step/verify',
   'USE /login', 'USE /auth', // no-store / noindex headers, and the JSON 404 of unknown /auth paths
   'USE /css/', 'USE /locales/', 'USE /js/core/', 'USE /vendor/',
 ];
@@ -169,7 +173,8 @@ describe('route walk: nothing is served to an anonymous client outside the allow
 
   test('the public paths answer without a session', async () => {
     for (const p of ['/api/health', '/favicon.svg', '/favicon.ico', '/login', '/js/login.js', '/auth/me', '/css/app.css', '/css/login.css',
-      '/locales/fr/common.json', '/locales/en/auth.json', '/js/core/i18n.js', '/js/core/userMenu.js', '/vendor/fonts/plex-sans/400.css']) {
+      '/locales/fr/common.json', '/locales/en/auth.json', '/js/core/i18n.js', '/js/core/userMenu.js', '/vendor/fonts/plex-sans/400.css',
+      '/join', '/reset', '/js/join.js', '/js/core/passkeys.js', '/locales/fr/accounts.json', '/vendor/simplewebauthn/index.js']) {
       const res = await fetch(lab.url + p);
       assert.equal(res.status, 200, p);
       await res.arrayBuffer();

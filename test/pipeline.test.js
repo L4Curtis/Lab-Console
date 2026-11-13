@@ -130,6 +130,7 @@ describe('signed in: the application behaves as upstream', () => {
     assert.deepEqual(await (await get(lab, '/api/modules')).json(), [
       { id: 'consoles', title: 'Lab consoles', enabled: true },
       { id: 'proxmox', title: 'Infrastructure', enabled: true },
+      { id: 'accounts', title: 'Accounts', enabled: true },
     ]);
     const labs = await (await get(lab, '/api/consoles/labs')).json();
     assert.deepEqual(Object.keys(labs).sort(), ['error', 'labs', 'version', 'warnings']);
@@ -144,7 +145,8 @@ describe('signed in: the application behaves as upstream', () => {
     assert.equal(res.status, 200);
     assert.equal(res.headers.get('cache-control'), 'no-store');
     const me = await res.json();
-    assert.deepEqual(Object.keys(me).sort(), ['locale', 'providerName', 'user']);
+    assert.deepEqual(Object.keys(me).sort(), ['locale', 'passkeys', 'providerName', 'user']);
+    assert.equal(me.passkeys, false, 'http on an IP address: no passkeys');
     assert.equal(me.locale, 'fr');
     assert.equal(me.providerName, null);
     assert.equal(me.user.id, 'oidc:admin');

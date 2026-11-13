@@ -80,6 +80,7 @@ export function baseEnv(dataDir) {
     TRUSTED_PROXIES: '',
     DEFAULT_LOCALE: '',
     ALLOWED_ORIGINS: '',
+    APP_SECRET: '',
   };
 }
 
@@ -143,9 +144,10 @@ const KNOWN_USERS = { student1: () => student(1), student2: () => student(2), st
  * fakeAuth() from fakes.js, kept for tests written before the sign-in
  * existed), modules (a factory replacing the module list, e.g.
  * `(deps) => [createMyModule(deps)]`), logger, now (a clock for the sign-in
- * module: `now: () => clock.ms`)
+ * module: `now: () => clock.ms`), publicHost (the host name of PUBLIC_URL and
+ * of `url`: 'localhost' where the browser needs a domain name, for passkeys)
  */
-export async function startTestApp({ env = {}, logger = silentLogger, auth, modules, now } = {}) {
+export async function startTestApp({ env = {}, logger = silentLogger, auth, modules, now, publicHost = '127.0.0.1' } = {}) {
   const dataDir = tempDataDir();
   const { createApp } = await import('../../src/server.js');
   const { createAuth } = await import('../../src/modules/auth/index.js');
@@ -156,7 +158,7 @@ export async function startTestApp({ env = {}, logger = silentLogger, auth, modu
   let port;
   for (let attempt = 1; ; attempt++) {
     port = env.PORT ? Number(env.PORT) : await freePort();
-    config = await loadTestConfig({ PORT: String(port), PUBLIC_URL: `http://127.0.0.1:${port}`, ...env }, dataDir);
+    config = await loadTestConfig({ PORT: String(port), PUBLIC_URL: `http://${publicHost}:${port}`, ...env }, dataDir);
     lab = createApp({ config, logger, createAuth: makeAuth, createModules: modules });
     try {
       await lab.listen();
@@ -171,7 +173,7 @@ export async function startTestApp({ env = {}, logger = silentLogger, auth, modu
     }
   }
 
-  const url = `http://127.0.0.1:${port}`;
+  const url = `http://${publicHost}:${port}`;
   const opened = new Map(); // user id → Cookie header
 
   /** Open a session for `user` (a name from KNOWN_USERS or a User), as a successful sign-in would */
@@ -188,7 +190,7 @@ export async function startTestApp({ env = {}, logger = silentLogger, auth, modu
     dataDir,
     port,
     url,
-    wsUrl: `ws://127.0.0.1:${port}`,
+    wsUrl: `ws://${publicHost}:${port}`,
     signIn,
     /** Headers of a signed-in user; the same session is reused for the same user */
     as(who = 'admin') {
