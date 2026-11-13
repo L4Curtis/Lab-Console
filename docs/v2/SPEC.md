@@ -38,10 +38,19 @@ Dockerfile and `.env.example` updated. Existing behaviour and tests unchanged.
 - Client IP comes from `TRUSTED_PROXIES` only.
 - Login page: provider button, a discreet "local administrator" form, both
   languages, clear errors, no information leak about which field was wrong.
-- User menu in the rail: name, role, language switch, sign out.
+- User menu in the rail: name, role, sign out. (The language switch is in
+  the rail too, but belongs to the lot i18n.)
 - `dev/mock-oidc.js`: an importable fake provider with a user picker
   (three students, one admin), used by tests and by the pre-production stack.
-- `AUTH_MODE=off` keeps the application usable exactly as upstream.
+- **No mode without sign-in** (owner decision, 12 Nov). The application
+  refuses to start, with a readable message, unless the local administrator
+  is configured; OIDC stays optional. Tests sign in for real (mock provider,
+  local administrator with a computed code, or a session created in the
+  session store by the test helper).
+- Exposed directly to the Internet: throttling keyed on the real client
+  address (trusted proxies only) and on the user name, with exponential
+  backoff; identical answers and timing whether or not an account exists;
+  `X-Robots-Tag: noindex` on the login page; no version or stack in errors.
 
 ### Lot i18n
 Every user-visible string of the existing UI (shell, consoles, infra, dialogs,

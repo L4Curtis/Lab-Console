@@ -1,6 +1,13 @@
 /** HTTP + live-event access to the backend. */
 import { tError } from './i18n.js';
 
+let leaving = false;
+
+/** The page is going away on purpose (sign-out): a request refused meanwhile must not send it elsewhere */
+export function leavingPage() {
+  leaving = true;
+}
+
 export async function getJson(url) {
   return request('GET', url);
 }
@@ -20,6 +27,11 @@ export async function request(method, url, body) {
   let data = null;
   try { data = await res.json(); } catch { /* empty or non-JSON body */ }
   if (!res.ok) {
+    // The session ended (signed out elsewhere, revoked, expired): back to the sign-in page, then here again
+    if (res.status === 401 && data?.code === 'auth.required' && !leaving && location.pathname !== '/login') {
+      leaving = true;
+      location.assign(`/login${location.hash}`);
+    }
     const fallback = data?.error || `${url} answered HTTP ${res.status}`;
     const err = new Error(data?.code ? tError(data.code, data.params, fallback) : fallback);
     err.status = res.status;

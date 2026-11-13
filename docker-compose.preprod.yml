@@ -1,0 +1,64 @@
+# Pre-production only: Lab Console signs in through the MOCK identity provider
+# (dev/mock-oidc.js), which lets ANYONE who reaches it sign in as ANY of its
+# users, administrator included, without a password. Never on a stack that
+# real accounts use. See docs/v2/AUTH.md, "A pre-production stack".
+#
+#   docker compose -f docker-compose.yml -f docker-compose.preprod.yml up -d --build
+#
+# Two variables, in the .env next to this file (compose reads it for ${…}):
+#   MOCK_OIDC_ISSUER   the address of the mock as BOTH the testers' browsers
+#                      and the lab-console container reach it, e.g.
+#                      http://192.168.10.250:9100 (no final slash)
+#   MOCK_OIDC_PUBLISH  where the host publishes it, e.g. 192.168.10.250:9100
+#                      (default 127.0.0.1:9100: this machine only)
+#
+# The production image is unchanged: it never contains dev/. The mock runs in
+# a plain Node image, from the file mounted read-only, with nothing installed.
+services:
+  mock-oidc:
+    image: node:22-alpine
+    container_name: lab-console-mock-oidc
+    # The mock refuses to start under NODE_ENV=production, which the
+    # Lab Console image sets; this container is not that image
+    environment:
+      NODE_ENV: development
+    command:
+      - node
+      - /mock/mock-oidc.js
+      - --host
+      - 0.0.0.0
+      - --expose
+      - --port
+      - "9100"
+      - --issuer
+      - ${MOCK_OIDC_ISSUER:?set MOCK_OIDC_ISSUER in .env, e.g. http://192.168.10.250:9100}
+    volumes:
+      - ./dev/mock-oidc.js:/mock/mock-oidc.js:ro
+    ports:
+      - "${MOCK_OIDC_PUBLISH:-127.0.0.1:9100}:9100"
+    user: node
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    pids_limit: 64
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9100/.well-known/openid-configuration"]
+      interval: 30s
+      timeout: 3s
+    restart: unless-stopped
+
+  lab-console:
+    depends_on:
+      mock-oidc:
+        condition: service_healthy
+    # These win over the OIDC_* lines of .env: the mock's own client
+    environment:
+      OIDC_ISSUER: ${MOCK_OIDC_ISSUER:?set MOCK_OIDC_ISSUER in .env}
+      OIDC_CLIENT_ID: lab-console
+      OIDC_CLIENT_SECRET: mock-secret
+      OIDC_ADMIN_GROUPS: admins
+      OIDC_ALLOWED_GROUPS: ""
+      OIDC_PROVIDER_NAME: Mock SSO
+      # The mock speaks plain http on a LAN address
+      OIDC_ALLOW_INSECURE: "true"

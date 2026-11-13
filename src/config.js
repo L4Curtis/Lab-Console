@@ -26,8 +26,17 @@ export class ConfigError extends Error {
   }
 }
 
-/** Client addresses are only read from X-Forwarded-For behind these proxies */
+/**
+ * Client addresses are only read from X-Forwarded-For behind these proxies.
+ * The upstream TRUST_PROXY=true believed the header from any peer, so any
+ * client could choose the address that the sign-in limits and the audit
+ * trail see: a deployment that still sets it is refused, not silently changed
+ */
 function trustedProxies() {
+  if (bool('TRUST_PROXY', false)) {
+    fail('TRUST_PROXY=true is no longer supported: it let any client choose its own address. '
+      + 'Remove it and list every proxy in front of Lab Console in TRUSTED_PROXIES instead (see docs/v2/AUTH.md, "Exposed to the Internet")');
+  }
   const entries = list('TRUSTED_PROXIES');
   try {
     parseTrustedProxies(entries);
@@ -43,11 +52,8 @@ function readServerConfig() {
     host: str('HOST', '0.0.0.0'),
     port: int('PORT', 3000, { min: 0, max: 65535 }), // 0 = any free port (tests)
     // Public origin of the platform, e.g. https://lab.example.org: OIDC redirect
-    // URIs and cookie security derive from it. Required when auth is on
+    // URIs and cookie security derive from it. Required
     publicUrl: origin('PUBLIC_URL'),
-    // Legacy switch: believe X-Forwarded-For from ANY peer. Prefer TRUSTED_PROXIES,
-    // which wins when both are set
-    trustProxy: bool('TRUST_PROXY', false),
     trustedProxies: trustedProxies(),
     // Extra origins allowed to open terminal WebSockets (same-origin is always allowed)
     allowedOrigins: list('ALLOWED_ORIGINS'),
@@ -186,7 +192,9 @@ export function loadConfig() {
     auth: readAuthConfig(),
   };
 
-  if (assembled.auth.mode === 'on' && !assembled.server.publicUrl) fail('PUBLIC_URL is required when AUTH_MODE=on');
+  if (!assembled.server.publicUrl && !str('PUBLIC_URL')) {
+    fail('PUBLIC_URL is required: the address users type, e.g. https://lab.example.org (sign-in redirects and cookie security derive from it)');
+  }
 
   const problems = takeErrors();
   if (problems.length) throw new ConfigError(problems);

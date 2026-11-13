@@ -77,7 +77,7 @@ export function portRange(name, fallback) {
   return { min: Number(m[1]), max: Number(m[2]) };
 }
 
-/** One value out of a closed set, case-insensitive: oneOf('AUTH_MODE', ['on', 'off'], 'on') */
+/** One value out of a closed set, case-insensitive: oneOf('DEFAULT_LOCALE', ['fr', 'en'], 'fr') */
 export function oneOf(name, allowed, fallback) {
   const raw = str(name).toLowerCase();
   if (!raw) return fallback;

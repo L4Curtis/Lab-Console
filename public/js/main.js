@@ -10,6 +10,7 @@ import { h, icon, prefs } from './core/dom.js';
 import { getJson } from './core/api.js';
 import { loadSession } from './core/session.js';
 import { initI18n, setLocale, getLocale, onLocaleChange, t, tNode } from './core/i18n.js';
+import { mountUserMenu } from './core/userMenu.js';
 
 const MODULES = [
   { id: 'consoles', path: 'consoles', titleKey: 'common.shell.consoles', icon: 'topology', load: () => import('./modules/consoles/index.js') },
@@ -32,6 +33,7 @@ async function init() {
   // 'terminal' is needed as soon as the shared workspace is imported, by any section
   await initI18n({ defaultLocale: session.locale, namespaces: ['common', 'terminal'] });
   bindLanguageSwitch();
+  mountUserMenu();
 
   // The backend says which modules are live; disabled ones show a "soon" tag
   let status = [];

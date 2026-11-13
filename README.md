@@ -12,8 +12,8 @@ Browser ──WebSocket──► Lab Console ──SSH (exec)──► jump serv
 
 ```bash
 cp .env.example .env        # Windows: Copy-Item .env.example .env
-# edit .env: SSH_* (jump server) and TELNET_* (console login)
-# and AUTH_MODE=off (see below): sign-in is not part of this build yet
+# edit .env: PUBLIC_URL, SSH_* (jump server) and TELNET_* (console login)
+npm run setup-admin         # prints the three LOCAL_ADMIN_* lines: paste them into .env
 docker compose up -d --build
 ```
 
@@ -42,6 +42,13 @@ SSH_PORT=2222
 npm run mock-lab     # terminal 1
 npm start            # terminal 2
 ```
+
+To try the identity provider as well, `npm run mock-oidc` starts a fake one
+on `http://127.0.0.1:9100` with a user picker (three students, one admin) and
+prints the `OIDC_*` lines to put in `.env`. Anyone can sign in as anyone
+there: it is a development tool, and it refuses to start with
+`NODE_ENV=production`. A pre-production Docker stack can use it through
+`docker-compose.preprod.yml` (docs/v2/AUTH.md §6).
 
 `MOCK_DOWN_PORTS=2003` simulates an unplugged console, `MOCK_BUSY_PORTS=2004`
 a line held outside the app.
@@ -106,16 +113,19 @@ top/middle/bottom). Any other naming falls back to plain tabs.
 Recommended on the jump server: a dedicated account that may only run telnet,
 for example `ForceCommand` in `sshd_config` or a restricted shell.
 
-With `AUTH_MODE=off` the platform has no login: anyone who can open it can use
-the lab consoles, the admin switches and the Proxmox VMs, as an anonymous
-administrator. Expose it on the lab network only, or behind your school's
-reverse proxy/SSO. `AUTH_MODE=on` is the default and, until the sign-in module
-ships, refuses to start: running open is always a deliberate choice.
+**Everything needs a signed-in user**: pages, API, live events and the three
+console WebSockets. People sign in through your identity provider (OpenID
+Connect: Pocket ID, Authentik, Keycloak, Authelia…), and a local
+administrator (password + one-time code) always exists for when the provider
+is down. There is no mode without sign-in: the platform refuses to start until
+`LOCAL_ADMIN_*` is set (`npm run setup-admin`). Configuration:
+[docs/v2/AUTH.md](docs/v2/AUTH.md).
 
-Behind a reverse proxy, list its address in `TRUSTED_PROXIES` (IP addresses or
-CIDR blocks) so that client addresses are read from `X-Forwarded-For`; the
-header is ignored when it comes from anyone else. State (audit trail, and later
-sessions and backups) is written to `DATA_DIR` only: the Docker image runs with
+Behind a reverse proxy, list every hop in `TRUSTED_PROXIES` (IP addresses or
+CIDR blocks; behind a CDN, its published ranges too) so that client addresses
+are read from `X-Forwarded-For`; the header is ignored when it comes from
+anyone else. The upstream `TRUST_PROXY=true` is refused at start-up. State (sessions, audit trail,
+and later backups) is written to `DATA_DIR` only: the Docker image runs with
 a read-only root filesystem and a volume on `/data`.
 
 ## Console tools (v1.1)

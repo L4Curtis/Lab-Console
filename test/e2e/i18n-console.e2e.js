@@ -32,7 +32,10 @@ before(async () => {
   });
   lab = await startTestApp({ env: { SSH_PORT: String(sshPort), SSH_HOST: '127.0.0.1', ALLOWED_CONSOLE_HOSTS: '10.22.9.211,10.22.9.212' } });
   browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium', args: ['--no-sandbox'] });
-  page = await browser.newPage();
+  // Signed in as a student: a real session, its cookie handed to the browser
+  const context = await browser.newContext();
+  await context.addCookies([{ name: lab.deps.auth.cookieName, value: lab.signIn('student1').token, url: lab.url, httpOnly: true, sameSite: 'Lax' }]);
+  page = await context.newPage();
   await page.goto(lab.url);
   await page.waitForSelector('section.view-consoles .device');
 });

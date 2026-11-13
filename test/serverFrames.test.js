@@ -62,7 +62,7 @@ async function render(frame) {
 
 function open(lab, query) {
   return new Promise((resolve, reject) => {
-    const ws = new WebSocket(`${lab.wsUrl}/ws/console?${query}`, { headers: { origin: lab.url } });
+    const ws = new WebSocket(`${lab.wsUrl}/ws/console?${query}`, { headers: { origin: lab.url, ...lab.as('student1') } });
     const frames = [];
     ws.on('message', (raw, isBinary) => { if (!isBinary) frames.push(JSON.parse(raw.toString())); });
     ws.on('close', () => resolve(frames));
@@ -73,7 +73,7 @@ function open(lab, query) {
 test('frames: a device outside the allow-list is refused with its name', async () => {
   const lab = await startTestApp({ env: { ALLOWED_CONSOLE_HOSTS: '10.9.9.9' } });
   try {
-    const { labs } = await (await fetch(`${lab.url}/api/consoles/labs`)).json();
+    const { labs } = await (await fetch(`${lab.url}/api/consoles/labs`, { headers: lab.as('student1') })).json();
     const device = labs.flatMap((l) => l.devices)[0];
     assert.equal(device.allowed, false);
     const [frame] = await open(lab, `device=${encodeURIComponent(device.key)}`);
@@ -81,7 +81,7 @@ test('frames: a device outside the allow-list is refused with its name', async (
     const text = await render(frame);
     assert.ok(text.fr.includes(device.name) && text.en.includes(device.name));
     // The diagram notes name the same refusals, with a code of their own
-    const warning = (await (await fetch(`${lab.url}/api/consoles/labs`)).json()).warnings.find((w) => w.code === 'consoles.warn_not_allowed');
+    const warning = (await (await fetch(`${lab.url}/api/consoles/labs`, { headers: lab.as('student1') })).json()).warnings.find((w) => w.code === 'consoles.warn_not_allowed');
     assert.ok(warning);
     assert.match((await render(warning)).fr, /liste autorisée/);
   } finally {

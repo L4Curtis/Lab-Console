@@ -9,7 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import * as env from '../src/lib/env.js';
-import { withEnv, loadTestConfig, baseEnv, tempDataDir, repoRoot } from './helpers/app.js';
+import { withEnv, loadTestConfig, baseEnv, tempDataDir, repoRoot, TEST_ADMIN } from './helpers/app.js';
 
 /** Run `fn` with these variables set, and hand back the problems the readers collected */
 function reading(vars, fn) {
@@ -97,11 +97,10 @@ test('fail / takeErrors: fragments add their own problems to the shared list', (
 
 test('config: defaults of the global keys, and the upstream sections unchanged', async () => {
   const config = await loadTestConfig();
-  assert.equal(config.auth.mode, 'off');
   assert.equal(config.defaultLocale, 'fr');
-  assert.equal(config.server.publicUrl, '');
-  assert.equal(config.server.trustProxy, false);
+  assert.equal(config.server.publicUrl, 'http://127.0.0.1', 'the base test environment sets one: it is required');
   assert.deepEqual(config.server.trustedProxies, []);
+  assert.equal('trustProxy' in config.server, false, 'the upstream switch is gone');
   assert.ok(path.isAbsolute(config.dataDir));
   assert.deepEqual(Object.keys(config).sort(),
     ['auth', 'consoles', 'dataDir', 'defaultLocale', 'diagramPath', 'infraConfigPath', 'limits', 'proxmox', 'server', 'ssh', 'telnet']);
@@ -117,17 +116,28 @@ test('config: DATA_DIR defaults to ./data and is made absolute', async () => {
 
 test('config: the global keys are read from the environment', async () => {
   const config = await loadTestConfig({
-    PUBLIC_URL: 'https://lab.example.org/', DEFAULT_LOCALE: 'EN', TRUSTED_PROXIES: '192.168.10.112, 10.0.0.0/8', TRUST_PROXY: 'true',
+    PUBLIC_URL: 'https://lab.example.org/', DEFAULT_LOCALE: 'EN', TRUSTED_PROXIES: '192.168.10.112, 10.0.0.0/8', TRUST_PROXY: 'false',
   });
   assert.equal(config.server.publicUrl, 'https://lab.example.org');
   assert.equal(config.defaultLocale, 'en');
   assert.deepEqual(config.server.trustedProxies, ['192.168.10.112', '10.0.0.0/8']);
-  assert.equal(config.server.trustProxy, true);
+});
+
+test('config: the upstream TRUST_PROXY=true (believe any peer) is refused, with or without a list', async () => {
+  // It let any client pick the address the sign-in limits and the audit trail see
+  for (const env of [{ TRUST_PROXY: 'true' }, { TRUST_PROXY: '1', TRUSTED_PROXIES: '192.168.10.112' }]) {
+    await assert.rejects(loadTestConfig(env), (err) => {
+      assert.equal(err.name, 'ConfigError');
+      assert.match(err.problems.join('\n'), /TRUST_PROXY=true is no longer supported.*TRUSTED_PROXIES/);
+      return true;
+    }, JSON.stringify(env));
+  }
 });
 
 test('config: frozen all the way down', async () => {
   const config = await loadTestConfig();
-  assert.throws(() => { config.auth.mode = 'on'; }, TypeError);
+  assert.throws(() => { config.auth.localAdmin.username = 'intruder'; }, TypeError);
+  assert.throws(() => { config.auth.oidc.adminGroups.push('everyone'); }, TypeError);
   assert.throws(() => { config.server.trustedProxies.push('0.0.0.0/0'); }, TypeError);
   assert.throws(() => { config.extra = 1; }, TypeError);
 });
@@ -147,32 +157,73 @@ test('config: every problem is listed at once, in a ConfigError', async () => {
     },
   );
   // A failed load leaves nothing behind for the next one
-  assert.equal((await loadTestConfig()).auth.mode, 'off');
+  assert.equal((await loadTestConfig()).auth.localAdmin.username, 'root');
 });
 
-test('config: AUTH_MODE=on (the default) is refused by this build, with a message that says what to do', async () => {
-  for (const mode of ['on', '']) {
-    await assert.rejects(loadTestConfig({ AUTH_MODE: mode, PUBLIC_URL: 'https://lab.example.org' }), (err) => {
-      assert.equal(err.problems.length, 1);
-      assert.match(err.problems[0], /AUTH_MODE=on .*does not include yet/);
-      assert.match(err.problems[0], /Set AUTH_MODE=off/);
+// ── Sign-in settings (src/modules/auth/config.js) ───────────────────────────
+
+test('config: the local administrator and an absent identity provider', async () => {
+  const { auth } = await loadTestConfig();
+  assert.deepEqual(auth.localAdmin, { username: TEST_ADMIN.username, passwordHash: TEST_ADMIN.passwordHash, totpSecret: TEST_ADMIN.totpSecret });
+  assert.equal(auth.oidc.enabled, false);
+  assert.deepEqual(Object.keys(auth).sort(), ['localAdmin', 'oidc']);
+});
+
+test('config: without a local administrator the configuration is refused, and says what to do', async () => {
+  for (const missing of ['LOCAL_ADMIN_USERNAME', 'LOCAL_ADMIN_PASSWORD_HASH', 'LOCAL_ADMIN_TOTP_SECRET']) {
+    await assert.rejects(loadTestConfig({ [missing]: '' }), (err) => {
+      assert.equal(err.name, 'ConfigError');
+      assert.equal(err.problems.length, 1, err.problems.join('\n'));
+      assert.match(err.problems[0], new RegExp(`The local administrator is not configured \\(${missing} is missing\\)`));
+      assert.match(err.problems[0], /npm run setup-admin/);
       return true;
     });
   }
-  await assert.rejects(loadTestConfig({ AUTH_MODE: 'on' }), /PUBLIC_URL is required when AUTH_MODE=on/);
-  await assert.rejects(loadTestConfig({ AUTH_MODE: 'sometimes' }), /AUTH_MODE must be one of on, off/);
+  await assert.rejects(loadTestConfig({ LOCAL_ADMIN_USERNAME: '', LOCAL_ADMIN_PASSWORD_HASH: '', LOCAL_ADMIN_TOTP_SECRET: '' }),
+    /LOCAL_ADMIN_USERNAME, LOCAL_ADMIN_PASSWORD_HASH, LOCAL_ADMIN_TOTP_SECRET are missing/);
 });
 
-test('startup: `node src/server.js` with AUTH_MODE=on exits at once with the reason', () => {
+test('config: the local administrator\'s values are checked', async () => {
+  await assert.rejects(loadTestConfig({ LOCAL_ADMIN_USERNAME: 'root user' }), /LOCAL_ADMIN_USERNAME must be/);
+  await assert.rejects(loadTestConfig({ LOCAL_ADMIN_PASSWORD_HASH: 'my-password' }), /Never put the password itself here/);
+  await assert.rejects(loadTestConfig({ LOCAL_ADMIN_TOTP_SECRET: 'ABCDEF' }), /LOCAL_ADMIN_TOTP_SECRET must be the base32 secret/);
+  await assert.rejects(loadTestConfig({ LOCAL_ADMIN_TOTP_SECRET: 'not base32!' }), /LOCAL_ADMIN_TOTP_SECRET/);
+  const spaced = await loadTestConfig({ LOCAL_ADMIN_TOTP_SECRET: 'gezd gnbv gy3t qojq gezd gnbv gy3t qojq' });
+  assert.equal(spaced.auth.localAdmin.totpSecret, TEST_ADMIN.totpSecret, 'spaces and lower case, as some apps show it');
+});
+
+test('config: PUBLIC_URL is required', async () => {
+  await assert.rejects(loadTestConfig({ PUBLIC_URL: '' }), /PUBLIC_URL is required/);
+});
+
+test('config: an identity provider', async () => {
+  const { auth } = await loadTestConfig({
+    OIDC_ISSUER: 'https://id.example.org/', OIDC_CLIENT_ID: 'lab', OIDC_CLIENT_SECRET: 's3cret', OIDC_SCOPES: 'openid profile email',
+    OIDC_GROUPS_CLAIM: 'realm_access.roles', OIDC_ADMIN_GROUPS: 'admins,teachers', OIDC_ALLOWED_GROUPS: 'rt1', OIDC_PROVIDER_NAME: 'Keycloak',
+    OIDC_CLIENT_AUTH_METHOD: 'client_secret_post',
+  });
+  assert.deepEqual(auth.oidc, {
+    enabled: true, issuer: 'https://id.example.org/', clientId: 'lab', clientSecret: 's3cret', clientAuthMethod: 'client_secret_post',
+    scopes: ['openid', 'profile', 'email'], groupsClaim: 'realm_access.roles', adminGroups: ['admins', 'teachers'], allowedGroups: ['rt1'],
+    providerName: 'Keycloak', allowInsecure: false,
+  });
+  await assert.rejects(loadTestConfig({ OIDC_ISSUER: 'http://id.example.org', OIDC_CLIENT_ID: 'lab' }), /OIDC_ISSUER must use https/);
+  await assert.rejects(loadTestConfig({ OIDC_ISSUER: 'https://id.example.org' }), /OIDC_CLIENT_ID is required/);
+  await assert.rejects(loadTestConfig({ OIDC_CLIENT_ID: 'lab' }), /OIDC_ISSUER is empty/);
+  await assert.rejects(loadTestConfig({ OIDC_ISSUER: 'https://id.example.org', OIDC_CLIENT_ID: 'x', OIDC_CLIENT_AUTH_METHOD: 'mtls' }), /OIDC_CLIENT_AUTH_METHOD/);
+});
+
+test('startup: `node src/server.js` without a local administrator exits at once with the reason', () => {
   const dataDir = tempDataDir();
   try {
     const run = spawnSync(process.execPath, ['src/server.js'], {
       cwd: repoRoot, encoding: 'utf8', timeout: 20_000,
-      env: { PATH: process.env.PATH, ...baseEnv(dataDir), AUTH_MODE: 'on', PUBLIC_URL: 'https://lab.example.org' },
+      env: { PATH: process.env.PATH, ...baseEnv(dataDir), LOCAL_ADMIN_PASSWORD_HASH: '', LOCAL_ADMIN_TOTP_SECRET: '' },
     });
     assert.equal(run.status, 1);
     assert.match(run.stderr, /Invalid configuration/);
-    assert.match(run.stderr, /AUTH_MODE=on .*Set AUTH_MODE=off/s);
+    assert.match(run.stderr, /The local administrator is not configured \(LOCAL_ADMIN_PASSWORD_HASH, LOCAL_ADMIN_TOTP_SECRET are missing\)/);
+    assert.match(run.stderr, /never runs without sign-in: run "npm run setup-admin"/);
     assert.equal(run.stdout, '', 'nothing started');
   } finally {
     fs.rmSync(dataDir, { recursive: true, force: true });

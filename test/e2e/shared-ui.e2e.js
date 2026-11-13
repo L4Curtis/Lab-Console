@@ -3,8 +3,9 @@
  * and the language, and the shared helpers behave (dialogs: focus trap,
  * Escape, ARIA, typed confirmation; tabs: lazy loading, keyboard, address)
  *
- * Self-contained on purpose: it starts the application itself (anonymous
- * auth, ephemeral port) and drives the system Chromium through
+ * Self-contained on purpose: it starts the application itself (ephemeral
+ * port, an administrator's session opened by the test helper and handed to
+ * the browser as its cookie) and drives the system Chromium through
  * playwright-core. Nothing here needs the mock lab
  */
 import { test, before, after } from 'node:test';
@@ -20,7 +21,9 @@ const pageErrors = [];
 before(async () => {
   lab = await startTestApp();
   browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium', args: ['--no-sandbox'] });
-  page = await browser.newPage();
+  const context = await browser.newContext();
+  await context.addCookies([{ name: lab.deps.auth.cookieName, value: lab.signIn('admin').token, url: lab.url, httpOnly: true, sameSite: 'Lax' }]);
+  page = await context.newPage();
   page.on('pageerror', (err) => pageErrors.push(err.message));
   page.on('console', (msg) => { if (msg.type() === 'error') pageErrors.push(msg.text()); });
   await page.goto(lab.url);
@@ -40,9 +43,9 @@ test('boot: session and language are loaded before the screens, without errors',
   const state = await page.evaluate(async () => {
     const { session } = await import('/js/core/session.js');
     const { t, getLocale } = await import('/js/core/i18n.js');
-    return { user: session.user.id, isAdmin: session.isAdmin, mode: session.mode, loaded: session.loaded, locale: getLocale(), cancel: t('common.actions.cancel') };
+    return { user: session.user.id, isAdmin: session.isAdmin, loaded: session.loaded, locale: getLocale(), cancel: t('common.actions.cancel') };
   });
-  assert.deepEqual(state, { user: 'anonymous', isAdmin: true, mode: 'off', loaded: true, locale: 'fr', cancel: 'Annuler' });
+  assert.deepEqual(state, { user: 'oidc:admin', isAdmin: true, loaded: true, locale: 'fr', cancel: 'Annuler' });
   assert.equal(await page.locator('#rail-items .rail-btn').count(), 2, 'the existing sections are still there');
   await page.waitForSelector('section.view-consoles svg');
   assert.ok(await page.locator('section.view-consoles svg').count() > 0, 'the consoles screen rendered its diagram');

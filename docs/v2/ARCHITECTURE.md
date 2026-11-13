@@ -10,9 +10,11 @@ Feature decisions live in [SPEC.md](SPEC.md). Base: upstream v1.1.1.
 
 ## 1. Principles
 
-1. **Stay close to upstream.** Plain ES modules, no build step, no TypeScript, no
-   front-end framework, `node:test`. Same file style as the existing code: a
-   header comment explaining the *why*, small modules, private `#fields`.
+1. **Keep the stack simple.** Plain ES modules, no build step, no TypeScript, no
+   front-end framework, `node:test`, because they are simple, not to stay
+   mergeable with upstream (owner decision, 12 Nov: clean code comes first;
+   unclear code is rewritten inside a lot's scope). Same file style: a header
+   comment explaining the *why*, small modules, private `#fields`.
 2. **Security by default.** Every HTTP route, SSE stream and WebSocket requires
    an authenticated user unless listed as public in §4. Authorization is
    checked on the server for every action; the browser is never trusted.
@@ -41,7 +43,7 @@ src/
     cliAutomation.js        expect-like engine on a console line
     drivers/ciscoIos.js     device procedures built on the engine (lot: ios)
   modules/
-    auth/                   sessions, OIDC, local admin + TOTP   (lot: auth)
+    auth/                   sessions, OIDC, local accounts + TOTP, roles   (lot: auth)
     consoles/               diagram, rooms, console WebSocket    (lot: rooms)
     benches/                occupancy, reservations, history     (lot: benches)
     admin/                  diagram import, sessions, audit, announcements, health
@@ -51,8 +53,8 @@ src/
     checks/                 line status, cabling, ping matrix, interface overlay
     proxmox/                unchanged
 public/
-  login.html                the only page served without a session (lot: auth)
-  js/core/                  dom.js, api.js, i18n.js, session.js   (public: the login page uses them)
+  login.html, js/login.js   the only page served without a session, and its script (lot: auth)
+  js/core/                  dom.js, api.js, i18n.js, session.js, userMenu.js   (public: the login page uses them)
   js/shared/                workspace, panes, dialog.js, tabs.js
   js/modules/<section>/     one folder per rail section
   locales/<lang>/<ns>.json  one namespace per module (fr, en); common.json is shared
@@ -91,18 +93,24 @@ Global keys added by the skeleton:
 
 | Variable | Default | In `config` | Meaning |
 |---|---|---|---|
-| `PUBLIC_URL` | — | `server.publicUrl` | Public origin, e.g. `https://lab.example.org` (no path; `''` when unset). Required when auth is on. Drives OIDC redirect URIs and cookie security. |
+| `PUBLIC_URL` | — | `server.publicUrl` | Public origin, e.g. `https://lab.example.org` (no path). Required. Drives OIDC redirect URIs and cookie security. |
 | `DATA_DIR` | `./data` | `dataDir` (absolute) | Writable state directory. The Docker image sets `/data`. |
-| `TRUSTED_PROXIES` | empty | `server.trustedProxies` (string[]) | Comma list of proxy IPs / CIDRs (IPv4, IPv6) whose `X-Forwarded-For` is believed. `TRUST_PROXY=true` (legacy, `server.trustProxy`) trusts every peer; a non-empty list wins over it. |
+| `TRUSTED_PROXIES` | empty | `server.trustedProxies` (string[]) | Comma list of proxy IPs / CIDRs (IPv4, IPv6) whose `X-Forwarded-For` is believed: every hop, CDN ranges included. The upstream `TRUST_PROXY=true` (trust every peer) is refused at start-up and `server.trustProxy` no longer exists. |
 | `DEFAULT_LOCALE` | `fr` | `defaultLocale` | UI language for a first visit (`fr` or `en`). |
-| `AUTH_MODE` | `on` | `auth.mode` | `off` restores upstream behaviour: no login, one anonymous admin. |
 
 `PORT=0` is accepted and binds any free port (tests, the e2e harness).
 
-Until the auth lot lands, `src/modules/auth/config.js` refuses `AUTH_MODE=on`
-(the default) with a message that says to set `AUTH_MODE=off`: a build without
-sign-in never runs open by accident. The auth lot removes that refusal and
-adds its own keys to the same fragment (`config.auth`).
+There is no mode without sign-in (owner decision, 12 Nov). The auth fragment
+(`src/modules/auth/config.js`, `config.auth`) makes the local administrator
+mandatory: without `LOCAL_ADMIN_USERNAME`, `LOCAL_ADMIN_PASSWORD_HASH` and
+`LOCAL_ADMIN_TOTP_SECRET` the configuration is refused with a message that
+says to run `npm run setup-admin`. `config.auth` is
+`{ localAdmin: { username, passwordHash, totpSecret }, oidc }`, where `oidc`
+is the object of `src/modules/auth/oidcSettings.js` (`enabled`, `issuer`,
+`clientId`, `clientSecret`, `clientAuthMethod`, `scopes`, `groupsClaim`,
+`adminGroups`, `allowedGroups`, `providerName`, `allowInsecure`), validated by
+`normalizeOidcSettings()`, the same function a later admin page uses. The
+variables are listed in `.env.example` and explained in [AUTH.md](AUTH.md).
 
 Every new variable is documented in `.env.example`. Secrets never get defaults.
 
@@ -117,7 +125,8 @@ is run directly (`node src/server.js`). Order inside `createApp`:
    `/favicon.svg` (also answered on `/favicon.ico`). A missing public file is a
    404, never a redirect to the login page.
 3. `GET /api/health` (liveness only, no detail)
-4. auth routes: `app.use(auth.router)` — `/login`, `/auth/*`
+4. auth routes: `app.use(auth.router)` — `/login`, `/js/login.js`, `/auth/*`
+   (all `Cache-Control: no-store` and `X-Robots-Tag: noindex, nofollow`)
 5. **gate**: `auth.attach` then `auth.requireAuth` — everything below needs a user
 6. state-changing requests (anything but GET / HEAD, on any path) must pass
    the existing same-origin check: `requireSameOrigin(allowedOrigins)` from
@@ -160,55 +169,110 @@ entries are per user (§13); the address is only a secondary key.
 
 ```js
 User = {
-  id,          // 'oidc:<sub>' | 'local:<username>' | 'anonymous'
+  id,          // 'oidc:<sub>' | 'local:<username>'
   username, name, email,
   role,        // 'student' | 'admin'
   groups,      // string[] from the identity provider
-  via,         // 'oidc' | 'local' | 'anonymous'
+  via,         // 'oidc' | 'local'
   initials, color   // stable, derived from id, for presence badges
 }
 ```
 
+There is no anonymous user and no mode without sign-in: every request below
+the gate carries a real user from a real session.
+
 The auth module returns this service, passed to every module as `deps.auth`:
 
 ```js
-auth.mode                      // 'on' | 'off'
-auth.attach(req, res, next)    // sets req.user (or leaves it undefined)
-auth.requireAuth(req, res, next)   // 401 JSON under /api, 302 /login otherwise
+auth.attach(req, res, next)    // sets req.user and req.sessionId (or leaves them undefined)
+auth.requireAuth(req, res, next)   // 401 JSON under /api and for writes, 302 /login?next=… otherwise
 auth.requireRole('admin')      // middleware, 403 JSON
-auth.authenticateUpgrade(req)  // → User | null (may be a promise), for WebSocket upgrades
+auth.authenticateUpgrade(req)  // → User | null, for WebSocket upgrades; the socket closes when the session ends
 auth.sessions.list() / .revoke(sessionId) / .revokeUser(userId)
-auth.router                    // Express router with absolute paths (/login, /auth/*), mounted before the gate
-auth.shutdown?()               // optional, called when the application closes
+auth.sessions.create(user, { ip, userAgent }) // → { id, token, cookie }: a session for someone the server
+                               //   authenticated another way (passkey, invitation), and for tests
+auth.accounts.add(provider)    // another source of local accounts → remove()
+auth.oidc.settings             // current OIDC settings, without the secret ({ …, hasClientSecret })
+auth.oidc.configure(raw)       // replace them at run time (validated; open sessions untouched)
+auth.router                    // /login, /js/login.js, /auth/*; mounted before the gate
+auth.cookieName                // '__Host-lc_sid' | 'lc_sid'
+auth.shutdown()                // stops the timers, writes the sessions; called when the application closes
 ```
 
 `src/modules/auth/index.js` exports `createAuth(deps)` (deps: `{ config,
-logger, events, store, audit, services }`) and, for every implementation and
-for tests, `requireAuth`, `requireRole`, `hasRole(user, role)`, `createUser`,
-`ANONYMOUS` and `ROLES`. Roles are ordered: `student` < `admin`, so
-`requireRole('student')` lets an admin through. `requireAuth` answers 401 JSON
-(`auth.required`) under `/api/` and for any non-GET request, 302 `/login`
-otherwise; `requireRole` answers 403 `auth.forbidden` with `params.role`.
-`createUser({ id, username, name, email, role, groups, via })` builds the
-frozen `User` above, `initials` and `color` included. When a session is
-revoked, also end the user's SSE streams: `events.disconnect((u) => u?.id === id)`.
+logger, events, store, audit }`) and, for every module and for tests,
+`requireAuth`, `requireRole`, `hasRole(user, role)`, `createUser` and
+`ROLES`. Roles are ordered: `student` < `admin`, so `requireRole('student')`
+lets an admin through. `requireAuth` answers 401 JSON (`auth.required`) under
+`/api/` and for any non-GET request, 302 `/login` otherwise (with
+`?next=<path>` so the user comes back); `requireRole` answers 403
+`auth.forbidden` with `params.role`. `createUser({ id, username, name, email,
+role, groups, via })` builds the frozen `User` above, `initials` and `color`
+included (`user.js` also exports `initialsOf` and `colorOf`).
 
-Until the auth lot lands the folder holds the anonymous implementation only:
-`createAuth` throws unless `config.auth.mode === 'off'`.
+`createAuth` throws when the local administrator or `PUBLIC_URL` is missing.
 
-`GET /auth/me` is public and returns `{ user, mode, locale, providerName }`
-(`user: null` when nobody is signed in, `locale` = `DEFAULT_LOCALE`); the
-browser reads it once through `public/js/core/session.js`
-(`await loadSession()`, then `session.user`, `session.isAdmin`, `session.mode`,
-`session.locale`, `session.providerName`).
+**Ways in.** Both end in the same kind of session, and the session id is new
+at every sign-in.
 
-Sessions are server-side, keyed by a random 256-bit id in a cookie named
+- OpenID Connect (`oidc.js`): authorization code + PKCE S256 + `state` +
+  `nonce`, ID token signature checked against the provider's keys. The
+  pending sign-in (state, nonce, verifier, return path) stays on the server,
+  10 minutes, single use, bound to the browser by the `lc_login` cookie
+  (`__Host-lc_login` over https). The return path is a same-origin relative
+  path only (`safeReturnPath`). Groups come from `OIDC_GROUPS_CLAIM` in the ID
+  token, else from userinfo; a string is one group or a comma list.
+- Local accounts (`accounts.js`): the form posts `{ username, password, code,
+  next }` to `POST /auth/local`; every registered provider is asked, the first
+  one being the environment's administrator (`envAdmin.js`: scrypt hash,
+  RFC 6238 TOTP ±1 step, a step that was accepted is dead, even across a
+  restart). A provider is `{ id, verify({ username, password, code }) → { user }
+  | null }` and does the same work whether or not the name exists. One generic
+  refusal (401 `auth.invalid_credentials`) for every cause.
+- Attempts on the local form are limited (`throttle.js`) per client address
+  (5 per 15 min), per user name (exponential backoff after 2 failures, one
+  attempt in flight), and globally (50 failures per 15 min): 429
+  `auth.throttled` with `Retry-After` and `params.seconds`, identical for an
+  unknown name. A browser that already signed in with that name carries a
+  signed `lc_device` cookie (`devices.js`, 180 days) and is limited on its
+  own instead (5 per 15 min, its own backoff), so strangers cannot keep the
+  administrator out. Refusals that cost nothing (throttled attempts, callbacks
+  without a sign-in in progress, the latter limited to 60 a minute per
+  address) are audited once per address and kind per 15 min, then summed up
+  in one `auth.login.suppressed` entry (`refusals.js`).
+- The local administrator's sessions are stored with a fingerprint of its
+  credentials (`envAdmin.js` `binding`); after a restart with other
+  credentials they are not restored. The known-browser key does not: it is
+  a random secret in `data/auth/device-key.json`, so the administrator's
+  known browsers keep their own limits across a change of credentials.
+
+**Roles.** `resolveRole({ groups, adminGroups, storedRole })` in `roles.js`
+is the only place a role is decided: admin when a group is in
+`OIDC_ADMIN_GROUPS`, otherwise student, and a role stored per user (wave 2)
+wins. `isAllowed()` applies `OIDC_ALLOWED_GROUPS` (an admin group always
+counts); a refused user lands on `/login?error=not_allowed`.
+
+`GET /auth/me` is public and returns `{ user, locale, providerName }`
+(`user: null` when nobody is signed in, `locale` = `DEFAULT_LOCALE`,
+`providerName` = the sign-in button's label or `null` without a provider);
+the browser reads it once through `public/js/core/session.js`
+(`await loadSession()`, then `session.user`, `session.isAdmin`,
+`session.locale`, `session.providerName`; `signOut()` posts `/auth/logout`
+and follows its `redirect`, the provider's end-session page when it has one).
+`public/js/core/userMenu.js` (`mountUserMenu()`, called once from `main.js`)
+shows the user, the role and the sign-out button at the bottom of the rail.
+
+Sessions are server-side, keyed by a random 256-bit token in a cookie named
 `__Host-lc_sid` when `PUBLIC_URL` is https (`Secure; HttpOnly; SameSite=Lax; Path=/`)
-and `lc_sid` otherwise (development and tests over http). Idle timeout 8 h,
-absolute lifetime 24 h, id rotated at login.
-
-With `AUTH_MODE=off` every request carries the same anonymous admin user, so
-the rest of the code never branches on the mode.
+and `lc_sid` otherwise (development and tests over http). The cookie has no
+`Max-Age`: it ends with the browser. Idle timeout 8 h (an open WebSocket
+counts as activity), absolute lifetime 24 h, at most 10 sessions per user.
+`data/auth/sessions.json` keeps them across a restart, keyed by the SHA-256 of
+the token: the token itself is never stored. When a session ends (sign-out,
+revocation, expiry, a new sign-in in the same browser) the WebSockets opened
+with it are destroyed and the user's SSE streams are ended
+(`events.disconnect((u) => u?.id === id)`); they reconnect only with another
+valid session.
 
 ## 6. Platform services
 
@@ -507,7 +571,7 @@ device per console port for its whole life and answers `nc -z -w <s> <host>
 
 ```
 data/
-  auth/sessions.json
+  auth/sessions.json        auth/local-admin.json (last TOTP step used)   auth/device-key.json (known-browser key)
   audit/<yyyy-mm>.jsonl
   diagrams/current.drawio   diagrams/versions/<ts>-<user>.drawio   diagrams/index.json
   journal/<bench>/<device>/<yyyy-mm-dd>.log
@@ -528,26 +592,54 @@ device names used in paths go through `store.resolve`, never string concat.
   stay under a minute. (The glob needs Node 22, like the Docker image.)
 - `npm run test:e2e` runs `test/e2e/*.e2e.js` serially: `playwright-core`
   driving the system Chromium (`CHROMIUM_PATH`, default `/usr/bin/chromium`,
-  `--no-sandbox`). `test/e2e/harness.js` starts the mock lab, the mock OIDC
-  provider and the app **on ephemeral ports** with a temporary data directory.
-  `test/e2e/shared-ui.e2e.js` (dialogs, tabs, i18n in the browser) already
-  runs; it starts the app itself and does not need the harness.
-- `test/helpers/app.js`: `startTestApp({ env, auth, modules })` starts the
-  real application on a free port with a temporary `DATA_DIR` and returns
-  `{ url, wsUrl, app, server, deps, config, dataDir, close() }`;
+  `--no-sandbox`). The shared harness (`test/e2e/harness.js`: the mock lab,
+  the mock OIDC provider and the app **on ephemeral ports** with a temporary
+  data directory) is not written yet (SPEC, E2E harness). Until then each file
+  starts what it needs: `shared-ui.e2e.js` (dialogs, tabs, i18n),
+  `login.e2e.js` (the mock provider and the local form) and
+  `i18n-console.e2e.js` (the mock lab, a console kept open across a language
+  change). A page is signed in either through the login page or by adding
+  `lab.signIn(who).token` as the `lab.deps.auth.cookieName` cookie to the
+  browser context.
+- `test/helpers/app.js`: `startTestApp({ env, auth, modules, now })` starts
+  the real application, real sign-in included, on a free port with a
+  temporary `DATA_DIR` and returns `{ url, wsUrl, app, server, deps, config,
+  dataDir, as(who), signIn(who), close() }`. Tests sign in; production code
+  has no bypass:
+  - `lab.as('student1' | 'student2' | 'student3' | 'admin' | user)` opens a
+    real session in the session store (what a successful sign-in does) and
+    returns `{ cookie }` headers, reused for the same user;
+    `lab.signIn(who)` opens a new one → `{ id, token, cookie, headers, user }`
+    (the id is what `auth.sessions.revoke()` takes);
+  - `TEST_ADMIN` and `adminCode(timeMs)` are the local administrator of every
+    test application and its current TOTP code; `now` gives the sign-in module
+    a clock (`{ now: () => clock.ms }`) for expiry and code tests;
+  - `test/helpers/browser.js`: `TestBrowser` (cookie jar, redirects followed
+    by hand), `signInWithOidc(lab, username)` through the mock provider,
+    `postLocalSignIn(lab, fields)`.
   `loadTestConfig(env)` returns a configuration. `test/helpers/fakes.js`:
-  `student(n)`, `admin()`, `fakeAuth()` (the user is named by an
-  `x-test-user: student1 | student2 | student3 | admin` header, or `?as=` on a
-  WebSocket URL; no header = nobody), `fakeRequest()`, `fakeResponse()`,
-  `recordingLogger()`. To test a module in the real pipeline as a student, an
-  admin and nobody:
-  `startTestApp({ auth: fakeAuth(), modules: (deps) => [createMyModule(deps)] })`.
+  `student(n)`, `admin()`, `fakeRequest()`, `fakeResponse()`,
+  `recordingLogger()`, and `fakeAuth()`, a test seam that wraps the real
+  sign-in module: a request naming a user in an `x-test-user` header (or
+  `?as=` on a WebSocket URL) gets that user's real session cookie before the
+  real gate looks at it; no header = nobody. To test a module in the real
+  pipeline as a student, an admin and nobody, either works:
+  `startTestApp({ modules: (deps) => [createMyModule(deps)] })` with
+  `lab.as('student1')`, or `startTestApp({ auth: fakeAuth(), modules })`.
+- `test/routeWalk.test.js` records every route and mount the application
+  registers and asks each one without a session: only its explicit allow-list
+  of public paths may answer. A new route is covered without touching it.
 - `npm run lint` (ESLint flat config) must pass.
 - The mocks are importable: `startMockLab({ port: 0, ssh, telnet, devices, ... })`
   returns `{ port, close(), device(target) }` (`device('10.22.9.4:2001')` is
   the simulated device behind that console port); `startMockOidc({ port: 0,
   users })` returns `{ issuer, close() }`. `test/helpers/ios.js` wires a
   simulated device to the engine and the driver (`rig()`, `roundTrip()`).
+  The mock provider also has `misbehave({ wrongNonce, groupsInUserinfoOnly,
+  groupsAsString, badSignature, noUserinfo, noEndSession })` and `signOuts`;
+  its users are `student1`…`student3` (group `students`) and `admin`
+  (`students`, `admins`), clients `lab-console` (secret `mock-secret`) and
+  `lab-console-public` (no secret).
 - Never hard-code a port in a test. Never leave a process running.
 - A feature is not done until its happy path and its refusals are tested.
 

@@ -2,9 +2,9 @@
  * The User every module receives as `req.user` (ARCHITECTURE §5), whatever
  * the way the person signed in
  *
- *   id        'oidc:<sub>' | 'local:<username>' | 'anonymous'
+ *   id        'oidc:<sub>' | 'local:<username>'
  *   role      'student' | 'admin'
- *   via       'oidc' | 'local' | 'anonymous'
+ *   via       'oidc' | 'local'
  *   initials, color   stable, derived from the id, for presence badges
  */
 import crypto from 'node:crypto';
@@ -47,6 +47,3 @@ export function createUser({ id, username, name, email = '', role = 'student', g
     color: colorOf(id),
   });
 }
-
-/** AUTH_MODE=off: every request carries this one user, so nothing else branches on the mode */
-export const ANONYMOUS = createUser({ id: 'anonymous', username: 'anonymous', name: 'Anonymous', role: 'admin', via: 'anonymous' });

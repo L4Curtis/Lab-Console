@@ -73,7 +73,15 @@ test('i18n coverage: every key the front end asks for exists in fr and en', () =
   const { literals, prefixes } = frontEndUses();
   const fr = allKeys('fr');
   const en = allKeys('en');
-  const missing = [...literals].filter((k) => !(k in fr) || !(k in en));
+  // A literal may also be an API error code the front end compares with
+  // ('auth.required' in core/api.js): fine when the code has its translation
+  const isTranslatedCode = (k, dict) => {
+    const [ns, ...rest] = k.split('.');
+    const reason = rest.join('.');
+    return rest.length > 0 && (`${ns}.errors.${reason}` in dict || `common.errors.${ns}.${reason}` in dict);
+  };
+  const known = (k, dict) => k in dict || isTranslatedCode(k, dict);
+  const missing = [...literals].filter((k) => !known(k, fr) || !known(k, en));
   assert.deepEqual(missing, [], 'used in public/ but missing from a dictionary');
   for (const prefix of prefixes) {
     assert.ok(Object.keys(fr).some((k) => k.startsWith(prefix)), `no key under the dynamic prefix ${prefix}`);
