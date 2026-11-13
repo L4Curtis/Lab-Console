@@ -198,7 +198,7 @@ export function createTeamsModules(deps, { now = () => Date.now(), tickMs = TICK
     const entries = await audit.query({ bench: name, action: ['bench', 'job'], limit: 100 });
     // Who did what and when; never the addresses
     res.set('Cache-Control', 'no-store').json({
-      history: entries.map((e) => ({ ts: e.ts, action: e.action, actor: { name: e.actor?.name ?? e.actor?.username ?? '', username: e.actor?.username ?? '' }, details: { team: e.details?.team, guest: e.details?.guest, reason: e.details?.reason, device: e.details?.device } })),
+      history: entries.map((e) => ({ ts: e.ts, action: e.action, actor: { name: e.actor?.name ?? e.actor?.username ?? '', username: e.actor?.username ?? '' }, details: { team: e.details?.team, guest: e.details?.guestName ?? e.details?.guest, reason: e.details?.reason, device: e.details?.device } })),
     });
   });
 

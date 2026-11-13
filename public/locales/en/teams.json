@@ -1,0 +1,113 @@
+{
+  "title": "Team",
+  "subtitle": "Your lab group: the bench, the bookings and the backups belong to the team",
+  "loadFailed": "Teams could not be loaded. Reload the page.",
+  "tabs": {
+    "mine": "My team",
+    "calendar": "Bookings",
+    "all": "All teams"
+  },
+  "create": {
+    "title": "Create a team",
+    "intro": "Create your group's team, then invite your classmates by user name. You belong to one team at a time.",
+    "adminNote": "As an admin you need no team to manage the benches. You may still create one.",
+    "name": "Team name",
+    "placeholder": "The crazy routers",
+    "submit": "Create the team",
+    "done": "Team {name} created."
+  },
+  "invitations": {
+    "title": "Invitations",
+    "line": "{name} invites you to team {team}",
+    "accept": "Join",
+    "decline": "Decline",
+    "joined": "You joined team {team}."
+  },
+  "members": {
+    "title": {
+      "one": "{count} member",
+      "other": "{count} members"
+    },
+    "since": "since {time}"
+  },
+  "invite": {
+    "title": "Invite a classmate",
+    "username": "User name",
+    "placeholder": "their sign-in user name",
+    "submit": "Invite",
+    "done": "Invitation sent to {username}.",
+    "pending": "{username} has not answered yet",
+    "withdraw": "Withdraw the invitation"
+  },
+  "rename": {
+    "button": "Rename",
+    "title": "Rename the team",
+    "confirm": "Rename"
+  },
+  "leave": {
+    "button": "Leave the team",
+    "title": "Leave team {team}?",
+    "body": "You will lose access to the team's bench and backups.",
+    "last": "You are the last member: the team will be dissolved, its bench released and its bookings cancelled.",
+    "confirm": "Leave"
+  },
+  "bench": {
+    "title": "Bench",
+    "holds": "Your team holds bench {bench}.",
+    "open": "Open its consoles",
+    "none": "Your team holds no bench."
+  },
+  "slots": {
+    "title": "Upcoming bookings",
+    "none": "No booking.",
+    "cancel": "Cancel",
+    "cancelTitle": "Cancel this booking?",
+    "cancelBody": "Bench {bench}, {slot}."
+  },
+  "calendar": {
+    "bench": "Bench",
+    "previous": "Previous week",
+    "next": "Next week",
+    "thisWeek": "This week",
+    "week": "{from} to {to}",
+    "hint": "Click a free hour to book the bench for your team; click your slot to cancel it.",
+    "noBench": "No bench in the diagram.",
+    "bookTitle": "Book {bench}, {day}",
+    "limits": "At most {max} upcoming bookings per team, {hours} h each.",
+    "start": "Start",
+    "length": "Length",
+    "duration": "{hours} h {minutes}",
+    "team": "Team",
+    "book": "Book",
+    "needTeamTitle": "You need a team",
+    "needTeam": "Benches are booked by teams: create yours or join one in the “My team” tab."
+  },
+  "all": {
+    "team": "Team",
+    "members": "Members",
+    "bench": "Bench",
+    "none": "No team yet.",
+    "invited": "Invited: {names}",
+    "remove": "Remove from the team",
+    "removeTitle": "Remove {name} from team {team}?",
+    "removeBody": "If they were the last member, the team is dissolved.",
+    "dissolve": "Dissolve",
+    "dissolveTitle": "Dissolve team {team}?",
+    "dissolveBody": "Its members are left without a team, its bench is released and its bookings are cancelled."
+  },
+  "notify": {
+    "invited": "{name} invites you to team {team}. Answer in the Team section."
+  },
+  "errors": {
+    "bad_name": "A team name has {min} to {max} characters.",
+    "bad_username": "This is not a valid user name.",
+    "already_member": "You already belong to team {team}: leave it first.",
+    "name_taken": "Another team is already called {name}.",
+    "unknown": "This team does not exist (any more).",
+    "not_member": "Only the members of this team may do that.",
+    "already_in_team": "{username} is already in the team.",
+    "full": "A team has at most {max} members.",
+    "too_many_invitations": "Too many invitations are waiting ({max} at most).",
+    "no_invitation": "This invitation does not exist (any more)."
+  }
+}

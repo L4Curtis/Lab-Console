@@ -405,7 +405,7 @@ export class Benches {
       }
       return all;
     });
-    this.#audit.log(user, accept ? 'bench.join.accept' : 'bench.join.refuse', { bench: name, guest: request.username, guestId: request.id });
+    this.#audit.log(user, accept ? 'bench.join.accept' : 'bench.join.refuse', { bench: name, guest: request.username, guestName: request.name, guestId: request.id });
     this.#events.toUser(request.id, 'benches:request', { bench: name, state: accept ? 'accepted' : 'refused', by: personOf(user).name });
     this.publishState();
     return this.detail(name, user);
@@ -427,7 +427,7 @@ export class Benches {
       [guest] = o.guests.splice(i, 1);
       return all;
     });
-    this.#audit.log(actor, self ? 'bench.leave' : 'bench.guest.remove', { bench: name, guest: guest.username, guestId: guest.id });
+    this.#audit.log(actor, self ? 'bench.leave' : 'bench.guest.remove', { bench: name, guest: guest.username, guestName: guest.name, guestId: guest.id });
     if (!self) this.#events.toUser(guest.id, 'benches:request', { bench: name, state: 'removed' });
     this.publishState();
   }
@@ -500,8 +500,8 @@ export class Benches {
     if (e <= now) throw httpError(400, 'benches.slot_in_past', 'This slot is already over');
     const { maxFuture, maxHours, maxDaysAhead } = this.#limits;
     if (!admin) {
-      if (e - s > maxHours * HOUR) throw httpError(400, 'benches.slot_too_long', 'A slot lasts at most {hours} h', { hours: maxHours });
-      if (s - now > maxDaysAhead * 24 * HOUR) throw httpError(400, 'benches.slot_too_far', 'A slot is booked at most {days} days ahead', { days: maxDaysAhead });
+      if (e - s > maxHours * HOUR) throw httpError(400, 'benches.slot_too_long', `A slot lasts at most ${maxHours} h`, { hours: maxHours });
+      if (s - now > maxDaysAhead * 24 * HOUR) throw httpError(400, 'benches.slot_too_far', `A slot is booked at most ${maxDaysAhead} days ahead`, { days: maxDaysAhead });
     }
     const created = {
       id: crypto.randomBytes(6).toString('hex'), bench: name, teamId: team.id, start: iso(s), end: iso(e), by: personOf(user), createdAt: iso(now),
@@ -511,7 +511,7 @@ export class Benches {
       const clash = doc.reservations.find((r) => r.bench === name && Date.parse(r.start) < e && s < Date.parse(r.end));
       if (clash) throw httpError(409, 'benches.slot_overlap', 'This slot overlaps another booking', { team: this.#teams.get(clash.teamId)?.name ?? '', start: clash.start, end: clash.end });
       const future = doc.reservations.filter((r) => r.teamId === team.id && Date.parse(r.end) > now).length;
-      if (!admin && future >= maxFuture) throw httpError(409, 'benches.too_many_slots', 'Your team already has {max} slots booked', { max: maxFuture });
+      if (!admin && future >= maxFuture) throw httpError(409, 'benches.too_many_slots', `Your team already has ${maxFuture} slots booked`, { max: maxFuture });
       doc.reservations.push(created);
       return doc;
     });

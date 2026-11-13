@@ -376,7 +376,14 @@ the bench's occupants only), `benches:request` (to the person who asked),
 `benches:warning` (occupants, ten minutes before another team's slot),
 `benches:slot` (the team whose slot starts), `benches:reservations` (a
 calendar changed), `teams:invitation` (the person invited only) and
-`teams:changed` (the members, the people invited, admins).
+`teams:changed` (the members, the people invited, admins). In the browser,
+the rail section `#/team` (`public/js/modules/teams/`: my team, the
+reservation calendar, all teams for admins) and the bench bar
+(`teams/benchBar.js`), which the consoles view mounts above the diagram:
+`mountBenchBar(viewEl)` → `{ setBench(name), decorate(diagramView),
+mayOpen(device, benchNames), refusal(benchNames) }`. `decorate` uses the
+diagram's `decorate()` layer when the diagram has one and does nothing
+otherwise.
 
 `createApp().close()` calls every module's `shutdown()`, `auth.shutdown?.()`,
 ends the SSE streams, closes the HTTP server and waits for `store.flush()`.

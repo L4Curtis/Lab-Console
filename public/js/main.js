@@ -14,6 +14,7 @@ import { mountUserMenu } from './core/userMenu.js';
 
 const MODULES = [
   { id: 'consoles', path: 'consoles', titleKey: 'common.shell.consoles', icon: 'topology', load: () => import('./modules/consoles/index.js') },
+  { id: 'teams', path: 'team', titleKey: 'common.shell.team', icon: 'team', load: () => import('./modules/teams/index.js') },
   // Backend module "proxmox" serves this section (admin switches + Proxmox VMs)
   { id: 'proxmox', path: 'infra', titleKey: 'common.shell.infra', icon: 'rack', load: () => import('./modules/infra/index.js') },
 ];

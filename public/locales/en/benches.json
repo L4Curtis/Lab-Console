@@ -1,0 +1,133 @@
+{
+  "occupants": "Bench occupants",
+  "status": {
+    "free": "Bench free",
+    "taken": "Taken by team {team} since {time}",
+    "releaseAt": "Released automatically at {time} without activity"
+  },
+  "actions": {
+    "take": "Take the bench",
+    "needTeam": "Create or join a team to take it",
+    "join": "Ask to join",
+    "cancelJoin": "Cancel my request",
+    "leave": "Leave the bench",
+    "touch": "We are still here",
+    "release": "Release the bench",
+    "assign": "Assign…",
+    "lock": "Lock…",
+    "history": "History"
+  },
+  "touched": "Noted: the bench stays yours.",
+  "join": {
+    "sent": "Request sent to the team on this bench.",
+    "waiting": "Pending requests",
+    "asks": "{name} asks to join the bench ({time})",
+    "accept": "Accept",
+    "refuse": "Refuse"
+  },
+  "guests": {
+    "tag": "guest",
+    "guest": "{name} (guest)",
+    "remove": "Remove from the bench",
+    "removeTitle": "Remove {name} from the bench?",
+    "removeBody": "{name} will no longer be able to drive the consoles of {bench}."
+  },
+  "release": {
+    "title": "Release bench {bench}?",
+    "body": "Your team and your guests lose control of its consoles. Remember to back up your configurations first.",
+    "confirm": "Release",
+    "done": "Bench {bench} released."
+  },
+  "offer": {
+    "title": "Back up {bench}?",
+    "body": "The bench was just released. Do you want to back up the devices' configurations before someone else takes it?",
+    "go": "Back up",
+    "skip": "Not now"
+  },
+  "lock": {
+    "banner": "Bench locked:",
+    "by": "by {name}, {time}",
+    "title": "Lock bench {bench}",
+    "intro": "Nobody but admins will be able to open a console or run a job on this bench. The reason is shown to everyone.",
+    "reason": "Reason",
+    "placeholder": "Prepared for the graded lab",
+    "confirm": "Lock"
+  },
+  "unlock": {
+    "button": "Unlock",
+    "title": "Unlock bench {bench}?",
+    "body": "Students will be able to take it and open its consoles again.",
+    "confirm": "Unlock"
+  },
+  "assign": {
+    "title": "Assign bench {bench}",
+    "intro": "The chosen team holds the bench at once, instead of whoever may have it. If that team held another bench, it is released.",
+    "team": "Team",
+    "confirm": "Assign",
+    "noTeam": "There is no team yet."
+  },
+  "slots": {
+    "next": "Next bookings:",
+    "none": "No booking ahead.",
+    "calendar": "Calendar"
+  },
+  "history": {
+    "title": "History of bench {bench}",
+    "empty": "Nothing yet.",
+    "take": "{who} took the bench for team {team}",
+    "release": "{who} released the bench (team {team})",
+    "releaseIdle": "Bench released automatically for lack of activity (team {team})",
+    "assign": "{who} assigned the bench to team {team}",
+    "joinRequest": "{who} asked to join the bench",
+    "joinAccept": "{who} accepted {guest} on the bench",
+    "joinRefuse": "{who} refused {guest}",
+    "leave": "{who} left the bench",
+    "guestRemove": "{who} removed {guest} from the bench",
+    "lock": "{who} locked the bench",
+    "unlock": "{who} unlocked the bench",
+    "reserve": "{who} booked the bench for team {team}",
+    "reservationCancel": "{who} cancelled a booking",
+    "job": "{who}: {action} {device}"
+  },
+  "notify": {
+    "accepted": "You joined bench {bench}: {name} accepted your request.",
+    "refused": "Your request for bench {bench} was refused.",
+    "released": "Bench {bench} was released: your request is cancelled.",
+    "removed": "An admin removed you from bench {bench}.",
+    "warning": {
+      "one": "Bench {bench} is booked by team {team} in {count} minute: back up and release it.",
+      "other": "Bench {bench} is booked by team {team} in {count} minutes: back up and release it."
+    },
+    "slot": "Your slot on bench {bench} starts (until {end}): you may take it."
+  },
+  "refused": {
+    "locked": "Bench {bench} is locked ({reason}): only admins may open its consoles.",
+    "taken": "Bench {bench} is held by another team: ask to join it."
+  },
+  "errors": {
+    "unknown": "This bench does not exist.",
+    "no_team": "You need a team: create or join one first.",
+    "locked": "This bench is locked: {reason}",
+    "team_has_bench": "Your team already holds bench {bench}.",
+    "reserved": "Team {team} has booked this bench right now.",
+    "taken": "Team {team} already holds this bench.",
+    "not_taken": "Nobody holds this bench.",
+    "already_occupant": "You already work on this bench.",
+    "too_many_requests": "Too many requests are waiting on this bench.",
+    "no_request": "This request no longer exists.",
+    "not_member": "Only the team that holds the bench may do that.",
+    "member_of_holder": "This person belongs to the team: remove them from the team instead.",
+    "not_guest": "This person is not a guest on the bench.",
+    "not_occupant": "Only the bench's occupants may do that.",
+    "bad_reason": "Give a reason (200 characters at most).",
+    "not_locked": "This bench is not locked.",
+    "bad_slot": "A slot starts and ends on a quarter of an hour, and ends after it starts.",
+    "slot_in_past": "This slot is already over.",
+    "slot_too_long": "A slot lasts {hours} h at most.",
+    "slot_too_far": "Slots are booked at most {days} days ahead.",
+    "slot_overlap": "This slot overlaps the one of team {team}.",
+    "too_many_slots": "Your team already has {max} bookings ahead.",
+    "no_reservation": "This booking no longer exists.",
+    "not_your_reservation": "Only the team that booked this slot may cancel it."
+  }
+}

@@ -1,0 +1,133 @@
+{
+  "occupants": "Occupants de la baie",
+  "status": {
+    "free": "Baie libre",
+    "taken": "Prise par l’équipe {team} depuis {time}",
+    "releaseAt": "Libérée automatiquement à {time} sans activité"
+  },
+  "actions": {
+    "take": "Prendre la baie",
+    "needTeam": "Créer ou rejoindre une équipe pour la prendre",
+    "join": "Demander à rejoindre",
+    "cancelJoin": "Annuler ma demande",
+    "leave": "Quitter la baie",
+    "touch": "On est toujours là",
+    "release": "Libérer la baie",
+    "assign": "Attribuer…",
+    "lock": "Verrouiller…",
+    "history": "Historique"
+  },
+  "touched": "C’est noté : la baie reste à vous.",
+  "join": {
+    "sent": "Demande envoyée à l’équipe qui occupe la baie.",
+    "waiting": "Demandes en attente",
+    "asks": "{name} demande à rejoindre la baie ({time})",
+    "accept": "Accepter",
+    "refuse": "Refuser"
+  },
+  "guests": {
+    "tag": "invité",
+    "guest": "{name} (invité)",
+    "remove": "Retirer de la baie",
+    "removeTitle": "Retirer {name} de la baie ?",
+    "removeBody": "{name} ne pourra plus prendre la main sur les consoles de {bench}."
+  },
+  "release": {
+    "title": "Libérer la baie {bench} ?",
+    "body": "Votre équipe et vos invités perdent la main sur ses consoles. Pensez à sauvegarder vos configurations avant.",
+    "confirm": "Libérer",
+    "done": "Baie {bench} libérée."
+  },
+  "offer": {
+    "title": "Sauvegarder {bench} ?",
+    "body": "La baie vient d’être libérée. Voulez-vous sauvegarder les configurations des équipements avant que quelqu’un d’autre ne la prenne ?",
+    "go": "Sauvegarder",
+    "skip": "Pas maintenant"
+  },
+  "lock": {
+    "banner": "Baie verrouillée :",
+    "by": "par {name}, {time}",
+    "title": "Verrouiller la baie {bench}",
+    "intro": "Plus personne, à part les admins, ne pourra ouvrir une console ou lancer une tâche sur cette baie. Le motif est affiché à tout le monde.",
+    "reason": "Motif",
+    "placeholder": "Préparée pour le TP noté",
+    "confirm": "Verrouiller"
+  },
+  "unlock": {
+    "button": "Déverrouiller",
+    "title": "Déverrouiller la baie {bench} ?",
+    "body": "Les étudiants pourront de nouveau la prendre et ouvrir ses consoles.",
+    "confirm": "Déverrouiller"
+  },
+  "assign": {
+    "title": "Attribuer la baie {bench}",
+    "intro": "L’équipe choisie occupe la baie tout de suite, à la place de celle qui l’a peut-être. Si elle occupait une autre baie, celle-ci est libérée.",
+    "team": "Équipe",
+    "confirm": "Attribuer",
+    "noTeam": "Il n’y a encore aucune équipe."
+  },
+  "slots": {
+    "next": "Prochaines réservations :",
+    "none": "Aucune réservation à venir.",
+    "calendar": "Planning"
+  },
+  "history": {
+    "title": "Historique de la baie {bench}",
+    "empty": "Rien pour l’instant.",
+    "take": "{who} a pris la baie pour l’équipe {team}",
+    "release": "{who} a libéré la baie (équipe {team})",
+    "releaseIdle": "Baie libérée automatiquement faute d’activité (équipe {team})",
+    "assign": "{who} a attribué la baie à l’équipe {team}",
+    "joinRequest": "{who} a demandé à rejoindre la baie",
+    "joinAccept": "{who} a accepté {guest} sur la baie",
+    "joinRefuse": "{who} a refusé {guest}",
+    "leave": "{who} a quitté la baie",
+    "guestRemove": "{who} a retiré {guest} de la baie",
+    "lock": "{who} a verrouillé la baie",
+    "unlock": "{who} a déverrouillé la baie",
+    "reserve": "{who} a réservé la baie pour l’équipe {team}",
+    "reservationCancel": "{who} a annulé une réservation",
+    "job": "{who} : {action} {device}"
+  },
+  "notify": {
+    "accepted": "Vous avez rejoint la baie {bench} : {name} a accepté votre demande.",
+    "refused": "Votre demande pour la baie {bench} a été refusée.",
+    "released": "La baie {bench} a été libérée : votre demande est annulée.",
+    "removed": "Un admin vous a retiré de la baie {bench}.",
+    "warning": {
+      "one": "La baie {bench} est réservée par l’équipe {team} dans {count} minute : pensez à sauvegarder et à la libérer.",
+      "other": "La baie {bench} est réservée par l’équipe {team} dans {count} minutes : pensez à sauvegarder et à la libérer."
+    },
+    "slot": "Votre créneau sur la baie {bench} commence (jusqu’à {end}) : vous pouvez la prendre."
+  },
+  "refused": {
+    "locked": "La baie {bench} est verrouillée ({reason}) : seuls les admins peuvent ouvrir ses consoles.",
+    "taken": "La baie {bench} est occupée par une autre équipe : demandez à la rejoindre."
+  },
+  "errors": {
+    "unknown": "Cette baie n’existe pas.",
+    "no_team": "Il faut une équipe : créez-en une ou rejoignez-en une d’abord.",
+    "locked": "Cette baie est verrouillée : {reason}",
+    "team_has_bench": "Votre équipe occupe déjà la baie {bench}.",
+    "reserved": "L’équipe {team} a réservé cette baie en ce moment.",
+    "taken": "L’équipe {team} occupe déjà cette baie.",
+    "not_taken": "Personne n’occupe cette baie.",
+    "already_occupant": "Vous travaillez déjà sur cette baie.",
+    "too_many_requests": "Trop de demandes en attente sur cette baie.",
+    "no_request": "Cette demande n’existe plus.",
+    "not_member": "Seule l’équipe qui occupe la baie peut faire ça.",
+    "member_of_holder": "Cette personne fait partie de l’équipe : retirez-la de l’équipe plutôt.",
+    "not_guest": "Cette personne n’est pas invitée sur la baie.",
+    "not_occupant": "Réservé aux occupants de la baie.",
+    "bad_reason": "Donnez un motif (200 caractères au plus).",
+    "not_locked": "Cette baie n’est pas verrouillée.",
+    "bad_slot": "Un créneau commence et finit sur un quart d’heure, et finit après avoir commencé.",
+    "slot_in_past": "Ce créneau est déjà passé.",
+    "slot_too_long": "Un créneau dure {hours} h au plus.",
+    "slot_too_far": "On réserve au plus {days} jours à l’avance.",
+    "slot_overlap": "Ce créneau chevauche celui de l’équipe {team}.",
+    "too_many_slots": "Votre équipe a déjà {max} réservations à venir.",
+    "no_reservation": "Cette réservation n’existe plus.",
+    "not_your_reservation": "Seule l’équipe qui a réservé peut annuler ce créneau."
+  }
+}

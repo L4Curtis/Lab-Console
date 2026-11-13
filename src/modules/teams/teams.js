@@ -161,7 +161,7 @@ export class Teams extends EventEmitter {
         throw httpError(409, 'teams.already_in_team', 'This person is already in the team', { username });
       }
       if (t.invitations.some((i) => fold(i.username) === fold(username))) return false; // already invited: nothing new
-      if (t.members.length + t.invitations.length >= MAX_MEMBERS) throw httpError(409, 'teams.full', 'A team has at most {max} members', { max: MAX_MEMBERS });
+      if (t.members.length + t.invitations.length >= MAX_MEMBERS) throw httpError(409, 'teams.full', `A team has at most ${MAX_MEMBERS} members`, { max: MAX_MEMBERS });
       if (t.invitations.length >= MAX_INVITATIONS) throw httpError(409, 'teams.too_many_invitations', 'Too many invitations are waiting', { max: MAX_INVITATIONS });
       t.invitations.push({ username, by: personOf(by), at: new Date(this.#now()).toISOString() });
       return true;
@@ -188,7 +188,7 @@ export class Teams extends EventEmitter {
       const i = t.invitations.findIndex((inv) => sameUsername(user, inv.username));
       if (i < 0) throw httpError(404, 'teams.no_invitation', 'There is no such invitation');
       this.#ensureFree(doc, user);
-      if (t.members.length >= MAX_MEMBERS) throw httpError(409, 'teams.full', 'A team has at most {max} members', { max: MAX_MEMBERS });
+      if (t.members.length >= MAX_MEMBERS) throw httpError(409, 'teams.full', `A team has at most ${MAX_MEMBERS} members`, { max: MAX_MEMBERS });
       t.invitations.splice(i, 1);
       t.members.push({ ...personOf(user), since: new Date(this.#now()).toISOString() });
     })).team;
