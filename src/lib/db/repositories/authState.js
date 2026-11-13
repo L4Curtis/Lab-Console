@@ -13,7 +13,7 @@
 import { toIso, toJson } from '../values.js';
 
 export function createAuthStateRepository(db, { now = () => new Date() } = {}) {
-  const upsert = (conflict) => (name, value) => db.run(
+  const upsert = (conflict) => async (name, value) => db.run(
     `INSERT INTO auth_state (name, data, updated_at) VALUES (?, ?, ?) ${conflict}`,
     [String(name), toJson(value), toIso(now())],
   );
@@ -25,6 +25,6 @@ export function createAuthStateRepository(db, { now = () => new Date() } = {}) {
     },
     set: upsert('ON CONFLICT (name) DO UPDATE SET data = excluded.data, updated_at = excluded.updated_at'),
     setIfAbsent: upsert('ON CONFLICT (name) DO NOTHING'),
-    remove: (name) => db.run('DELETE FROM auth_state WHERE name = ?', [String(name)]),
+    async remove(name) { return db.run('DELETE FROM auth_state WHERE name = ?', [String(name)]); },
   };
 }

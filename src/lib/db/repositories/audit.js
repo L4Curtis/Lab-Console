@@ -3,6 +3,7 @@
  *
  *   insert(entry)       entry = { ts, action, actor: { id, username, name, role, via }, ip?, details }
  *   query({ since, until, actorId, actions, bench, limit })   → entries, newest first
+ *   countSame(entry)    → number of entries with the same time, action, actor id and details (imports)
  *   count()             → number of entries
  *
  * `since` / `until` are ISO-8601 strings (inclusive); `actions` is a list of
@@ -25,9 +26,9 @@ function entryOf(r) {
 
 export function createAuditRepository(db) {
   return {
-    insert(entry) {
+    async insert(entry) {
       const ts = toIso(entry.ts);
-      if (!ts) return Promise.reject(new TypeError(`An audit entry needs a valid time (got ${entry.ts})`));
+      if (!ts) throw new TypeError(`An audit entry needs a valid time (got ${entry.ts})`);
       const { actor = {}, details = {} } = entry;
       return db.run(`INSERT INTO audit_entries (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
         newId(Date.parse(ts)), ts, String(entry.action), String(actor.id),
@@ -56,6 +57,16 @@ export function createAuditRepository(db) {
         params,
       );
       return rows.map(entryOf);
+    },
+
+    async countSame(entry) {
+      const ts = toIso(entry.ts);
+      if (!ts) throw new TypeError(`An audit entry needs a valid time (got ${entry.ts})`);
+      const found = await db.get(
+        'SELECT count(*) AS n FROM audit_entries WHERE ts = ? AND action = ? AND actor_id = ? AND details = ?',
+        [ts, String(entry.action), String(entry.actor?.id), toJson(entry.details ?? {})],
+      );
+      return Number(found.n);
     },
 
     async count() {

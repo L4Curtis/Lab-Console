@@ -127,7 +127,8 @@ describe('importLegacyFiles', () => {
     write(dir, 'audit/2026-11.jsonl.imported', 'an older copy');
     const { repos, close } = await memoryDatabase();
     t.after(close);
-    await repos.legacyImports.record('audit/2026-11.jsonl', { records: 1 });
+    const content = `${JSON.stringify({ ts: '2026-11-02T08:00:00.000Z', action: 'bench.take', actor: { id: 'u' }, details: {} })}\n`;
+    await repos.legacyImports.record('audit/2026-11.jsonl', { records: 1 }, sha(content));
     const log = recordingLogger();
     assert.deepEqual(await importLegacyFiles({ store: createStore(dir), repos, logger: log }), []);
     assert.equal(await repos.audit.count(), 0);
@@ -137,6 +138,56 @@ describe('importLegacyFiles', () => {
     assert.ok(names.some((n) => /^2026-11\.jsonl\.imported-\d+$/.test(n)), names.join());
     assert.equal(fs.readFileSync(path.join(dir, 'audit/2026-11.jsonl.imported'), 'utf8'), 'an older copy');
     assert.ok(log.lines.some((l) => l.level === 'warn' && /interrupted start/.test(l.message)));
+  });
+
+  test('a file that comes back under an imported path with other content is imported: only what the database lacks is added', async (t) => {
+    const dir = dataDir(t);
+    legacyFiles(dir);
+    const { repos, close } = await memoryDatabase();
+    t.after(close);
+    const store = createStore(dir);
+    await importLegacyFiles({ store, repos });
+    assert.equal(await repos.audit.count(), 3);
+    const sessionsBefore = await repos.sessions.all();
+
+    // Pre-production rolled back to a build without the database, which wrote its files again, then upgraded
+    const original = fs.readFileSync(path.join(dir, 'audit/2026-10.jsonl.imported'), 'utf8');
+    const extra = JSON.stringify({ ts: '2026-10-31T09:00:00.000Z', action: 'bench.take', actor: { id: 'oidc:carol', username: 'carol' }, details: { bench: 'B4M' } });
+    write(dir, 'audit/2026-10.jsonl', `${original}${extra}\n`);
+    // The same sessions, written again by the old build (other bytes): none is duplicated
+    write(dir, 'auth/sessions.json', JSON.stringify(JSON.parse(fs.readFileSync(path.join(dir, 'auth/sessions.json.imported'), 'utf8')), null, 2));
+    const log = recordingLogger();
+    const done = await importLegacyFiles({ store, repos, logger: log });
+    assert.deepEqual(done, [
+      { path: 'auth/sessions.json', records: 0, skipped: 4 },
+      { path: 'audit/2026-10.jsonl', records: 1, skipped: 2 },
+    ]);
+    assert.deepEqual((await repos.audit.query({ actorId: 'oidc:carol' })).map((e) => e.ts), ['2026-10-31T09:00:00.000Z']);
+    assert.equal(await repos.audit.count(), 4, 'the entries imported before are not duplicated');
+    assert.deepEqual(await repos.sessions.all(), sessionsBefore);
+    assert.ok(log.lines.some((l) => l.level === 'warn' && /audit\/2026-10\.jsonl was imported before and has come back with different content/.test(l.message)));
+    assert.ok(!log.lines.some((l) => /interrupted start/.test(l.message)));
+    const names = listing(dir, 'audit');
+    assert.ok(names.includes('2026-10.jsonl.imported') && names.some((n) => /^2026-10\.jsonl\.imported-\d+$/.test(n)), names.join());
+    assert.ok(!names.includes('2026-10.jsonl'));
+
+    // The same content once more: renamed only
+    write(dir, 'audit/2026-10.jsonl', `${original}${extra}\n`);
+    assert.deepEqual(await importLegacyFiles({ store, repos, logger: log }), []);
+    assert.equal(await repos.audit.count(), 4);
+  });
+
+  test('identical lines of one file are all imported, and only once', async (t) => {
+    const dir = dataDir(t);
+    const line = JSON.stringify({ ts: '2026-11-02T08:00:00.000Z', action: 'bench.take', actor: { id: 'u' }, details: { bench: 'B1' } });
+    write(dir, 'audit/2026-11.jsonl', `${line}\n${line}\n`);
+    const { repos, close } = await memoryDatabase();
+    t.after(close);
+    const store = createStore(dir);
+    assert.deepEqual(await importLegacyFiles({ store, repos }), [{ path: 'audit/2026-11.jsonl', records: 2, skipped: 0 }]);
+    write(dir, 'audit/2026-11.jsonl', `${line}\n${line}\n${line}\n`);
+    assert.deepEqual(await importLegacyFiles({ store, repos }), [{ path: 'audit/2026-11.jsonl', records: 1, skipped: 2 }]);
+    assert.equal(await repos.audit.count(), 3);
   });
 
   test('when the database refuses the records, the start stops and the file is left as it is', async (t) => {

@@ -61,7 +61,7 @@ describe('sessions repository', () => {
     await repos.sessions.insert(session());
     await assert.rejects(repos.sessions.insert(session({ hash: 'c'.repeat(64) })), { code: 'db.unique' });
     await assert.rejects(repos.sessions.insert(session({ id: 'other' })), { code: 'db.unique' });
-    assert.throws(() => repos.sessions.insert(session({ id: 'x', hash: 'd'.repeat(64), expiresAt: NaN })), /valid creation, activity and expiry times/);
+    await assert.rejects(repos.sessions.insert(session({ id: 'x', hash: 'd'.repeat(64), expiresAt: NaN })), /valid creation, activity and expiry times/);
     assert.deepEqual(await repos.sessions.insertIfAbsent(session({ hash: 'c'.repeat(64) })), { changes: 0 }, 'imports skip what exists');
     assert.deepEqual(await repos.sessions.insertIfAbsent(session({ id: 'new', hash: 'e'.repeat(64) })), { changes: 1 });
   });
@@ -196,12 +196,17 @@ describe('settings repository', () => {
 });
 
 describe('legacy imports repository, and repositories in a transaction', () => {
-  test('has / record', async (t) => {
-    const { repos } = await setup(t);
-    assert.equal(await repos.legacyImports.has('auth/sessions.json'), false);
-    await repos.legacyImports.record('auth/sessions.json', { records: 3, skipped: 1 });
-    assert.equal(await repos.legacyImports.has('auth/sessions.json'), true);
-    await assert.rejects(repos.legacyImports.record('auth/sessions.json', {}), { code: 'db.unique' });
+  test('find / record: the content hash of each file; a file imported again updates its row', async (t) => {
+    const { db, repos } = await setup(t, { now: () => new Date('2026-11-13T09:00:00Z') });
+    assert.equal(await repos.legacyImports.find('auth/sessions.json'), undefined);
+    await repos.legacyImports.record('auth/sessions.json', { records: 3, skipped: 1 }, 'a'.repeat(64));
+    assert.deepEqual(await repos.legacyImports.find('auth/sessions.json'), { sha256: 'a'.repeat(64) });
+    await repos.legacyImports.record('auth/sessions.json', { records: 1 }, 'b'.repeat(64));
+    assert.deepEqual(await db.query('SELECT path, records, skipped, sha256 FROM legacy_imports'), [
+      { path: 'auth/sessions.json', records: 1, skipped: 0, sha256: 'b'.repeat(64) },
+    ]);
+    await repos.legacyImports.record('audit/2026-10.jsonl', { records: 2 });
+    assert.deepEqual(await repos.legacyImports.find('audit/2026-10.jsonl'), { sha256: null }, 'recorded without a hash (before migration 005)');
   });
 
   test('repos.transaction: every repository inside works on the transaction, rolled back together', async (t) => {
@@ -221,4 +226,31 @@ describe('legacy imports repository, and repositories in a transaction', () => {
     });
     assert.equal((await repos.sessions.all())[0].lastSeenAt, Date.UTC(2026, 10, 13, 12));
   });
+});
+
+describe('every repository reports bad input as a rejection, never a synchronous throw', () => {
+  const cycle = {};
+  cycle.self = cycle;
+  const cases = {
+    'sessions.insert, invalid times': (r) => r.sessions.insert(session({ createdAt: NaN })),
+    'sessions.insertIfAbsent, invalid times': (r) => r.sessions.insertIfAbsent(session({ lastSeenAt: 'never' })),
+    'sessions.insert, no user': (r) => r.sessions.insert(session({ user: undefined })),
+    'settings.save, a BigInt': (r) => r.settings.save('lab', { n: 1n }),
+    'settings.save, a cycle': (r) => r.settings.save('lab', cycle),
+    'authState.set, a cycle': (r) => r.authState.set('local-admin', cycle),
+    'authState.setIfAbsent, a BigInt': (r) => r.authState.setIfAbsent('device-key', { key: 1n }),
+    'audit.insert, invalid time': (r) => r.audit.insert({ ts: 'soon', action: 'x.y', actor: { id: 'u' }, details: {} }),
+    'audit.insert, a cycle in the details': (r) => r.audit.insert({ ts: '2026-11-13T09:00:00.000Z', action: 'x.y', actor: { id: 'u' }, details: cycle }),
+    'audit.countSame, invalid time': (r) => r.audit.countSame({ ts: 'soon', action: 'x.y', actor: { id: 'u' }, details: {} }),
+    'legacyImports.record, a non-finite count': (r) => r.legacyImports.record('auth/sessions.json', { records: NaN }),
+  };
+  for (const [name, call] of Object.entries(cases)) {
+    test(name, async (t) => {
+      const { repos } = await setup(t);
+      let result;
+      assert.doesNotThrow(() => { result = call(repos); });
+      assert.ok(result instanceof Promise);
+      await assert.rejects(result);
+    });
+  }
 });

@@ -17,10 +17,13 @@
  * statements issued one after the other are applied in that order even when
  * nobody awaits them (a sign-in then a sign-out).
  *
- * Inside a transaction, use `tx`, never `db`: a call on `db` waits for the
- * transaction to end, so awaiting it from inside the transaction would wait
- * forever. Not awaiting it is fine (an audit entry recorded on the way): it
- * runs right after the transaction.
+ * Inside a transaction, use `tx`, never `db`: a call on `db` would wait for
+ * the transaction to end, so awaiting it from inside the transaction would
+ * freeze every database access for good. Such a call is refused at once
+ * (DatabaseError 'db.tx_reentry'), awaited or not: the transaction's code
+ * is tracked with AsyncLocalStorage, so the call is recognised wherever it
+ * is made from (a repository, audit.log) while the transaction runs. Once it
+ * is over, work started inside it (a timer) uses `db` normally.
  *
  * Every statement is checked for portability (portable.js) and its
  * parameters for type and count before it reaches SQLite.
@@ -32,6 +35,7 @@
  * other file of the data directory: it holds session hashes and keys
  */
 import fs from 'node:fs';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { DatabaseError, assertPortable, checkParams } from './portable.js';
 
 // node:sqlite says it is experimental once per process, on stderr. That
@@ -98,6 +102,12 @@ export function openSqlite(file, { busyTimeoutMs = BUSY_TIMEOUT_MS } = {}) {
 
   const statements = new Map(); // sql → StatementSync, checked once
   const enqueue = createQueue();
+  const inTransaction = new AsyncLocalStorage(); // { active } of the transaction whose code is running
+  const guardReentry = () => {
+    if (inTransaction.getStore()?.active) {
+      throw new DatabaseError('This call on the database was made from inside a transaction, which holds the only connection: use the tx argument inside a transaction', 'db.tx_reentry');
+    }
+  };
   let closed = false;
   let savepoints = 0;
 
@@ -179,6 +189,7 @@ export function openSqlite(file, { busyTimeoutMs = BUSY_TIMEOUT_MS } = {}) {
   const queued = (kind) => (sql, params) => {
     try {
       guardOpen();
+      guardReentry();
     } catch (err) {
       return Promise.reject(err);
     }
@@ -199,19 +210,22 @@ export function openSqlite(file, { busyTimeoutMs = BUSY_TIMEOUT_MS } = {}) {
     transaction(fn) {
       try {
         guardOpen();
+        guardReentry();
       } catch (err) {
         return Promise.reject(err);
       }
       return enqueue(async () => {
         conn.exec('BEGIN IMMEDIATE');
         const { tx, end } = transactionExecutor();
+        const context = { active: true };
+        const over = () => { context.active = false; end(); };
         try {
-          const result = await fn(tx);
-          end();
+          const result = await inTransaction.run(context, () => fn(tx));
+          over();
           conn.exec('COMMIT');
           return result;
         } catch (err) {
-          end();
+          over();
           try { conn.exec('ROLLBACK'); } catch { /* SQLite already rolled back (a failed COMMIT) */ }
           throw err;
         }
@@ -223,6 +237,7 @@ export function openSqlite(file, { busyTimeoutMs = BUSY_TIMEOUT_MS } = {}) {
 
     /** Waits for what is queued, then closes; later calls are refused */
     async close() {
+      guardReentry();
       if (closed) return;
       closed = true;
       await enqueue.idle();

@@ -335,9 +335,16 @@ await db.close()              // waits for what is queued, then refuses new call
 - **One connection, one queue.** Statements and transactions run one at a
   time in call order: transactions are serialized, and statements issued
   without awaiting are applied in the order they were issued. Inside a
-  transaction use `tx`, never `db`: a call on `db` waits for the transaction
-  to end (awaiting it inside would wait forever). `tx.transaction()` nests as
-  a savepoint, rolled back alone when its callback fails.
+  transaction use `tx` (or the `r` repositories of `repos.transaction`),
+  never `db` or `deps.repos`: the transaction holds the only connection, so
+  such a call is refused at once with `db.tx_reentry` (the transaction's
+  code is tracked with `AsyncLocalStorage`), awaited or not — including an
+  `audit.log()` made from inside, which is then lost with an error in the
+  log: record it after the transaction. `tx.transaction()` nests as a
+  savepoint, rolled back alone when its callback fails.
+- **Repositories reject, never throw**: every repository method is `async`,
+  so bad input (an invalid time, a value JSON cannot serialise) comes back as
+  a rejected promise.
 - **The SQLite file**: `DATA_DIR/lab-console.db` (mode 0600, with its `-wal`
   and `-shm` files), WAL journal, foreign keys on, busy timeout 5 s,
   temporary data in memory. `node:sqlite` needs Node 22.13 or later (no flag
@@ -345,7 +352,7 @@ await db.close()              // waits for what is queued, then refuses new call
   warning is kept out of the log; any other warning goes through.
 - Errors are `DatabaseError` with a `code`: `db.unique`, `db.foreign_key`,
   `db.constraint`, `db.params`, `db.not_portable`, `db.closed`, `db.migration`,
-  `db.error`.
+  `db.tx_reentry`, `db.tx_over`, `db.tx_close`, `db.error`.
 
 **Portability rules.** Every statement and its parameters are checked by the
 adapter before they run (`portable.js`), so a SQLite-only construct fails in
@@ -366,7 +373,11 @@ the first test that reaches it, not on the day of the move:
   (write `INSERT … ON CONFLICT (key) DO UPDATE SET … = excluded.…` or
   `ON CONFLICT DO NOTHING`), no `PRAGMA`, `GLOB`, `COLLATE`, `IFNULL`,
   `GROUP_CONCAT`, `json_*()`, `strftime()`, multi-argument `min()` / `max()`,
-  `LIMIT a, b`, quoted identifiers. `RETURNING` is fine. Use standard
+  `LIMIT a, b`, quoted identifiers, `==` (write `=`), `ILIKE`. `RETURNING`
+  is fine;
+- `LIKE` ignores case for ASCII in SQLite and respects it in PostgreSQL: it
+  is only accepted as `lower(x) LIKE lower(?)` (or `NOT LIKE`), which behaves
+  the same on both. Use standard
   functions (`coalesce`, `substr`, `lower`, `length`, `count`) or compute in
   JavaScript;
 - every index is created explicitly in a migration, named `<table>_<what>`;
@@ -390,6 +401,12 @@ through the repositories in one transaction per file (also recorded in
 `legacy_imports`), then renames each file `<name>.imported`. Nothing is ever
 deleted; a file that cannot be read is kept as `<name>.not-imported` with an
 error in the log; what the database already holds wins over a file.
+`legacy_imports` keeps each file's SHA-256: a file found again under an
+imported path with the same content (a crash between the commit and the
+rename) is only renamed; with other content (pre-production rolled back to a
+build without the database, then upgraded) it is imported again, the records
+already in the database skipped (sessions and values by key, audit entries
+by time, action, actor and details), with a warning in the log.
 
 **store** (`src/lib/store.js`)
 
@@ -724,7 +741,7 @@ data/
   auth/*.json.imported      audit/*.jsonl.imported   files of before the database, kept after their import
 ```
 
-In the database today (one table each, migrations 001-004):
+In the database today (one table each, migrations 001-005):
 `schema_migrations`, `legacy_imports`, `auth_sessions`, `auth_state` (the
 local administrator's last TOTP step, the known-browser key),
 `audit_entries`, `settings`.
@@ -900,7 +917,7 @@ people download or diff (a configuration backup, a journal, a diagram
 version) stays a file written with `store`; its index row (who, when, which
 bench, the file's path relative to `DATA_DIR`) goes into the database.
 
-1. `src/lib/db/migrations/005-benches.js` (the next free number; never edit a
+1. `src/lib/db/migrations/006-benches.js` (the next free number; never edit a
    merged migration):
 
    ```js
@@ -928,11 +945,13 @@ bench, the file's path relative to `DATA_DIR`) goes into the database.
          const rows = await db.query('SELECT bench, user_ids, since, locked FROM bench_occupancy ORDER BY bench');
          return rows.map((r) => ({ bench: r.bench, userIds: fromJson(r.user_ids, []), since: r.since, locked: fromFlag(r.locked) }));
        },
-       setOccupants: (bench, userIds) => db.run(
-         `INSERT INTO bench_occupancy (bench, user_ids, since, locked) VALUES (?, ?, ?, ?)
-          ON CONFLICT (bench) DO UPDATE SET user_ids = excluded.user_ids, since = excluded.since`,
-         [bench, toJson(userIds), toIso(now()), toFlag(false)],
-       ),
+       async setOccupants(bench, userIds) {   // async: bad input rejects, never throws
+         return db.run(
+           `INSERT INTO bench_occupancy (bench, user_ids, since, locked) VALUES (?, ?, ?, ?)
+            ON CONFLICT (bench) DO UPDATE SET user_ids = excluded.user_ids, since = excluded.since`,
+           [bench, toJson(userIds), toIso(now()), toFlag(false)],
+         );
+       },
      };
    }
    ```

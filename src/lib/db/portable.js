@@ -95,10 +95,28 @@ const RULES = [
   [/\bLIMIT\s+[^\s,]+\s*,/i, 'LIMIT a, b is not portable: LIMIT ? OFFSET ?'],
   [/\bLIMIT\s+-/i, 'a negative LIMIT is SQLite-only: leave LIMIT out'],
   [/\bIS\s+(?!NOT\b|NULL\b|DISTINCT\b)[\w?(']|\bIS\s+NOT\s+(?!NULL\b|DISTINCT\b)[\w?(']/i,'IS / IS NOT only compare with NULL: use = or IS [NOT] DISTINCT FROM'],
+  [/==/, '== is SQLite-only: compare with ='],
+  [/\bILIKE\b/i, 'ILIKE is PostgreSQL-only: compare lower(x) LIKE lower(?)'],
   [/::/, 'the :: cast is PostgreSQL-only: use CAST(x AS type)'],
   [/\$\d|\$[a-z_]|\?\d|[:@][a-z_]/i, 'placeholders are a plain ? (the PostgreSQL adapter numbers them)'],
   [/\$\$/, 'dollar quoting is PostgreSQL-only'],
 ];
+
+/**
+ * LIKE ignores case for ASCII in SQLite and respects it in PostgreSQL: the
+ * same query would return other rows after the move. It is only accepted as
+ * lower(<column or expression>) [NOT] LIKE lower(…), which behaves the same on both
+ */
+function likeProblem(text) {
+  for (const match of text.matchAll(/\b(?:NOT\s+)?LIKE\b/gi)) {
+    const before = text.slice(0, match.index);
+    const after = text.slice(match.index + match[0].length);
+    if (!/\blower\s*\((?:[^()]|\([^()]*\))*\)\s*$/i.test(before) || !/^\s*lower\s*\(/i.test(after)) {
+      return 'LIKE ignores case in SQLite and not in PostgreSQL: write lower(x) LIKE lower(?)';
+    }
+  }
+  return null;
+}
 
 /** Everything in `sql` that would not run, or not run the same, on another database */
 export function portabilityProblems(sql) {
@@ -106,6 +124,8 @@ export function portabilityProblems(sql) {
   const { text, problems } = scan(sql);
   if (/;\s*\S/.test(text)) problems.push('one statement per call (no ";" between statements)');
   for (const [pattern, why] of RULES) if (pattern.test(text)) problems.push(why);
+  const like = likeProblem(text);
+  if (like) problems.push(like);
   return problems;
 }
 

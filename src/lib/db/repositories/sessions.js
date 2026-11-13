@@ -47,13 +47,19 @@ export function createSessionsRepository(db) {
     async all() {
       return (await db.query(`SELECT ${COLUMNS} FROM auth_sessions ORDER BY created_at, id`)).map(record);
     },
-    insert: (session) => db.run(`INSERT INTO auth_sessions (${COLUMNS}) VALUES (${VALUES})`, row(session)),
-    insertIfAbsent: (session) => db.run(`INSERT INTO auth_sessions (${COLUMNS}) VALUES (${VALUES}) ON CONFLICT DO NOTHING`, row(session)),
-    remove: (id) => db.run('DELETE FROM auth_sessions WHERE id = ?', [id]),
-    rehash: (id, hash) => db.run('UPDATE auth_sessions SET token_hash = ? WHERE id = ?', [hash, id]),
-    touch: (id, lastSeenAt) => touch(db, id, lastSeenAt),
-    touchAll: (entries) => db.transaction(async (tx) => {
-      for (const [id, lastSeenAt] of entries) await touch(tx, id, lastSeenAt);
-    }),
+    async insert(session) {
+      return db.run(`INSERT INTO auth_sessions (${COLUMNS}) VALUES (${VALUES})`, row(session));
+    },
+    async insertIfAbsent(session) {
+      return db.run(`INSERT INTO auth_sessions (${COLUMNS}) VALUES (${VALUES}) ON CONFLICT DO NOTHING`, row(session));
+    },
+    async remove(id) { return db.run('DELETE FROM auth_sessions WHERE id = ?', [id]); },
+    async rehash(id, hash) { return db.run('UPDATE auth_sessions SET token_hash = ? WHERE id = ?', [hash, id]); },
+    async touch(id, lastSeenAt) { return touch(db, id, lastSeenAt); },
+    async touchAll(entries) {
+      return db.transaction(async (tx) => {
+        for (const [id, lastSeenAt] of entries) await touch(tx, id, lastSeenAt);
+      });
+    },
   };
 }

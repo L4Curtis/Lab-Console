@@ -10,8 +10,13 @@
  * a human as <name>.not-imported, with an error in the log; the records of a
  * readable file that do not make sense are skipped and counted.
  *
- * A crash between the commit and the rename is harmless: the next start sees
- * the file in legacy_imports, does not import it again, and only renames it.
+ * legacy_imports keeps the SHA-256 of each imported file. A crash between the
+ * commit and the rename is harmless: the next start finds the same file
+ * (same path, same hash) in legacy_imports and only renames it. A file that
+ * comes back under an imported path with other content (pre-production
+ * rolled back to a build without the database, then upgraded again) is
+ * imported: the records the database already holds are skipped (sessions and
+ * values by key, audit entries by content), the new ones are added.
  *
  * Importing more files later (a module moving its JSON documents into the
  * database) is one more entry in IMPORTERS: `files(store)` lists the paths
@@ -21,6 +26,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import crypto from 'node:crypto';
 
 const HASH = /^[0-9a-f]{64}$/;
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
@@ -89,6 +95,7 @@ const audit = {
   async write(repos, lines) {
     let records = 0;
     let skipped = 0;
+    const seen = new Map(); // identical entries in this file so far: a file imported again adds only what is new
     for (const line of lines) {
       if (!line.trim()) continue;
       let entry;
@@ -98,7 +105,12 @@ const audit = {
         skipped += 1;
         continue;
       }
-      await repos.audit.insert({ ...entry, details: isObject(entry.details) ? entry.details : {} });
+      const record = { ...entry, details: isObject(entry.details) ? entry.details : {} };
+      const key = JSON.stringify([record.ts, record.action, String(record.actor.id), record.details]);
+      const occurrence = (seen.get(key) ?? 0) + 1;
+      seen.set(key, occurrence);
+      if (await repos.audit.countSame(record) >= occurrence) { skipped += 1; continue; } // already in the database
+      await repos.audit.insert(record);
       records += 1;
     }
     return { records, skipped };
@@ -131,14 +143,26 @@ export async function importLegacyFiles({ store, repos, logger, importers = IMPO
   for (const importer of importers) {
     for (const rel of importer.files(store)) {
       const file = store.resolve(rel);
-      if (await repos.legacyImports.has(rel)) {
-        log.warn(`${rel} was imported before but not renamed (interrupted start?): renamed now, not imported again`);
-        setAside(file, '.imported');
-        continue;
-      }
+      let text;
       let records;
       try {
-        records = importer.parse(fs.readFileSync(file, 'utf8'));
+        text = fs.readFileSync(file, 'utf8');
+      } catch (err) {
+        log.error(`${rel} could not be read (${err.message}): left as it is`);
+        continue;
+      }
+      const sha256 = crypto.createHash('sha256').update(text).digest('hex');
+      const before = await repos.legacyImports.find(rel);
+      if (before?.sha256 === sha256) {
+        const kept = setAside(file, '.imported');
+        log.warn(`${rel} was imported before but not renamed (interrupted start?): same content, not imported again; kept as ${kept}`);
+        continue;
+      }
+      if (before) {
+        log.warn(`${rel} was imported before and has come back with ${before.sha256 ? 'different' : 'unrecorded'} content: importing it, records already in the database are skipped`);
+      }
+      try {
+        records = importer.parse(text);
       } catch (err) {
         const kept = setAside(file, '.not-imported');
         log.error(`${rel} could not be imported (${err.message}): kept as ${kept} for a human to look at`);
@@ -148,7 +172,7 @@ export async function importLegacyFiles({ store, repos, logger, importers = IMPO
       try {
         counts = await repos.transaction(async (r) => {
           const result = await importer.write(r, records);
-          await r.legacyImports.record(rel, result);
+          await r.legacyImports.record(rel, result, sha256);
           return result;
         });
       } catch (err) {

@@ -148,20 +148,44 @@ describe('adapter: transactions', () => {
     assert.equal((await db.get('SELECT n FROM items WHERE id = ?', ['counter'])).n, 3);
   });
 
-  test('a statement on the database issued during a transaction runs after it, in call order', async (t) => {
+  test('a statement on the database issued by other code during a transaction runs after it, in call order', async (t) => {
     const db = await scratch(t);
     const order = [];
-    const outside = [];
     const inside = db.transaction(async (tx) => {
-      outside.push(db.run('INSERT INTO items (id, label) VALUES (?, ?)', ['outside', 'x']).then(() => order.push('outside')));
       await tick(5);
       assert.equal(await tx.get('SELECT id FROM items WHERE id = ?', ['outside']), undefined, 'not yet');
       await tx.run('INSERT INTO items (id, label) VALUES (?, ?)', ['inside', 'x']);
       order.push('inside');
     });
-    await inside;
-    await Promise.all(outside);
+    const outside = db.run('INSERT INTO items (id, label) VALUES (?, ?)', ['outside', 'x']).then(() => order.push('outside'));
+    await Promise.all([inside, outside]);
     assert.deepEqual(order, ['inside', 'outside']);
+  });
+
+  test('a call on the database from inside a transaction is refused at once instead of waiting forever', async (t) => {
+    const db = await scratch(t);
+    let later;
+    await db.transaction(async (tx) => {
+      await tx.run('INSERT INTO items (id, label) VALUES (?, ?)', ['a', 'x']);
+      const reentry = { code: 'db.tx_reentry', message: /use the tx argument inside a transaction/ };
+      // Awaited: would have frozen every database access for good
+      await assert.rejects(db.get('SELECT id FROM items WHERE id = ?', ['a']), reentry);
+      await assert.rejects(db.run('INSERT INTO items (id, label) VALUES (?, ?)', ['b', 'x']), reentry);
+      await assert.rejects(db.transaction(() => {}), reentry);
+      await assert.rejects(db.close(), reentry);
+      // Through a nested savepoint and further async hops, still recognised
+      await tx.transaction(async () => {
+        await tick(1);
+        await assert.rejects(db.query('SELECT id FROM items'), reentry);
+      });
+      // Work started inside that runs once the transaction is over uses the database normally
+      later = new Promise((resolve, reject) => {
+        setTimeout(() => db.run('INSERT INTO items (id, label) VALUES (?, ?)', ['later', 'x']).then(resolve, reject), 20);
+      });
+    });
+    await later;
+    assert.deepEqual((await db.query('SELECT id FROM items ORDER BY id')).map((r) => r.id), ['a', 'later']);
+    assert.equal(db.pending, 0);
   });
 
   test('statements issued without awaiting are applied in call order', async (t) => {
