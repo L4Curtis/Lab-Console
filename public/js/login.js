@@ -187,5 +187,14 @@ passkeyButton.addEventListener('click', () => {
   passkeySignIn();
 });
 
-// Where the browser can, its suggestions under the user name field include this site's passkeys
-if (offerPasskeys && await autofillSupported()) passkeySignIn({ autofill: true });
+// Where the browser can, the suggestions under the user name field include
+// this site's passkeys (conditional UI). Offered once the local form is open,
+// which is where a person goes to type a user name
+let autofillOffered = false;
+async function offerAutofill() {
+  if (autofillOffered || !offerPasskeys || !local.open || step) return;
+  autofillOffered = true;
+  if (await autofillSupported()) passkeySignIn({ autofill: true });
+}
+local.addEventListener('toggle', offerAutofill);
+offerAutofill();

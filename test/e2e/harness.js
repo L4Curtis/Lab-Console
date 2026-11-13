@@ -104,9 +104,11 @@ const within = (promise, ms, what) => Promise.race([
  *   oidc     true (default): start the mock provider and configure the app for it
  *   mockLab  true (default) or options for startMockLab (devices, busyPorts…)
  *   env      extra variables for the application
+ *   publicHost  the host name of PUBLIC_URL (default 127.0.0.1); 'localhost' where
+ *            the browser needs a domain name: passkeys (see addVirtualAuthenticator)
  * → { url, app, idp, lab, browser, marker, newPage({ locale }), session(page, who), adminCode(), close() }
  */
-export async function startHarness({ oidc = true, mockLab = true, env = {} } = {}) {
+export async function startHarness({ oidc = true, mockLab = true, env = {}, publicHost } = {}) {
   guardProcess();
   const h = {
     marker: `--lab-console-e2e=${process.pid}-${crypto.randomBytes(4).toString('hex')}`,
@@ -164,7 +166,7 @@ export async function startHarness({ oidc = true, mockLab = true, env = {} } = {
         ALLOWED_CONSOLE_HOSTS: '10.22.9.211,10.22.9.212',
       });
     }
-    h.app = await startTestApp({ env: { ...appEnv, ...env } });
+    h.app = await startTestApp({ env: { ...appEnv, ...env }, publicHost });
     h.url = h.app.url;
     h.browser = await chromium.launch({
       executablePath: CHROMIUM_PATH,
@@ -258,6 +260,34 @@ export function useHarness(options) {
 }
 
 // ── Page helpers ───────────────────────────────────────────────────────────
+
+/**
+ * Give a page a virtual passkey authenticator (Chrome DevTools' WebAuthn
+ * domain): it answers every WebAuthn request of that tab at once, with user
+ * verification, and keeps discoverable credentials. Passkeys need a secure
+ * context with a domain name: start the harness with publicHost: 'localhost'.
+ * `credentials`: some to hold from the start (as credentials() lists them).
+ * Discoverable credentials also answer the login page's conditional UI by
+ * themselves as soon as it is offered (the local form is opened).
+ * → { credentials() → what it holds, remove() }
+ */
+export async function addVirtualAuthenticator(page, { credentials = [] } = {}) {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('WebAuthn.enable', { enableUI: false });
+  const { authenticatorId } = await cdp.send('WebAuthn.addVirtualAuthenticator', {
+    options: {
+      protocol: 'ctap2', transport: 'internal', hasResidentKey: true, hasUserVerification: true, isUserVerified: true, automaticPresenceSimulation: true,
+    },
+  });
+  // Credentials carried over from another authenticator (credentials() of it), e.g. as non-discoverable ones
+  for (const { credentialId, isResidentCredential, rpId, privateKey, userHandle, signCount } of credentials) {
+    await cdp.send('WebAuthn.addCredential', { authenticatorId, credential: { credentialId, isResidentCredential, rpId, privateKey, signCount, ...(isResidentCredential ? { userHandle } : {}) } });
+  }
+  return {
+    async credentials() { return (await cdp.send('WebAuthn.getCredentials', { authenticatorId })).credentials; },
+    remove: () => cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId }),
+  };
+}
 
 /** The application shell is ready: the rail, the user menu, and the section on screen has drawn its content */
 export async function waitForApp(page) {

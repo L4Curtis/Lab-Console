@@ -59,10 +59,10 @@ export function createDirectory({ store, envAdminName, now = Date.now, passwordC
   const envKey = usernameKey(envAdminName);
   const iso = (ms) => (ms ? new Date(ms).toISOString() : null);
 
-  // Hashed once at start-up with the same cost as real hashes: an unknown
-  // name costs exactly the work a known one does
-  let dummyHash = null;
-  const ready = hashPassword(crypto.randomBytes(16).toString('base64url'), passwordCost).then((h) => { dummyHash = h; });
+  // Hashed once, the first time it is needed, with the same cost as real
+  // hashes: an unknown name costs exactly the work a known one does
+  let dummy = null;
+  const dummyHash = () => (dummy ??= hashPassword(crypto.randomBytes(16).toString('base64url'), passwordCost));
 
   const accounts = () => {
     const doc = file.get();
@@ -141,10 +141,13 @@ export function createDirectory({ store, envAdminName, now = Date.now, passwordC
     id: 'directory',
     /** → { user, requires? } for an active local account whose password matches, else null. Same work in every case */
     async verify({ username, password }) {
-      await ready;
+      // No local account at all: every name is unknown alike, nothing to hide.
+      // (The environment administrator's provider hashes in parallel, with
+      // the same cost, so the answer takes as long either way)
+      if (!Object.values(accounts()).some((a) => a.via === 'local')) return null;
       const key = usernameKey(username);
       const found = key && key !== envKey ? localByKey(accounts(), key) : null;
-      const ok = await verifyPassword(password, found?.passwordHash ?? dummyHash);
+      const ok = await verifyPassword(password, found?.passwordHash ?? await dummyHash());
       if (!found || !ok) return null;
       const account = accounts()[found.id]; // read again: it may have changed during the hash
       if (!account || account.passwordHash !== found.passwordHash || account.state !== 'active') return null;
@@ -156,7 +159,6 @@ export function createDirectory({ store, envAdminName, now = Date.now, passwordC
   };
 
   return {
-    ready,
     provider,
     toUser,
     summary,
@@ -289,9 +291,9 @@ export function createDirectory({ store, envAdminName, now = Date.now, passwordC
 
     /** Check a password of a local account (its owner changing it) */
     async checkPassword(id, password) {
-      await ready;
       const account = accounts()[id];
-      return verifyPassword(password, account?.via === 'local' ? account.passwordHash : dummyHash).then((ok) => ok && Boolean(account));
+      const ok = await verifyPassword(password, account?.via === 'local' ? account.passwordHash : await dummyHash());
+      return ok && account?.via === 'local';
     },
 
     addPasskey(id, passkey) {

@@ -103,10 +103,19 @@ test('config: defaults of the global keys, and the upstream sections unchanged',
   assert.equal('trustProxy' in config.server, false, 'the upstream switch is gone');
   assert.ok(path.isAbsolute(config.dataDir));
   assert.deepEqual(Object.keys(config).sort(),
-    ['auth', 'consoles', 'dataDir', 'defaultLocale', 'diagramPath', 'infraConfigPath', 'limits', 'proxmox', 'server', 'ssh', 'telnet']);
+    ['appSecret', 'auth', 'consoles', 'dataDir', 'defaultLocale', 'diagramPath', 'infraConfigPath', 'limits', 'proxmox', 'server', 'ssh', 'telnet']);
+  assert.equal(config.appSecret, '', 'optional: secrets saved from the administration pages are then kept in clear (mode 600)');
   assert.deepEqual(config.consoles, { networkPrefix: '10.22.9', allowedHosts: ['10.22.9.211', '10.22.9.212'], portRange: { min: 2000, max: 2099 } });
   assert.equal(config.limits.maxSessions, 40);
   assert.deepEqual(config.proxmox, { enabled: false });
+});
+
+test('config: APP_SECRET, when set, is long enough to be a key', async () => {
+  assert.equal((await loadTestConfig({ APP_SECRET: 'k'.repeat(32) })).appSecret, 'k'.repeat(32));
+  await assert.rejects(loadTestConfig({ APP_SECRET: 'short' }), (err) => {
+    assert.ok(err.problems.some((p) => p.startsWith('APP_SECRET must be at least 32 characters')));
+    return true;
+  });
 });
 
 test('config: DATA_DIR defaults to ./data and is made absolute', async () => {
