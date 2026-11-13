@@ -194,3 +194,9 @@ test('runExclusive: the line closing underneath rejects the task; a task never q
   assert.equal(await task, 'done');
   assert.equal(r2.pilot, alice.id);
 });
+
+test('runExclusive: a line a job opened and nobody watches hangs up after the grace period once the job ends', async () => {
+  const r = room({ options: { graceMs: 50 } });
+  assert.equal(await r.runExclusive('system', 'backup', async () => 'saved'), 'saved');
+  await until(() => r.closed);
+});

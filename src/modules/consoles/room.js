@@ -171,14 +171,21 @@ export class ConsoleRoom extends EventEmitter {
         this.#activity('leave', user);
       }
     }
-    if (!this.#clients.size && !this.#closed) {
-      // The last one left: keep the line a moment (a page reload, a flaky network), then hang up
-      this.#graceTimer = setTimeout(() => {
-        if (!this.#clients.size) this.close('Nobody is on the console any more', { code: 'consoles.browser_gone' });
-      }, this.options.graceMs);
-      this.#graceTimer.unref?.();
-    }
+    this.#armGrace();
     this.#changed();
+  }
+
+  /**
+   * Nobody attached (the last one left, or a job ran on a line nobody
+   * watched): keep the line a moment (a page reload, a flaky network), then hang up
+   */
+  #armGrace() {
+    if (this.#clients.size || this.#closed || this.#task) return;
+    clearTimeout(this.#graceTimer);
+    this.#graceTimer = setTimeout(() => {
+      if (!this.#clients.size && !this.#task) this.close('Nobody is on the console any more', { code: 'consoles.browser_gone' });
+    }, this.options.graceMs);
+    this.#graceTimer.unref?.();
   }
 
   // ── The keyboard ──────────────────────────────────────────────────────────
@@ -352,6 +359,7 @@ export class ConsoleRoom extends EventEmitter {
         else if (!next && this.#pilot && !this.#people.has(this.#pilot)) this.#passOn('left', null);
       }
       this.#activity('task', user, { label: task.label, state: outcome });
+      this.#armGrace();
       this.#changed();
     }
   }

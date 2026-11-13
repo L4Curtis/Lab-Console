@@ -563,7 +563,8 @@ for the line, or while it runs (`err.cancelled`). Afterwards a person keeps
 the keyboard; a 'system' task gives it back to the previous pilot.
 
 The line stays open while someone is attached, 30 s after the last one
-leaves, 60 min without input (`IDLE_TIMEOUT_MINUTES`); "free the line"
+leaves (or after the last task, for a line a job opened that nobody
+watches), 60 min without input (`IDLE_TIMEOUT_MINUTES`); "free the line"
 (`hangUp`: the pilot, an admin, or anyone who may pilot an unowned line).
 Lab parameters (`settings.get('lab')`: jump server, console login, allowed
 hosts) are read when a line opens. Lines share SSH connections
