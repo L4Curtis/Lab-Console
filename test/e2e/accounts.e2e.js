@@ -77,6 +77,21 @@ test('a promoted account registers a passkey at its next sign-in, then signs in 
 
   const page = await h.newPage();
   const authenticator = await addVirtualAuthenticator(page);
+  // Every passkey request of the tab, with its mediation, kept across page loads
+  await page.addInitScript(() => {
+    const get = navigator.credentials.get.bind(navigator.credentials);
+    navigator.credentials.get = (options) => {
+      const seen = JSON.parse(sessionStorage.getItem('credential-gets') || '[]');
+      seen.push(options?.mediation ?? 'optional');
+      sessionStorage.setItem('credential-gets', JSON.stringify(seen));
+      return get(options);
+    };
+  });
+  const credentialGets = async () => {
+    const seen = await page.evaluate(() => JSON.parse(sessionStorage.getItem('credential-gets') || '[]'));
+    await page.evaluate(() => sessionStorage.removeItem('credential-gets'));
+    return seen;
+  };
   await page.goto(`${h.url}/login`);
   await page.waitForSelector('#passkey-button:visible');
   await passwordSignIn(page, 'yann');
@@ -98,17 +113,25 @@ test('a promoted account registers a passkey at its next sign-in, then signs in 
 
   // One click, with the button (the local form stays closed: no conditional UI yet)
   await signOut(page);
+  await credentialGets();
   await page.click('#passkey-button');
   await waitForApp(page);
   await page.click('.user-menu-btn');
   assert.equal(await page.textContent('.user-menu-name'), 'Yann Le Goff');
   assert.equal(await page.textContent('.user-menu-role'), 'Administrateur');
+  assert.deepEqual(await credentialGets(), ['optional'], 'the button: a dialog, and no suggestion was offered while the form was closed');
 
   // Conditional UI: opening the local form offers the passkey among the user
-  // name's suggestions, which the virtual authenticator picks by itself
+  // name's suggestions, which the virtual authenticator picks by itself;
+  // nothing is clicked but the form's summary
   await signOut(page);
+  await credentialGets();
+  assert.equal(await page.getAttribute('#local-username', 'autocomplete'), 'username webauthn');
   await page.click('#login-local summary');
   await waitForApp(page);
+  assert.deepEqual(await credentialGets(), ['conditional'], 'the passkey came from the suggestions (mediation: conditional)');
+  await page.click('.user-menu-btn');
+  assert.equal(await page.textContent('.user-menu-name'), 'Yann Le Goff');
 
   // The password alone asks for the passkey, never more. Here the passkey is
   // held as a non-discoverable credential, so that the suggestions offer
@@ -141,10 +164,14 @@ test('an administrator promotes a student from the Users tab: signed out at once
   assert.equal(await row.locator('select.role-select').inputValue(), '', 'the role comes from the groups');
   await row.locator('select.role-select').selectOption('admin');
   await admin.waitForSelector('dialog.modal >> text=Bilal Haddad devient Administrateur.');
+  // The server's answer, not the select's value (the page may show the choice
+  // before the change is saved): from then on the student's session is over
+  const saved = admin.waitForResponse((r) => r.request().method() === 'PATCH' && r.url().endsWith('/api/accounts/users/oidc%3Amock-student2'));
   await admin.click('dialog.modal button[data-action="confirm"]');
+  assert.equal((await saved).status(), 200);
   await admin.waitForFunction(() => document.querySelector('tr[data-account="oidc:mock-student2"] select.role-select')?.value === 'admin');
 
-  // The student's session is over: the next page load is the login page
+  // The next page load is the login page
   await student.reload();
   await student.waitForURL(/\/login/);
   await signInAs(student, 'bilal');
