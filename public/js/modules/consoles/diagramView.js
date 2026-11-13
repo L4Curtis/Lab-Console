@@ -21,9 +21,14 @@
  *   }) | null)
  *   view.refresh()                                     // after the data behind a layer changed
  *   view.decorate('presence', null)                    // remove a layer
+ *
+ * Other lots do not hold the view: they register their layer once with
+ * `registerDiagramLayer(name, fn)` (shared/diagramLayers.js), which every
+ * view uses after its own layers, and call `refreshDiagram()`.
  */
 import { svg, h, icon } from '../../core/dom.js';
 import { t, tAttr, onLocaleChange } from '../../core/i18n.js';
+import { diagramLayers, onDiagramLayersChange } from '../../shared/diagramLayers.js';
 
 // Device glyphs, drawn in a 24×24 box centred in the device tile
 const GLYPHS = {
@@ -62,6 +67,7 @@ export class DiagramView {
     container.append(this.svg, this.controls, this.tooltip);
     this.#bindPanZoom();
     onLocaleChange(() => this.#relabel());
+    onDiagramLayersChange(() => this.refresh());
     new ResizeObserver(() => this.#autoFit && this.fit()).observe(container);
   }
 
@@ -125,7 +131,7 @@ export class DiagramView {
 
   #decorationOf(device) {
     const out = { ring: null, badges: [], tooltip: [] };
-    for (const [name, fn] of this.#layers) {
+    for (const [name, fn] of [...this.#layers, ...diagramLayers()]) {
       let d = null;
       try { d = fn(device); } catch (err) { console.warn(`[diagram] layer ${name}: ${err.message}`); }
       if (!d) continue;
