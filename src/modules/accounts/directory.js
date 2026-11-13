@@ -17,7 +17,11 @@
  * user name is reserved, whatever the case.
  *
  * Two rules hold whatever the caller:
- *   - user names are unique without regard to case;
+ *   - a new local account never takes a user name already held, without
+ *     regard to case: by the environment's administrator, a local account or
+ *     an SSO account (SSO accounts are recorded with the name their provider
+ *     gives, so two SSO accounts, or an SSO account and an older local one,
+ *     may still share a name);
  *   - the last active administrator of the directory cannot be demoted,
  *     disabled or rejected: the environment's emergency account is not meant
  *     for daily work, so the directory never loses its last administrator
@@ -92,6 +96,7 @@ export function createDirectory({ repos, envAdminName, now = Date.now, passwordC
     return doc?.version === FILE_VERSION && doc.accounts && typeof doc.accounts === 'object' ? doc.accounts : {};
   };
   const localByKey = (all, key) => Object.values(all).find((a) => a.via === 'local' && a.usernameKey === key) ?? null;
+  const anyByKey = (all, key) => Object.values(all).find((a) => a.usernameKey === key) ?? null;
 
   /** Read-modify-write; `fn(all)` changes the accounts in place and returns what the caller gets back */
   async function change(fn) {
@@ -192,10 +197,10 @@ export function createDirectory({ repos, envAdminName, now = Date.now, passwordC
 
     get: (id) => (Object.hasOwn(accounts(), id) ? structuredClone(accounts()[id]) : null),
     list: () => Object.values(accounts()).sort((a, b) => String(a.usernameKey).localeCompare(String(b.usernameKey))),
-    /** Is this user name taken (by a local account or by the environment's administrator)? */
+    /** Is this user name taken (by any account of the directory, SSO ones included, or by the environment's administrator)? */
     isTaken: (username) => {
       const key = usernameKey(username);
-      return key === envKey || Boolean(localByKey(accounts(), key));
+      return key === envKey || Boolean(anyByKey(accounts(), key));
     },
     /** The account and passkey a credential id belongs to, or null */
     findCredential(credentialId) {
@@ -211,7 +216,7 @@ export function createDirectory({ repos, envAdminName, now = Date.now, passwordC
     createLocal({ username, name, passwordHash, role, state, createdBy, invitation }) {
       const key = usernameKey(username);
       return change((all) => {
-        if (key === envKey || localByKey(all, key)) throw httpError(409, 'accounts.username_unavailable', 'This user name is not available');
+        if (key === envKey || anyByKey(all, key)) throw httpError(409, 'accounts.username_unavailable', 'This user name is not available');
         const id = `local:${username.trim()}`;
         if (all[id]) throw httpError(409, 'accounts.username_unavailable', 'This user name is not available');
         all[id] = {

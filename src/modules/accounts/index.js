@@ -105,12 +105,21 @@ export function createAccountsModule({ config, logger, events, repos, audit, aut
      * then SSO accounts, which are known from their first sign-in on
      */
     findByUsername(username) {
+      const all = this.findAllByUsername(username);
+      return all.find((a) => a.via === 'local') ?? all[0] ?? null;
+    },
+    /**
+     * Every account with this user name, compared without case: the
+     * environment's administrator, local and SSO accounts. Sign-up refuses a
+     * name already held, but an SSO account is recorded with the name its
+     * provider gives, so two accounts may share one; a caller that binds
+     * something to a person (a team invitation) refuses that case
+     */
+    findAllByUsername(username) {
       const key = usernameKey(username);
-      if (!key) return null;
-      if (key === usernameKey(config.auth.localAdmin.username)) return environmentAccount(config.auth.localAdmin.username);
-      const all = directory.list().filter((a) => a.usernameKey === key);
-      const found = all.find((a) => a.via === 'local') ?? all[0];
-      return found ? directory.summary(found) : null;
+      if (!key) return [];
+      const out = key === usernameKey(config.auth.localAdmin.username) ? [environmentAccount(config.auth.localAdmin.username)] : [];
+      return [...out, ...directory.list().filter((a) => a.usernameKey === key).map(directory.summary)];
     },
     /** The role an administrator forced on this SSO account, or null (its groups decide) */
     roleOverride(userId) {

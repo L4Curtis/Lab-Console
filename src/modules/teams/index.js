@@ -14,7 +14,7 @@
  */
 import express from 'express';
 import { httpError } from '../../lib/httpError.js';
-import { Teams, sameUsername, normalizeUsername } from './teams.js';
+import { Teams, isInvitee, normalizeUsername } from './teams.js';
 import { Benches } from './benches.js';
 
 const TICK_MS = 30_000;
@@ -33,9 +33,9 @@ export function createTeamsModules(deps, { now = () => Date.now(), tickMs = TICK
   /** Who hears about a team change: its members before and after, and the admins */
   function announceTeam({ team, before, after }) {
     const ids = new Set([...(before?.members ?? []), ...(after?.members ?? [])]);
-    const invited = [...(before?.invitations ?? []), ...(after?.invitations ?? [])].map((i) => i.username);
+    const invited = [...(before?.invitations ?? []), ...(after?.invitations ?? [])];
     events.publish('teams:changed', { teamId: team?.id ?? null }, {
-      audience: (u) => u.role === 'admin' || ids.has(u.id) || invited.some((name) => sameUsername(u, name)),
+      audience: (u) => u.role === 'admin' || ids.has(u.id) || invited.some((inv) => isInvitee(inv, u)),
     });
   }
 
@@ -105,31 +105,39 @@ export function createTeamsModules(deps, { now = () => Date.now(), tickMs = TICK
   });
 
   /**
-   * The user name an invitation names, as the directory knows it
-   * (services.accounts, the accounts lot): an account that can sign in, its
-   * own spelling. Without the directory (a platform without the accounts
-   * module), the name is taken as typed
+   * The account an invitation names, as the directory knows it
+   * (services.accounts, the accounts lot): { id, username } of the one
+   * account with this user name that can sign in, in its own spelling. The
+   * invitation is bound to that account, so a namesake never accepts it;
+   * when several accounts share the name (a local account and an SSO one,
+   * possible for accounts made before sign-up refused SSO names), nobody is
+   * invited: 409 teams.ambiguous_user. Without the directory (a platform
+   * without the accounts module), the name is taken as typed
    */
   function resolveInvitee(raw) {
     const accounts = services.accounts;
-    if (typeof accounts?.findByUsername !== 'function') return raw;
+    if (typeof accounts?.findAllByUsername !== 'function') return raw;
     const name = normalizeUsername(raw);
-    const account = accounts.findByUsername(name);
+    const found = accounts.findAllByUsername(name);
+    if (found.length > 1) {
+      throw httpError(409, 'teams.ambiguous_user', 'Several accounts have this user name: an administrator must sort it out first', { username: name });
+    }
+    const account = found[0];
     if (!account || account.state !== 'active') {
       throw httpError(404, 'teams.unknown_user', 'Nobody with this user name can sign in here: an SSO account is known after its first sign-in', { username: name });
     }
-    return account.username;
+    return { id: account.id, username: account.username };
   }
 
   teamsRouter.post('/:id/invitations', json, async (req, res) => {
     const target = teamFor(req);
     memberOrAdmin(req, target);
-    const { team, invited, username } = await teams.invite(target.id, resolveInvitee(req.body?.username), req.user);
+    const { team, invited, username, userId } = await teams.invite(target.id, resolveInvitee(req.body?.username), req.user);
     if (invited) {
       audit.log(req, 'team.invite', { team: team.name, teamId: team.id, invitee: username });
       // The invitation reaches the person it names, and nobody else
       events.publish('teams:invitation', { team: { id: team.id, name: team.name }, by: { name: req.user.name } }, {
-        audience: (u) => sameUsername(u, username),
+        audience: (u) => isInvitee({ username, userId }, u),
       });
     }
     res.status(invited ? 201 : 200).json({ team });
@@ -137,7 +145,9 @@ export function createTeamsModules(deps, { now = () => Date.now(), tickMs = TICK
 
   teamsRouter.delete('/:id/invitations/:username', async (req, res) => {
     const target = teamFor(req);
-    const declining = sameUsername(req.user, param(req, 'username'));
+    const invitation = teams.invitationNamed(target.id, param(req, 'username'));
+    // Declining is for the account the invitation names, not for whoever shares its user name
+    const declining = Boolean(invitation) && isInvitee(invitation, req.user);
     if (!declining) memberOrAdmin(req, target);
     await teams.dropInvitation(target.id, param(req, 'username'));
     audit.log(req, declining ? 'team.invite.decline' : 'team.invite.revoke', { team: target.name, teamId: target.id, invitee: param(req, 'username') });

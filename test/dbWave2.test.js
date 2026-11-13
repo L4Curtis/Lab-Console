@@ -10,7 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { createStore } from '../src/lib/store.js';
-import { importLegacyFiles } from '../src/lib/db/index.js';
+import { importLegacyFiles, openDatabase, loadMigrations, migrate } from '../src/lib/db/index.js';
 import { createCachedDocument } from '../src/lib/cachedDocument.js';
 import { Teams } from '../src/modules/teams/teams.js';
 import { createDirectory } from '../src/modules/accounts/directory.js';
@@ -86,6 +86,38 @@ describe('teams and benches in the database', () => {
     for (const table of ['teams', 'team_members', 'team_invitations']) {
       assert.equal((await db.query(`SELECT * FROM ${table}`)).length, 0, table);
     }
+  });
+
+  test('an invitation keeps the account it names; migration 011 binds older invitations to the one account of that name', async (t) => {
+    const { repos } = await memory(t);
+    const teams = new Teams({ repos });
+    await teams.load();
+    const team = await teams.create(alice, 'Équipe I');
+    await teams.invite(team.id, { id: 'oidc:bob', username: 'bob' }, alice);
+    const again = new Teams({ repos });
+    await again.load();
+    assert.deepEqual(again.get(team.id).invitations.map((i) => [i.username, i.userId]), [['bob', 'oidc:bob']]);
+    assert.deepEqual(again.invitationsFor({ id: 'local:bob', username: 'bob' }), [], 'a namesake has no invitation');
+    assert.equal(again.invitationsFor(bob).length, 1);
+
+    // A database at migration 010, with invitations bound to names only
+    const all = await loadMigrations();
+    const db = await openDatabase({ file: ':memory:', migrations: all.filter((m) => m.version <= '010') });
+    t.after(() => db.close());
+    const account = (id, username) => db.run(
+      'INSERT INTO accounts (id, via, username, username_key, name, email, role, state, groups_list) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, id.split(':')[0] === 'local' ? 'local' : 'oidc', username, username.toLowerCase(), username, '', 'student', 'active', '[]'],
+    );
+    await account('oidc:bob', 'bob');
+    await account('local:eve', 'eve');
+    await account('oidc:eve', 'Eve');
+    await db.run('INSERT INTO teams (id, name, name_key, created_at, created_by) VALUES (?, ?, ?, ?, ?)', ['t1', 'T', 't', '2026-11-12T09:00:00.000Z', 'null']);
+    for (const [i, name] of ['bob', 'eve', 'zoe'].entries()) {
+      await db.run('INSERT INTO team_invitations (team_id, username_key, username, invited_by, at, position) VALUES (?, ?, ?, ?, ?, ?)', ['t1', name, name, 'null', '2026-11-12T09:00:00.000Z', i]);
+    }
+    await migrate(db, all);
+    const rows = await db.query('SELECT username, invitee_id FROM team_invitations ORDER BY position');
+    assert.deepEqual(rows.map((r) => [r.username, r.invitee_id]), [['bob', 'oidc:bob'], ['eve', null], ['zoe', null]], 'bound when one account has the name, else left to the name');
   });
 
   test('occupancy, locks and reservations round-trip through their tables', async (t) => {

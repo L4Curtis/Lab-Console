@@ -2,15 +2,19 @@
  * Teams: a few students who work together and share a bench, its backups and
  * its reservations (SPEC "Lot teams")
  *
- * Any student creates a team and invites classmates by user name; an
- * invitation is accepted by the person it names. A student belongs to at most
+ * Any student creates a team and invites classmates by user name; the
+ * invitation is bound to the account that name designates (its id), and only
+ * that account accepts or declines it: a namesake never does. A student belongs to at most
  * one team; the last member to leave dissolves it. Admins need no team: they
  * see, rename, edit and dissolve every team
  *
  * The state, kept in memory and written through repos.teams (tables teams,
  * team_members, team_invitations; loaded by load(), in the module's start()):
- *   { teams: [{ id, name, createdAt, createdBy, members: [Person + since], invitations: [{ username, by, at }] }] }
- * where Person = { id, username, name }. User names are compared without case
+ *   { teams: [{ id, name, createdAt, createdBy, members: [Person + since], invitations: [{ username, userId, by, at }] }] }
+ * where Person = { id, username, name }. User names are compared without case.
+ * An invitation's userId is the account invited; null only for an invitation
+ * bound to a name (written before invitations named accounts, or on a
+ * platform without the accounts module), which is then matched by name
  *
  * Every change is emitted as 'change' ({ team, before, after, dissolved }) so
  * the benches can follow (a dissolved team gives its bench back)
@@ -27,6 +31,9 @@ export const personOf = (user) => ({ id: String(user.id), username: String(user.
 
 const fold = (name) => String(name ?? '').trim().toLowerCase();
 export const sameUsername = (user, username) => Boolean(user?.username) && fold(user.username) === fold(username);
+
+/** Is `user` the person this invitation is for? Its account when it names one, else its user name */
+export const isInvitee = (inv, user) => Boolean(user?.id) && (inv?.userId ? inv.userId === String(user.id) : sameUsername(user, inv?.username));
 
 const CONTROL = /[\u0000-\u001f\u007f]/;
 
@@ -54,7 +61,7 @@ const view = (team) => team && ({
   createdAt: team.createdAt,
   members: team.members.map((m) => m.id),
   people: team.members.map(({ id, username, name, since }) => ({ id, username, name, since })),
-  invitations: team.invitations.map(({ username, by, at }) => ({ username, by, at })),
+  invitations: team.invitations.map(({ username, userId, by, at }) => ({ username, userId: userId ?? null, by, at })),
 });
 
 export class Teams extends EventEmitter {
@@ -107,7 +114,7 @@ export class Teams extends EventEmitter {
     const out = [];
     for (const t of this.#all()) {
       for (const inv of t.invitations) {
-        if (sameUsername(user, inv.username)) out.push({ team: { id: t.id, name: t.name }, by: inv.by, at: inv.at });
+        if (isInvitee(inv, user)) out.push({ team: { id: t.id, name: t.name }, by: inv.by, at: inv.at });
       }
     }
     return out;
@@ -165,19 +172,32 @@ export class Teams extends EventEmitter {
     })).team;
   }
 
-  async invite(teamId, rawUsername, by) {
-    const username = normalizeUsername(rawUsername);
+  /**
+   * Invite someone: `invitee` is the account ({ id, username }) the user name
+   * designates, or a bare user name on a platform without a directory
+   */
+  async invite(teamId, invitee, by) {
+    const bound = typeof invitee === 'object' && invitee !== null;
+    const username = normalizeUsername(bound ? invitee.username : invitee);
+    const userId = bound && invitee.id ? String(invitee.id) : null;
     const { result, team } = await this.#change(teamId, (t) => {
-      if (t.members.some((m) => fold(m.username) === fold(username))) {
+      if (t.members.some((m) => (userId ? m.id === userId : fold(m.username) === fold(username)))) {
         throw httpError(409, 'teams.already_in_team', 'This person is already in the team', { username });
       }
-      if (t.invitations.some((i) => fold(i.username) === fold(username))) return false; // already invited: nothing new
+      if (t.invitations.some((i) => fold(i.username) === fold(username) || (userId && i.userId === userId))) return false; // already invited: nothing new
       // An invitation holds a seat until it is answered, so a team never has more invitations than free seats
       if (t.members.length + t.invitations.length >= MAX_MEMBERS) throw httpError(409, 'teams.full', `A team has at most ${MAX_MEMBERS} members`, { max: MAX_MEMBERS });
-      t.invitations.push({ username, by: personOf(by), at: new Date(this.#now()).toISOString() });
+      t.invitations.push({ username, userId, by: personOf(by), at: new Date(this.#now()).toISOString() });
       return true;
     });
-    return { team, invited: result, username };
+    return { team, invited: result, username, userId };
+  }
+
+  /** The invitation of a team that a user name designates (as typed in the URL), or null */
+  invitationNamed(teamId, rawUsername) {
+    const t = this.#all().find((x) => x.id === teamId);
+    const inv = t?.invitations.find((i) => fold(i.username) === fold(rawUsername));
+    return inv ? { username: inv.username, userId: inv.userId ?? null, by: inv.by, at: inv.at } : null;
   }
 
   /** Withdraw an invitation (a member, an admin) or decline it (the invitee) */
@@ -191,12 +211,12 @@ export class Teams extends EventEmitter {
   }
 
   hasInvitation(teamId, user) {
-    return this.#all().some((t) => t.id === teamId && t.invitations.some((inv) => sameUsername(user, inv.username)));
+    return this.#all().some((t) => t.id === teamId && t.invitations.some((inv) => isInvitee(inv, user)));
   }
 
   async accept(teamId, user) {
     return (await this.#change(teamId, (t, doc) => {
-      const i = t.invitations.findIndex((inv) => sameUsername(user, inv.username));
+      const i = t.invitations.findIndex((inv) => isInvitee(inv, user));
       if (i < 0) throw httpError(404, 'teams.no_invitation', 'There is no such invitation');
       this.#ensureFree(doc, user);
       // Safety net: an invitation holds a seat, so this only triggers for a document written by hand or a lowered limit

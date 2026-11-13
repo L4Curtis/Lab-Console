@@ -314,7 +314,8 @@ network, and no redirect leads to an internal address.
   administrator's approval (Users tab). Links can be withdrawn.
 - **User names**: 3 to 32 letters and digits with single `.`, `-` or `_`
   between them, unique without regard to case (the local administrator's
-  name included). **Accepted (owner decision, 13 Nov):** the sign-up page
+  name and every account of the directory included, SSO accounts too: a new
+  local account never takes a classmate's SSO user name). **Accepted (owner decision, 13 Nov):** the sign-up page
   may say that a chosen name is taken. Only someone holding a valid
   invitation can ask (any name they try, the local administrator's
   included: such a name is refused at once, exactly like a reserved name

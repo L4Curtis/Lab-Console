@@ -109,6 +109,7 @@
     "already_in_team": "{username} fait déjà partie de l’équipe.",
     "full": "Une équipe compte au plus {max} membres.",
     "no_invitation": "Cette invitation n’existe pas (ou plus).",
+    "ambiguous_user": "Plusieurs comptes portent ce nom d’utilisateur : un administrateur doit d’abord régler la question.",
     "unknown_user": "Personne ne se connecte ici avec ce nom d’utilisateur. Un camarade qui se connecte par l’université est connu après sa première connexion."
   }
 }
