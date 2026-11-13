@@ -147,8 +147,10 @@ exposed directly to the Internet (no Cloudflare Access in front).
   ten minutes before. Limits per team (e.g. 2 future slots, 4 h each); admins
   manage everything. A team cannot book a slot that has already started, nor,
   on a bench another team holds, one that starts in less than ten minutes (the
-  warning would not have time to reach the occupants); a team that takes a
-  bench later is warned in its turn.
+  warning would not have time to reach the occupants). The promise is
+  therefore "at most ten minutes": a team that takes a free bench less than ten
+  minutes before another team's slot is warned at the next tick with the
+  minutes that remain.
 - **Bench history**: occupants see who took, backed up, injected or reset
   their bench, and when (from the audit trail).
 - Snapshots, chat and journals will belong to **the team** that held the bench

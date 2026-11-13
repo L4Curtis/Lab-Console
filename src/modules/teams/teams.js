@@ -187,6 +187,7 @@ export class Teams extends EventEmitter {
       const i = t.invitations.findIndex((inv) => sameUsername(user, inv.username));
       if (i < 0) throw httpError(404, 'teams.no_invitation', 'There is no such invitation');
       this.#ensureFree(doc, user);
+      // Safety net: an invitation holds a seat, so this only triggers for a document written by hand or a lowered limit
       if (t.members.length >= MAX_MEMBERS) throw httpError(409, 'teams.full', `A team has at most ${MAX_MEMBERS} members`, { max: MAX_MEMBERS });
       t.invitations.splice(i, 1);
       t.members.push({ ...personOf(user), since: new Date(this.#now()).toISOString() });

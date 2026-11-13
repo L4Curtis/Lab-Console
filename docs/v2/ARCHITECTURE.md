@@ -373,7 +373,8 @@ and `/api/benches` (take, release, join on request, guests, lock, history,
 reservations). Their SSE topics: `benches:state` (sticky, everyone: holder,
 occupants, lock, automatic release time), `benches:requests:<bench>` (sticky,
 the bench's occupants only), `benches:request` (to the person who asked),
-`benches:warning` (occupants, ten minutes before another team's slot),
+`benches:warning` (occupants, at most ten minutes before another team's
+slot; `minutes` is what remains),
 `benches:slot` (the team whose slot starts), `benches:reservations` (a
 calendar changed), `teams:invitation` (the person invited only) and
 `teams:changed` (the members, the people invited, admins). In the browser,

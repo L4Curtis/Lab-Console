@@ -5,7 +5,7 @@
  */
 import { describe, test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { startTeamsApp } from './helpers/teams.js';
+import { startTeamsApp, T0 } from './helpers/teams.js';
 import { student } from './helpers/fakes.js';
 import { loadTestConfig } from './helpers/app.js';
 import { normalizeTeamName } from '../src/modules/teams/teams.js';
@@ -212,6 +212,23 @@ describe('teams: size', () => {
     // Withdrawing one frees a seat
     await t.api('student1', 'DELETE', `/api/teams/${id}/invitations/guest10`);
     assert.equal((await t.api('student1', 'POST', `/api/teams/${id}/invitations`, { username: 'guest17' })).status, 201);
+  });
+
+  test('accepting into a team that is already full is refused (safety net: a stale document or a lowered limit)', async () => {
+    // The API never gets there (invitations hold a seat), so write the document by hand
+    const since = new Date(T0).toISOString();
+    const people = Array.from({ length: 8 }, (_, n) => ({ id: `oidc:seed${n}`, username: `seed${n}`, name: `Seed ${n}`, since }));
+    const stale = { username: student(3).username, by: people[0], at: since };
+    await t.lab.deps.store.json('teams/teams.json').update((doc) => {
+      doc.teams.push({ id: 'fullteam', name: 'Équipe pleine', createdAt: since, createdBy: people[0], members: people, invitations: [stale] });
+      return doc;
+    });
+    const res = await t.api('student3', 'POST', '/api/teams/fullteam/accept');
+    assert.equal(res.status, 409);
+    assert.equal(res.body.code, 'teams.full');
+    assert.equal(res.body.params.max, 8);
+    assert.equal(t.services.teams.get('fullteam').members.length, 8);
+    assert.equal(t.services.teams.teamOf('oidc:student3'), null);
   });
 });
 
