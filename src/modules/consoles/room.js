@@ -26,11 +26,14 @@
  *     someone, and may switch to a shared keyboard (every attached person who
  *     may pilot can type).
  * Who may pilot is decided by `canPilot(user)` (the bench rule of the teams
- * lot, through the module's single call site); everyone else watches.
+ * lot, through the module's single call site); everyone else watches. A
+ * person attached only through read-only clients (bench wall tiles) never
+ * drives: neither pilot nor typist on a shared keyboard.
  *
  * The line stays open while someone is attached, `graceMs` (30 s) after the
  * last one leaves, at most `idleTimeoutMs` (60 min) without input; "free the
- * line" hangs up at once.
+ * line" hangs up at once (while a task holds the line, only its actor, the
+ * pilot or an admin may: the same people who may stop the task).
  *
  * Events: 'change' (presence, control, task, state), 'activity' ({ kind, user, detail }), 'close' (info)
  */
@@ -169,6 +172,10 @@ export class ConsoleRoom extends EventEmitter {
         if (this.#pending?.from.id === user.id) this.#clearPending('cancelled');
         if (this.#pilot === user.id) this.#passOn('left', user);
         this.#activity('leave', user);
+      } else if (!client.readOnly && p.counted <= 0) {
+        // Only a wall tile left: that person watches now, they no longer drive
+        if (this.#pending?.from.id === user.id && this.#pending.kind === 'human') this.#clearPending('cancelled');
+        if (this.#pilot === user.id) this.#passOn('left', user);
       }
     }
     this.#armGrace();
@@ -195,7 +202,7 @@ export class ConsoleRoom extends EventEmitter {
     if (this.#closed || !user) return false;
     if (this.#task?.state === 'running') return false;
     if (this.#pilot === user.id) return true;
-    return this.#shared && this.#people.has(user.id) && this.canPilot(user);
+    return this.#shared && this.#mayDrive(user);
   }
 
   /** Keystrokes of `user`: ignored unless they hold the keyboard (or it is shared) */
@@ -227,6 +234,7 @@ export class ConsoleRoom extends EventEmitter {
   requestControl(user) {
     if (this.#closed) return refusal('consoles.room_closed');
     if (!this.canPilot(user)) return refusal('consoles.control_not_allowed', { name: this.device.name });
+    if (this.#watchesOnly(user)) return refusal('consoles.wall_read_only');
     if (this.#pilot === user.id) return { ok: true };
     if (this.#task) return refusal('consoles.task_running', { task: this.#task.label });
     if (!this.#pilot) { this.#setPilot(user, 'free'); return { ok: true }; }
@@ -241,13 +249,15 @@ export class ConsoleRoom extends EventEmitter {
   grantControl(to, by) {
     const toId = typeof to === 'string' ? to : to?.id;
     if (!this.#isPilotOrAdmin(by)) return refusal('consoles.control_not_pilot');
-    if (this.#pending?.from.id === toId) {
+    if (!toId) return refusal('consoles.control_no_request');
+    if (this.#pending && this.#pending.from.id === toId) {
       const pending = this.#pending;
       this.#clearPending(null);
       return this.#hand(pending, 'granted', by);
     }
     const target = this.#people.get(toId)?.user;
-    if (!target || !this.canPilot(target)) return refusal('consoles.control_not_allowed', { name: this.device.name });
+    if (!target) return refusal('consoles.control_gone'); // the requester left before the answer
+    if (!this.#mayDrive(target)) return refusal('consoles.control_not_allowed', { name: this.device.name });
     this.#setPilot(target, 'granted', by);
     return { ok: true };
   }
@@ -276,6 +286,7 @@ export class ConsoleRoom extends EventEmitter {
   /** An admin takes the keyboard at once */
   takeControl(user) {
     if (user?.role !== 'admin') return refusal('consoles.control_admin_only');
+    if (this.#watchesOnly(user)) return refusal('consoles.wall_read_only');
     if (this.#task?.state === 'running') return refusal('consoles.task_running', { task: this.#task.label });
     if (this.#pending?.kind === 'human') this.#clearPending('cancelled');
     this.#setPilot(user, 'takeover', user);
@@ -292,10 +303,20 @@ export class ConsoleRoom extends EventEmitter {
     return { ok: true };
   }
 
-  /** "Free the line": the pilot, an admin, or anyone who may pilot an unowned line */
+  /**
+   * "Free the line": the pilot, an admin, or anyone who may drive an unowned
+   * line. While a task holds the line, the rule of cancelTask applies: its
+   * actor, the pilot or an admin, nobody else (a bystander must not cut an
+   * erase-and-reload in half)
+   */
   hangUp(user) {
-    const allowed = this.#isPilotOrAdmin(user) || (!this.#pilot && this.canPilot(user));
-    if (!allowed) return refusal('consoles.control_not_pilot');
+    if (this.#closed) return refusal('consoles.room_closed');
+    if (this.#task) {
+      const allowed = this.#isPilotOrAdmin(user) || (Boolean(user) && user.id === this.#task.actor.id);
+      if (!allowed) return refusal('consoles.task_running', { task: this.#task.label });
+    } else if (!(this.#isPilotOrAdmin(user) || (!this.#pilot && this.#mayDrive(user)))) {
+      return refusal('consoles.control_not_pilot');
+    }
     this.#activity('freed', user);
     this.close(`${who(user).name} freed the line of ${this.device.name}`, { code: 'consoles.freed', params: { name: who(user).name, device: this.device.name } });
     return { ok: true };
@@ -345,8 +366,12 @@ export class ConsoleRoom extends EventEmitter {
       this.#changed();
       return await this.cli.perform(task.label, (cli) => fn(cli));
     } catch (err) {
+      // The line went away under the task (dropped, freed, timed out): not a user's Stop
+      if (this.#closed) {
+        outcome = 'failed';
+        throw Object.assign(new RoomError(`The console of ${this.device.name} closed during the task: ${this.#closeReason}`, 'consoles.room_closed', { name: this.device.name, reason: this.#closeCode }), { cause: err });
+      }
       outcome = err.cancelled ? 'cancelled' : 'failed';
-      if (this.#closed && !err.code) err.code = 'consoles.room_closed';
       throw err;
     } finally {
       signal?.removeEventListener('abort', onAbort);
@@ -354,7 +379,8 @@ export class ConsoleRoom extends EventEmitter {
       this.#task = null;
       if (!this.#closed && obtained) {
         // A person who asked for the keyboard keeps it; a system task gives it back
-        const next = user && this.#people.has(user.id) ? user : this.#people.get(before)?.user ?? null;
+        const previous = this.#people.get(before)?.user;
+        const next = user && this.#mayDrive(user) ? user : (this.#mayDrive(previous) ? previous : null);
         if (next && next.id !== this.#pilot) this.#setPilot(next, user ? 'task' : 'returned', null, { quiet: !user });
         else if (!next && this.#pilot && !this.#people.has(this.#pilot)) this.#passOn('left', null);
       }
@@ -433,6 +459,18 @@ export class ConsoleRoom extends EventEmitter {
     return Boolean(user) && (user.role === 'admin' || this.#pilot === user.id);
   }
 
+  /** Attached only through read-only clients (bench wall tiles) */
+  #watchesOnly(user) {
+    const p = this.#people.get(user?.id);
+    return Boolean(p) && p.counted <= 0;
+  }
+
+  /** May drive this line now: may pilot, and attached through a client with a keyboard */
+  #mayDrive(user) {
+    const p = this.#people.get(user?.id);
+    return Boolean(p) && p.counted > 0 && this.canPilot(user);
+  }
+
   #pilotIdle() {
     const p = this.#people.get(this.#pilot);
     if (!p) return true;
@@ -465,7 +503,7 @@ export class ConsoleRoom extends EventEmitter {
       return { ok: true };
     }
     const person = this.#people.get(pending.from.id)?.user;
-    if (!person) return refusal('consoles.control_gone');
+    if (!person || !this.#mayDrive(person)) return refusal('consoles.control_gone');
     this.#setPilot(person, event, by);
     return { ok: true };
   }
@@ -511,7 +549,7 @@ export class ConsoleRoom extends EventEmitter {
   /** The pilot leaves or lets go: whoever asked gets it, else nobody */
   #passOn(event, from) {
     const pending = this.#pending;
-    if (pending?.kind === 'human' && this.#people.has(pending.from.id)) {
+    if (pending?.kind === 'human' && this.#mayDrive(this.#people.get(pending.from.id)?.user)) {
       this.#clearPending(null);
       return this.#hand(pending, event, from);
     }
@@ -593,9 +631,14 @@ export class ConsoleRoom extends EventEmitter {
     this.#echo.line = line;
   }
 
+  #closeReason = '';
+  #closeCode = null;
+
   #onClosed({ reason, info }) {
     if (this.#closed) return;
     this.#closed = true;
+    this.#closeReason = reason;
+    this.#closeCode = info?.code ?? 'consoles.session_closed';
     clearTimeout(this.#graceTimer);
     this.cli.cancel();
     this.#task?.abort?.();

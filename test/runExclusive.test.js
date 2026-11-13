@@ -180,7 +180,8 @@ test('runExclusive: the line closing underneath rejects the task; a task never q
   r.grantControl(r.presence(alice).pending.from.id, alice);
   await until(() => r.task?.state === 'running');
   r.close('Connection to the jump server closed', { code: 'consoles.ssh_closed' });
-  await assert.rejects(running, (err) => err.cancelled === true || err.code === 'consoles.room_closed');
+  // Not a user's Stop: the job can tell a dropped line from a cancel
+  await assert.rejects(running, (err) => err.code === 'consoles.room_closed' && !err.cancelled && err.params.reason === 'consoles.ssh_closed');
 
   const r2 = room();
   const a2 = attach(r2, alice);

@@ -2,7 +2,7 @@
  * The strip of a console tile that says who is on the line and who holds the
  * keyboard, with the controls that go with it: ask for the keyboard, give it
  * (or refuse it) when someone asks, let go, share it, take it over (admins),
- * free the line. It speaks the room frames of /ws/console:
+ * free the line (not under someone else's task). It speaks the room frames of /ws/console:
  *   update(presence)   {type:'presence', users, pilot, you, canPilot, mayType, shared, task, pending}
  *   control(frame)     {type:'control', event, by, to}   → a short notice when it concerns this user
  *   refused(frame)     {type:'control-refused', code, params}
@@ -97,7 +97,9 @@ export class PresenceBar {
     if (mine) buttons.push(btn(p.shared ? 'unshare' : 'share', p.shared ? 'terminal.presence.unshare' : 'terminal.presence.share'));
     if (mine) buttons.push(btn('release', 'terminal.presence.release'));
     if (!mine && session.isAdmin && pilot) buttons.push(btn('take', 'terminal.presence.take'));
-    if (mine || session.isAdmin || (!pilot && p.canPilot)) buttons.push(btn('hangup', 'terminal.presence.hangup', { onclick: () => this.#hangUp() }));
+    // Free the line: under a task, only the people who may stop it (its actor, the pilot, an admin)
+    const mayFree = mine || session.isAdmin || (p.task ? p.task.by?.id === p.you : !pilot && p.canPilot);
+    if (mayFree) buttons.push(btn('hangup', 'terminal.presence.hangup', { onclick: () => this.#hangUp() }));
     this.buttons.replaceChildren(...buttons);
     this.#renderPrompt();
   }
