@@ -21,6 +21,8 @@
  *   MOCK_BUSY_PORTS=2004        # console port held by someone outside the app
  *   MOCK_LOGIN_PORTS=2001       # console server that prompts "login:" at once and
  *                               # hangs up on an empty login
+ *   MOCK_SSH_HOST=0.0.0.0        # listen on every interface (a pre-production container);
+ *                               # default 127.0.0.1, this machine only
  *   MOCK_SLOW_CONSOLE=1         # old devices: ~1 char/ms, 64-byte input buffer,
  *                               # 40 ms per command; overflowing input is dropped
  *   MOCK_MODELS=2001=2811,2002=c9300l   # model per console port (default: 2811 for
@@ -264,6 +266,7 @@ async function main() {
   }
   const lab = await startMockLab({
     port: Number(env.MOCK_SSH_PORT ?? 2222),
+    host: env.MOCK_SSH_HOST || '127.0.0.1',
     ssh: { username: env.SSH_USERNAME, password: env.SSH_PASSWORD },
     telnet: env.TELNET_PASSWORD ? { username: env.TELNET_USERNAME, password: env.TELNET_PASSWORD } : null,
     names,
@@ -279,7 +282,7 @@ async function main() {
     forwards,
     log: (m) => console.log(m),
   });
-  console.log(`Mock jump server on 127.0.0.1:${lab.port} (${names.size} devices from the diagram, forwarding ${[...forwards.keys()].join(', ')})`);
+  console.log(`Mock jump server on ${env.MOCK_SSH_HOST || '127.0.0.1'}:${lab.port} (${names.size} devices from the diagram, forwarding ${[...forwards.keys()].join(', ')})`);
   const stop = () => lab.close().then(() => process.exit(0));
   process.on('SIGINT', stop);
   process.on('SIGTERM', stop);
