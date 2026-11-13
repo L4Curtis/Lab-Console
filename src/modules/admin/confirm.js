@@ -6,11 +6,14 @@
  *     (auth.reauthenticate; the code is burnt, as at sign-in);
  *   - a local account promoted to administrator: one of its passkeys
  *     (services.accounts.confirmation, the accounts module);
- *   - an SSO administrator signs in again at the identity provider (a fresh
- *     sign-in is asked for and checked, auth.oidc.trial with `reauth`). The
- *     browser leaves the page, so the change waits on the server (in memory,
- *     for this session only) and is applied when the same person comes back
- *     as an administrator; the outcome is read once, from the lab page
+ *   - an SSO administrator signs in again at the identity provider (owner
+ *     decision, 13 Nov): a dedicated authorization request asks for a fresh
+ *     sign-in (prompt=login, max_age=0, checked on return: auth.oidc.trial
+ *     with `reauth`), and its callback marks this session as freshly
+ *     confirmed for 5 minutes when the same person came back, still an
+ *     administrator. Within those 5 minutes the confirmation answers with a
+ *     ticket like the other methods; nothing waits on the server meanwhile.
+ *     The outcome of the trip is read once, from the lab page
  *     (takeSsoOutcome). No session is opened or replaced by that trip.
  *
  * A ticket is 256 random bits, kept in memory only, valid 2 minutes, for one
@@ -22,17 +25,28 @@ import { httpError } from '../../lib/httpError.js';
 import { createRateLimiter } from '../../lib/security.js';
 
 export const TICKET_TTL_MS = 2 * 60_000;
+/** How long a fresh sign-in at the provider confirms the session's sensitive changes */
+export const SSO_FRESH_MS = 5 * 60_000;
 const SSO_OUTCOME_TTL_MS = 10 * 60_000;
 
-export function createConfirmations({ auth, services, now = Date.now }) {
+export function createConfirmations({ auth, services, audit, now = Date.now }) {
   const tickets = new Map(); // ticket → { userId, sessionId, expires }
   const attempts = createRateLimiter({ limit: 10, windowMs: 15 * 60_000 });
   const ssoOutcomes = new Map(); // session id → { userId, outcome, expires }
+  const fresh = new Map(); // session id → { userId, until }: signed in again at the provider
 
   const sweep = () => {
     const t = now();
     for (const [k, v] of tickets) if (v.expires <= t) tickets.delete(k);
+    for (const [k, v] of fresh) if (v.until <= t) fresh.delete(k);
   };
+
+  /** Until when this session counts as freshly confirmed at the provider (ms), or null */
+  function freshUntil(req) {
+    sweep();
+    const found = fresh.get(req.sessionId);
+    return found && found.userId === req.user?.id ? found.until : null;
+  }
 
   /** How this user confirms: 'totp' | 'passkey' | 'sso' | null */
   function methodOf(user) {
@@ -54,16 +68,29 @@ export function createConfirmations({ auth, services, now = Date.now }) {
   return {
     methodOf,
 
+    /** What the page needs before it asks: { method, confirmedUntil } (an SSO session confirmed a moment ago) */
+    status(req) {
+      const until = methodOf(req.user) === 'sso' ? freshUntil(req) : null;
+      return { method: methodOf(req.user), confirmedUntil: until ? new Date(until).toISOString() : null };
+    },
+
     /** Options for navigator.credentials.get(), for a passkey confirmation */
     async options(req, res) {
       if (methodOf(req.user) !== 'passkey') throw httpError(409, 'admin.confirm_unavailable', 'This account cannot confirm with a passkey');
       return services.accounts.confirmation.options(req, res);
     },
 
-    /** { password, code } or { response } → { ticket, expiresAt }; 401 admin.confirm_failed otherwise */
+    /**
+     * { password, code } or { response } → { ticket, expiresAt }; 401 admin.confirm_failed otherwise.
+     * An SSO administrator gets its ticket without a form while its session is
+     * freshly confirmed at the provider (beginSso); 403 admin.confirm_sso_required before
+     */
     async confirm(req, res, input) {
       const method = methodOf(req.user);
-      // An SSO administrator confirms through the provider (beginSso), not with a form
+      if (method === 'sso') {
+        if (!freshUntil(req)) throw httpError(403, 'admin.confirm_sso_required', 'Sign in again at the identity provider first');
+        return issue(req);
+      }
       if (method !== 'totp' && method !== 'passkey') throw httpError(403, 'admin.confirm_unavailable', 'This account cannot confirm a sensitive change here: sign in with the environment administrator or an administrator account with a passkey');
       if (!attempts(req.user.id)) throw httpError(429, 'admin.confirm_throttled', 'Too many confirmation attempts: wait a few minutes');
       const ok = method === 'totp'
@@ -83,15 +110,17 @@ export function createConfirmations({ auth, services, now = Date.now }) {
     },
 
     /**
-     * Send an SSO administrator to sign in again at the provider; `apply()`
-     * runs when it comes back as the same person, still an administrator,
-     * with a fresh sign-in, and its result is kept for takeSsoOutcome().
-     * → { url } for the browser. 403 admin.confirm_unavailable for any other account
+     * Send an SSO administrator to sign in again at the provider (a dedicated
+     * authorization request: prompt=login, max_age=0). When it comes back as
+     * the same person, still an administrator, with a fresh sign-in, its
+     * session counts as confirmed for SSO_FRESH_MS; the outcome is kept for
+     * takeSsoOutcome(). → { url } for the browser. 403 admin.confirm_unavailable for any other account
      */
-    async beginSso(req, res, apply) {
+    async beginSso(req, res, { returnTo = '/#/admin/lab' } = {}) {
       if (methodOf(req.user) !== 'sso') throw httpError(403, 'admin.confirm_unavailable', 'This account does not confirm with the identity provider');
       if (!attempts(req.user.id)) throw httpError(429, 'admin.confirm_throttled', 'Too many confirmation attempts: wait a few minutes');
       const { id: userId } = req.user;
+      const user = req.user;
       const sessionId = req.sessionId;
       const keep = (outcome) => {
         const t = now();
@@ -100,7 +129,7 @@ export function createConfirmations({ auth, services, now = Date.now }) {
       };
       try {
         return await auth.oidc.trial(req, res, {
-          returnTo: '/#/admin/lab',
+          returnTo,
           reauth: true,
           async onResult(answer) {
             if (!answer.ok) return keep({ ok: false, code: 'admin.sso_confirm_failed' });
@@ -109,11 +138,10 @@ export function createConfirmations({ auth, services, now = Date.now }) {
             if (!auth.sessions.list().some((s) => s.id === sessionId && s.user.id === userId && s.user.role === 'admin')) {
               return keep({ ok: false, code: 'admin.sso_confirm_expired' });
             }
-            try {
-              keep({ ok: true, ...(await apply()) });
-            } catch (err) {
-              keep({ ok: false, code: err.code ?? 'server.internal', params: err.params ?? {}, message: err.message });
-            }
+            const until = now() + SSO_FRESH_MS;
+            fresh.set(sessionId, { userId, until });
+            audit?.log(user, 'admin.confirm.sso', { confirmed: true, until: new Date(until).toISOString() });
+            keep({ ok: true, confirmedUntil: new Date(until).toISOString() });
           },
         });
       } catch (err) {

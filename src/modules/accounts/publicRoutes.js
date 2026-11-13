@@ -138,8 +138,9 @@ export function publicRoutes(ctx) {
     const username = typeof input.username === 'string' ? input.username.trim() : '';
     // A name already taken (the environment's administrator's included) is
     // refused like a reserved one, before any hashing: same answer, same time.
-    // Which names exist cannot be hidden from someone choosing one (an owner
-    // decision is pending, docs/v2/AUTH.md); the per-link limit keeps probing slow
+    // Saying that a chosen name is taken is accepted (owner decision, 13 Nov,
+    // docs/v2/AUTH.md §2b): only the holder of a valid invitation can ask, and
+    // the per-link limit (10 refusals per 15 minutes) keeps probing slow
     const usernameProblem = checkUsername(username) ?? (directory.isTaken(username) ? 'username_unavailable' : null);
     if (usernameProblem) return refuse(() => sendError(res, usernameProblem === 'username_invalid' ? 400 : 409, `accounts.${usernameProblem}`, 'This user name cannot be used'));
     const name = cleanDisplayName(input.name);

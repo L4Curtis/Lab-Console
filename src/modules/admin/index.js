@@ -10,11 +10,12 @@
  * Administrators only:
  *   GET    /lab                        { settings (secrets as { set }), proxmox, confirm: { method }, ssoOutcome }
  *   PUT    /lab                        { values, confirmation } → applied to the consoles opened next
- *   POST   /lab/confirm-sso            { values } → { url }: an SSO administrator signs in again at the provider;
- *                                      the change is applied on return, its outcome comes with the next GET /lab
- *   GET    /confirm                    { method: 'totp' | 'passkey' | 'sso' | null }
+ *   POST   /confirm/sso                { values? } → { url }: an SSO administrator signs in again at the provider
+ *                                      (prompt=login, max_age=0); on return its session is confirmed for 5 minutes,
+ *                                      the outcome comes with the next GET /lab; `values` are only checked
+ *   GET    /confirm                    { method: 'totp' | 'passkey' | 'sso' | null, confirmedUntil }
  *   POST   /confirm/options            passkey options (navigator.credentials.get)
- *   POST   /confirm                    { password, code } | { response } → { ticket, expiresAt }
+ *   POST   /confirm                    { password, code } | { response } | {} (SSO, confirmed) → { ticket, expiresAt }
  *   GET    /diagrams                   versions, newest first, and which one is active
  *   POST   /diagrams?name=             the raw file (5 MB at most) → { version, warnings, diff, outsideAllowList }
  *   GET    /diagrams/:id/preview       { labs, warnings, diff, outsideAllowList }
@@ -45,7 +46,7 @@ const ACTION = /^[a-z][a-z0-9_.-]{0,60}$/;
 
 export function createAdminModule({ config, logger, events, repos, audit, auth, settings, diagrams, infra, services }, { now = Date.now } = {}) {
   const log = logger?.child ? logger.child('admin') : logger ?? { info() {}, warn() {}, error() {} };
-  const confirmations = createConfirmations({ auth, services, now });
+  const confirmations = createConfirmations({ auth, services, audit, now });
   const health = createHealth({ settings, config, services, logger: log, now });
   const announcements = createAnnouncements({ repos, events, audit, logger: log, now });
   const stopHealth = settings.on('change', (ns) => { if (ns === 'lab') health.forget(); });
@@ -107,19 +108,16 @@ export function createAdminModule({ config, logger, events, repos, audit, auth, 
     res.json({ ...labPage(req), changed: outcome.changed, reset: outcome.reset });
   });
 
-  admin.post('/lab/confirm-sso', small, async (req, res) => {
+  // An SSO administrator signs in again at the provider: its session is then confirmed for 5 minutes
+  admin.post('/confirm/sso', small, async (req, res) => {
     const values = body(req).values;
-    settings.check('lab', values); // a typo is told now, not after a trip to the provider
-    const started = await confirmations.beginSso(req, res, async () => {
-      const outcome = await settings.update('lab', values, req);
-      tellAdmins('lab');
-      return { changed: outcome.changed, reset: outcome.reset };
-    });
+    if (values !== undefined) settings.check('lab', values); // a typo is told now, not after a trip to the provider
+    const started = await confirmations.beginSso(req, res);
     audit.log(req, 'admin.confirm.sso', { started: true });
     res.json(started);
   });
 
-  admin.get('/confirm', (req, res) => res.json({ method: confirmations.methodOf(req.user) }));
+  admin.get('/confirm', (req, res) => res.set('Cache-Control', 'no-store').json(confirmations.status(req)));
   admin.post('/confirm/options', async (req, res) => res.json(await confirmations.options(req, res)));
   admin.post('/confirm', small, async (req, res) => {
     const input = body(req);

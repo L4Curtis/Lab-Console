@@ -108,6 +108,7 @@
     "not_member": "Only the members of this team may do that.",
     "already_in_team": "{username} is already in the team.",
     "full": "A team has at most {max} members.",
-    "no_invitation": "This invitation does not exist (any more)."
+    "no_invitation": "This invitation does not exist (any more).",
+    "unknown_user": "Nobody with this user name can sign in here. A classmate who signs in through the university is known after their first sign-in."
   }
 }

@@ -63,7 +63,7 @@ describe('administration: who may call what', () => {
   after(() => lab.close());
 
   const ADMIN_ONLY = [
-    ['GET', '/api/admin/lab'], ['PUT', '/api/admin/lab', {}], ['POST', '/api/admin/lab/confirm-sso', {}], ['GET', '/api/admin/confirm'], ['POST', '/api/admin/confirm/options', {}],
+    ['GET', '/api/admin/lab'], ['PUT', '/api/admin/lab', {}], ['POST', '/api/admin/confirm/sso', {}], ['GET', '/api/admin/confirm'], ['POST', '/api/admin/confirm/options', {}],
     ['POST', '/api/admin/confirm', {}], ['GET', '/api/admin/diagrams'], ['POST', '/api/admin/diagrams', {}], ['GET', '/api/admin/diagrams/x/preview'],
     ['GET', '/api/admin/diagrams/x/download'], ['POST', '/api/admin/diagrams/x/activate', {}], ['POST', '/api/admin/diagrams/rollback', {}],
     ['GET', '/api/admin/switches'], ['PUT', '/api/admin/switches', {}], ['GET', '/api/admin/sessions'], ['DELETE', '/api/admin/sessions/x'],
@@ -314,10 +314,12 @@ describe('confirmation by an SSO administrator: signing in again at the identity
   let idp;
   let lab;
   let ada;
+  let clock;
   before(async () => {
     idp = await startMockOidc({ port: 0 });
+    clock = testClock();
     lab = await startTestApp({
-      modules,
+      modules: modulesAt(clock),
       env: { OIDC_ISSUER: idp.issuer, OIDC_CLIENT_ID: 'lab-console', OIDC_CLIENT_SECRET: 'mock-secret', OIDC_ADMIN_GROUPS: 'admins', OIDC_SCOPES: 'openid profile email groups', OIDC_GROUPS_CLAIM: 'groups' },
     });
   });
@@ -337,39 +339,60 @@ describe('confirmation by an SSO administrator: signing in again at the identity
     const { url: landed } = await browser.go(`${idp.issuer}/authorize/pick?req=${request}&user=${username}`);
     return landed;
   }
-  const start = (browser, values) => call(lab, browser, 'POST', '/api/admin/lab/confirm-sso', { values });
+  const start = (browser, values) => call(lab, browser, 'POST', '/api/admin/confirm/sso', values === undefined ? {} : { values });
   const outcome = async (browser) => (await call(lab, browser, 'GET', '/api/admin/lab')).body.ssoOutcome;
+  const save = async (browser, values) => {
+    const ticket = await call(lab, browser, 'POST', '/api/admin/confirm', {});
+    if (ticket.status !== 200) return ticket;
+    return call(lab, browser, 'PUT', '/api/admin/lab', { values, confirmation: ticket.body.ticket });
+  };
 
   test('the way to confirm is the provider, for an administrator who has no password or passkey here', async () => {
-    assert.equal((await call(lab, ada, 'GET', '/api/admin/confirm')).body.method, 'sso');
+    assert.deepEqual((await call(lab, ada, 'GET', '/api/admin/confirm')).body, { method: 'sso', confirmedUntil: null });
     assert.equal((await call(lab, ada, 'GET', '/api/admin/lab')).body.confirm.method, 'sso');
     const options = await call(lab, ada, 'POST', '/api/admin/confirm', { password: 'x', code: '123456' });
-    assert.equal(options.status, 403, 'the password form is not for them');
-    assert.equal((await call(lab, envAdmin, 'POST', '/api/admin/lab/confirm-sso', { values: { telnet: { username: 'x' } } })).body.code, 'admin.confirm_unavailable', 'nor is the trip for the environment administrator');
+    assert.equal(options.status, 403, 'no ticket before a fresh sign-in at the provider');
+    assert.equal(options.body.code, 'admin.confirm_sso_required');
+    assert.equal((await call(lab, envAdmin, 'POST', '/api/admin/confirm/sso', {})).body.code, 'admin.confirm_unavailable', 'nor is the trip for the environment administrator');
   });
 
-  test('a fresh sign-in at the provider applies the change on return; its outcome is read once', async () => {
-    const started = await start(ada, { telnet: { username: 'sso-confirmed' } });
+  test('a fresh sign-in at the provider confirms the session for 5 minutes: the change is then saved with a ticket', async () => {
+    const started = await start(ada);
     assert.equal(started.status, 200, JSON.stringify(started.body));
     const url = new URL(started.body.url);
     assert.equal(url.origin + url.pathname, `${idp.issuer}/authorize`);
     assert.equal(url.searchParams.get('prompt'), 'login', 'a fresh sign-in is asked for');
     assert.equal(url.searchParams.get('max_age'), '0');
-    assert.notEqual(lab.deps.settings.get('lab').telnet.username, 'sso-confirmed', 'nothing yet');
     const sessions = lab.deps.auth.sessions.list().length;
 
     assert.equal(await atProvider(ada, started.body.url, 'admin'), `${lab.url}/#/admin/lab`);
-    assert.equal(lab.deps.settings.get('lab').telnet.username, 'sso-confirmed');
     assert.equal(lab.deps.auth.sessions.list().length, sessions, 'no session was opened or replaced by the trip');
     const back = await outcome(ada);
     assert.equal(back.ok, true);
-    assert.deepEqual(back.changed, ['telnet.username']);
+    assert.equal(Date.parse(back.confirmedUntil), clock.ms + 5 * 60_000);
     assert.equal(await outcome(ada), null, 'read once');
+    assert.equal((await call(lab, ada, 'GET', '/api/admin/confirm')).body.confirmedUntil, back.confirmedUntil);
+
+    const saved = await save(ada, { telnet: { username: 'sso-confirmed' } });
+    assert.equal(saved.status, 200, JSON.stringify(saved.body));
+    assert.equal(lab.deps.settings.get('lab').telnet.username, 'sso-confirmed');
     const [entry] = await lab.deps.audit.query({ action: 'settings.update' });
     assert.equal(entry.actor.id, 'oidc:mock-admin');
+    assert.ok((await lab.deps.audit.query({ action: 'admin.confirm.sso' })).some((e) => e.details.confirmed === true));
+
+    // Another browser of the same person is another session: not confirmed
+    const other = (await signInWithOidc(lab, 'admin')).browser;
+    assert.equal((await save(other, { telnet: { username: 'elsewhere' } })).body.code, 'admin.confirm_sso_required');
+
+    // Five minutes later the session must sign in again
+    clock.advance(5 * 60_000 + 1);
+    const late = await save(ada, { telnet: { username: 'too-late' } });
+    assert.equal(late.status, 403);
+    assert.equal(late.body.code, 'admin.confirm_sso_required');
+    assert.notEqual(lab.deps.settings.get('lab').telnet.username, 'too-late');
   });
 
-  test('values that are wrong are refused before the trip, and nothing is waiting afterwards', async () => {
+  test('values sent with the trip are checked before it', async () => {
     const bad = await start(ada, { ssh: { port: 'x' } });
     assert.equal(bad.status, 400);
     assert.equal(bad.body.code, 'settings.invalid');
@@ -378,14 +401,14 @@ describe('confirmation by an SSO administrator: signing in again at the identity
     assert.equal(await outcome(ada), null);
   });
 
-  test('another person signing in at the provider changes nothing: it must be the same administrator', async () => {
-    const started = await start(ada, { telnet: { username: 'someone-else' } });
+  test('another person signing in at the provider confirms nothing: it must be the same administrator', async () => {
+    const started = await start(ada);
     await atProvider(ada, started.body.url, 'student1');
-    assert.notEqual(lab.deps.settings.get('lab').telnet.username, 'someone-else');
     assert.equal((await outcome(ada)).code, 'admin.sso_confirm_mismatch');
+    assert.equal((await save(ada, { telnet: { username: 'someone-else' } })).body.code, 'admin.confirm_sso_required');
 
     // A different administrator is not the same person either
-    const other = await start(ada, { telnet: { username: 'someone-else' } });
+    const other = await start(ada);
     await atProvider(ada, other.body.url, 'student2');
     assert.equal((await outcome(ada)).code, 'admin.sso_confirm_mismatch');
     assert.notEqual(lab.deps.settings.get('lab').telnet.username, 'someone-else');
@@ -393,23 +416,23 @@ describe('confirmation by an SSO administrator: signing in again at the identity
 
   test('a provider that hands back an old sign-in instead of a fresh one is refused', async () => {
     idp.misbehave({ staleSignIn: true });
-    const started = await start(ada, { telnet: { username: 'stale' } });
+    const started = await start(ada);
     await atProvider(ada, started.body.url, 'admin');
-    assert.notEqual(lab.deps.settings.get('lab').telnet.username, 'stale');
     assert.equal((await outcome(ada)).code, 'admin.sso_confirm_failed');
+    assert.equal((await save(ada, { telnet: { username: 'stale' } })).body.code, 'admin.confirm_sso_required');
   });
 
-  test('a session that ended while its owner was at the provider applies nothing', async () => {
-    const started = await start(ada, { telnet: { username: 'gone' } });
+  test('a session that ended while its owner was at the provider is not confirmed', async () => {
+    const started = await start(ada);
     const mine = lab.deps.auth.sessions.list().find((s) => s.user.id === 'oidc:mock-admin');
     lab.deps.auth.sessions.revoke(mine.id);
     await atProvider(ada, started.body.url, 'admin');
-    assert.notEqual(lab.deps.settings.get('lab').telnet.username, 'gone');
+    assert.equal((await call(lab, ada, 'GET', '/api/admin/confirm')).status, 401, 'signed out');
   });
 
   test('the number of trips is limited like the other confirmations', async () => {
     const results = [];
-    for (let i = 0; i < 11; i++) results.push((await start(ada, { telnet: { username: `try-${i}` } })).status);
+    for (let i = 0; i < 11; i++) results.push((await start(ada)).status);
     assert.equal(results.at(-1), 429);
   });
 });

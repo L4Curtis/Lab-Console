@@ -108,6 +108,7 @@
     "not_member": "Réservé aux membres de cette équipe.",
     "already_in_team": "{username} fait déjà partie de l’équipe.",
     "full": "Une équipe compte au plus {max} membres.",
-    "no_invitation": "Cette invitation n’existe pas (ou plus)."
+    "no_invitation": "Cette invitation n’existe pas (ou plus).",
+    "unknown_user": "Personne ne se connecte ici avec ce nom d’utilisateur. Un camarade qui se connecte par l’université est connu après sa première connexion."
   }
 }

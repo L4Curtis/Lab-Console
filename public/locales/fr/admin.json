@@ -21,7 +21,7 @@
     "passkeyIntro": "Ces paramètres touchent à l’accès au labo. Confirmez avec votre clé d’accès.",
     "passkey": "Utiliser ma clé d’accès",
     "unavailable": "Ce compte ne peut pas confirmer cette modification ici. Connectez-vous avec l’administrateur du serveur, un compte administrateur qui a une clé d’accès, ou par le fournisseur d’identité une fois activé.",
-    "ssoIntro": "Ces paramètres touchent à l’accès au labo. Vous allez être envoyé chez votre fournisseur d’identité pour vous reconnecter ; la modification est appliquée à votre retour.",
+    "ssoIntro": "Ces paramètres touchent à l’accès au labo. Vous allez être envoyé chez votre fournisseur d’identité pour vous reconnecter. À votre retour, vos modifications sont remises dans le formulaire (les secrets sont à retaper) et vous avez 5 minutes pour les enregistrer.",
     "sso": "Me reconnecter"
   },
   "lab": {
@@ -80,6 +80,7 @@
     "secretNone": "non défini",
     "save": "Enregistrer",
     "saved": "Paramètres enregistrés : ils servent dès la prochaine console.",
+    "ssoConfirmed": "Identité confirmée jusqu’à {time} : enregistrez vos modifications d’ici là.",
     "nothing": "Rien n’a changé.",
     "updated": "Modifié le {date} par {by}.",
     "fromEnvironment": "Toutes les valeurs viennent de l’environnement.",
@@ -356,6 +357,7 @@
     "confirm_throttled": "Trop d’essais de confirmation : attendez quelques minutes.",
     "confirm_failed": "Confirmation refusée.",
     "confirm_required": "Confirmez d’abord la modification (clé d’accès, ou mot de passe et code).",
+    "confirm_sso_required": "Reconnectez-vous d’abord chez le fournisseur d’identité : une confirmation vaut 5 minutes.",
     "diagram_empty_file": "Le fichier est vide.",
     "diagram_too_large": "Le schéma est trop gros : 5 Mo au plus, et ses pages ne peuvent pas se décompresser en plus de 20 Mo.",
     "diagram_doctype": "Refusé : un schéma ne peut pas déclarer de DOCTYPE ni d’entités.",

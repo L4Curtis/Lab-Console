@@ -197,11 +197,15 @@ export class ConsoleRoom extends EventEmitter {
 
   // ── The keyboard ──────────────────────────────────────────────────────────
 
-  /** May `user` type right now? */
+  /**
+   * May `user` type right now? Asked at every keystroke: the pilot keeps the
+   * keyboard only while the bench rule still lets them drive (an admin locks
+   * the bench, another team takes it: they watch from then on)
+   */
   mayType(user) {
     if (this.#closed || !user) return false;
     if (this.#task?.state === 'running') return false;
-    if (this.#pilot === user.id) return true;
+    if (this.#pilot === user.id) return this.canPilot(user);
     return this.#shared && this.#mayDrive(user);
   }
 
@@ -455,8 +459,9 @@ export class ConsoleRoom extends EventEmitter {
 
   // ── Internals ─────────────────────────────────────────────────────────────
 
+  /** An admin, or the pilot while the bench rule still lets them drive */
   #isPilotOrAdmin(user) {
-    return Boolean(user) && (user.role === 'admin' || this.#pilot === user.id);
+    return Boolean(user) && (user.role === 'admin' || (this.#pilot === user.id && this.canPilot(user)));
   }
 
   /** Attached only through read-only clients (bench wall tiles) */

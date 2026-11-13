@@ -21,7 +21,7 @@
     "passkeyIntro": "These parameters control access to the lab. Confirm with your passkey.",
     "passkey": "Use my passkey",
     "unavailable": "This account cannot confirm this change here. Sign in with the local administrator, an administrator account with a passkey, or through the identity provider once it is enabled.",
-    "ssoIntro": "These parameters control access to the lab. You will be sent to your identity provider to sign in again; the change is applied when you come back.",
+    "ssoIntro": "These parameters control access to the lab. You will be sent to your identity provider to sign in again. Back here, your changes are filled in again (secrets must be typed again) and you have 5 minutes to save them.",
     "sso": "Sign in again"
   },
   "lab": {
@@ -80,6 +80,7 @@
     "secretNone": "not set",
     "save": "Save",
     "saved": "Parameters saved: the next console uses them.",
+    "ssoConfirmed": "Identity confirmed until {time}: save your changes before then.",
     "nothing": "Nothing changed.",
     "updated": "Changed on {date} by {by}.",
     "fromEnvironment": "Every value comes from the environment.",
@@ -356,6 +357,7 @@
     "confirm_throttled": "Too many confirmation attempts: wait a few minutes.",
     "confirm_failed": "Confirmation refused.",
     "confirm_required": "Confirm the change first (passkey, or password and code).",
+    "confirm_sso_required": "Sign in again at the identity provider first: a confirmation lasts 5 minutes.",
     "diagram_empty_file": "The file is empty.",
     "diagram_too_large": "The diagram is too large: 5 MB at most, and its pages may not inflate to more than 20 MB.",
     "diagram_doctype": "Refused: a diagram may not declare a DOCTYPE or entities.",

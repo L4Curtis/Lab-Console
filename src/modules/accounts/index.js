@@ -28,6 +28,7 @@ import { createRefusalAudit } from '../auth/refusals.js';
 import { createDirectory, environmentAccount } from './directory.js';
 import { createLinks } from './links.js';
 import { createSso } from './sso.js';
+import { usernameKey } from './policy.js';
 import { relyingParty, createCeremonies, CEREMONY_TTL_MS, authenticationOptions, verifyAuthentication, credentialIdOf } from './passkeys.js';
 import { publicRoutes } from './publicRoutes.js';
 import { meRoutes } from './meRoutes.js';
@@ -98,6 +99,19 @@ export function createAccountsModule({ config, logger, events, repos, audit, aut
       return account ? directory.summary(account) : null;
     },
     list: () => [environmentAccount(config.auth.localAdmin.username), ...directory.list().map(directory.summary)],
+    /**
+     * The account a user name designates, compared without case (a team
+     * invitation names a classmate this way), or null. Local accounts first,
+     * then SSO accounts, which are known from their first sign-in on
+     */
+    findByUsername(username) {
+      const key = usernameKey(username);
+      if (!key) return null;
+      if (key === usernameKey(config.auth.localAdmin.username)) return environmentAccount(config.auth.localAdmin.username);
+      const all = directory.list().filter((a) => a.usernameKey === key);
+      const found = all.find((a) => a.via === 'local') ?? all[0];
+      return found ? directory.summary(found) : null;
+    },
     /** The role an administrator forced on this SSO account, or null (its groups decide) */
     roleOverride(userId) {
       const account = directory.get(userId);

@@ -110,6 +110,8 @@ export function createConsolesModule({ config, events, logger, infra, services =
   rooms.on('change', (list) => events.publish('consoles:rooms', list, { sticky: true }));
   rooms.on('busy', (targets) => events.publish('consoles:busy', targets, { sticky: true }));
   rooms.on('activity', ({ actor, ...entry }) => {
+    // Activity on a console keeps its bench from being released as idle (one write a minute at most)
+    try { services.benches?.touch?.(entry.bench); } catch (err) { log.warn(`bench activity of ${entry.bench}: ${err.message}`); }
     if (entry.kind !== 'command') {
       activity.push(entry);
       if (activity.length > ACTIVITY_KEPT) activity.shift();

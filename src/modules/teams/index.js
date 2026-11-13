@@ -14,7 +14,7 @@
  */
 import express from 'express';
 import { httpError } from '../../lib/httpError.js';
-import { Teams, sameUsername } from './teams.js';
+import { Teams, sameUsername, normalizeUsername } from './teams.js';
 import { Benches } from './benches.js';
 
 const TICK_MS = 30_000;
@@ -104,10 +104,27 @@ export function createTeamsModules(deps, { now = () => Date.now(), tickMs = TICK
     res.json({ ok: true });
   });
 
+  /**
+   * The user name an invitation names, as the directory knows it
+   * (services.accounts, the accounts lot): an account that can sign in, its
+   * own spelling. Without the directory (a platform without the accounts
+   * module), the name is taken as typed
+   */
+  function resolveInvitee(raw) {
+    const accounts = services.accounts;
+    if (typeof accounts?.findByUsername !== 'function') return raw;
+    const name = normalizeUsername(raw);
+    const account = accounts.findByUsername(name);
+    if (!account || account.state !== 'active') {
+      throw httpError(404, 'teams.unknown_user', 'Nobody with this user name can sign in here: an SSO account is known after its first sign-in', { username: name });
+    }
+    return account.username;
+  }
+
   teamsRouter.post('/:id/invitations', json, async (req, res) => {
     const target = teamFor(req);
     memberOrAdmin(req, target);
-    const { team, invited, username } = await teams.invite(target.id, req.body?.username, req.user);
+    const { team, invited, username } = await teams.invite(target.id, resolveInvitee(req.body?.username), req.user);
     if (invited) {
       audit.log(req, 'team.invite', { team: team.name, teamId: team.id, invitee: username });
       // The invitation reaches the person it names, and nobody else

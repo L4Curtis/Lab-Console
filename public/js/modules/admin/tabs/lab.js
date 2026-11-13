@@ -7,8 +7,9 @@
  * here, and a saved one can go back to the environment's. Secrets are
  * write-only: the page only knows whether one is set; an empty field keeps
  * it. Saving asks the administrator to confirm (confirm.js); an SSO
- * administrator leaves for the identity provider and finds the result here
- * on return. Proxmox is shown for reference: its module reads the
+ * administrator leaves for the identity provider to sign in again, and on
+ * return finds its draft filled in again (what is not a secret, kept in this
+ * tab's sessionStorage meanwhile) and 5 minutes to save it. Proxmox is shown for reference: its module reads the
  * environment only (SPEC records that as an owner decision).
  */
 import { h, toast } from '../../../core/dom.js';
@@ -16,6 +17,22 @@ import { request, getJson } from '../../../core/api.js';
 import { t, tError, has, onLocaleChange } from '../../../core/i18n.js';
 import { formatDate, errorText } from '../common.js';
 import { askConfirmation } from '../confirm.js';
+
+// The draft of an SSO administrator who left to sign in again: never a secret
+const DRAFT_KEY = 'labconsole.labDraft';
+const SECRET_KINDS = new Set(['secret', 'secretArea']);
+function keepDraft(values) {
+  try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify(values)); } catch { /* storage off: the admin types it again */ }
+}
+function takeDraft() {
+  try {
+    const raw = sessionStorage.getItem(DRAFT_KEY);
+    sessionStorage.removeItem(DRAFT_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
 
 // Field names within their section (the server's paths are `${section}.${name}`)
 const SECTIONS = [
@@ -112,6 +129,20 @@ export function mount(el) {
       : [h('div', h('dt', t('admin.lab.proxmox.state')), h('dd', t('admin.lab.proxmox.off')))]));
   }
 
+  /** Put a kept draft back in the form (secrets are never kept: they stay empty) */
+  function applyDraft(values) {
+    for (const [path, row] of rows) {
+      const value = get(values, path);
+      if (value === undefined || SECRET_KINDS.has(row.kind)) continue;
+      if (value === null) { row.resetting = true; continue; }
+      if (row.kind === 'check') row.control.checked = Boolean(value);
+      else if (row.kind === 'range') { row.control.children[0].value = value.min; row.control.children[2].value = value.max; }
+      else if (row.kind === 'list') row.control.value = [].concat(value).join(', ');
+      else row.control.value = value;
+    }
+    render();
+  }
+
   /** Only what changed, so that an untouched field keeps its origin */
   function patch() {
     const out = {};
@@ -155,13 +186,12 @@ export function mount(el) {
       const next = await getJson('/api/admin/lab');
       fill(next);
       status.textContent = '';
-      // Back from the identity provider: what became of the change that was waiting
+      // Back from the identity provider: the session is confirmed for a few minutes, the draft comes back
       const back = next.ssoOutcome;
-      if (back?.ok) toast(t('admin.lab.saved'));
-      else if (back) {
-        showProblems(back.params?.problems);
-        status.textContent = tError(back.code, back.params, back.message);
-      }
+      const draft = back ? takeDraft() : null;
+      if (draft) applyDraft(draft);
+      if (back?.ok) toast(t('admin.lab.ssoConfirmed', { time: new Date(back.confirmedUntil).toLocaleTimeString() }), 'info', 10_000);
+      else if (back) status.textContent = tError(back.code, back.params, back.message);
     } catch (err) {
       status.textContent = errorText(err);
     }
@@ -178,7 +208,9 @@ export function mount(el) {
     }
     save.disabled = true;
     try {
-      const confirmation = await askConfirmation(values);
+      const notSecret = (v) => Object.fromEntries(Object.entries(v).map(([section, fields]) => [section,
+        Object.fromEntries(Object.entries(fields).filter(([name]) => !SECRET_KINDS.has(rows.get(`${section}.${name}`)?.kind)))]));
+      const confirmation = await askConfirmation(values, { beforeLeaving: () => keepDraft(notSecret(values)) });
       if (!confirmation || confirmation.redirected) return; // cancelled, or on the way to the identity provider
       fill(await request('PUT', '/api/admin/lab', { values, confirmation: confirmation.ticket }));
       toast(t('admin.lab.saved'));
