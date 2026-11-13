@@ -107,10 +107,11 @@
     "button": "Journals",
     "title": "My console journals",
     "loading": "Loading…",
-    "intro": "What the devices printed, day by day, on the consoles you were on and your team’s (all of them for an admin). Kept {days} days.",
+    "intro": "What the devices printed, session by session, on the consoles you were on and on your team’s bench while it held it (all of them for an admin). Kept {days} days.",
     "none": "No journal for you yet.",
     "columns": {
       "day": "Day",
+      "time": "Time",
       "bench": "Bench",
       "device": "Device",
       "people": "People",
@@ -120,6 +121,7 @@
     "download": "Download",
     "truncated": "(cut)",
     "truncatedHint": "The journal reached its size limit for the day: the end is missing.",
+    "ongoing": "ongoing",
     "bytes": {
       "one": "{count} byte",
       "other": "{count} bytes"

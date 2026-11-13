@@ -107,10 +107,11 @@
     "button": "Journaux",
     "title": "Mes journaux de console",
     "loading": "Chargement…",
-    "intro": "Ce que les équipements ont affiché, jour par jour, sur les consoles où vous étiez, celles de votre équipe (et toutes pour un admin). Conservé {days} jours.",
+    "intro": "Ce que les équipements ont affiché, session par session, sur les consoles où vous étiez et celles de la baie de votre équipe pendant ces sessions (toutes pour un admin). Conservé {days} jours.",
     "none": "Aucun journal pour vous pour l’instant.",
     "columns": {
       "day": "Jour",
+      "time": "Heures",
       "bench": "Baie",
       "device": "Équipement",
       "people": "Participants",
@@ -120,6 +121,7 @@
     "download": "Télécharger",
     "truncated": "(tronqué)",
     "truncatedHint": "La taille maximale du journal pour la journée a été atteinte : la fin manque.",
+    "ongoing": "en cours",
     "bytes": {
       "one": "{count} octet",
       "other": "{count} octets"

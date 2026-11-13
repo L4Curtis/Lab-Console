@@ -110,8 +110,9 @@ top/middle/bottom). Any other naming falls back to plain tabs.
   last person leaves or after `IDLE_TIMEOUT_MINUTES` without input; per-user
   and global limits, and a rate limit on opening consoles.
 - **Console journal.** What the devices print (never keystrokes) is kept
-  `JOURNAL_RETENTION_DAYS` days with who held the keyboard, readable by the
-  people who were there, their team and admins only.
+  `JOURNAL_RETENTION_DAYS` days with who held the keyboard, session by
+  session, readable by the people who were on that session, the team that
+  held the bench during it and admins only.
 - **Few SSH connections.** Console lines share connections to the jump
   server, `SSH_CHANNELS_PER_CONNECTION` each (keep it under sshd's
   `MaxSessions`).
