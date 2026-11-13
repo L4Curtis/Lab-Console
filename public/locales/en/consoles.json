@@ -134,7 +134,7 @@
       "one": "{count} MB",
       "other": "{count} MB"
     },
-    "notice": "Consoles are journaled: what the devices print (never what you type without echo, such as passwords) is kept {days} days with who had the keyboard. The people who were there, their team and the admins can read it back.",
+    "notice": "Consoles are journaled: what the devices print (never what you type without echo, such as passwords) is kept {days} days with who had the keyboard. Whoever was on a console on a given day, their team and the admins read that console’s whole day back.",
     "dismiss": "Got it"
   },
   "notify": {

@@ -55,8 +55,14 @@ test('a lab parameter changed by an administrator is used by the next console', 
   await admin.waitForFunction(() => document.querySelector('[data-field="telnet.password"] .origin-pill')?.dataset.origin === 'environment');
   assert.equal(h.app.deps.settings.get('lab').telnet.password, MOCK_TELNET.password);
 
+  // A shared line stays open a grace period after its last viewer: free it, so the next opening dials again
+  const rooms = h.app.deps.services.consoles.rooms;
+  const r1 = h.app.deps.services.consoles.registry.model.labs.find((l) => l.name === 'B4M').devices.find((d) => d.name === 'R1');
+  const target = `${r1.target.host}:${r1.target.port}`;
+  rooms.get(target)?.hangUp({ id: 'local:e2e', username: 'e2e', name: 'e2e', role: 'admin' });
   await student.reload();
   await waitForApp(student);
+  for (let i = 0; rooms.get(target) && i < 100; i++) await new Promise((r) => setTimeout(r, 50));
   const again = await openConsole(student, 'B4M', 'R1');
   await typeInConsole(again, '');
   await waitForTerminal(again, /^R1>$/m);
@@ -107,7 +113,7 @@ test('a diagram is imported, previewed, activated, then rolled back; students fo
   await student.context().close();
 });
 
-test('an SSO administrator confirms a lab change by signing in again at the identity provider', async () => {
+test('an SSO administrator confirms by signing in again at the identity provider, then saves within 5 minutes', async () => {
   const page = await h.newPage();
   await signInAs(page, 'ada');
   await page.evaluate(() => { location.hash = '#/admin/lab'; });
@@ -119,21 +125,28 @@ test('an SSO administrator confirms a lab change by signing in again at the iden
 
   // Gone to the provider, which asks who is signing in again
   await page.waitForURL(`${h.idp.issuer}/authorize**`);
-  assert.equal(h.app.deps.settings.get('lab').telnet.wakeIdleMs !== 1234, true, 'nothing is applied before the person is back');
+  assert.equal(h.app.deps.settings.get('lab').telnet.wakeIdleMs !== 1234, true, 'nothing is applied by the trip');
   await page.click(`a.user[href$="user=${encodeURIComponent(person('ada').username)}"]`);
   await page.waitForURL((u) => u.href.startsWith(h.url) && u.hash === '#/admin/lab');
 
+  // Back: the session is confirmed for 5 minutes, the draft is filled in again, nothing is saved yet
+  await page.waitForSelector('.toast >> text=Identité confirmée jusqu’à');
+  assert.equal(await page.inputValue('#lab-telnet-wakeIdleMs'), '1234', 'the draft came back');
+  assert.notEqual(h.app.deps.settings.get('lab').telnet.wakeIdleMs, 1234);
+  // Saving now needs no form: the fresh sign-in is the confirmation
+  await page.click('section.view-admin button[data-action="save"]');
   await page.waitForSelector('.toast >> text=Paramètres enregistrés');
   await page.waitForFunction(() => document.querySelector('[data-field="telnet.wakeIdleMs"] .origin-pill')?.dataset.origin === 'saved');
   assert.equal(h.app.deps.settings.get('lab').telnet.wakeIdleMs, 1234);
   assert.equal(await page.inputValue('#lab-telnet-wakeIdleMs'), '1234');
+  assert.equal(await page.locator('dialog.modal').count(), 0, 'no confirmation dialog the second time');
 
   await h.app.deps.settings.update('lab', { telnet: { wakeIdleMs: null } });
   assert.deepEqual(page.errors, []);
   await page.context().close();
 });
 
-test('an SSO administrator who signs in as someone else at the provider changes nothing, and is told so', async () => {
+test('an SSO administrator who signs in as someone else at the provider is not confirmed, and is told so', async () => {
   const page = await h.newPage();
   await signInAs(page, 'ada');
   await page.evaluate(() => { location.hash = '#/admin/lab'; });

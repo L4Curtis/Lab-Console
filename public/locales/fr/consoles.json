@@ -134,7 +134,7 @@
       "one": "{count} Mo",
       "other": "{count} Mo"
     },
-    "notice": "Les consoles sont journalisées : ce que les équipements affichent (jamais ce que vous tapez sans écho, comme les mots de passe) est gardé {days} jours avec qui avait la main. Les participants, leur équipe et les administrateurs peuvent le relire.",
+    "notice": "Les consoles sont journalisées : ce que les équipements affichent (jamais ce que vous tapez sans écho, comme les mots de passe) est gardé {days} jours avec qui avait la main. Qui est passé sur une console un jour donné, son équipe et les administrateurs relisent toute la journée de cette console.",
     "dismiss": "J’ai compris"
   },
   "notify": {

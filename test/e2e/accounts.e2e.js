@@ -61,7 +61,7 @@ test('invitation sign-up: an administrator creates the link, a newcomer creates 
   const again = await h.newPage();
   await again.goto(url);
   await again.waitForSelector('#join-message:not([hidden])');
-  assert.match(await again.textContent('#join-message'), /n'est pas valable/);
+  assert.match(await again.textContent('#join-message'), /n[’']est pas valable/);
   assert.equal(await again.locator('#join-box').isHidden(), true);
 
   assert.deepEqual(admin.errors, []);
