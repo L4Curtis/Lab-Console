@@ -1,6 +1,7 @@
 /**
  * The directory: every account Lab Console knows besides the environment's
- * administrator (data/accounts/users.json)
+ * administrator (tables accounts and account_passkeys, through
+ * repos.accounts; kept in memory, read by load() in the module's start())
  *
  *   local accounts  created through an invitation; user name, display name,
  *                   scrypt hash, role, state, passkeys
@@ -33,6 +34,7 @@ import crypto from 'node:crypto';
 import { createUser } from '../auth/user.js';
 import { hashPassword, verifyPassword, SCRYPT_DEFAULTS } from '../auth/password.js';
 import { httpError } from '../../lib/httpError.js';
+import { createCachedDocument } from '../../lib/cachedDocument.js';
 import { usernameKey } from './policy.js';
 
 const FILE_VERSION = 1;
@@ -69,9 +71,14 @@ export function stepBindingHolds(binding, account) {
   return binding.password === fingerprint(account.passwordHash) && binding.passkeys.every((id) => ids.has(id));
 }
 
-export function createDirectory({ store, envAdminName, now = Date.now, passwordCost = SCRYPT_DEFAULTS, logger }) {
+export function createDirectory({ repos, envAdminName, now = Date.now, passwordCost = SCRYPT_DEFAULTS, logger }) {
   const log = logger ?? { error() {}, warn() {} };
-  const file = store.json('accounts/users.json', { version: FILE_VERSION, accounts: {} });
+  const file = createCachedDocument({
+    name: 'the directory',
+    fallback: { version: FILE_VERSION, accounts: {} },
+    load: async () => ({ version: FILE_VERSION, accounts: await repos.accounts.load() }),
+    save: (next, prev) => repos.transaction((r) => r.accounts.save(next.accounts, prev.accounts)),
+  });
   const envKey = usernameKey(envAdminName);
   const iso = (ms) => (ms ? new Date(ms).toISOString() : null);
 
@@ -175,6 +182,8 @@ export function createDirectory({ store, envAdminName, now = Date.now, passwordC
   };
 
   return {
+    /** Read the accounts from the database (the module's start()) */
+    load: () => file.load(),
     provider,
     toUser,
     summary,

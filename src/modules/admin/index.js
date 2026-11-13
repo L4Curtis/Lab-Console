@@ -37,17 +37,17 @@ import express from 'express';
 import { httpError } from '../../lib/httpError.js';
 import { MAX_DIAGRAM_BYTES } from '../../lib/diagrams.js';
 import { createConfirmations } from './confirm.js';
-import { createHealth, summary } from './health.js';
+import { createHealth, summary, platformSummary } from './health.js';
 import { createAnnouncements } from './announcements.js';
 
 const AUDIT_LIMIT = 1000;
 const ACTION = /^[a-z][a-z0-9_.-]{0,60}$/;
 
-export function createAdminModule({ config, logger, events, store, audit, auth, settings, diagrams, infra, services }, { now = Date.now } = {}) {
+export function createAdminModule({ config, logger, events, repos, audit, auth, settings, diagrams, infra, services }, { now = Date.now } = {}) {
   const log = logger?.child ? logger.child('admin') : logger ?? { info() {}, warn() {}, error() {} };
   const confirmations = createConfirmations({ auth, services, now });
   const health = createHealth({ settings, config, services, logger: log, now });
-  const announcements = createAnnouncements({ store, events, audit, logger: log, now });
+  const announcements = createAnnouncements({ repos, events, audit, logger: log, now });
   const stopHealth = settings.on('change', (ns) => { if (ns === 'lab') health.forget(); });
 
   const router = express.Router();
@@ -61,14 +61,19 @@ export function createAdminModule({ config, logger, events, store, audit, auth, 
 
   router.get('/health', async (req, res) => {
     const fresh = isAdmin(req) && req.query.fresh === '1';
-    const result = await health.check({ fresh });
-    res.set('Cache-Control', 'no-store').json(isAdmin(req) ? { ...summary(result), details: result } : summary(result));
+    const [result, platform] = await Promise.all([health.check({ fresh }), health.platform()]);
+    const seen = { ...summary(result), ...platformSummary(platform) };
+    res.set('Cache-Control', 'no-store').json(isAdmin(req) ? { ...seen, details: { ...result, ...platform } } : seen);
   });
 
+  // What is journaled: the consoles module's own journal settings, read when asked
   router.get('/journaling', (_req, res) => {
+    const journal = services.consoles?.journal;
     res.json({
-      audit: { retentionDays: null, files: 'data/audit/<yyyy-mm>.jsonl' },
-      consoleJournal: config.rooms?.journal ? { enabled: true, retentionDays: config.rooms.journal.retentionDays } : { enabled: false, retentionDays: null },
+      audit: { retentionDays: null, where: 'database' },
+      consoleJournal: journal
+        ? { enabled: true, retentionDays: journal.retentionDays, maxBytesPerDay: journal.maxBytesPerDay, maxTotalBytes: Number.isFinite(journal.maxTotalBytes) ? journal.maxTotalBytes : null, readAccess: 'day' }
+        : { enabled: false, retentionDays: null },
       sessions: { idleHours: 8, maxHours: 24 },
       announcements: { kept: 20 },
     });
@@ -249,6 +254,7 @@ export function createAdminModule({ config, logger, events, store, audit, auth, 
     title: 'Administration',
     enabled: true,
     router,
+    start: () => announcements.load(),
     shutdown() {
       announcements.shutdown();
       stopHealth();

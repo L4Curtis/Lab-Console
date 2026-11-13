@@ -107,7 +107,7 @@
     "button": "Journaux",
     "title": "Mes journaux de console",
     "loading": "Chargement…",
-    "intro": "Ce que les équipements ont affiché, session par session, sur les consoles où vous étiez et celles de la baie de votre équipe pendant ces sessions (toutes pour un administrateur). Conservé {days} jours.",
+    "intro": "Ce que les équipements ont affiché, session par session. Vous relisez toute la journée d’une console où vous êtes passé, ou que la baie de votre équipe avait ce jour-là : toutes les sessions de ce jour, y compris celles des autres (toutes pour un administrateur). Conservé {days} jours.",
     "none": "Aucun journal pour vous pour l’instant.",
     "columns": {
       "day": "Jour",

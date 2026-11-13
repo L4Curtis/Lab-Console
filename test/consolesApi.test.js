@@ -267,7 +267,7 @@ test('consoles: a busy line is refused with its own message; "tell me when it is
   }
 });
 
-test('consoles: the journal is listed and downloaded by those who were there, their team and admins only', async () => {
+test('consoles: the journal is listed and downloaded by those who were there that day, their team and admins only', async () => {
   const r2 = byName('B4M', 'R2');
   // B4M is held by team-x while the console is open (the teams lot's services, read lazily)
   app.deps.services.benches = { holder: (bench) => (bench === 'B4M' ? { teamId: 'team-x', since: new Date().toISOString() } : null) };
@@ -318,7 +318,7 @@ test('consoles: the journal is listed and downloaded by those who were there, th
     delete app.deps.services.teams;
   }
 
-  // Later the same day bob watches R2 for a moment: he reads that session, never alice's
+  // Later the same day bob watches R2 for a moment: read rights cover the whole day of R2 (owner decision), alice's morning included
   const later = await openReady('student1', r2);
   const bob = connect('student2', r2);
   await bob.frame((f) => f.type === 'presence' && f.users.length === 2, 'bob watches');
@@ -328,11 +328,11 @@ test('consoles: the journal is listed and downloaded by those who were there, th
   await later.close();
   await app.deps.store.flush();
   const bobs = (await list('student2')).filter((d) => d.bench === 'B4M' && d.device === 'R2');
-  assert.equal(bobs.length, 1, 'one session for bob');
-  assert.notEqual(bobs[0].id, mine.id);
-  assert.equal(bobs[0].day, mine.day, 'the same device, the same day');
-  assert.equal((await get('student2', `/api/consoles/journal/${bobs[0].id}`)).status, 200);
-  assert.equal((await get('student2', `/api/consoles/journal/${mine.id}`)).status, 403, 'the morning stays alice\'s');
+  assert.equal(bobs.length, 2, 'both sessions of that day for bob');
+  const his = bobs.find((d) => d.id !== mine.id);
+  assert.equal(his.day, mine.day, 'the same device, the same day');
+  assert.equal((await get('student2', `/api/consoles/journal/${his.id}`)).status, 200);
+  assert.equal((await get('student2', `/api/consoles/journal/${mine.id}`)).status, 200, 'the morning too: the whole day of R2');
 
   const downloads = await app.deps.audit.query({ action: 'console.journal.download' });
   assert.ok(downloads.length >= 4, 'every download is audited');

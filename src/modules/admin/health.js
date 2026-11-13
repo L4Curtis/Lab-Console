@@ -25,6 +25,8 @@
  * most every 10 seconds).
  *
  *   health.check({ fresh }) → { checkedAt, jump: { state, ms, error }, consoleServers: [...], proxmox: {...} }
+ *   health.platform()       → { consoles: { open, pool }, journal: { bytes, days, maxBytes } }: read from the
+ *                             consoles module (services.consoles) at every call, never cached
  *   summary(result)         → what a student may see: states only, no address, no error text
  */
 import ssh2 from 'ssh2';
@@ -139,7 +141,21 @@ export function createHealth({ settings, config, services, logger, now = Date.no
     return result;
   }
 
+  /** What the consoles module says now: open lines, the shared SSH connections, the journal's weight */
+  async function platform() {
+    const consoles = services?.consoles;
+    const out = { consoles: null, journal: null };
+    try {
+      if (consoles?.rooms) out.consoles = { open: consoles.rooms.list().length, pool: consoles.pool?.() ?? null };
+      if (consoles?.journal?.usage) out.journal = await consoles.journal.usage();
+    } catch (err) {
+      log.warn(`the consoles state could not be read: ${err.message}`);
+    }
+    return out;
+  }
+
   return {
+    platform,
     async check({ fresh = false } = {}) {
       const age = last ? now() - last.at : Infinity;
       if (last && age < (fresh ? FRESH_MIN_MS : CACHE_MS)) return last.result;
@@ -160,5 +176,13 @@ export function summary(result) {
     jump: { state: result.jump.state },
     consoleServers: { ok: result.consoleServers.filter((s) => s.state === 'ok').length, total: result.consoleServers.length },
     proxmox: { state: result.proxmox.state, ...(result.proxmox.tunnel ? { tunnel: result.proxmox.tunnel.state } : {}) },
+  };
+}
+
+/** What anyone signed in may see of health.platform(): counts and sizes, no address */
+export function platformSummary({ consoles, journal }) {
+  return {
+    consoles: consoles ? { open: consoles.open, connections: consoles.pool?.connections ?? null } : null,
+    journal: journal ? { bytes: journal.bytes, maxBytes: journal.maxBytes } : null,
   };
 }

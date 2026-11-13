@@ -7,7 +7,8 @@
  * one team; the last member to leave dissolves it. Admins need no team: they
  * see, rename, edit and dissolve every team
  *
- * The state is one document, data/teams/teams.json:
+ * The state, kept in memory and written through repos.teams (tables teams,
+ * team_members, team_invitations; loaded by load(), in the module's start()):
  *   { teams: [{ id, name, createdAt, createdBy, members: [Person + since], invitations: [{ username, by, at }] }] }
  * where Person = { id, username, name }. User names are compared without case
  *
@@ -17,6 +18,7 @@
 import crypto from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { httpError } from '../../lib/httpError.js';
+import { createCachedDocument } from '../../lib/cachedDocument.js';
 
 export const MAX_MEMBERS = 8;
 
@@ -59,10 +61,20 @@ export class Teams extends EventEmitter {
   #doc;
   #now;
 
-  constructor({ store, now = () => Date.now() }) {
+  constructor({ repos, now = () => Date.now() }) {
     super();
-    this.#doc = store.json('teams/teams.json', { teams: [] });
+    this.#doc = createCachedDocument({
+      name: 'teams',
+      fallback: { teams: [] },
+      load: () => repos.teams.load(),
+      save: (next, prev) => repos.transaction((r) => r.teams.save(next, prev)),
+    });
     this.#now = now;
+  }
+
+  /** Read the teams from the database (the module's start()) */
+  async load() {
+    await this.#doc.load();
   }
 
   #all() {

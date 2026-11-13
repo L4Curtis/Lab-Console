@@ -283,7 +283,10 @@
       "consoleServers": "Serveurs de consoles",
       "consoleServer": "Serveur de consoles",
       "proxmox": "Proxmox",
-      "proxmoxTunnel": "Tunnel Proxmox"
+      "proxmoxTunnel": "Tunnel Proxmox",
+      "lines": "Lignes console",
+      "journal": "Journal des consoles",
+      "poolConnection": "Connexion SSH partagée"
     },
     "states": {
       "ok": "répond",
@@ -305,6 +308,13 @@
       "error": "Erreur"
     },
     "tunnel": "tunnel {state}",
+    "linesOpen": {
+      "one": "{count} ligne ouverte · {connections} connexion(s) SSH",
+      "other": "{count} lignes ouvertes · {connections} connexion(s) SSH"
+    },
+    "journalUsed": "{used} Mo sur {max} Mo",
+    "journalSize": "{used} Mo",
+    "poolChannels": "{count} canaux utilisés sur {capacity}",
     "tunnelDetail": {
       "one": "{connections} connexion, {channels} canaux ouverts",
       "other": "{connections} connexions, {channels} canaux ouverts"
@@ -315,15 +325,16 @@
     "audit": {
       "title": "Journal d’audit",
       "what": "Les connexions et déconnexions, l’ouverture des consoles et les prises de main, les actions d’administration (comptes, paramètres, schéma, sessions, annonces), avec la personne, l’heure et l’adresse.",
-      "kept": "Gardé sur le serveur, un fichier par mois, sans suppression automatique ; seuls les administrateurs le lisent."
+      "kept": "Gardé dans la base de données du serveur, sans suppression automatique ; seuls les administrateurs le lisent."
     },
     "consoles": {
       "title": "Journal des consoles",
       "what": "Ce que les équipements affichent sur les consoles ouvertes depuis la plateforme, avec qui avait le clavier. Jamais ce que vous tapez.",
       "kept": {
-        "one": "Gardé {count} jour, lisible par les participants, l’équipe qui avait la baie et les administrateurs.",
-        "other": "Gardé {count} jours, lisible par les participants, l’équipe qui avait la baie et les administrateurs."
-      }
+        "one": "Gardé {count} jour. La lecture couvre toute la journée d’une console : qui y est passé ce jour-là, même une minute, et les équipes qui avaient sa baie ce jour-là relisent toutes les sessions de ce jour ; les administrateurs lisent tout.",
+        "other": "Gardé {count} jours. La lecture couvre toute la journée d’une console : qui y est passé ce jour-là, même une minute, et les équipes qui avaient sa baie ce jour-là relisent toutes les sessions de ce jour ; les administrateurs lisent tout."
+      },
+      "limits": "Au plus {day} Mo par équipement et par jour, {total} Mo pour tous les journaux ensemble : au-delà, les jours les plus anciens sont supprimés en premier."
     },
     "noConsoleJournal": {
       "title": "Journal des consoles",

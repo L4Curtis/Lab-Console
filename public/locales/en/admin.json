@@ -283,7 +283,10 @@
       "consoleServers": "Console servers",
       "consoleServer": "Console server",
       "proxmox": "Proxmox",
-      "proxmoxTunnel": "Proxmox tunnel"
+      "proxmoxTunnel": "Proxmox tunnel",
+      "lines": "Console lines",
+      "journal": "Console journal",
+      "poolConnection": "Shared SSH connection"
     },
     "states": {
       "ok": "answering",
@@ -305,6 +308,13 @@
       "error": "Error"
     },
     "tunnel": "tunnel {state}",
+    "linesOpen": {
+      "one": "{count} line open · {connections} SSH connection(s)",
+      "other": "{count} lines open · {connections} SSH connection(s)"
+    },
+    "journalUsed": "{used} MB of {max} MB",
+    "journalSize": "{used} MB",
+    "poolChannels": "{count} of {capacity} channels in use",
     "tunnelDetail": {
       "one": "{connections} connection, {channels} open channels",
       "other": "{connections} connections, {channels} open channels"
@@ -315,15 +325,16 @@
     "audit": {
       "title": "Audit trail",
       "what": "Sign-ins and sign-outs, consoles opened and control handovers, administration actions (accounts, parameters, diagram, sessions, announcements), with the person, the time and the address.",
-      "kept": "Kept on the server, one file per month, never deleted automatically; only administrators read it."
+      "kept": "Kept in the server’s database, never deleted automatically; only administrators read it."
     },
     "consoles": {
       "title": "Console journal",
       "what": "What the devices print on the consoles opened from the platform, with who had the keyboard. Never what you type.",
       "kept": {
-        "one": "Kept {count} day, readable by the participants, the team that held the bench and administrators.",
-        "other": "Kept {count} days, readable by the participants, the team that held the bench and administrators."
-      }
+        "one": "Kept {count} day. Read access covers the whole day of a console: whoever was on it that day, even for a minute, and the teams that held its bench that day read every session of that day; administrators read everything.",
+        "other": "Kept {count} days. Read access covers the whole day of a console: whoever was on it that day, even for a minute, and the teams that held its bench that day read every session of that day; administrators read everything."
+      },
+      "limits": "At most {day} MB per device and per day, {total} MB for every journal together: past that, the oldest days are deleted first."
     },
     "noConsoleJournal": {
       "title": "Console journal",

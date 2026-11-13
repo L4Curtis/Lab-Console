@@ -48,10 +48,10 @@ async function createPlatform({ config, logger, makeAuth, makeModules, trust }) 
     await importLegacyFiles({ store, repos, logger: logger('db') });
     const events = new EventHub({ logger: logger('events') });
     const audit = createAudit({ repo: repos.audit, logger: logger('audit'), clientIp: trust.clientIp });
-    const infra = createInfrastructure({ file: config.infraConfigPath, store, audit, logger: logger('infra') });
+    const infra = await createInfrastructure({ file: config.infraConfigPath, repos, audit, logger: logger('infra') });
     const settings = await createSettings({ config, repo: repos.settings, audit, logger: logger('settings') });
     // The active diagram lives in the data directory (seeded from DIAGRAM_PATH on the first start)
-    const diagrams = createDiagrams({ config, store, logger: logger('diagrams') });
+    const diagrams = await createDiagrams({ config, store, repos, logger: logger('diagrams') });
     const services = {};
     const auth = await makeAuth({ config, logger: logger('auth'), events, store, repos, audit, services });
     const deps = { config, logger: logger('app'), events, infra, store, repos, audit, auth, settings, diagrams, services };

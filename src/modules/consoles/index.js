@@ -51,7 +51,7 @@ const SESSION = /^\d{6}(?:-\d{1,4})?$/;
  * @param options  test seam: room timings ({ graceMs, controlTimeoutMs, pilotIdleMs, silentMs, sweepMs }),
  *                 watch timings ({ watchRetryMs, watchMaxMs }), `now`
  */
-export function createConsolesModule({ config, events, logger, infra, services = {}, store, audit, settings, diagrams }, options = {}) {
+export function createConsolesModule({ config, events, logger, infra, services = {}, store, repos, audit, settings, diagrams }, options = {}) {
   const log = logger.child('consoles');
   const now = options.now ?? (() => Date.now());
   const lab = () => settings.get('lab');
@@ -76,6 +76,7 @@ export function createConsolesModule({ config, events, logger, infra, services =
   const pool = new SshPool({ channelsPerConnection: config.rooms.channelsPerConnection, logger: log });
   const journal = new ConsoleJournal({
     store,
+    days: repos?.journalDays ?? null,
     ...config.rooms.journal,
     now,
     teamOf: (bench) => services.benches?.holder?.(bench)?.teamId ?? null,
@@ -129,11 +130,13 @@ export function createConsolesModule({ config, events, logger, infra, services =
     else if (entry.kind === 'task' && entry.state === 'start') audit.log(by, 'console.task', { ...details, task: entry.label });
   }
 
-  // Journal retention: once at start, then every day
-  const sweepJournal = () => { try { journal.sweep(); } catch (err) { log.warn(`journal sweep: ${err.message}`); } };
+  // Journal retention (daily) and global cap (hourly); both also run once at start
+  const sweepJournal = () => journal.sweep().catch((err) => log.warn(`journal sweep: ${err.message}`));
+  const capJournal = () => journal.enforceCap().catch((err) => log.warn(`journal cap: ${err.message}`));
   const journalSweep = setInterval(sweepJournal, 24 * 3_600_000);
   journalSweep.unref();
-  setImmediate(sweepJournal).unref?.();
+  const journalCap = setInterval(capJournal, 3_600_000);
+  journalCap.unref();
 
   /** Targets that appear on several lab pages (a device shared between benches) */
   function sharedTargets() {
@@ -149,7 +152,11 @@ export function createConsolesModule({ config, events, logger, infra, services =
   }
 
   // What other modules may use (ARCHITECTURE §7); read lazily, inside handlers
-  services.consoles = { registry, rooms, sharedTargets, journal };
+  services.consoles = {
+    registry, rooms, sharedTargets, journal,
+    /** The SSH connections the console lines share: { connections, channels, channelsPerConnection, lines: [{ key, channels, capacity, state }] } */
+    pool: () => ({ ...pool.size, channelsPerConnection: config.rooms.channelsPerConnection, lines: pool.stats() }),
+  };
 
   // ── HTTP API ──────────────────────────────────────────────────────────────
   const router = express.Router();
@@ -188,9 +195,14 @@ export function createConsolesModule({ config, events, logger, infra, services =
 
   // Console journal: the sessions this user may read, and one session as a file
   const teamOfUser = (user) => services.teams?.teamOf?.(user)?.id ?? null;
-  router.get('/journal', (req, res) => {
-    const sessions = journal.list()
-      .filter((d) => journal.canRead(req.user, d.meta, teamOfUser))
+  // Read rights cover a console's whole day (owner decision): a day is readable when any of its sessions is
+  const dayKey = (d) => `${d.benchDir}/${d.deviceDir}/${d.day}`;
+  router.get('/journal', async (req, res) => {
+    const all = await journal.list();
+    const metasOf = new Map();
+    for (const d of all) metasOf.set(dayKey(d), [...(metasOf.get(dayKey(d)) ?? []), d.meta]);
+    const sessions = all
+      .filter((d) => journal.canReadDay(req.user, metasOf.get(dayKey(d)), teamOfUser))
       .map(({ benchDir, deviceDir, day, session, bench, device, from, to, bytes, truncated, meta }) => ({
         id: `${benchDir}/${deviceDir}/${day}/${session}`, bench, device, day, from, to, bytes, truncated,
         people: Object.values(meta.attended ?? {}).map((p) => p.name),
@@ -205,8 +217,8 @@ export function createConsolesModule({ config, events, logger, infra, services =
     }
     const meta = journal.meta(bench, device, day, session);
     if (!meta) throw httpError(404, 'consoles.no_journal', 'There is no such console journal.');
-    if (!journal.canRead(req.user, meta, teamOfUser)) {
-      throw httpError(403, 'consoles.journal_forbidden', 'Only the people who were on this console session, their team and the admins may read its journal.');
+    if (!journal.canReadDay(req.user, journal.dayMetas(bench, device, day), teamOfUser)) {
+      throw httpError(403, 'consoles.journal_forbidden', 'Only the people who were on this console that day, their team and the admins may read its journal.');
     }
     const { log: file } = journal.paths(bench, device, day, session);
     if (!fs.existsSync(file)) throw httpError(404, 'consoles.no_journal', 'There is no such console journal.');
@@ -337,9 +349,16 @@ export function createConsolesModule({ config, events, logger, infra, services =
     router,
     upgrade,
     rooms,
+    // The journal's list of days, from the disk for days the table does not know yet; then retention and cap
+    async start() {
+      await journal.reconcile().catch((err) => log.warn(`journal: the days on disk were not listed (${err.message})`));
+      await sweepJournal();
+      await capJournal();
+    },
     shutdown() {
       clearInterval(heartbeat);
       clearInterval(journalSweep);
+      clearInterval(journalCap);
       for (const stop of stopFollowing) stop?.();
       registry.close();
       watch.close();

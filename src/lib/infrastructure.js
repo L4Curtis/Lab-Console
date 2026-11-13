@@ -4,8 +4,9 @@
  *
  * The list shipped with the image (INFRA_CONFIG_PATH, config/infrastructure.json)
  * is the starting point; once an administrator edits it from the
- * administration pages, the edited list lives in data/admin/switches.json and
- * wins. `infra.adminSwitches` is always the current list: read it when a
+ * administration pages, the edited list lives in the database (table settings,
+ * namespace `switches`, through repos.settings: the settings service leaves
+ * that row alone) and wins. `infra.adminSwitches` is always the current list: read it when a
  * console is opened, never once at start-up.
  *
  *   infra.adminSwitches            [{ id, key: 'admin:<id>', name, bay, labName, target: { host, port } }]
@@ -77,23 +78,28 @@ function readShipped(file, logger) {
   return list;
 }
 
+/** The row of the settings table that holds the edited list */
+export const SWITCHES_NAMESPACE = 'switches';
+
 /**
- * deps: file (INFRA_CONFIG_PATH), store (without it, edits live in memory),
- * audit, logger
+ * deps: file (INFRA_CONFIG_PATH), repos (where an edited list is saved;
+ * without it, edits live in memory), audit, logger. Resolves once the saved
+ * list is read
  */
-export function createInfrastructure({ file, store, audit, logger }) {
+export async function createInfrastructure({ file, repos, audit, logger }) {
   const log = logger ?? { info() {}, warn() {}, error() {} };
   const emitter = new EventEmitter();
   const shipped = readShipped(file, log);
-  const saved = store ? store.json('admin/switches.json', null) : null;
-  let memory = null;
+  const row = repos ? await repos.settings.get(SWITCHES_NAMESPACE) : undefined;
+  // { switches, updatedAt, updatedBy } as last read or written; null: the shipped list applies
+  let memory = row ? { ...row.values, updatedAt: row.updatedAt, updatedBy: row.updatedBy } : null;
 
   const current = () => {
-    const doc = saved ? saved.get() : memory;
+    const doc = memory;
     if (doc && Array.isArray(doc.switches)) {
       const { switches, problems } = checkSwitches(doc.switches);
       if (!problems.length) return { switches, source: 'saved', updatedAt: doc.updatedAt ?? null, updatedBy: doc.updatedBy ?? null };
-      log.warn('data/admin/switches.json is not valid: the shipped list is used');
+      log.warn('the saved admin switches are not valid: the shipped list is used');
     }
     return { switches: shipped, source: 'environment', updatedAt: null, updatedBy: null };
   };
@@ -107,8 +113,8 @@ export function createInfrastructure({ file, store, audit, logger }) {
       const before = current().switches;
       const by = actor?.user?.id ?? actor?.id ?? 'system';
       const doc = { switches, updatedAt: new Date().toISOString(), updatedBy: by };
-      if (saved) await saved.set(doc);
-      else memory = doc;
+      if (repos) await repos.settings.save(SWITCHES_NAMESPACE, { switches }, by);
+      memory = doc;
       const ids = (l) => new Set(l.map((s) => s.id));
       const was = ids(before);
       const now = ids(switches);

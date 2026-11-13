@@ -113,6 +113,7 @@ export async function startTeamsApp({ env = {} } = {}) {
     listen,
     settle,
     benches: benchesModule.benches,
+    teams: modules.find((m) => m.id === 'teams').teams,
     tick: () => benchesModule.tick(),
     services: lab.deps.services,
     async close() {

@@ -48,12 +48,12 @@ function createMutex() {
  * parameters, a test seam: tests use the cheapest the platform accepts),
  * now (a clock), fetchOptions (the SSO test's guarded fetch, a test seam)
  */
-export function createAccountsModule({ config, logger, events, store, audit, auth, services }, { passwordCost = SCRYPT_DEFAULTS, now = Date.now, fetchOptions } = {}) {
+export function createAccountsModule({ config, logger, events, repos, audit, auth, services }, { passwordCost = SCRYPT_DEFAULTS, now = Date.now, fetchOptions } = {}) {
   const log = logger?.child ? logger.child('accounts') : logger ?? { info() {}, warn() {}, error() {} };
   const publicUrl = config.server.publicUrl;
-  const directory = createDirectory({ store, envAdminName: config.auth.localAdmin.username, now, passwordCost, logger: log });
-  const links = createLinks({ store, now });
-  const sso = createSso({ config, store, auth, logger: log, now, fetchOptions });
+  const directory = createDirectory({ repos, envAdminName: config.auth.localAdmin.username, now, passwordCost, logger: log });
+  const links = createLinks({ repos, now });
+  const sso = createSso({ config, repos, auth, logger: log, now, fetchOptions });
   const rp = relyingParty(publicUrl);
   const ceremonies = createCeremonies({ now });
   const refusals = createRefusalAudit({ audit, now });
@@ -89,7 +89,6 @@ export function createAccountsModule({ config, logger, events, store, audit, aut
   // ── Wiring into the sign-in module ─────────────────────────────────────────
   const removeProvider = auth.accounts.add(directory.provider);
   auth.extend(publicRoutes(ctx), { describe: () => ({ passkeys: rp.available }) });
-  sso.load();
 
   services.accounts = {
     /** → Account ({ id, username, name, role, state, via, hasPasskey, … }) or null */
@@ -151,6 +150,11 @@ export function createAccountsModule({ config, logger, events, store, audit, aut
     title: 'Accounts',
     enabled: true,
     router,
+    // The directory, the links and the identity provider saved here, from the database
+    async start() {
+      await Promise.all([directory.load(), links.load()]);
+      await sso.load();
+    },
     shutdown() {
       clearInterval(housekeeping);
       refusals.flush({ force: true });

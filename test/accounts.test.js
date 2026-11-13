@@ -4,15 +4,14 @@
  */
 import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
+import crypto from 'node:crypto';
 import http from 'node:http';
-import path from 'node:path';
 import { TestBrowser } from './helpers/browser.js';
 import { startAccountsApp, call, invite, signUp, localSignIn, createLocalAccount, testClock, PASSWORD } from './helpers/accounts.js';
 import { TEST_ADMIN, adminCode } from './helpers/app.js';
 import { checkUsername, checkPassword, cleanDisplayName, usernameKey } from '../src/modules/accounts/policy.js';
 import { createLinks } from '../src/modules/accounts/links.js';
-import { createStore } from '../src/lib/store.js';
+import { memoryDatabase } from './helpers/db.js';
 
 /** The whole audit trail, oldest first (it lives in the database) */
 const auditEntries = async (lab, action) => (await lab.deps.audit.query({ limit: 5000 })).reverse().filter((e) => !action || e.action === action);
@@ -50,19 +49,21 @@ describe('policy: user names, display names, passwords', () => {
 
 describe('links: hashed tokens, constant-time lookup, expiry, uses, revocation', () => {
   test('only the hash is stored; every refusal has its reason', async () => {
-    const dir = fs.mkdtempSync(path.join(process.env.TMPDIR || '/tmp', 'links-'));
+    const memory = await memoryDatabase();
     try {
       const clock = testClock();
-      const store = createStore(dir);
-      const links = createLinks({ store, now: clock.now });
+      const links = createLinks({ repos: memory.repos, now: clock.now });
+      await links.load();
       const by = { id: 'oidc:admin', username: 'admin' };
       const { link, token } = await links.create({ kind: 'invite', role: 'student', maxUses: 2, ttlMs: 60_000, createdBy: by });
       assert.match(token, /^[A-Za-z0-9_-]{43}$/, '256 bits, base64url');
-      await store.flush();
-      const file = fs.readFileSync(path.join(dir, 'accounts', 'invitations.json'), 'utf8');
-      assert.ok(!file.includes(token), 'the token itself is never written');
-      assert.equal(fs.statSync(path.join(dir, 'accounts', 'invitations.json')).mode & 0o777, 0o600);
+      const rows = JSON.stringify(await memory.db.query('SELECT * FROM account_links'));
+      assert.ok(!rows.includes(token), 'the token itself is never written');
+      assert.ok(rows.includes(crypto.createHash('sha256').update(token).digest('hex')), 'its SHA-256 is');
       assert.ok(!('hash' in links.list()[0]), 'the hash is not shown either');
+      const again = createLinks({ repos: memory.repos, now: clock.now });
+      await again.load();
+      assert.equal(again.find(token).link.id, link.id, 'read back after a restart');
 
       assert.equal(links.find(token).problem, null);
       assert.equal(links.find(token, { kind: 'reset' }).problem, 'unknown', 'an invitation is not a reset link');
@@ -81,7 +82,7 @@ describe('links: hashed tokens, constant-time lookup, expiry, uses, revocation',
       assert.equal(links.find(third.token).problem, 'revoked');
       assert.equal(await links.revoke(third.link.id, by), null, 'revoked once');
     } finally {
-      fs.rmSync(dir, { recursive: true, force: true });
+      await memory.close();
     }
   });
 });
@@ -372,7 +373,7 @@ describe('administration refusals, one by one', () => {
     const { id } = await createLocalAccount(lab, 'milo');
     const reset = await call(lab, 'admin', 'POST', `/api/accounts/users/${encodeURIComponent(id)}/reset-link`, { ttl: '1h' });
     assert.equal(reset.status, 200);
-    const resetId = Object.values(lab.deps.store.json('accounts/invitations.json').get().links).find((l) => l.kind === 'reset').id;
+    const resetId = Object.values(await lab.deps.repos.accountLinks.load()).find((l) => l.kind === 'reset').id;
     const wrongKind = await call(lab, 'admin', 'DELETE', `/api/accounts/invitations/${resetId}`);
     assert.equal(wrongKind.status, 404);
     assert.equal(wrongKind.body.code, 'accounts.unknown_invitation');

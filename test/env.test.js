@@ -108,13 +108,13 @@ test('config: defaults of the global keys, and the upstream sections unchanged',
   assert.deepEqual(config.consoles, { networkPrefix: '10.22.9', allowedHosts: ['10.22.9.211', '10.22.9.212'], portRange: { min: 2000, max: 2099 } });
   assert.equal(config.limits.maxSessions, 40);
   assert.deepEqual(config.proxmox, { enabled: false });
-  assert.deepEqual(config.rooms, { journal: { retentionDays: 14, maxBytesPerDay: 5120 * 1024 }, channelsPerConnection: 8 });
+  assert.deepEqual(config.rooms, { journal: { retentionDays: 14, maxBytesPerDay: 5120 * 1024, maxTotalBytes: 1024 * 1024 * 1024 }, channelsPerConnection: 8 });
 });
 
 test('config: the journal and the SSH pool can be tuned, and nonsense is refused', async () => {
-  const config = await loadTestConfig({ JOURNAL_RETENTION_DAYS: '30', JOURNAL_MAX_KB_PER_DAY: '1024', SSH_CHANNELS_PER_CONNECTION: '4' });
-  assert.deepEqual(config.rooms, { journal: { retentionDays: 30, maxBytesPerDay: 1024 * 1024 }, channelsPerConnection: 4 });
-  for (const [name, value] of [['JOURNAL_RETENTION_DAYS', '0'], ['JOURNAL_MAX_KB_PER_DAY', 'lots'], ['SSH_CHANNELS_PER_CONNECTION', '0']]) {
+  const config = await loadTestConfig({ JOURNAL_RETENTION_DAYS: '30', JOURNAL_MAX_KB_PER_DAY: '1024', JOURNAL_MAX_TOTAL_MB: '200', SSH_CHANNELS_PER_CONNECTION: '4' });
+  assert.deepEqual(config.rooms, { journal: { retentionDays: 30, maxBytesPerDay: 1024 * 1024, maxTotalBytes: 200 * 1024 * 1024 }, channelsPerConnection: 4 });
+  for (const [name, value] of [['JOURNAL_RETENTION_DAYS', '0'], ['JOURNAL_MAX_KB_PER_DAY', 'lots'], ['JOURNAL_MAX_TOTAL_MB', '0'], ['SSH_CHANNELS_PER_CONNECTION', '0']]) {
     const err = await loadTestConfig({ [name]: value }).then(() => null, (e) => e);
     assert.ok(err?.problems?.some((p) => p.startsWith(name)), `${name}=${value} is refused`);
   }

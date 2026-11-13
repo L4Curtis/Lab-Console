@@ -3,8 +3,9 @@
  * signed in ("bench 5 is out of order this morning"), until it is removed or
  * until the time it was given ends
  *
- * Kept in data/admin/announcements.json ({ current, history }, the 20 last
- * ones) and pushed to every open page through the sticky SSE topic
+ * Kept in the database (table announcements, through repos.announcements:
+ * the current one and the last ones; the 20 last are kept in memory, read by
+ * load() in the module's start()) and pushed to every open page through the sticky SSE topic
  * `admin:announcement` (null when there is none). Text only: the browser
  * renders it as text, never as HTML.
  */
@@ -14,16 +15,22 @@ export const LEVELS = ['info', 'warning'];
 const MAX_TEXT = 500;
 const MAX_HOURS = 24 * 30;
 
-export function createAnnouncements({ store, events, audit, logger, now = Date.now }) {
+const KEPT = 20;
+
+export function createAnnouncements({ repos, events, audit, logger, now = Date.now }) {
   const log = logger ?? { info() {} };
-  const file = store.json('admin/announcements.json', { current: null, history: [] });
+  let recent = []; // newest first, with their ids and whether they were taken down
   let timer = null;
 
+  const view = ({ text, level, at, expiresAt, by }) => ({ text, level, at, expiresAt, by });
+  /** The newest one, unless it was taken down: an announcement is replaced by the next, or removed */
+  const latest = () => (recent[0] && !recent[0].removedAt ? recent[0] : null);
+
   const live = () => {
-    const current = file.get().current;
+    const current = latest();
     if (!current) return null;
     if (current.expiresAt && Date.parse(current.expiresAt) <= now()) return null;
-    return current;
+    return view(current);
   };
 
   function publish() {
@@ -51,7 +58,8 @@ export function createAnnouncements({ store, events, audit, logger, now = Date.n
       expiresAt = new Date(now() + hours * 3_600_000).toISOString();
     }
     const announcement = { text, level, at: new Date(now()).toISOString(), expiresAt, by: { id: req.user.id, name: req.user.name || req.user.username } };
-    await file.update((doc) => ({ current: announcement, history: [announcement, ...(doc.history ?? [])].slice(0, 20) }));
+    const id = await repos.announcements.add(announcement);
+    recent = [{ ...announcement, id, removedAt: null }, ...recent].slice(0, KEPT);
     audit.log(req, 'admin.announcement.publish', { level, expiresAt, length: text.length });
     log.info(`announcement published by ${req.user.id}`);
     publish();
@@ -60,15 +68,25 @@ export function createAnnouncements({ store, events, audit, logger, now = Date.n
 
   async function clear(req) {
     const had = live();
-    await file.update((doc) => ({ ...doc, current: null }));
+    const current = latest();
+    if (current) {
+      const at = new Date(now()).toISOString();
+      await repos.announcements.remove(current.id, at);
+      recent = recent.map((a) => (a.id === current.id ? { ...a, removedAt: at } : a));
+    }
     if (had) audit.log(req, 'admin.announcement.remove', {});
     publish();
   }
 
   publish();
   return {
+    /** Read the last announcements from the database (the module's start()) */
+    async load() {
+      recent = await repos.announcements.recent(KEPT);
+      publish();
+    },
     current: live,
-    history: () => file.get().history ?? [],
+    history: () => recent.map(view),
     set,
     clear,
     shutdown: () => clearTimeout(timer),

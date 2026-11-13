@@ -215,14 +215,12 @@ describe('teams: size', () => {
   });
 
   test('accepting into a team that is already full is refused (safety net: a stale document or a lowered limit)', async () => {
-    // The API never gets there (invitations hold a seat), so write the document by hand
+    // The API never gets there (invitations hold a seat), so write the rows by hand and read them again
     const since = new Date(T0).toISOString();
     const people = Array.from({ length: 8 }, (_, n) => ({ id: `oidc:seed${n}`, username: `seed${n}`, name: `Seed ${n}`, since }));
     const stale = { username: student(3).username, by: people[0], at: since };
-    await t.lab.deps.store.json('teams/teams.json').update((doc) => {
-      doc.teams.push({ id: 'fullteam', name: 'Équipe pleine', createdAt: since, createdBy: people[0], members: people, invitations: [stale] });
-      return doc;
-    });
+    await t.lab.deps.repos.teams.insertIfAbsent({ id: 'fullteam', name: 'Équipe pleine', createdAt: since, createdBy: people[0], members: people, invitations: [stale] });
+    await t.teams.load();
     const res = await t.api('student3', 'POST', '/api/teams/fullteam/accept');
     assert.equal(res.status, 409);
     assert.equal(res.body.code, 'teams.full');

@@ -145,7 +145,7 @@
       "no_watch": "You were not waiting for this line.",
       "bad_journal": "Unknown journal.",
       "no_journal": "This console journal does not exist (any more).",
-      "journal_forbidden": "Only the people who were on this console session, their team and the admins may read this journal."
+      "journal_forbidden": "Only the people who were on this console that day, their team and the admins may read this journal."
     },
     "automation": {
       "busy": "Another task is still running on this console.",

@@ -7,7 +7,8 @@
  * read-only image. On the first start it is seeded from DIAGRAM_PATH (the file
  * shipped with the image), which becomes the first version. Every imported
  * file is kept as a version (data/diagrams/versions/<id>.drawio, described in
- * data/diagrams/index.json); importing does not change anything a student
+ * the database: tables diagram_versions and diagram_activations, through
+ * repos.diagrams); importing does not change anything a student
  * sees: an administrator previews it, compares it with the active one, then
  * activates it. Each activation is remembered, so a rollback goes back to the
  * diagram that was active before, in one click.
@@ -39,6 +40,7 @@ import { EventEmitter } from 'node:events';
 import { parseDrawio, DrawioRefusal } from '../modules/consoles/drawio.js';
 import { httpError } from './httpError.js';
 import { safeName } from './store.js';
+import { createCachedDocument } from './cachedDocument.js';
 
 export const MAX_DIAGRAM_BYTES = 5 * 1024 * 1024;
 /** What the pages of one file may inflate to, in all */
@@ -85,14 +87,26 @@ export function inspectDiagram(buffer, { networkPrefix = '10.22.9', strict = fal
   return { labs: parsed.labs, warnings: parsed.warnings, devices };
 }
 
-export function createDiagrams({ config, store, logger }) {
+/**
+ * deps: config, store (the files: current.drawio, versions/), repos (the
+ * index: repos.diagrams), logger. Resolves once the index is read and, on
+ * the very first start, the shipped diagram installed
+ */
+export async function createDiagrams({ config, store, repos, logger }) {
   const log = logger ?? { info() {}, warn() {}, error() {} };
   const emitter = new EventEmitter();
   const prefix = () => config.consoles?.networkPrefix ?? '10.22.9';
   const dir = store.dir('diagrams');
   const versionsDir = store.dir('diagrams', 'versions');
   const currentPath = path.join(dir, 'current.drawio');
-  const indexPath = path.join(dir, 'index.json');
+  // The index (which version is which, the stack of activations) lives in the database
+  const index = createCachedDocument({
+    name: 'the diagram index',
+    fallback: { active: null, history: [], versions: [] },
+    load: () => repos.diagrams.load(),
+    save: (next, prev) => repos.transaction((r) => r.diagrams.save(next, prev)),
+  });
+  await index.load();
 
   const fileOf = (id) => {
     if (typeof id !== 'string' || !ID.test(id)) return null;
@@ -121,19 +135,16 @@ export function createDiagrams({ config, store, logger }) {
       let summary = null;
       try { summary = summaryOf(inspectDiagram(data, { networkPrefix: prefix() })); } catch { /* the registry reports it */ }
       const at = new Date().toISOString();
-      writeSync(indexPath, JSON.stringify({
+      await index.update((doc) => ({
         active: id,
-        history: [{ id, at, by: 'system' }],
-        versions: [{ id, name: path.basename(config.diagramPath), size: data.length, sha256: sha(data), at, by: { id: 'system', username: 'system' }, source: 'environment', ...summary }],
-      }, null, 2));
+        history: [...doc.history, { id, at, by: 'system' }],
+        versions: [...doc.versions, { id, name: path.basename(config.diagramPath), size: data.length, sha256: sha(data), at, by: { id: 'system', username: 'system' }, source: 'environment', ...summary }],
+      }));
       log.info(`active diagram seeded from ${config.diagramPath}`);
     } catch (err) {
       log.error(`no active diagram: ${config.diagramPath} could not be read (${err.message})`);
     }
   }
-
-  // Written above before anyone reads it: from here on, one serialized handle
-  const index = store.json('diagrams/index.json', { active: null, history: [], versions: [] });
 
   function sha(data) {
     return crypto.createHash('sha256').update(data).digest('hex');

@@ -107,7 +107,7 @@
     "button": "Journals",
     "title": "My console journals",
     "loading": "Loading…",
-    "intro": "What the devices printed, session by session, on the consoles you were on and on your team’s bench while it held it (all of them for an admin). Kept {days} days.",
+    "intro": "What the devices printed, session by session. You read the whole day of a console you were on, or that your team’s bench held that day: every session of that day, other people’s included (all of them for an admin). Kept {days} days.",
     "none": "No journal for you yet.",
     "columns": {
       "day": "Day",

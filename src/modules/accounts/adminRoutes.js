@@ -160,7 +160,7 @@ export function adminRoutes(ctx) {
   router.put('/sso', small, async (req, res) => {
     let outcome;
     try {
-      outcome = await sso.save(body(req));
+      outcome = await sso.save(body(req), req.user);
     } catch (err) {
       if (!err.code?.startsWith?.('accounts.')) throw err;
       return sendError(res, err.status, err.code, err.message, err.problems?.length ? { problems: err.problems } : {});

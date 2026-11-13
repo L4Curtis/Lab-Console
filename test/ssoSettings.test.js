@@ -72,11 +72,11 @@ describe('SSO settings: saved, applied at once, the secret write-only', () => {
     assert.equal(me.body.account.role, 'admin', 'admin through the admins group');
   });
 
-  test('the file is mode 600, the secret encrypted under APP_SECRET; no answer or audit entry carries it', async () => {
-    const file = path.join(lab.dataDir, 'auth', 'oidc.json');
-    assert.equal(fs.statSync(file).mode & 0o777, 0o600);
-    const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+  test('saved in the database (a file of mode 600), the secret encrypted under APP_SECRET; no answer or audit entry carries it', async () => {
+    assert.equal(fs.statSync(path.join(lab.dataDir, 'lab-console.db')).mode & 0o777, 0o600);
+    const saved = (await lab.deps.repos.settings.get('sso')).values;
     assert.equal(saved.clientSecret.alg, 'aes-256-gcm');
+    assert.equal(saved.settings.issuer, idp.issuer);
     assert.ok(!(await dataText(lab)).includes(SECRET), 'nowhere in the data directory, audit trail included');
     assert.ok(!JSON.stringify((await call(lab, 'admin', 'GET', '/api/accounts/sso')).body).includes(SECRET));
   });
@@ -227,16 +227,18 @@ describe('SSO settings set in the environment: the page is read-only', () => {
     const put = await call(lab, 'admin', 'PUT', '/api/accounts/sso', mockSettings(idp, { providerName: 'Other' }));
     assert.equal(put.status, 409);
     assert.equal(put.body.code, 'accounts.sso_locked');
-    assert.equal(fs.existsSync(path.join(lab.dataDir, 'auth', 'oidc.json')), false);
+    assert.equal(await lab.deps.repos.settings.get('sso'), undefined, 'nothing saved');
     assert.equal((await call(lab, null, 'GET', '/auth/me')).body.providerName, 'Env SSO');
   });
 
-  test('a file saved earlier is ignored while the environment names a provider', async () => {
+  test('a file saved by a version without the database is imported, and ignored while the environment names a provider', async () => {
     fs.mkdirSync(path.join(lab.dataDir, 'auth'), { recursive: true });
     fs.writeFileSync(path.join(lab.dataDir, 'auth', 'oidc.json'), JSON.stringify({ version: 1, settings: { issuer: 'https://elsewhere.example', clientId: 'x', enabled: true }, clientSecret: '' }), { mode: 0o600 });
     const restarted = await startAccountsApp({ env: { DATA_DIR: lab.dataDir, OIDC_ISSUER: idp.issuer, OIDC_CLIENT_ID: 'lab-console', OIDC_CLIENT_SECRET: SECRET } });
     try {
       assert.equal((await call(restarted, 'admin', 'GET', '/api/accounts/sso')).body.settings.issuer, idp.issuer);
+      assert.equal((await restarted.deps.repos.settings.get('sso')).values.settings.issuer, 'https://elsewhere.example', 'imported all the same');
+      assert.ok(fs.existsSync(path.join(lab.dataDir, 'auth', 'oidc.json.imported')));
     } finally {
       await restarted.close();
     }

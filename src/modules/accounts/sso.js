@@ -1,16 +1,17 @@
 /**
  * The identity provider, set from the administration pages
  *
- * Saved in data/auth/oidc.json (mode 600, like every file of the store) and
- * applied at once with auth.oidc.configure(): no restart, open sessions
- * untouched, sign-ins in progress start again. The client secret is the one
- * secret Lab Console keeps in a form it can use (it must send it to the
- * provider): in clear inside that file, or encrypted with AES-256-GCM under a
- * key derived from APP_SECRET when that variable is set. It is write-only:
+ * Saved in the database (table settings, namespace `sso`, through
+ * repos.settings: the settings service leaves that row alone) and applied at
+ * once with auth.oidc.configure(): no restart, open sessions untouched,
+ * sign-ins in progress start again. The client secret is the one secret Lab
+ * Console keeps in a form it can use (it must send it to the provider): in
+ * clear inside the database (a file of mode 600), or encrypted with
+ * AES-256-GCM under a key derived from APP_SECRET when that variable is set. It is write-only:
  * no answer ever contains it, only whether there is one.
  *
- * When OIDC_ISSUER is set in the environment, the environment wins: the
- * saved file is ignored and the page is read-only (`locked`).
+ * When OIDC_ISSUER is set in the environment, the environment wins: what was
+ * saved is ignored and the page is read-only (`locked`).
  *
  * "Test" fetches the discovery document through the guarded fetch of
  * src/lib/safeFetch.js (https unless the insecure flag, a deadline, a size
@@ -24,6 +25,8 @@ import { normalizeOidcSettings, CLIENT_AUTH_METHODS } from '../auth/oidcSettings
 import { createSafeFetch, SafeFetchError } from '../../lib/safeFetch.js';
 
 const FILE_VERSION = 1;
+/** The row of the settings table that holds the provider set from the administration pages */
+export const SSO_NAMESPACE = 'sso';
 const TRIAL_TTL_MS = 10 * 60_000;
 const DISCOVERY = { timeoutMs: 5000, maxBytes: 256 * 1024, maxRedirects: 3 };
 const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]']);
@@ -70,26 +73,33 @@ export function checkSsoInput(body) {
   return { values, problems };
 }
 
-export function createSso({ config, store, auth, logger, now = Date.now, fetchOptions = {} }) {
+export function createSso({ config, repos, auth, logger, now = Date.now, fetchOptions = {} }) {
   const log = logger ?? { info() {}, warn() {}, error() {} };
-  const file = store.json('auth/oidc.json', null);
+  let saved = null; // { version, savedAt, settings, clientSecret }, as last read or written
+  const file = {
+    get: () => saved,
+    async set(doc, by) {
+      await repos.settings.save(SSO_NAMESPACE, doc, by);
+      saved = doc;
+    },
+  };
   const key = secretKey(config.appSecret, 'sso client secret');
   // The environment names a provider: it wins, and this page only shows it
   const locked = Boolean(config.auth.oidc.issuer);
   const trials = new Map(); // session id → { result, at }
   let secretUnreadable = false;
 
-  /** Apply what was saved, at start-up. A broken file leaves the provider off, never the platform down */
-  function load() {
+  /** Apply what was saved, at start-up. A broken record leaves the provider off, never the platform down */
+  async function load() {
     if (locked) return;
-    const saved = file.get();
+    saved = (await repos.settings.get(SSO_NAMESPACE))?.values ?? null;
     if (!saved || saved.version !== FILE_VERSION || typeof saved.settings !== 'object') return;
     const secret = openSecret(saved.clientSecret, key);
     secretUnreadable = secret === null;
     if (secretUnreadable) log.error('the saved SSO client secret cannot be decrypted (APP_SECRET missing or changed): set it again on the SSO page');
     try {
       auth.oidc.configure({ ...saved.settings, clientSecret: secret ?? '' });
-      log.info(`identity provider settings loaded from the data directory (${saved.settings.issuer || 'none'}${saved.settings.enabled === false ? ', switched off' : ''})`);
+      log.info(`identity provider settings loaded from the database (${saved.settings.issuer || 'none'}${saved.settings.enabled === false ? ', switched off' : ''})`);
     } catch (err) {
       log.error(`the saved SSO settings were not applied: ${err.message}`);
     }
@@ -114,7 +124,7 @@ export function createSso({ config, store, auth, logger, now = Date.now, fetchOp
    * and `clearClientSecret: true` (a public client from now on).
    * → { changed: [field names], secretChanged }. Throws { status, code, problems } on refusal
    */
-  async function save(body) {
+  async function save(body, actor) {
     if (locked) throw Object.assign(new Error('The identity provider is set in the environment'), { status: 409, code: 'accounts.sso_locked' });
     const { values, problems } = checkSsoInput(body);
     if (problems.length) throw Object.assign(new Error('Invalid settings'), { status: 400, code: 'accounts.sso_invalid', problems });
@@ -141,7 +151,7 @@ export function createSso({ config, store, auth, logger, now = Date.now, fetchOp
     const replaced = newSecret !== undefined || body.clearClientSecret === true;
     const sealed = replaced ? sealSecret(newSecret ?? '', key) : file.get()?.clientSecret ?? '';
     const settings = Object.fromEntries(FIELDS.map((f) => [f, f === 'enabled' ? values.enabled : applied[f]]));
-    await file.set({ version: FILE_VERSION, savedAt: new Date(now()).toISOString(), settings, clientSecret: sealed });
+    await file.set({ version: FILE_VERSION, savedAt: new Date(now()).toISOString(), settings, clientSecret: sealed }, actor?.id ?? null);
     if (replaced) secretUnreadable = false;
     const changed = FIELDS.filter((f) => JSON.stringify(current[f]) !== JSON.stringify(applied[f]));
     return { changed, secretChanged };

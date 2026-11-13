@@ -145,7 +145,7 @@
       "no_watch": "Vous n’attendiez pas cette ligne.",
       "bad_journal": "Journal inconnu.",
       "no_journal": "Ce journal de console n’existe pas (ou plus).",
-      "journal_forbidden": "Seuls les participants de cette session de console, leur équipe et les administrateurs peuvent lire ce journal."
+      "journal_forbidden": "Seuls ceux qui étaient sur cette console ce jour-là, leur équipe et les administrateurs peuvent lire ce journal."
     },
     "automation": {
       "busy": "Une autre tâche tourne encore sur cette console.",

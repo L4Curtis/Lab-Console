@@ -15,6 +15,13 @@ import { createAuthStateRepository } from './authState.js';
 import { createAuditRepository } from './audit.js';
 import { createSettingsRepository } from './settings.js';
 import { createLegacyImportsRepository } from './legacyImports.js';
+import { createTeamsRepository } from './teams.js';
+import { createBenchesRepository } from './benches.js';
+import { createAccountsRepository } from './accounts.js';
+import { createAccountLinksRepository } from './accountLinks.js';
+import { createAnnouncementsRepository } from './announcements.js';
+import { createDiagramsRepository } from './diagrams.js';
+import { createJournalDaysRepository } from './journalDays.js';
 
 export function createRepositories(db, { now = () => new Date() } = {}) {
   const options = { now };
@@ -24,6 +31,13 @@ export function createRepositories(db, { now = () => new Date() } = {}) {
     audit: createAuditRepository(db, options),
     settings: createSettingsRepository(db, options),
     legacyImports: createLegacyImportsRepository(db, options),
+    teams: createTeamsRepository(db, options),
+    benches: createBenchesRepository(db, options),
+    accounts: createAccountsRepository(db, options),
+    accountLinks: createAccountLinksRepository(db, options),
+    announcements: createAnnouncementsRepository(db, options),
+    diagrams: createDiagramsRepository(db, options),
+    journalDays: createJournalDaysRepository(db, options),
     /** Run fn(repos) in one transaction: every repository inside works on it */
     transaction: (fn) => db.transaction((tx) => fn(createRepositories(tx, options))),
   };

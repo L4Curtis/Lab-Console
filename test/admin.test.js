@@ -624,8 +624,9 @@ describe('admin switches, sessions, audit viewer, announcement, journaling', () 
     assert.equal(ok.body.source, 'saved');
     const seen = await call(lab, 'student1', 'GET', '/api/consoles/admin-switches');
     assert.deepEqual(seen.body.switches.map((s) => [s.key, s.labName, s.allowed]), [['admin:core-1', 'Bay 7 Core switch', true]]);
-    await lab.deps.store.flush();
-    assert.ok(fs.existsSync(path.join(lab.dataDir, 'admin', 'switches.json')));
+    const saved = await lab.deps.repos.settings.get('switches');
+    assert.deepEqual(saved.values.switches.map((s) => s.id), ['core-1'], 'saved in the database');
+    assert.equal(saved.updatedBy, 'oidc:admin');
     const [entry] = await lab.deps.audit.query({ action: 'admin.switches.update' });
     assert.deepEqual(entry.details.added, ['core-1']);
   });

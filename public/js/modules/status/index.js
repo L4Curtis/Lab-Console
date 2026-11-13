@@ -51,7 +51,11 @@ function mountHealth(el) {
       card('consoleServers', csState, t('admin.status.serversUp', { ok: cs.ok, count: cs.total })),
       card('proxmox', data.proxmox.state, data.proxmox.tunnel
         ? `${t(`admin.status.states.${data.proxmox.state}`)} · ${t('admin.status.tunnel', { state: t(`admin.status.states.${data.proxmox.tunnel}`) })}`
-        : undefined));
+        : undefined),
+      data.consoles ? card('lines', 'ok', t('admin.status.linesOpen', { count: data.consoles.open, connections: data.consoles.connections ?? 0 })) : null,
+      data.journal ? card('journal', data.journal.maxBytes && data.journal.bytes > data.journal.maxBytes ? 'partial' : 'ok', data.journal.maxBytes
+        ? t('admin.status.journalUsed', { used: megabytes(data.journal.bytes), max: megabytes(data.journal.maxBytes) })
+        : t('admin.status.journalSize', { used: megabytes(data.journal.bytes) })) : null);
     if (!data.details) { details.replaceChildren(); return; }
     const d = data.details;
     const line = (what, host, state, error) => h('tr', { dataset: { state } }, h('td', what), h('td.mono', host ?? '—'), h('td', t(`admin.status.states.${state}`)), h('td', error ?? ''));
@@ -62,7 +66,10 @@ function mountHealth(el) {
         d.consoleServers.map((s) => line(t('admin.status.parts.consoleServer'), `${s.host}:${s.port}`, s.state, s.error)),
         line(t('admin.status.parts.proxmox'), d.proxmox.host, d.proxmox.state, d.proxmox.error),
         d.proxmox.tunnel ? line(t('admin.status.parts.proxmoxTunnel'), d.proxmox.tunnel.transport, d.proxmox.tunnel.state,
-          t('admin.status.tunnelDetail', { connections: d.proxmox.tunnel.connections, channels: d.proxmox.tunnel.openChannels })) : null))));
+          t('admin.status.tunnelDetail', { connections: d.proxmox.tunnel.connections, channels: d.proxmox.tunnel.openChannels })) : null,
+        // The SSH connections the console lines share: one row each
+        (d.consoles?.pool?.lines ?? []).map((c) => line(t('admin.status.parts.poolConnection'), c.key, c.state === 'ready' ? 'ok' : c.state === 'dead' ? 'down' : 'unknown',
+          t('admin.status.poolChannels', { count: c.channels, capacity: c.capacity })))))));
   }
 
   async function load(fresh = false) {
@@ -83,6 +90,9 @@ function mountHealth(el) {
   return { show: () => load() };
 }
 
+/** Bytes as megabytes with one decimal, in the page's language */
+const megabytes = (bytes) => (bytes / (1024 * 1024)).toLocaleString(undefined, { maximumFractionDigits: 1 });
+
 function mountJournaling(el) {
   const list = h('div.journaling');
   el.append(h('div.panel.sso-panel', h('p.muted.panel-intro', { dataset: { text: 'intro' } }), list));
@@ -96,6 +106,9 @@ function mountJournaling(el) {
     list.replaceChildren(
       block('audit'),
       data.consoleJournal.enabled ? block('consoles', { count: data.consoleJournal.retentionDays }) : block('noConsoleJournal'),
+      data.consoleJournal.enabled ? h('p.muted', t('admin.journaling.consoles.limits', {
+        day: megabytes(data.consoleJournal.maxBytesPerDay), total: data.consoleJournal.maxTotalBytes ? megabytes(data.consoleJournal.maxTotalBytes) : '—',
+      })) : null,
       block('sessions', { idle: data.sessions.idleHours, max: data.sessions.maxHours }),
       block('never'));
   }

@@ -20,10 +20,10 @@ import { Benches } from './benches.js';
 const TICK_MS = 30_000;
 
 export function createTeamsModules(deps, { now = () => Date.now(), tickMs = TICK_MS } = {}) {
-  const { config, logger, events, store, audit, auth, services } = deps;
+  const { config, logger, events, repos, audit, auth, services } = deps;
   const log = logger.child('teams');
-  const teams = new Teams({ store, now });
-  const benches = new Benches({ store, teams, services, events, audit, logger: log, config: config.benches, now });
+  const teams = new Teams({ repos, now });
+  const benches = new Benches({ repos, teams, services, events, audit, logger: log, config: config.benches, now });
 
   teams.on('change', (change) => {
     announceTeam(change);
@@ -266,11 +266,20 @@ export function createTeamsModules(deps, { now = () => Date.now(), tickMs = TICK
     timer = setInterval(() => benches.tick().catch((err) => log.warn(`bench tick failed: ${err.message}`)), tickMs);
     timer.unref();
   }
-  // The diagram may load after us: publish the first state once the event loop turns
-  setImmediate(() => benches.publishState());
-
   return [
-    { id: 'teams', title: 'Teams', enabled: true, router: teamsRouter, teams },
+    {
+      id: 'teams',
+      title: 'Teams',
+      enabled: true,
+      router: teamsRouter,
+      teams,
+      // State from the database before the first request; the diagram is loaded by then too
+      async start() {
+        await teams.load();
+        await benches.load();
+        benches.publishState();
+      },
+    },
     {
       id: 'benches',
       title: 'Benches',

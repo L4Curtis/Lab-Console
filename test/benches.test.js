@@ -666,7 +666,7 @@ describe('benches: a booking cannot be used to evict the holder', () => {
 
 describe('benches: decisions are taken on the bench as it is when the change runs', () => {
   let t;
-  const occupancyDoc = () => t.lab.deps.store.json('benches/occupancy.json', {});
+  const occupancyDoc = () => t.benches.documents.occupancy;
   beforeEach(async () => { t = await startTeamsApp(); });
   afterEach(async () => { await t.close(); });
 

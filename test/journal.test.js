@@ -11,6 +11,7 @@ import path from 'node:path';
 import { ConsoleJournal, dayOf } from '../src/modules/consoles/journal.js';
 import { createStore } from '../src/lib/store.js';
 import { silentLogger, tempDataDir } from './helpers/app.js';
+import { memoryDatabase } from './helpers/db.js';
 
 const user = (id, role = 'student') => ({ id: `oidc:${id}`, username: id, name: id, role });
 
@@ -115,12 +116,12 @@ test('journal: the daily sweep removes the days past the retention, then the emp
       w.output(Buffer.from(`day -${daysAgo}`));
       await w.close();
     }
-    assert.equal(journal.list().length, 4);
-    assert.equal(journal.sweep(), 2, 'two days (one session each) are older than 14 days (today counts)');
-    const left = journal.list().map((d) => d.day);
+    assert.equal((await journal.list()).length, 4);
+    assert.equal(await journal.sweep(), 2, 'two days (one session each) are older than 14 days (today counts)');
+    const left = (await journal.list()).map((d) => d.day);
     assert.deepEqual(left, [dayOf(clock.ms), dayOf(clock.ms - 13 * 86_400_000)]);
     assert.equal(fs.existsSync(path.join(dir, 'journal', 'B6H')), false, 'an emptied bench folder goes too');
-    assert.equal(journal.sweep(), 0);
+    assert.equal(await journal.sweep(), 0);
   } finally {
     await cleanup();
   }
@@ -138,10 +139,17 @@ test('journal: a day or session name that is not one is refused before any path 
   }
 });
 
-test('journal: read rights cover one session: bob, who watched in the afternoon, cannot read alice\'s morning', async () => {
+test('journal: read rights cover the whole day of a console: bob, who watched in the afternoon, reads alice\'s morning, not the day before', async () => {
   const holder = { team: 'team-a' };
   const { dir, clock, journal, cleanup } = setup({ teamOf: () => holder.team });
   try {
+    clock.ms = new Date(2026, 10, 12, 10, 0, 0).getTime();
+    const yesterday = journal.open({ bench: 'B4M', device: 'R1', target: 't' });
+    yesterday.attended(user('alice'));
+    yesterday.output(Buffer.from('R1#yesterday\r\n'));
+    await yesterday.close();
+
+    clock.ms = new Date(2026, 10, 13, 10, 0, 0).getTime();
     const morning = journal.open({ bench: 'B4M', device: 'R1', target: 't' });
     morning.attended(user('alice'));
     morning.piloted(user('alice'));
@@ -155,17 +163,19 @@ test('journal: read rights cover one session: bob, who watched in the afternoon,
     afternoon.output(Buffer.from('R1>'));
     await afternoon.close();
 
-    const list = journal.list();
-    assert.deepEqual(list.map((d) => d.session), ['170000', '100000'], 'newest first');
+    const list = await journal.list();
+    assert.deepEqual(list.map((d) => `${d.day} ${d.session}`), ['2026-11-13 170000', '2026-11-13 100000', '2026-11-12 100000'], 'newest first');
     const teamOf = (u) => ({ 'oidc:alice': 'team-a', 'oidc:bob': 'team-b', 'oidc:chloe': 'team-a', 'oidc:dan': 'team-b' })[u.id] ?? null;
-    const readable = (who) => list.filter((d) => journal.canRead(user(who), d.meta, teamOf)).map((d) => d.session);
-    assert.deepEqual(readable('bob'), ['170000'], 'bob reads only the session he watched');
-    assert.deepEqual(readable('alice'), ['100000']);
-    assert.deepEqual(readable('chloe'), ['100000'], 'the team that held the bench in the morning');
-    assert.deepEqual(readable('dan'), ['170000'], 'the team that held it in the afternoon');
+    const metas = (day) => list.filter((d) => d.day === day).map((d) => d.meta);
+    const readable = (who) => list.filter((d) => journal.canReadDay(user(who), metas(d.day), teamOf)).map((d) => `${d.day} ${d.session}`);
+    assert.deepEqual(readable('bob'), ['2026-11-13 170000', '2026-11-13 100000'], 'bob reads the whole day he was on R1, the morning included');
+    assert.deepEqual(readable('alice'), ['2026-11-13 170000', '2026-11-13 100000', '2026-11-12 100000']);
+    assert.deepEqual(readable('chloe'), ['2026-11-13 170000', '2026-11-13 100000', '2026-11-12 100000'], 'team A held the bench both days');
+    assert.deepEqual(readable('dan'), ['2026-11-13 170000', '2026-11-13 100000'], 'the team that held it in the afternoon');
     assert.deepEqual(readable('root').length, 0);
-    assert.equal(list.filter((d) => journal.canRead(user('root', 'admin'), d.meta, teamOf)).length, 2);
-    assert.doesNotMatch(sessions(dir, 'B4M', 'R1', '2026-11-13')[1].log, /morning/);
+    assert.equal(list.filter((d) => journal.canReadDay(user('root', 'admin'), metas(d.day), teamOf)).length, 3);
+    assert.equal(journal.canRead(user('bob'), list[1].meta, teamOf), false, 'the morning session alone does not name bob');
+    assert.doesNotMatch(sessions(dir, 'B4M', 'R1', '2026-11-13')[1].log, /morning/, 'one file per session all the same');
   } finally {
     await cleanup();
   }
@@ -225,6 +235,45 @@ test('journal: two sessions opened in the same second get their own files', asyn
     b.output(Buffer.from('two'));
     await Promise.all([a.close(), b.close()]);
     assert.deepEqual(sessions(dir, 'B4M', 'R4', '2026-11-13').map((s) => [s.name, s.log]), [['100000', 'one'], ['100000-2', 'two']]);
+  } finally {
+    await cleanup();
+  }
+});
+
+test('journal: the days are listed in the database; days already on disk are added at start-up; the global cap removes the oldest days first', async (t) => {
+  const memory = await memoryDatabase();
+  t.after(memory.close);
+  const { dir, clock, store, cleanup } = setup();
+  try {
+    // Written by a version without the table: three days of R1, one of R2
+    for (const [daysAgo, device] of [[3, 'R1'], [2, 'R1'], [1, 'R2'], [0, 'R1']]) {
+      const at = clock.ms - daysAgo * 86_400_000;
+      const old = new ConsoleJournal({ store, now: () => at, logger: silentLogger() });
+      const w = old.open({ bench: 'B4M', device, target: 't' });
+      w.output(Buffer.from('x'.repeat(1000)));
+      await w.close();
+    }
+    const journal = new ConsoleJournal({ store, days: memory.repos.journalDays, now: () => clock.ms, maxTotalBytes: 2500, logger: silentLogger() });
+    assert.equal((await journal.list()).length, 0, 'the table lists nothing yet');
+    assert.equal(await journal.reconcile(), 4);
+    assert.equal(await journal.reconcile(), 0, 'once');
+    assert.equal((await journal.list()).length, 4);
+    assert.deepEqual(await journal.usage(), { bytes: 4000, days: 4, maxBytes: 2500 });
+
+    // A new day is recorded as it is written
+    clock.ms += 86_400_000;
+    const w = journal.open({ bench: 'B4M', device: 'S1', target: 't' });
+    w.output(Buffer.from('S1>'));
+    await w.close();
+    await store.flush();
+    const rows = await memory.repos.journalDays.list();
+    assert.deepEqual(rows[0], { ...rows[0], bench: 'B4M', device: 'S1', day: dayOf(clock.ms), bytes: 3 });
+
+    // 4003 bytes, 2500 allowed: the two oldest days go (R1 three days ago, R1 two days ago), never today's
+    assert.equal(await journal.enforceCap(), 2);
+    assert.deepEqual((await journal.list()).map((d) => `${d.device} ${d.day}`), [`S1 ${dayOf(clock.ms)}`, `R1 ${dayOf(clock.ms - 86_400_000)}`, `R2 ${dayOf(clock.ms - 2 * 86_400_000)}`]);
+    assert.equal(fs.existsSync(path.join(dir, 'journal', 'B4M', 'R1', dayOf(clock.ms - 4 * 86_400_000))), false, 'its files are gone');
+    assert.equal(await journal.enforceCap(), 0, 'under the cap now');
   } finally {
     await cleanup();
   }

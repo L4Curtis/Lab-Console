@@ -2,8 +2,8 @@
  * Invitation links and password reset links: one mechanism for both
  *
  * A link carries a token of 256 random bits. The server keeps only its
- * SHA-256 (data/accounts/invitations.json): the file, or a backup of it,
- * gives nobody a usable link. The token is shown once, to the administrator
+ * SHA-256 (table account_links, through repos.accountLinks): the database,
+ * or a backup of it, gives nobody a usable link. The token is shown once, to the administrator
  * who created the link, and travels in the URL's fragment (`/join#<token>`),
  * which browsers never send to a server, so it does not end up in a proxy's
  * access log either.
@@ -19,6 +19,7 @@
  *   kind 'reset'   accountId, always single use; a new one replaces the old
  */
 import crypto from 'node:crypto';
+import { createCachedDocument } from '../../lib/cachedDocument.js';
 
 export const LINK_TTLS = Object.freeze({ '1h': 60 * 60_000, '24h': 24 * 60 * 60_000, '7d': 7 * 24 * 60 * 60_000 });
 export const RESET_TTLS = Object.freeze({ '1h': LINK_TTLS['1h'], '24h': LINK_TTLS['24h'] });
@@ -29,8 +30,14 @@ const FILE_VERSION = 1;
 
 const hashOf = (token) => crypto.createHash('sha256').update(token).digest();
 
-export function createLinks({ store, now = Date.now }) {
-  const file = store.json('accounts/invitations.json', { version: FILE_VERSION, links: {} });
+/** The links are kept in memory and written through repos.accountLinks; load() in the module's start() */
+export function createLinks({ repos, now = Date.now }) {
+  const file = createCachedDocument({
+    name: 'the invitation links',
+    fallback: { version: FILE_VERSION, links: {} },
+    load: async () => ({ version: FILE_VERSION, links: await repos.accountLinks.load() }),
+    save: (next, prev) => repos.transaction((r) => r.accountLinks.save(next.links, prev.links)),
+  });
   const all = () => {
     const doc = file.get();
     return doc?.version === FILE_VERSION && doc.links && typeof doc.links === 'object' ? doc.links : {};
@@ -65,6 +72,7 @@ export function createLinks({ store, now = Date.now }) {
   });
 
   return {
+    load: () => file.load(),
     /**
      * Create a link. → { link (as an administrator sees it), token (shown once) }
      *   { kind: 'invite', role, maxUses, ttlMs, createdBy, note } or { kind: 'reset', accountId, ttlMs, createdBy }

@@ -14,10 +14,12 @@
  * The permission rule that the consoles and the jobs ask (canPilot,
  * canOperate) lives here and nowhere else.
  *
- * Documents (ARCHITECTURE §10), all small enough to keep in memory:
- *   benches/occupancy.json     { [bench]: { teamId, since, by, lastActivity, guests: [Person], requests: [Person + at] } }
- *   benches/locks.json         { [bench]: { reason, by: Person, at } }
- *   benches/reservations.json  { reservations: [{ id, bench, teamId, start, end, by, createdAt, warnedAt?, startedAt? }] }
+ * State (ARCHITECTURE §10), small enough to keep in memory, written through
+ * repos.benches (tables bench_occupancy, bench_locks, bench_reservations;
+ * loaded by load(), in the module's start()):
+ *   occupancy      { [bench]: { teamId, since, by, lastActivity, guests: [Person], requests: [Person + at] } }
+ *   locks          { [bench]: { reason, by: Person, at } }
+ *   reservations   { reservations: [{ id, bench, teamId, start, end, by, createdAt, warnedAt?, startedAt? }] }
  *
  * Every decision that depends on the state of a bench (who may release it,
  * whether it is still idle, whether it is locked) is taken inside the update
@@ -29,6 +31,7 @@
  */
 import crypto from 'node:crypto';
 import { httpError } from '../../lib/httpError.js';
+import { createCachedDocument } from '../../lib/cachedDocument.js';
 import { personOf } from './teams.js';
 
 export const WARNING_MINUTES = 10;
@@ -59,10 +62,13 @@ export class Benches {
   #lastWrite = new Map(); // bench → ms of the last activity written
   #published = null;       // bench names of the last state published
 
-  constructor({ store, teams, services, events, audit, logger, config, now = () => Date.now() }) {
-    this.#occ = store.json('benches/occupancy.json', {});
-    this.#locks = store.json('benches/locks.json', {});
-    this.#resv = store.json('benches/reservations.json', { reservations: [] });
+  constructor({ repos, teams, services, events, audit, logger, config, now = () => Date.now() }) {
+    const doc = (name, fallback, load, save) => createCachedDocument({
+      name: `benches ${name}`, fallback, load, save: (next, prev) => repos.transaction((r) => save(r.benches, next, prev)),
+    });
+    this.#occ = doc('occupancy', {}, () => repos.benches.loadOccupancy(), (r, n, p) => r.saveOccupancy(n, p));
+    this.#locks = doc('locks', {}, () => repos.benches.loadLocks(), (r, n, p) => r.saveLocks(n, p));
+    this.#resv = doc('reservations', { reservations: [] }, () => repos.benches.loadReservations(), (r, n, p) => r.saveReservations(n, p));
     this.#teams = teams;
     this.#services = services;
     this.#events = events;
@@ -72,6 +78,14 @@ export class Benches {
     this.#idleMs = (config?.idleHours ?? 3) * HOUR;
     this.#limits = { maxFuture: 2, maxHours: 4, maxDaysAhead: 14, ...config?.reservations };
   }
+
+  /** Read the occupancy, the locks and the reservations from the database (the module's start()) */
+  async load() {
+    await Promise.all([this.#occ.load(), this.#locks.load(), this.#resv.load()]);
+  }
+
+  /** Test seam: the cached documents, whose update queues the tests hold to order concurrent changes */
+  get documents() { return { occupancy: this.#occ, locks: this.#locks, reservations: this.#resv }; }
 
   get idleHours() { return this.#idleMs / HOUR; }
   get limits() { return { ...this.#limits }; }
