@@ -149,10 +149,10 @@ describe('password hashes', () => {
 describe('cookies', () => {
   test('names and flags: __Host- and Secure over https, plain names over http', () => {
     const https = cookieSettings('https://lab.example.org');
-    assert.deepEqual({ ...https }, { secure: true, session: '__Host-lc_sid', login: '__Host-lc_login', device: '__Host-lc_device' });
+    assert.deepEqual({ ...https }, { secure: true, session: '__Host-lc_sid', login: '__Host-lc_login', device: '__Host-lc_device', step: '__Host-lc_step' });
     assert.equal(serializeCookie(https.session, 'abc', { secure: true }), '__Host-lc_sid=abc; Path=/; HttpOnly; SameSite=Lax; Secure');
     const http = cookieSettings('http://127.0.0.1:3000');
-    assert.deepEqual({ ...http }, { secure: false, session: 'lc_sid', login: 'lc_login', device: 'lc_device' });
+    assert.deepEqual({ ...http }, { secure: false, session: 'lc_sid', login: 'lc_login', device: 'lc_device', step: 'lc_step' });
     assert.equal(serializeCookie(http.session, 'abc', {}), 'lc_sid=abc; Path=/; HttpOnly; SameSite=Lax');
     assert.equal(clearCookie('lc_sid', {}), 'lc_sid=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0');
     assert.throws(() => serializeCookie('lc_sid', 'a;b'), TypeError);
@@ -689,20 +689,21 @@ describe('account providers', () => {
     const registry = createAccountProviders([provider('a', () => null)]);
     const remove = registry.add(provider('b', (cred) => (cred.username === 'alice' ? { user: one } : null)));
     assert.deepEqual(registry.ids, ['a', 'b']);
-    assert.equal(await registry.verify({ username: 'alice' }), one);
+    assert.deepEqual(await registry.verify({ username: 'alice' }), { user: one, requires: [] });
     assert.deepEqual(asked, ['a', 'b']);
     asked.length = 0;
     assert.equal(await registry.verify({ username: 'bob' }), null);
     assert.deepEqual(asked, ['a', 'b'], 'every provider is asked for an unknown name too');
 
-    registry.add(provider('c', () => ({ user: one })));
+    const remove2 = registry.add(provider('c', () => ({ user: one })));
     assert.equal(await registry.verify({ username: 'alice' }), null, 'two providers claiming the same person: refused');
     remove();
     assert.deepEqual(registry.ids, ['a', 'c']);
     registry.add(provider('d', () => { throw new Error('disk on fire'); }));
-    assert.equal(await registry.verify({ username: 'alice' }), one, 'a broken provider counts as "no"');
-    registry.add(provider('e', () => ({ user: one, requires: ['passkey'] })));
-    assert.equal(await registry.verify({ username: 'alice' }), null, 'a further step this build cannot offer is a refusal');
+    assert.deepEqual(await registry.verify({ username: 'alice' }), { user: one, requires: [] }, 'a broken provider counts as "no"');
+    remove2();
+    registry.add(provider('e', (cred) => (cred.username === 'alice' ? { user: one, requires: ['passkey', 42] } : null)));
+    assert.deepEqual(await registry.verify({ username: 'alice' }), { user: one, requires: ['passkey'] }, 'a further step travels with the user');
     assert.throws(() => registry.add(provider('a', () => null)), /already registered/);
     assert.throws(() => registry.add({ id: 'x' }), TypeError);
   });

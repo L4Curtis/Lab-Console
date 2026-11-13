@@ -562,7 +562,7 @@ describe('sign-out and the login page', () => {
 
   test('/auth/me: the user, the default language and the provider label - nothing secret', async () => {
     const anonymous = await (await fetch(`${lab.url}/auth/me`)).json();
-    assert.deepEqual(anonymous, { user: null, locale: 'fr', providerName: null });
+    assert.deepEqual(anonymous, { user: null, locale: 'fr', providerName: null, passkeys: false });
     const { headers } = lab.signIn('student2');
     const me = await (await fetch(`${lab.url}/auth/me`, { headers })).json();
     assert.equal(me.user.id, 'oidc:student2');

@@ -9,8 +9,9 @@
  *
  *   const { settings, problems } = normalizeOidcSettings({ issuer, clientId, ... });
  *
- * `settings.enabled` is false when there is no issuer: OpenID Connect is
- * optional, the local administrator is not
+ * `settings.enabled` is false when there is no issuer, or when `enabled:
+ * false` is passed (the settings page keeps a provider's settings while it is
+ * switched off): OpenID Connect is optional, the local administrator is not
  */
 
 export const OIDC_DEFAULTS = Object.freeze({
@@ -41,8 +42,9 @@ export function normalizeOidcSettings(raw = {}) {
   // character for character, and some end with a slash (Authentik) while others do not
   const issuer = text(raw.issuer);
   const clientAuthMethod = text(raw.clientAuthMethod).toLowerCase() || OIDC_DEFAULTS.clientAuthMethod;
+  const switchedOff = raw.enabled === false;
   const settings = {
-    enabled: Boolean(issuer),
+    enabled: Boolean(issuer) && !switchedOff,
     issuer,
     clientId: text(raw.clientId),
     // Empty = a public client, which proves itself with PKCE alone
@@ -61,7 +63,7 @@ export function normalizeOidcSettings(raw = {}) {
   }
 
   if (!issuer) {
-    if (settings.clientId || settings.clientSecret) {
+    if (!switchedOff && (settings.clientId || settings.clientSecret)) {
       problems.push('OIDC_CLIENT_ID / OIDC_CLIENT_SECRET are set but OIDC_ISSUER is empty: set the issuer URL, or remove them');
     }
     return { settings: { ...settings, enabled: false }, problems };
@@ -75,7 +77,7 @@ export function normalizeOidcSettings(raw = {}) {
     // Without TLS anyone on the path can sign in as anyone. Loopback is the mock provider on a developer's machine
     problems.push('OIDC_ISSUER must use https. Plain http is only accepted for localhost, or with OIDC_ALLOW_INSECURE=true on a test bench');
   }
-  if (!settings.clientId) problems.push('OIDC_CLIENT_ID is required when OIDC_ISSUER is set');
+  if (!settings.clientId && !switchedOff) problems.push('OIDC_CLIENT_ID is required when OIDC_ISSUER is set');
   if (!settings.scopes.includes('openid')) problems.push('OIDC_SCOPES must include "openid"');
   if (settings.providerName.length > 40) problems.push('OIDC_PROVIDER_NAME is the label of the sign-in button: 40 characters at most');
   if (/[^\w.:/-]/.test(settings.groupsClaim)) problems.push('OIDC_GROUPS_CLAIM is a claim name or a dotted path such as realm_access.roles');

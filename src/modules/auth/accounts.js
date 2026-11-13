@@ -9,11 +9,12 @@
  *   }
  *
  * The first one is the administrator of the environment (envAdmin.js).
- * Later ones (accounts created through invitations, kept in data/auth/) are
- * added with auth.accounts.add(provider) and need no change here. A provider
- * that wants a further step (a passkey for a promoted administrator) answers
- * `{ user, requires: [...] }`; this build refuses such an answer, since it
- * has no further step to offer yet.
+ * Later ones (the directory of the accounts module: accounts created through
+ * invitations) are added with auth.accounts.add(provider) and need no change
+ * here. A provider that wants a further proof before a session is opened (a
+ * passkey, for an account promoted to administrator) answers
+ * `{ user, requires: ['passkey'] }` or `['passkey-enrol']`: the sign-in then
+ * continues as a step (auth.steps, index.js) instead of opening a session.
  *
  * The contract every provider keeps: the same work, the same answer and the
  * same time whether or not the user name exists (hash a dummy password for
@@ -38,7 +39,7 @@ export function createAccountProviders(initial = []) {
     add,
     get ids() { return providers.map((p) => p.id); },
 
-    /** → the User of the one provider that recognises these credentials, or null */
+    /** → { user, requires } from the one provider that recognises these credentials, or null */
     async verify(credentials, { logger } = {}) {
       const answers = await Promise.all(providers.map((p) => Promise.resolve()
         .then(() => p.verify(credentials))
@@ -49,9 +50,8 @@ export function createAccountProviders(initial = []) {
       const matches = answers.filter((a) => a?.user);
       // Two providers claiming the same credentials is a configuration error, never a sign-in
       if (matches.length !== 1) return null;
-      const [answer] = matches;
-      if (answer.requires?.length) return null;
-      return answer.user;
+      const [{ user, requires }] = matches;
+      return { user, requires: Array.isArray(requires) ? requires.filter((r) => typeof r === 'string') : [] };
     },
   };
 }

@@ -6,6 +6,8 @@
  *             identity provider to the browser that started it (10 minutes)
  *   device    `__Host-lc_device` / `lc_device`: a browser that already signed
  *             in on the local form (devices.js), 180 days
+ *   step      `__Host-lc_step` / `lc_step`: a sign-in whose password was right
+ *             and that still owes a passkey (5 minutes)
  *
  * Over https the `__Host-` prefix makes the browser itself enforce `Secure`,
  * `Path=/` and no `Domain`, so a sibling sub-domain cannot plant or read the
@@ -19,7 +21,7 @@
 export function cookieSettings(publicUrl) {
   const secure = String(publicUrl ?? '').startsWith('https://');
   const prefix = secure ? '__Host-' : '';
-  return Object.freeze({ secure, session: `${prefix}lc_sid`, login: `${prefix}lc_login`, device: `${prefix}lc_device` });
+  return Object.freeze({ secure, session: `${prefix}lc_sid`, login: `${prefix}lc_login`, device: `${prefix}lc_device`, step: `${prefix}lc_step` });
 }
 
 /** Read one cookie from a request (Express or raw upgrade). Only an exact name matches */
