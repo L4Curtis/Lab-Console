@@ -17,6 +17,7 @@ import { parseTrustedProxies } from './lib/security.js';
 import { readConfig as readAuthConfig } from './modules/auth/config.js';
 import { readConfig as readBenchesConfig } from './modules/teams/config.js';
 import { readConfig as readRoomsConfig } from './modules/consoles/config.js';
+import { readConfig as readJobsConfig } from './modules/jobs/config.js';
 
 export const LOCALES = Object.freeze(['fr', 'en']);
 
@@ -209,6 +210,7 @@ export function loadConfig() {
     auth: readAuthConfig(),
     benches: readBenchesConfig(),
     rooms: readRoomsConfig(),
+    jobs: readJobsConfig(),
   };
 
   if (!assembled.server.publicUrl && !str('PUBLIC_URL')) {

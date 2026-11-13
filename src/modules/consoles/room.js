@@ -118,7 +118,9 @@ export class ConsoleRoom extends EventEmitter {
    */
   screen(maxBytes = 4096) {
     const all = Buffer.concat(this.#scroll);
-    return all.subarray(Math.max(0, all.length - maxBytes)).toString('latin1');
+    // As the automation engine reads the console: no escape sequences, no carriage returns
+    return all.subarray(Math.max(0, all.length - maxBytes)).toString('latin1')
+      .replace(/\x1b\[[0-9;?]*[A-Za-z]|\x1b[()][A-Z0-9]|\x1b[=>]/g, '').replace(/[\r\0\x07]/g, '');
   }
 
   /** People attached (one entry per user, whatever their number of tabs) */
