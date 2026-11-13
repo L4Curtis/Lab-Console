@@ -38,15 +38,15 @@
     "topology": "Topologie de {name}",
     "device": "{name} : {state}",
     "watchers": {
-      "one": "Regarde : {names}",
-      "other": "Regardent : {names}"
+      "one": "Regarde : {names}",
+      "other": "Regardent : {names}"
     }
   },
   "state": {
     "idle": "Libre. Cliquez pour ouvrir la console",
     "open": "Ouverte dans votre espace de travail",
     "live": "Ouverte par quelqu’un d’autre. Cliquez pour la rejoindre",
-    "busy": "Occupée hors de Lab Console : le serveur de consoles a refusé la ligne",
+    "busy": "Occupée hors de Lab Console : le serveur de consoles a refusé la ligne",
     "disabled": "Adresse de console non autorisée par la plateforme"
   },
   "live": {
@@ -61,7 +61,7 @@
     "none": "Aucune console ouverte pour l’instant.",
     "quiet": "Rien de neuf pour l’instant.",
     "join": "Ouvrir ou rejoindre la console de {name}",
-    "task": "Tâche « {task} » lancée par {name}",
+    "task": "Tâche « {task} » lancée par {name}",
     "pilot": "{name} a la main",
     "noPilot": "Personne n’a la main",
     "lastCommand": "Dernière commande tapée",
@@ -76,9 +76,9 @@
     "close": "La console de {device} ({bench}) s’est fermée",
     "control": {
       "granted": "{name} a la main sur {device} ({bench})",
-      "timeout": "{name} a pris la main sur {device} : pas de réponse dans le délai",
-      "idle": "{name} a pris la main sur {device} : le pilote était inactif",
-      "takeover": "{name} a pris la main sur {device} (admin)",
+      "timeout": "{name} a pris la main sur {device} : pas de réponse dans le délai",
+      "idle": "{name} a pris la main sur {device} : le pilote était inactif",
+      "takeover": "{name} a pris la main sur {device} (administrateur)",
       "released": "{name} a la main sur {device} ({bench})",
       "left": "{name} a la main sur {device} ({bench})",
       "request": "{name} demande la main sur {device} ({bench})",
@@ -90,10 +90,10 @@
       "returned": "{name} a retrouvé la main sur {device}"
     },
     "task": {
-      "start": "{name} lance « {task} » sur {device}",
-      "done": "« {task} » terminé sur {device}",
-      "cancelled": "« {task} » arrêté sur {device}",
-      "failed": "« {task} » a échoué sur {device}"
+      "start": "{name} lance « {task} » sur {device}",
+      "done": "« {task} » terminé sur {device}",
+      "cancelled": "« {task} » arrêté sur {device}",
+      "failed": "« {task} » a échoué sur {device}"
     }
   },
   "wall": {
@@ -107,7 +107,7 @@
     "button": "Journaux",
     "title": "Mes journaux de console",
     "loading": "Chargement…",
-    "intro": "Ce que les équipements ont affiché, session par session, sur les consoles où vous étiez et celles de la baie de votre équipe pendant ces sessions (toutes pour un admin). Conservé {days} jours.",
+    "intro": "Ce que les équipements ont affiché, session par session, sur les consoles où vous étiez et celles de la baie de votre équipe pendant ces sessions (toutes pour un administrateur). Conservé {days} jours.",
     "none": "Aucun journal pour vous pour l’instant.",
     "columns": {
       "day": "Jour",
@@ -120,7 +120,7 @@
     },
     "download": "Télécharger",
     "truncated": "(tronqué)",
-    "truncatedHint": "La taille maximale du journal pour la journée a été atteinte : la fin manque.",
+    "truncatedHint": "La taille maximale du journal pour la journée a été atteinte : la fin manque.",
     "ongoing": "en cours",
     "bytes": {
       "one": "{count} octet",
@@ -134,12 +134,12 @@
       "one": "{count} Mo",
       "other": "{count} Mo"
     },
-    "notice": "Les consoles sont journalisées : ce que les équipements affichent (jamais ce que vous tapez sans écho, comme les mots de passe) est gardé {days} jours avec qui avait la main. Les participants, leur équipe et les admins peuvent le relire.",
+    "notice": "Les consoles sont journalisées : ce que les équipements affichent (jamais ce que vous tapez sans écho, comme les mots de passe) est gardé {days} jours avec qui avait la main. Les participants, leur équipe et les administrateurs peuvent le relire.",
     "dismiss": "J’ai compris"
   },
   "notify": {
-    "free": "La console de {name} ({bench}) est libre : vous pouvez l’ouvrir.",
-    "open": "La console de {name} ({bench}) est maintenant ouverte dans Lab Console : vous pouvez la rejoindre.",
-    "expired": "La console de {name} ({bench}) est toujours occupée au bout de 30 minutes : on arrête de surveiller."
+    "free": "La console de {name} ({bench}) est libre : vous pouvez l’ouvrir.",
+    "open": "La console de {name} ({bench}) est maintenant ouverte dans Lab Console : vous pouvez la rejoindre.",
+    "expired": "La console de {name} ({bench}) est toujours occupée au bout de 30 minutes : on arrête de surveiller."
   }
 }
