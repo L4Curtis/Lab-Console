@@ -243,10 +243,13 @@ class JournalWriter {
     const { log } = this.j.paths(this.benchDir, this.deviceDir, this.#day);
     const total = this.#bytes;
     this.#chain = this.#chain
-      .then(async () => {
+      // The folder was made when the day started; it is made again only while the data
+      // directory itself exists (a write that lands after a test's tear-down creates nothing)
+      .then(() => fs.promises.appendFile(log, data, { mode: 0o600 }).catch(async (err) => {
+        if (err.code !== 'ENOENT' || !fs.existsSync(this.j.store.root)) throw err;
         await fs.promises.mkdir(path.dirname(log), { recursive: true, mode: 0o700 });
         await fs.promises.appendFile(log, data, { mode: 0o600 });
-      })
+      }))
       .catch((err) => this.j.log.warn(`journal of ${this.bench}/${this.device}: ${err.message}`));
     if (force || this.j.now() - this.#metaAt >= 10_000) {
       this.#metaAt = this.j.now();
