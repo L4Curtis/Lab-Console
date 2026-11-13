@@ -9,10 +9,14 @@
  *
  * One file per session (a line opened, used, closed). Reading covers the
  * whole day of a console (owner decision, 13 Nov): the people who were on
- * any session of R1 today (attached or piloting), the teams that held the
- * bench during any of them, and admins read every session of R1 today
- * (`canReadDay`). Someone who watched R1 for a minute in the afternoon thus
- * reads what another team did on R1 that morning, not the day before. A
+ * any session of R1 today as someone who may drive it (attached with a
+ * keyboard while the bench rule let them pilot, or piloting), the teams that
+ * held the bench during any of them, and admins read every session of R1
+ * today (`canReadDay`). Someone of the bench who was on R1 for a minute in
+ * the afternoon thus reads what was done on R1 that morning, not the day
+ * before. A spectator who may not drive (an outsider watching an open line,
+ * a read-only wall tile) is listed in the sidecar's `watched`, shown with the
+ * people of the session, and gains no right from it. A
  * session that runs past midnight goes on in a new file of the new day,
  * whose sidecar starts with the people already on it. The sidecar is the
  * permission list, small and kept next to the output, so a check never parses
@@ -327,8 +331,8 @@ class JournalWriter {
   #fileBytes = 0;      // bytes in the current file
   #stopped = false;    // the day's cap reached
   #closed = false;
-  #seen = new Set();   // 'a:<id>' / 'p:<id>' already in the current sidecar
-  #people = new Map(); // 'a:<id>' / 'p:<id>' → user, for the whole session (carried past midnight)
+  #seen = new Set();   // 'a:<id>' / 'w:<id>' / 'p:<id>' already in the current sidecar
+  #people = new Map(); // 'a:<id>' / 'w:<id>' / 'p:<id>' → user, for the whole session (carried past midnight)
   #teams = new Set();  // teams already in the current sidecar
   #metaAt = 0;         // last time the sidecar's size was written
 
@@ -354,8 +358,11 @@ class JournalWriter {
     this.#noteTeam();
   }
 
-  /** Someone attached to the console (recorded once per file) */
+  /** Someone attached to the console as a person who may drive it (recorded once per file; gives read rights) */
   attended(user) { this.#remember('a', user); }
+
+  /** Someone watched the console without the right to drive it (recorded once per file; gives no right) */
+  watched(user) { this.#remember('w', user); }
 
   /** Someone held the keyboard (recorded once per file) */
   piloted(user) { this.#remember('p', user); }
@@ -469,7 +476,7 @@ class JournalWriter {
     this.#seen.add(key);
     const at = new Date(this.j.now()).toISOString();
     this.#touchMeta((m) => {
-      const list = key.startsWith('a:') ? (m.attended ??= {}) : (m.pilots ??= {});
+      const list = key.startsWith('a:') ? (m.attended ??= {}) : key.startsWith('w:') ? (m.watched ??= {}) : (m.pilots ??= {});
       list[user.id] ??= { ...person(user), first: at };
     });
   }
@@ -490,7 +497,7 @@ class JournalWriter {
     const { meta } = this.j.paths(this.benchDir, this.deviceDir, this.#day, this.#session);
     const fresh = {
       bench: this.bench, device: this.device, target: this.target, day: this.#day, session: this.#session,
-      started: null, ended: null, attended: {}, pilots: {}, teams: [], bytes: 0, truncated: false,
+      started: null, ended: null, attended: {}, watched: {}, pilots: {}, teams: [], bytes: 0, truncated: false,
     };
     const written = this.j.store.json(meta, fresh).update((m) => {
       m.teams ??= [];

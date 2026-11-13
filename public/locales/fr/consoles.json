@@ -107,7 +107,7 @@
     "button": "Journaux",
     "title": "Mes journaux de console",
     "loading": "Chargement…",
-    "intro": "Ce que les équipements ont affiché, session par session. Vous relisez toute la journée d’une console où vous êtes passé, ou que la baie de votre équipe avait ce jour-là : toutes les sessions de ce jour, y compris celles des autres (toutes pour un administrateur). Conservé {days} jours.",
+    "intro": "Ce que les équipements ont affiché, session par session. Vous relisez toute la journée d’une console où vous êtes passé avec le droit de la piloter (regarder seulement ne compte pas), ou que la baie de votre équipe avait ce jour-là : toutes les sessions de ce jour, y compris celles des autres (toutes pour un administrateur). Conservé {days} jours.",
     "none": "Aucun journal pour vous pour l’instant.",
     "columns": {
       "day": "Jour",
@@ -134,7 +134,7 @@
       "one": "{count} Mo",
       "other": "{count} Mo"
     },
-    "notice": "Les consoles sont journalisées : ce que les équipements affichent (jamais ce que vous tapez sans écho, comme les mots de passe) est gardé {days} jours avec qui avait la main. Qui est passé sur une console un jour donné, son équipe et les administrateurs relisent toute la journée de cette console.",
+    "notice": "Les consoles sont journalisées : ce que les équipements affichent (jamais ce que vous tapez sans écho, comme les mots de passe) est gardé {days} jours avec qui avait la main. Qui est passé sur une console un jour donné avec le droit de la piloter, son équipe et les administrateurs relisent toute la journée de cette console.",
     "dismiss": "J’ai compris"
   },
   "notify": {

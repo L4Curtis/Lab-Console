@@ -332,8 +332,8 @@
       "title": "Journal des consoles",
       "what": "Ce que les équipements affichent sur les consoles ouvertes depuis la plateforme, avec qui avait le clavier. Jamais ce que vous tapez.",
       "kept": {
-        "one": "Gardé {count} jour. La lecture couvre toute la journée d’une console : qui y est passé ce jour-là, même une minute, et les équipes qui avaient sa baie ce jour-là relisent toutes les sessions de ce jour ; les administrateurs lisent tout.",
-        "other": "Gardé {count} jours. La lecture couvre toute la journée d’une console : qui y est passé ce jour-là, même une minute, et les équipes qui avaient sa baie ce jour-là relisent toutes les sessions de ce jour ; les administrateurs lisent tout."
+        "one": "Gardé {count} jour. La lecture couvre toute la journée d’une console : qui y est passé ce jour-là avec le droit de la piloter, même une minute (regarder seulement ne compte pas), et les équipes qui avaient sa baie ce jour-là relisent toutes les sessions de ce jour ; les administrateurs lisent tout.",
+        "other": "Gardé {count} jours. La lecture couvre toute la journée d’une console : qui y est passé ce jour-là avec le droit de la piloter, même une minute (regarder seulement ne compte pas), et les équipes qui avaient sa baie ce jour-là relisent toutes les sessions de ce jour ; les administrateurs lisent tout."
       },
       "limits": "Au plus {day} Mo par équipement et par jour, {total} Mo pour tous les journaux ensemble : au-delà, les jours les plus anciens sont supprimés en premier."
     },

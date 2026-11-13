@@ -12,7 +12,7 @@ import WebSocket from 'ws';
 import { startMockLab } from '../dev/mock-lab.js';
 import { startTestApp, repoRoot } from './helpers/app.js';
 import { FAST_SCRYPT } from './helpers/accounts.js';
-import { student } from './helpers/fakes.js';
+import { student, admin } from './helpers/fakes.js';
 import { T0, MIN } from './helpers/teams.js';
 import { parseDrawio } from '../src/modules/consoles/drawio.js';
 import { createConsolesModule } from '../src/modules/consoles/index.js';
@@ -74,8 +74,8 @@ async function until(fn, what, ms = 6000) {
   }
 }
 
-function connect(who, device) {
-  const ws = new WebSocket(`${app.wsUrl}/ws/console?device=${encodeURIComponent(device.key)}&cols=80&rows=24`, { headers: { origin: app.url, ...app.as(who) } });
+function connect(who, device, mode = '') {
+  const ws = new WebSocket(`${app.wsUrl}/ws/console?device=${encodeURIComponent(device.key)}&cols=80&rows=24${mode}`, { headers: { origin: app.url, ...app.as(who) } });
   const c = { ws, frames: [], text: '', closed: false };
   ws.on('message', (raw, isBinary) => { if (isBinary) c.text += raw.toString('latin1'); else c.frames.push(JSON.parse(raw.toString())); });
   ws.on('close', () => { c.closed = true; });
@@ -157,6 +157,52 @@ test('the consoles ask the real bench rule: a member pilots, an outsider watches
   alice.type('show users\r');
   await alice.see(/R1>show users/);
   for (const c of [alice, outsider, bob, closedLine, another]) await c.close();
+});
+
+test('a task asked before a lock does not run on the locked bench: refused with consoles.control_not_allowed, nothing typed', async () => {
+  // B4M is held by Équipe Une (student1, student2) since the tests above
+  const r1 = byName('B4M', 'R1');
+  const alice = await openReady('student1', r1);
+  const bob = connect('student2', r1);
+  await bob.frame((f) => f.type === 'presence' && f.users.length === 2, 'bob joins');
+  alice.type('show clock\r'); // alice is an active pilot: the task must ask her
+  await alice.see(/show clock[\s\S]*R1>$/);
+  const room = app.deps.services.consoles.rooms.get(`${r1.target.host}:${r1.target.port}`);
+  let ran = false;
+  // What bob's inject frame does: room.runExclusive(user, label, fn)
+  const task = room.runExclusive(student(2), 'inject', async (cli) => { ran = true; cli.sendLine('TASK-MARKER'); });
+  await alice.frame((f) => f.type === 'control' && f.event === 'request', 'alice is asked');
+  assert.equal((await api('admin', 'PUT', '/api/benches/B4M/lock', { reason: 'Exam' })).status, 200);
+  assert.equal(app.deps.services.benches.canPilot(student(2), r1), false);
+  // The answer comes after the lock (an admin hands the keyboard over)
+  room.grantControl(student(2).id, admin());
+  await assert.rejects(task, { code: 'consoles.control_not_allowed' });
+  assert.equal(ran, false, 'the task did not run');
+  await new Promise((r) => setTimeout(r, 200));
+  assert.doesNotMatch(alice.text, /TASK-MARKER/, 'nothing reached the device');
+  assert.equal((await api('admin', 'DELETE', '/api/benches/B4M/lock')).status, 200);
+  for (const c of [alice, bob]) await c.close();
+});
+
+test('the journal: a spectator who may not drive (an outsider, a wall tile) is named but reads nothing of the day; the team reads it', async () => {
+  const r1 = byName('B4M', 'R1');
+  const alice = await openReady('student1', r1);
+  const wall = connect('student3', r1, '&mode=wall');
+  await wall.frame((f) => f.type === 'presence' && f.users.some((u) => u.id === 'oidc:student3' && u.readOnly), 'the wall tile watches');
+  await wall.close();
+  await alice.close();
+  // The team reads the day, and sees who watched
+  let sessions = [];
+  await until(async () => {
+    const team = await api('student2', 'GET', '/api/consoles/journal');
+    sessions = team.body.sessions.filter((s) => s.bench === 'B4M' && s.device === 'R1');
+    return sessions.some((s) => s.people.includes('Student 3'));
+  }, 'the spectator is named among the people of a session');
+  const outsider = await api('student3', 'GET', '/api/consoles/journal');
+  assert.equal(outsider.status, 200);
+  assert.deepEqual(outsider.body.sessions.filter((s) => s.bench === 'B4M' && s.device === 'R1'), [], 'watching gives no right to the day');
+  const file = await fetch(`${app.url}/api/consoles/journal/${encodeURIComponent(sessions[0].id).replaceAll('%2F', '/')}`, { headers: app.as('student3') });
+  assert.equal(file.status, 403);
 });
 
 test('the health page shows the open lines, the shared SSH connections and the journals\' total; the journaling page reads the consoles module', async () => {

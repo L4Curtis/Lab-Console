@@ -66,9 +66,13 @@ export function createConsolesModule({ config, events, logger, infra, services =
 
   /**
    * Who may drive a console: the bench rule of the teams lot when it is
-   * there, otherwise every signed-in user. The only place this is decided
+   * there, otherwise every signed-in user; never an account the directory
+   * holds as disabled (a running task of theirs stops at its next byte).
+   * The only place this is decided
    */
   const mayPilot = (user, device) => {
+    const account = user?.id ? services.accounts?.get?.(user.id) : null;
+    if (account && account.state !== 'active') return false;
     const benches = services.benches;
     return typeof benches?.canPilot === 'function' ? Boolean(benches.canPilot(user, device)) : Boolean(user);
   };
@@ -207,7 +211,7 @@ export function createConsolesModule({ config, events, logger, infra, services =
       .filter((d) => journal.canReadDay(req.user, metasOf.get(dayKey(d)), teamOfUser))
       .map(({ benchDir, deviceDir, day, session, bench, device, from, to, bytes, truncated, meta }) => ({
         id: `${benchDir}/${deviceDir}/${day}/${session}`, bench, device, day, from, to, bytes, truncated,
-        people: Object.values(meta.attended ?? {}).map((p) => p.name),
+        people: [...new Set([...Object.values(meta.attended ?? {}), ...Object.values(meta.watched ?? {})].map((p) => p.name))],
         pilots: Object.values(meta.pilots ?? {}).map((p) => p.name),
       }));
     res.set('Cache-Control', 'no-store').json({ sessions, retentionDays: config.rooms.journal.retentionDays });

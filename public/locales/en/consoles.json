@@ -107,7 +107,7 @@
     "button": "Journals",
     "title": "My console journals",
     "loading": "Loading…",
-    "intro": "What the devices printed, session by session. You read the whole day of a console you were on, or that your team’s bench held that day: every session of that day, other people’s included (all of them for an admin). Kept {days} days.",
+    "intro": "What the devices printed, session by session. You read the whole day of a console you were on with the right to drive it (watching only does not count), or that your team’s bench held that day: every session of that day, other people’s included (all of them for an admin). Kept {days} days.",
     "none": "No journal for you yet.",
     "columns": {
       "day": "Day",
@@ -134,7 +134,7 @@
       "one": "{count} MB",
       "other": "{count} MB"
     },
-    "notice": "Consoles are journaled: what the devices print (never what you type without echo, such as passwords) is kept {days} days with who had the keyboard. Whoever was on a console on a given day, their team and the admins read that console’s whole day back.",
+    "notice": "Consoles are journaled: what the devices print (never what you type without echo, such as passwords) is kept {days} days with who had the keyboard. Whoever was on a console on a given day with the right to drive it, their team and the admins read that console’s whole day back.",
     "dismiss": "Got it"
   },
   "notify": {

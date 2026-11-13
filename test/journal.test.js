@@ -77,6 +77,26 @@ test('journal: who may read a session', async () => {
   assert.equal(journal.canRead(user('alice'), null), false);
 });
 
+test('journal: a spectator who may not drive is named in the sidecar\'s watched list and reads nothing', async () => {
+  const { dir, journal, cleanup } = setup();
+  try {
+    const w = journal.open({ bench: 'B4M', device: 'R1', target: '10.22.9.211:2001' });
+    w.attended(user('alice'));
+    w.watched(user('eve'));
+    w.watched(user('eve'));
+    w.output(Buffer.from('R1>'));
+    await w.close();
+    const [s] = sessions(dir, 'B4M', 'R1', '2026-11-13');
+    assert.deepEqual(Object.keys(s.meta.attended), ['oidc:alice']);
+    assert.deepEqual(Object.keys(s.meta.watched), ['oidc:eve']);
+    assert.equal(journal.canRead(user('eve'), s.meta), false, 'watching gives no right');
+    assert.equal(journal.canReadDay(user('eve'), [s.meta]), false);
+    assert.equal(journal.canRead(user('alice'), s.meta), true);
+  } finally {
+    await cleanup();
+  }
+});
+
 test('journal: one device\'s day stops at its size cap, says so once, and starts again the next day', async () => {
   const { dir, clock, journal, cleanup } = setup({ maxBytesPerDay: 1000 });
   try {

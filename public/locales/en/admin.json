@@ -332,8 +332,8 @@
       "title": "Console journal",
       "what": "What the devices print on the consoles opened from the platform, with who had the keyboard. Never what you type.",
       "kept": {
-        "one": "Kept {count} day. Read access covers the whole day of a console: whoever was on it that day, even for a minute, and the teams that held its bench that day read every session of that day; administrators read everything.",
-        "other": "Kept {count} days. Read access covers the whole day of a console: whoever was on it that day, even for a minute, and the teams that held its bench that day read every session of that day; administrators read everything."
+        "one": "Kept {count} day. Read access covers the whole day of a console: whoever was on it that day with the right to drive it, even for a minute (watching only does not count), and the teams that held its bench that day read every session of that day; administrators read everything.",
+        "other": "Kept {count} days. Read access covers the whole day of a console: whoever was on it that day with the right to drive it, even for a minute (watching only does not count), and the teams that held its bench that day read every session of that day; administrators read everything."
       },
       "limits": "At most {day} MB per device and per day, {total} MB for every journal together: past that, the oldest days are deleted first."
     },
