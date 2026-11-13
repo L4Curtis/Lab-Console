@@ -20,8 +20,9 @@ const MODULES = [
 
 const views = document.getElementById('views');
 const rail = document.getElementById('rail-items');
-const mounted = new Map(); // id → { el, api }
+const mounted = new Map(); // id → Promise<{ el, api }>
 let current = null;
+let routes = 0; // route() calls so far
 
 async function init() {
   applyTheme(prefs.get('theme', matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
@@ -61,21 +62,30 @@ async function route() {
   const mod = MODULES.find((m) => m.path === path) || MODULES[0];
   for (const a of rail.querySelectorAll('.rail-btn')) a.classList.toggle('active', a.dataset.module === mod.id);
 
-  if (!mounted.has(mod.id)) {
-    const el = h(`section.view.view-${mod.id}`);
-    views.append(el);
-    const { mount } = await mod.load();
-    mounted.set(mod.id, { el, api: (await mount(el, { enabled: mod.enabled, navigate })) || {} }); // mount may be async
+  // The promise is stored at once: an address change while a section is
+  // still loading must not mount it a second time
+  if (!mounted.has(mod.id)) mounted.set(mod.id, mountSection(mod));
+  const ticket = ++routes;
+  const view = await mounted.get(mod.id);
+  if (ticket !== routes) { // a later address change wins
+    if (current !== mod.id) view.el.hidden = true;
+    return;
   }
   if (current && current !== mod.id) {
-    const prev = mounted.get(current);
+    const prev = await mounted.get(current);
     prev.el.hidden = true;
     prev.api.hide?.();
   }
-  const view = mounted.get(mod.id);
   view.el.hidden = false;
   current = mod.id;
   view.api.show?.(params);
+}
+
+async function mountSection(mod) {
+  const el = h(`section.view.view-${mod.id}`); // visible while it mounts: the diagram measures itself
+  views.append(el);
+  const { mount } = await mod.load();
+  return { el, api: (await mount(el, { enabled: mod.enabled, navigate })) || {} }; // mount may be async
 }
 
 /** Update the URL without re-running the router (for in-module state such as the selected lab) */
