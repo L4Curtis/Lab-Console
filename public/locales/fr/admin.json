@@ -20,7 +20,7 @@
     "submit": "Confirmer",
     "passkeyIntro": "Ces paramètres touchent à l’accès au labo. Confirmez avec votre clé d’accès.",
     "passkey": "Utiliser ma clé d’accès",
-    "unavailable": "Ce compte ne peut pas confirmer cette modification ici. Connectez-vous avec l’administrateur local, un compte administrateur qui a une clé d’accès, ou par le fournisseur d’identité une fois activé.",
+    "unavailable": "Ce compte ne peut pas confirmer cette modification ici. Connectez-vous avec l’administrateur du serveur, un compte administrateur qui a une clé d’accès, ou par le fournisseur d’identité une fois activé.",
     "ssoIntro": "Ces paramètres touchent à l’accès au labo. Vous allez être envoyé chez votre fournisseur d’identité pour vous reconnecter ; la modification est appliquée à votre retour.",
     "sso": "Me reconnecter"
   },
@@ -63,7 +63,7 @@
       "telnet": {
         "username": "Vide pour les lignes qui ne demandent qu’un mot de passe.",
         "password": "Laissez vide pour garder le mot de passe actuel.",
-        "wakeIdleMs": "Silence après la connexion avant un Entrée de réveil ; 0 le désactive."
+        "wakeIdleMs": "Silence après la connexion avant l’envoi d’Entrée pour réveiller la ligne ; 0 le désactive."
       },
       "consoles": {
         "allowedHosts": "Séparés par des virgules. Une console ailleurs reste affichée mais ne s’ouvre pas."
@@ -341,7 +341,7 @@
     }
   },
   "errors": {
-    "confirm_unavailable": "Ce compte ne peut pas confirmer ici : connectez-vous avec l’administrateur local, un compte administrateur qui a une clé d’accès, ou par le fournisseur d’identité.",
+    "confirm_unavailable": "Ce compte ne peut pas confirmer ici : connectez-vous avec l’administrateur du serveur, un compte administrateur qui a une clé d’accès, ou par le fournisseur d’identité.",
     "confirm_throttled": "Trop d’essais de confirmation : attendez quelques minutes.",
     "confirm_failed": "Confirmation refusée.",
     "confirm_required": "Confirmez d’abord la modification (clé d’accès, ou mot de passe et code).",
