@@ -1,24 +1,28 @@
 # Signing in to Lab Console
 
 Everything in Lab Console needs a signed-in user: pages, API, live events and
-the console WebSockets. There is no mode without sign-in. Two ways in, one
+the console WebSockets. There is no mode without sign-in. Three ways in, one
 kind of session:
 
 | Who | How | Configured with |
 |---|---|---|
-| Students and teachers | the identity provider of the school (OpenID Connect) | `OIDC_*` |
+| Students and teachers | the identity provider of the school (OpenID Connect) | `OIDC_*`, or the **Sign-in (SSO)** tab of the Administration section |
+| Local accounts | user name + password, created through an invitation link; a passkey for the administrators among them | the **Users** and **Invitations** tabs |
 | The local administrator | user name + password + 6-digit code | `LOCAL_ADMIN_*` |
 
 The local administrator is mandatory: it is the emergency account, the one
 that still works when the identity provider is down or not set up yet. The
-platform refuses to start without it. OpenID Connect is optional; without it,
-only the local administrator can sign in.
+platform refuses to start without it. OpenID Connect and local accounts are
+optional; without them, only the local administrator can sign in.
 
-Roles: an account is **admin** when one of its groups is listed in
-`OIDC_ADMIN_GROUPS`, otherwise **student**. The local administrator is an
-admin. The role is decided at sign-in: a change of groups at the provider, or
-of `OIDC_ADMIN_GROUPS`, applies at the person's next sign-in (revoke their
-sessions to apply it at once).
+Roles: an SSO account is **admin** when one of its groups is listed in the
+admin groups (`OIDC_ADMIN_GROUPS` or the SSO tab), otherwise **student**,
+unless an administrator forced a role on the Users tab, which wins. A local
+account has the role its invitation gave, changed on the Users tab. The local
+administrator is an admin. Groups are read at sign-in: a change of groups at
+the provider applies at the person's next sign-in (revoke their sessions to
+apply it at once). A change made on the Users tab (role, disabled) ends the
+account's sessions and consoles at once.
 
 ## 1. The local administrator
 
@@ -269,6 +273,54 @@ OIDC_SCOPES=openid profile email groups
 OIDC_GROUPS_CLAIM=groups
 OIDC_PROVIDER_NAME=Authelia
 ```
+
+### Or from the administration pages
+
+Without `OIDC_ISSUER` in the environment, the **Sign-in (SSO)** tab of the
+Administration section sets the provider: name of the button, issuer, client
+id, client secret (write-only: the page only says whether one is set),
+scopes, groups claim, admin groups, allowed groups, on / off. It shows the
+callback URL to give the provider, **Test** fetches the discovery document,
+and **Try a sign-in** goes to the provider and back without opening a session,
+showing the claims received and the role they give. Saving applies at once,
+without a restart; open sessions are untouched.
+
+The settings are kept in `data/auth/oidc.json` (mode 600). The client secret
+is in clear in that file unless `APP_SECRET` (32 characters at least, e.g.
+`openssl rand -base64 48`) is set, in which case it is encrypted with it;
+changing `APP_SECRET` makes it unreadable and the page asks for it again.
+When `OIDC_ISSUER` is set in the environment, the environment wins and the
+tab is read-only.
+
+The discovery request is guarded: https only (unless the insecure flag), a
+deadline and a size limit; only the issuer's own host may be on the local
+network, and no redirect leads to an internal address.
+
+## 2b. Local accounts and passkeys
+
+- **Invitations** (Invitations tab): a link valid 1 h, 24 h or 7 days, for one
+  person or up to 100, granting student (default) or admin. The link is shown
+  once; only a hash of its token is kept. A single-use link gives an active
+  account at once; a link for several people gives accounts that wait for an
+  administrator's approval (Users tab). Links can be withdrawn.
+- **User names**: 3 to 32 letters and digits with single `.`, `-` or `_`
+  between them, unique without regard to case (the local administrator's
+  name included). **Passwords**: 10 characters at least, not a common one,
+  not containing the user name; stored as scrypt hashes.
+- **Forgotten password**: there is no e-mail. An administrator makes a reset
+  link (Users tab, 1 h or 24 h, single use); using it ends the account's
+  sessions.
+- **Passkeys** are offered when `PUBLIC_URL` is https on a domain name (or
+  `http://localhost`, for tests): the relying party is the host of
+  `PUBLIC_URL`. A local account promoted to admin registers a passkey at its
+  next sign-in and from then on signs in with password + passkey, or with the
+  passkey alone (the passkey button of the login page); its password alone no
+  longer opens a session. Students may add passkeys on **My account** and keep
+  their password. SSO accounts rely on their provider, and the local
+  administrator keeps password + code. A lost device: an administrator
+  removes the account's passkeys on the Users tab, and a new one is
+  registered at the next sign-in.
+- The last administrator of the directory cannot be demoted or disabled.
 
 ## 3. Sessions
 

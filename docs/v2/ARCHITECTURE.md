@@ -97,6 +97,7 @@ Global keys added by the skeleton:
 | `DATA_DIR` | `./data` | `dataDir` (absolute) | Writable state directory. The Docker image sets `/data`. |
 | `TRUSTED_PROXIES` | empty | `server.trustedProxies` (string[]) | Comma list of proxy IPs / CIDRs (IPv4, IPv6) whose `X-Forwarded-For` is believed: every hop, CDN ranges included. The upstream `TRUST_PROXY=true` (trust every peer) is refused at start-up and `server.trustProxy` no longer exists. |
 | `DEFAULT_LOCALE` | `fr` | `defaultLocale` | UI language for a first visit (`fr` or `en`). |
+| `APP_SECRET` | empty | `appSecret` | Optional, 32 characters at least. Encrypts (AES-256-GCM, key derived with HKDF) the secrets saved from the administration pages: today the SSO client secret in `data/auth/oidc.json`. Without it they are kept in clear in files of mode 600. Changing it makes them unreadable (the page says so). |
 
 `PORT=0` is accepted and binds any free port (tests, the e2e harness).
 
@@ -121,12 +122,18 @@ Every new variable is documented in `.env.example`. Secrets never get defaults.
 is run directly (`node src/server.js`). Order inside `createApp`:
 
 1. `securityHeaders`
-2. public static assets: `/css`, `/vendor`, `/locales`, `/js/core`,
-   `/favicon.svg` (also answered on `/favicon.ico`). A missing public file is a
-   404, never a redirect to the login page.
+2. public static assets: `/css`, `/vendor` (`/vendor/simplewebauthn` is the
+   WebAuthn browser library), `/locales`, `/js/core`, `/favicon.svg` (also
+   answered on `/favicon.ico`). A missing public file is a 404, never a
+   redirect to the login page.
 3. `GET /api/health` (liveness only, no detail)
 4. auth routes: `app.use(auth.router)` — `/login`, `/js/login.js`, `/auth/*`
-   (all `Cache-Control: no-store` and `X-Robots-Tag: noindex, nofollow`)
+   (all `Cache-Control: no-store` and `X-Robots-Tag: noindex, nofollow`), and
+   the routes other modules add with `auth.extend()`: the accounts module's
+   `/join`, `/reset`, `/js/join.js`, `POST /auth/invitation`, `/auth/signup`,
+   `/auth/reset-link`, `/auth/reset` and `/auth/passkey/*`. Each checks what
+   it needs itself (a link's token, a passkey ceremony) and is listed in the
+   allow-list of `test/routeWalk.test.js`
 5. **gate**: `auth.attach` then `auth.requireAuth` — everything below needs a user
 6. state-changing requests (anything but GET / HEAD, on any path) must pass
    the existing same-origin check: `requireSameOrigin(allowedOrigins)` from
@@ -189,11 +196,18 @@ auth.requireAuth(req, res, next)   // 401 JSON under /api and for writes, 302 /l
 auth.requireRole('admin')      // middleware, 403 JSON
 auth.authenticateUpgrade(req)  // → User | null, for WebSocket upgrades; the socket closes when the session ends
 auth.sessions.list() / .revoke(sessionId) / .revokeUser(userId)
-auth.sessions.create(user, { ip, userAgent }) // → { id, token, cookie }: a session for someone the server
-                               //   authenticated another way (passkey, invitation), and for tests
+auth.sessions.create(user, { ip, userAgent }) // → { id, token, cookie }: a session in the store (tests)
+auth.sessions.open(req, res, user)   // sign this browser in as someone the server authenticated another
+                               //   way (passkey, invitation): previous session ended, cookie set → session
 auth.accounts.add(provider)    // another source of local accounts → remove()
+auth.steps.peek(req) / .complete(req, res, { method, user }) / .fail(req, res) / .start(req, res, user, requires)
+                               // a sign-in whose password was right and that still owes a passkey
+auth.extend(router, { describe })    // public routes mounted above the gate; describe(req) adds fields to /auth/me
 auth.oidc.settings             // current OIDC settings, without the secret ({ …, hasClientSecret })
 auth.oidc.configure(raw)       // replace them at run time (validated; open sessions untouched)
+auth.oidc.redirectUri          // the callback URL to give the provider
+auth.oidc.trial(req, res, { returnTo, onResult })   // → { url }: a sign-in at the provider that opens no
+                               //   session; onResult gets the claims and the role they give
 auth.router                    // /login, /js/login.js, /auth/*; mounted before the gate
 auth.cookieName                // '__Host-lc_sid' | 'lc_sid'
 auth.shutdown()                // stops the timers, writes the sessions; called when the application closes
@@ -226,9 +240,24 @@ at every sign-in.
   next }` to `POST /auth/local`; every registered provider is asked, the first
   one being the environment's administrator (`envAdmin.js`: scrypt hash,
   RFC 6238 TOTP ±1 step, a step that was accepted is dead, even across a
-  restart). A provider is `{ id, verify({ username, password, code }) → { user }
-  | null }` and does the same work whether or not the name exists. One generic
-  refusal (401 `auth.invalid_credentials`) for every cause.
+  restart), the second the directory of the accounts module (accounts created
+  through invitations; the code is ignored). A provider is `{ id, verify({
+  username, password, code }) → { user, requires? } | null }` and does the
+  same work whether or not the name exists. One generic refusal (401
+  `auth.invalid_credentials`) for every cause. A provider that answers
+  `requires: ['passkey' | 'passkey-enrol']` (a local account promoted to
+  administrator) gets no session: the answer is `{ step }`, a 5-minute,
+  single-use step is kept on the server (cookie `lc_step`, `__Host-` over
+  https), and the accounts module finishes it with `auth.steps.complete()`
+  once the passkey is given or registered.
+- Passkeys (accounts module, `@simplewebauthn/server`): one-click sign-in with
+  a discoverable credential and user verification (`/auth/passkey/options`,
+  `/auth/passkey/verify`), and the step above. Relying party = the host of
+  `PUBLIC_URL`, origin = `PUBLIC_URL`; offered only over https on a domain
+  name, or on `http://localhost` (tests). Challenges stay on the server, 5
+  minutes, single use, bound to the browser (cookie `lc_passkey`) and to what
+  they were issued for. Local accounts only: SSO accounts rely on their
+  provider, the environment's administrator keeps password + TOTP.
 - Attempts on the local form are limited (`throttle.js`) per client address
   (5 per 15 min), per user name (exponential backoff after 2 failures, one
   attempt in flight), and globally (50 failures per 15 min): 429
@@ -248,16 +277,22 @@ at every sign-in.
 
 **Roles.** `resolveRole({ groups, adminGroups, storedRole })` in `roles.js`
 is the only place a role is decided: admin when a group is in
-`OIDC_ADMIN_GROUPS`, otherwise student, and a role stored per user (wave 2)
-wins. `isAllowed()` applies `OIDC_ALLOWED_GROUPS` (an admin group always
-counts); a refused user lands on `/login?error=not_allowed`.
+`OIDC_ADMIN_GROUPS`, otherwise student, and a role stored per user wins: at
+every provider sign-in the callback asks `services.accounts.roleOverride(id)`
+(set by an administrator on the Users tab), then `services.accounts.admit(user,
+{ groupRole })`, which records the account in the directory and answers
+`false` for a disabled one (`/login?error=account_disabled`). Local accounts
+carry their role in the directory. `isAllowed()` applies `OIDC_ALLOWED_GROUPS`
+(an admin group always counts); a refused user lands on
+`/login?error=not_allowed`.
 
-`GET /auth/me` is public and returns `{ user, locale, providerName }`
+`GET /auth/me` is public and returns `{ user, locale, providerName, passkeys }`
 (`user: null` when nobody is signed in, `locale` = `DEFAULT_LOCALE`,
-`providerName` = the sign-in button's label or `null` without a provider);
-the browser reads it once through `public/js/core/session.js`
-(`await loadSession()`, then `session.user`, `session.isAdmin`,
-`session.locale`, `session.providerName`; `signOut()` posts `/auth/logout`
+`providerName` = the sign-in button's label or `null` without a provider,
+`passkeys` = whether this site offers them); the browser reads it once
+through `public/js/core/session.js` (`await loadSession()`, then
+`session.user`, `session.isAdmin`, `session.locale`, `session.providerName`,
+`session.passkeys`; `signOut()` posts `/auth/logout`
 and follows its `redirect`, the provider's end-session page when it has one).
 `public/js/core/userMenu.js` (`mountUserMenu()`, called once from `main.js`)
 shows the user, the role and the sign-out button at the bottom of the rail.
@@ -414,9 +449,10 @@ services.benches = {                           // lot teams
   onRelease(fn)                                // hook: fn({ labName, teamId, by }); the jobs lot offers a backup
 }
 services.accounts = {                          // lot accounts
-  get(userId) → Account | null                 // { id, username, name, role, state, via, hasPasskey }
-  list() → Account[]
-  roleOverride(userId) → 'student' | 'admin' | null
+  get(userId) → Account | null                 // { id, username, name, role, state, via, hasPasskey, … }
+  list() → Account[]                           // the environment's administrator first ({ environment: true })
+  roleOverride(userId) → 'student' | 'admin' | null   // forced on an SSO account; null = its groups decide
+  admit(user, { groupRole }) → Promise<boolean>       // called by the sign-in module at each SSO sign-in
 }
 services.jobs = { running(labName) → Job | null, list({ bench }) }
 ```
@@ -424,7 +460,16 @@ services.jobs = { running(labName) → Job | null, list({ bench }) }
 ## 8. Front end
 
 - **Sections.** `public/js/main.js` keeps the `MODULES` array; a new rail
-  section is one line there and one folder in `public/js/modules/`.
+  section is one line there and one folder in `public/js/modules/`. `id` is
+  the server module (`/api/modules`), `path` the address and the section's
+  class (`section.view-<path>`); `when: () => session.isAdmin` keeps a section
+  away from students, `rail: false` leaves it out of the rail. The
+  **Administration** section (`#/admin/<tab>`, `modules/admin/index.js`) is
+  for administrators, built with `shared/tabs.js`; the accounts lot's tabs are
+  `users`, `invitations`, `sso`, and the admin lot adds its own there (one
+  file in `modules/admin/tabs/`, one line). **My account** (`#/account`) is
+  reached from the user menu. Passkeys in the browser go through
+  `core/passkeys.js` (public: the login page and `/join` use it).
 - **Tabs.** A section with several screens uses `shared/tabs.js`:
   `mountTabs(container, tabs, { navigate, base })` where a tab is
   `{ id, title, load: () => import('./tabs/x.js') }` and the tab file exports
@@ -700,7 +745,10 @@ device names used in paths go through `store.resolve`, never string concat.
 - Upload → size limit, type check, no path from the archive trusted?
 - Output shown to other users → rendered as text, never as HTML?
 - Secret → never logged, never sent to the browser, never written to `data/`
-  unless it is a hash?
+  unless it is a hash? One exception: the SSO client secret set on the
+  administration page must be sent to the provider, so `data/auth/oidc.json`
+  (mode 600) keeps it, encrypted when `APP_SECRET` is set; no answer and no
+  audit entry ever contains it.
 - Limits → per user, not per IP.
 
 ## 14. Recipes
