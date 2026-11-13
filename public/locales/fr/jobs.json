@@ -1,0 +1,321 @@
+{
+  "title": "Sauvegardes et tâches",
+  "subtitle": "Sauvegarder, réinjecter ou remettre à zéro les équipements d’une baie",
+  "bench": "Baie",
+  "actions": {
+    "backup": "Sauvegarder",
+    "inject": "Injecter…",
+    "compare": "Comparer au direct…",
+    "reset": "Réinitialiser…"
+  },
+  "notice": {
+    "locked": "Baie verrouillée ({reason}) : seuls les administrateurs lancent des tâches dessus.",
+    "offer": "Votre équipe vient de libérer {bench} : vous pouvez encore sauvegarder ses configurations.",
+    "otherTeam": "L’équipe {team} occupe cette baie : vous voyez vos sauvegardes, mais seuls ses occupants lancent des tâches.",
+    "takeFirst": "Prenez la baie pour votre équipe (onglet Consoles) avant de lancer une tâche.",
+    "base": "Configuration de base appliquée après un reset : {name}."
+  },
+  "kind": {
+    "backup": "Sauvegarde",
+    "reset": "Réinitialisation",
+    "inject": "Injection",
+    "compare": "Comparaison"
+  },
+  "state": {
+    "pending": "compte à rebours",
+    "running": "en cours",
+    "queued": "en attente",
+    "waiting": "attend le clavier",
+    "done": "terminé",
+    "failed": "échec",
+    "skipped": "ignoré",
+    "cancelled": "arrêté",
+    "partial": "terminé en partie"
+  },
+  "origin": {
+    "backup": "sauvegarde",
+    "reset": "avant reset",
+    "inject": "avant injection",
+    "import": "importée",
+    "template": "modèle"
+  },
+  "size": {
+    "bytes": "{n} o",
+    "kb": "{n} Ko"
+  },
+  "steps": {
+    "keyboard": "Prise du clavier",
+    "start": "Début",
+    "identify": "Identification (show version)",
+    "backup": "Sauvegarde de la configuration",
+    "read": "Relecture de la configuration",
+    "verify": "Vérification de la sauvegarde",
+    "erase": "Effacement et redémarrage",
+    "base": "Configuration de base",
+    "inject": "Envoi du script",
+    "check": "Relecture et comparaison",
+    "save": "copy running-config startup-config"
+  },
+  "devices": {
+    "legend": "Équipements",
+    "shared": "partagé avec une autre baie",
+    "toggleAll": "Tout cocher / décocher"
+  },
+  "passwords": {
+    "title": "Mots de passe des équipements (si besoin)",
+    "hint": "Utilisés pendant cette tâche seulement : jamais enregistrés ni journalisés.",
+    "enable": "Enable secret",
+    "line": "Mot de passe de la ligne console"
+  },
+  "backup": {
+    "title": "Sauvegarder {bench}",
+    "intro": "La running-config de chaque équipement coché est lue (et les VLAN sur les switchs), puis rangée dans une sauvegarde de votre équipe.",
+    "label": "Nom de la sauvegarde",
+    "labelPlaceholder": "TP3 fin de séance",
+    "go": "Lancer la sauvegarde"
+  },
+  "reset": {
+    "title": "Réinitialiser {bench}",
+    "intro": "Chaque équipement coché est remis en configuration d’usine. Dans l’ordre, pour chacun :",
+    "erased": {
+      "backup": "sa configuration est d’abord sauvegardée, puis relue sur le disque pour vérifier la sauvegarde ;",
+      "startup": "la startup-config est effacée (erase startup-config) ;",
+      "vlan": "sur un switch, flash:vlan.dat est supprimé : tous les VLAN disparaissent ;",
+      "register": "sur un routeur, le registre de configuration est remis à 0x2102 ;",
+      "reload": "il redémarre sans enregistrer : la running-config est perdue ;",
+      "refuse": "si sa sauvegarde échoue, il n’est pas effacé."
+    },
+    "nobody": "personne sur la console",
+    "force": "effacer même si la sauvegarde échoue",
+    "base": "Appliquer ensuite la configuration de base « {name} »",
+    "typeBench": "Tapez {bench} pour confirmer",
+    "countdown": {
+      "one": "La tâche démarre {count} seconde après : vous (et ceux qui la suivent) pouvez encore l’arrêter.",
+      "other": "La tâche démarre {count} secondes après : vous (et ceux qui la suivent) pouvez encore l’arrêter."
+    },
+    "go": "Réinitialiser"
+  },
+  "inject": {
+    "title": "Injecter sur {bench}",
+    "intro": "Choisissez une sauvegarde ou un modèle de TP : vous verrez le script exact envoyé à chaque équipement avant de lancer quoi que ce soit.",
+    "source": "Source",
+    "snapshots": "Sauvegardes",
+    "templates": "Modèles de TP",
+    "mode": "Mode",
+    "modeReset": "Reset puis injection (recommandé)",
+    "modeMerge": "Fusion avec la configuration actuelle",
+    "save": "Enregistrer ensuite (copy run start)",
+    "rsa": "Clés RSA (SSH)",
+    "rsaNone": "Ne pas en générer",
+    "rsaBits": "{n} bits",
+    "preview": "Voir l’aperçu",
+    "back": "Modifier",
+    "previewReset": "Chaque équipement est sauvegardé, effacé et redémarré, puis reçoit ce script depuis « {source} ». Il est ensuite relu et comparé.",
+    "previewMerge": "Chaque équipement est sauvegardé, puis reçoit ce script depuis « {source} » sans être effacé.",
+    "missing": "Pas de configuration pour : {devices}.",
+    "lines": {
+      "one": "{count} ligne",
+      "other": "{count} lignes"
+    },
+    "dropped": {
+      "one": "{count} ligne non rejouable retirée",
+      "other": "{count} lignes non rejouables retirées"
+    },
+    "go": {
+      "one": "Injecter sur {count} équipement",
+      "other": "Injecter sur {count} équipements"
+    }
+  },
+  "dropped": {
+    "version": "fixée par l’image logicielle",
+    "boot_marker": "repère de démarrage",
+    "licence": "licence liée au châssis, non rejouable",
+    "xe_default": "valeur d’usine d’IOS XE",
+    "certificate": "certificat généré par l’équipement lui-même",
+    "computed": "calculée par l’équipement",
+    "smart_licensing": "valeur d’usine (Smart Licensing)",
+    "xe_policy": "politique système d’IOS XE",
+    "banner": "la bannière utilise tous les délimiteurs possibles",
+    "other": "non rejouable"
+  },
+  "compare": {
+    "title": "Comparer {bench} à une sauvegarde",
+    "intro": "La running-config actuelle de chaque équipement est relue (rien n’est modifié) et comparée à la sauvegarde.",
+    "snapshot": "Sauvegarde",
+    "go": "Comparer"
+  },
+  "current": {
+    "title": "{kind} de {bench}",
+    "by": "lancée par {name}",
+    "progress": "{done} / {total} équipements",
+    "countdown": {
+      "one": "Démarre dans {count} seconde",
+      "other": "Démarre dans {count} secondes"
+    },
+    "stop": "Arrêter",
+    "report": "Rapport",
+    "saved": "sauvegardé ({size})"
+  },
+  "download": {
+    "title": "Téléchargez cette sauvegarde maintenant.",
+    "body": "Le serveur n’est pas une sauvegarde : il peut être remis à zéro entre deux séances. Gardez le ZIP chez vous.",
+    "button": "Télécharger le ZIP"
+  },
+  "snapshots": {
+    "title": "Sauvegardes de l’équipe",
+    "notBackup": "Le serveur n’est pas une sauvegarde : téléchargez vos ZIP et gardez-les.",
+    "none": "Aucune sauvegarde pour l’instant.",
+    "import": "Importer un ZIP",
+    "imported": {
+      "one": "Sauvegarde importée ({count} équipement).",
+      "other": "Sauvegarde importée ({count} équipements)."
+    },
+    "search": "Chercher",
+    "searchPlaceholder": "Chercher dans les configurations (ex. 192.168.10.1)",
+    "hits": {
+      "one": "{count} ligne contient « {q} »",
+      "other": "{count} lignes contiennent « {q} »"
+    },
+    "col": {
+      "date": "Date",
+      "label": "Sauvegarde",
+      "devices": "Équipements",
+      "by": "Par",
+      "actions": "Actions"
+    },
+    "view": "Voir",
+    "zip": "ZIP",
+    "diff": "Différences…",
+    "live": "Comparer au direct",
+    "inject": "Injecter",
+    "folder": "Dossier de TP",
+    "delete": "Supprimer",
+    "deleteTitle": "Supprimer cette sauvegarde ?",
+    "deleteBody": "La sauvegarde du {date} est supprimée du serveur. Si vous n’avez pas son ZIP, elle est perdue."
+  },
+  "templates": {
+    "title": "Modèles de TP",
+    "none": "Aucun modèle publié.",
+    "new": "Nouveau modèle",
+    "newIntro": "Une configuration envoyée à chaque équipement (par exemple la configuration de base appliquée après un reset).",
+    "fromSnapshot": "Publier comme modèle de TP",
+    "fromSnapshotIntro": "Les configurations de cette sauvegarde ({devices}) deviennent un modèle que tout le monde peut injecter sur sa baie.",
+    "name": "Nom",
+    "description": "Description",
+    "config": "Configuration pour tous les équipements",
+    "configPlaceholder": "no ip domain-lookup\nline con 0\n logging synchronous",
+    "base": "C’est la configuration de base appliquée après un reset",
+    "publish": "Publier",
+    "published": "Modèle « {name} » publié.",
+    "baseBadge": "configuration de base",
+    "setBase": "En faire la base",
+    "unsetBase": "Ne plus en faire la base",
+    "every": "tous les équipements",
+    "delete": "Supprimer",
+    "deleteTitle": "Supprimer le modèle « {name} » ?",
+    "deleteBody": "Plus personne ne pourra l’injecter."
+  },
+  "history": {
+    "title": "Tâches récentes de la baie",
+    "none": "Aucune tâche pour l’instant.",
+    "line": {
+      "one": "{kind} par {name}, {count} équipement",
+      "other": "{kind} par {name}, {count} équipements"
+    }
+  },
+  "view": {
+    "device": "Équipement",
+    "register": "registre {value}",
+    "damaged": "fichier modifié depuis la sauvegarde"
+  },
+  "diff": {
+    "title": "Différences avec « {a} »",
+    "with": "Comparer avec",
+    "none": "Aucune autre sauvegarde à comparer.",
+    "same": "identique",
+    "changed": "+{added} / −{removed} lignes",
+    "onlyA": "seulement dans la première",
+    "onlyB": "seulement dans la seconde"
+  },
+  "report": {
+    "title": "{kind} de {bench}",
+    "by": "Lancée par {name} le {date} : {state}.",
+    "cancelledAt": "arrêté pendant l’étape « {stage} »",
+    "register": "registre de configuration : {value}",
+    "vlanDat": {
+      "deleted": "flash:vlan.dat supprimé",
+      "absent": "pas de flash:vlan.dat"
+    },
+    "base": {
+      "one": "configuration de base « {name} » appliquée ({count} erreur)",
+      "other": "configuration de base « {name} » appliquée ({count} erreurs)"
+    },
+    "errors": {
+      "one": "{count} ligne refusée par l’équipement",
+      "other": "{count} lignes refusées par l’équipement"
+    },
+    "errorLines": "Lignes refusées",
+    "saved": "enregistré (copy run start)",
+    "check": {
+      "same": "relu : identique à la source",
+      "changed": "relu : différences avec la source (+{added} / −{removed})"
+    },
+    "diff": "Différences",
+    "missing": "Lignes absentes après la fusion",
+    "output": "Ce que la console affichait",
+    "warning": {
+      "erased_without_backup": "effacé sans sauvegarde (coché par un administrateur)",
+      "register_unusual": "registre de configuration inhabituel",
+      "pnp_not_stopped": "la découverte Plug-and-Play ne s’est pas arrêtée"
+    }
+  },
+  "layer": {
+    "tooltip": "{kind} par {name} : {state}"
+  },
+  "errors": {
+    "unknown_bench": "Cette baie n’existe pas.",
+    "not_occupant": "Seuls les occupants de la baie (et les administrateurs) lancent des tâches dessus.",
+    "locked": "Baie verrouillée : {reason}",
+    "bench_busy": "Une autre tâche tourne déjà sur cette baie ({name}).",
+    "bad_devices": "Liste d’équipements invalide.",
+    "unknown_device": "Un de ces équipements n’est pas sur cette baie.",
+    "no_devices": "Cochez au moins un équipement.",
+    "bad_passwords": "Trois mots de passe au plus, de 64 caractères au plus.",
+    "confirm_bench": "Tapez le nom de la baie ({bench}) pour confirmer.",
+    "force_admin_only": "Seul un administrateur peut effacer un équipement dont la sauvegarde a échoué.",
+    "no_source": "Choisissez une sauvegarde ou un modèle à injecter.",
+    "bad_rsa": "Clés RSA : 512, 768, 1024, 2048 ou 4096 bits.",
+    "bad_mode": "Le mode est « reset puis injection » ou « fusion ».",
+    "not_in_source": "Pas de configuration pour : {devices}.",
+    "preview_stale": "Ce qui serait envoyé n’est plus ce que vous avez vu ({devices}) : regardez l’aperçu à nouveau.",
+    "no_snapshot": "Cette sauvegarde n’existe pas.",
+    "snapshot_forbidden": "Cette sauvegarde appartient à une autre équipe.",
+    "no_template": "Ce modèle n’existe pas.",
+    "no_device": "Cet équipement n’est pas dans la sauvegarde.",
+    "no_job": "Cette tâche n’existe pas.",
+    "job_forbidden": "Cette tâche est celle d’une autre équipe.",
+    "not_running": "Cette tâche est terminée.",
+    "cancel_forbidden": "Seuls la personne qui l’a lancée, les occupants de la baie et les administrateurs peuvent l’arrêter.",
+    "bad_search": "Cherchez entre 2 et 100 caractères.",
+    "other_bench": "Cette sauvegarde est celle d’une autre baie.",
+    "no_team": "Il faut une équipe pour garder des sauvegardes.",
+    "zip_invalid": "Ce fichier n’est pas une archive ZIP lisible.",
+    "zip_unsafe": "L’archive contient un fichier dont le nom sort du dossier ({name}) : rien n’a été importé.",
+    "zip_too_large": "L’archive est trop grosse une fois décompressée (plus de {max} Mo) : rien n’a été importé.",
+    "zip_empty": "Aucune configuration d’un équipement de cette baie dans l’archive.",
+    "bad_template": "Un modèle a besoin d’un nom (80 caractères au plus) et d’au moins une configuration.",
+    "template_exists": "Un modèle porte déjà le nom « {name} ».",
+    "bad_device_name": "Nom d’équipement invalide : {name}.",
+    "config_empty": "La configuration de {device} est vide.",
+    "config_too_large": "La configuration de {device} est trop grosse.",
+    "config_binary": "La configuration de {device} n’est pas du texte.",
+    "config_not_a_config": "Le fichier de {device} ne ressemble pas à une configuration.",
+    "backup_failed": "La sauvegarde a échoué, l’équipement n’a pas été effacé : {cause}",
+    "backup_not_written": "La sauvegarde n’a pas pu être écrite sur le serveur.",
+    "backup_unverified": "La sauvegarde écrite ne se relit pas comme elle a été prise.",
+    "not_allowed": "La baie n’est plus à vous (verrouillée ou prise par une autre équipe) : équipement non traité.",
+    "cancelled": "Arrêté.",
+    "interrupted": "Le serveur a redémarré pendant la tâche : vérifiez l’équipement sur sa console.",
+    "device_failed": "L’équipement n’a pas pu être traité."
+  }
+}
