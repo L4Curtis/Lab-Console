@@ -136,6 +136,7 @@
       "control_no_request": "Personne ne demande la main en ce moment.",
       "control_admin_only": "Seul un admin peut prendre la main d’autorité.",
       "control_gone": "La personne qui demandait la main est partie.",
+      "wall_read_only": "Une tuile du mur de baie ne fait que regarder : ouvrez la console pour demander la main.",
       "control_refused": "{name} garde la main sur cette console.",
       "task_running": "Une tâche ({task}) a la main sur cette console : attendez qu’elle se termine.",
       "no_task": "Aucune tâche ne tourne sur cette console.",
@@ -143,8 +144,8 @@
       "too_many_watches": "Vous attendez déjà {max} lignes. Annulez-en une d’abord.",
       "no_watch": "Vous n’attendiez pas cette ligne.",
       "bad_journal": "Journal inconnu.",
-      "no_journal": "Il n’y a pas de journal pour cet équipement ce jour-là.",
-      "journal_forbidden": "Seuls les participants de la console, leur équipe et les admins peuvent lire ce journal."
+      "no_journal": "Ce journal de console n’existe pas (ou plus).",
+      "journal_forbidden": "Seuls les participants de cette session de console, leur équipe et les admins peuvent lire ce journal."
     },
     "automation": {
       "busy": "Une autre tâche tourne encore sur cette console.",

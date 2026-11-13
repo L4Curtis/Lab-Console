@@ -136,6 +136,7 @@
       "control_no_request": "Nobody is asking for the keyboard right now.",
       "control_admin_only": "Only an admin can take the keyboard over.",
       "control_gone": "The person asking for the keyboard has left.",
+      "wall_read_only": "A bench wall tile only watches: open the console to ask for the keyboard.",
       "control_refused": "{name} keeps the keyboard of this console.",
       "task_running": "A task ({task}) holds this console: wait until it ends.",
       "no_task": "No task is running on this console.",
@@ -143,8 +144,8 @@
       "too_many_watches": "You are already waiting for {max} lines. Cancel one first.",
       "no_watch": "You were not waiting for this line.",
       "bad_journal": "Unknown journal.",
-      "no_journal": "There is no journal for this device on this day.",
-      "journal_forbidden": "Only the people who were on the console, their team and the admins may read this journal."
+      "no_journal": "This console journal does not exist (any more).",
+      "journal_forbidden": "Only the people who were on this console session, their team and the admins may read this journal."
     },
     "automation": {
       "busy": "Another task is still running on this console.",

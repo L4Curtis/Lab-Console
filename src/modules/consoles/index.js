@@ -22,7 +22,8 @@
  *                                  {"type":"control","action":"request"|"grant"|"deny"|"release"|"take"|"share"|"unshare"|"hangup","to"?}
  *                                  {"type":"export-config"} | {"type":"inject",…} | {"type":"automation-cancel"}
  *   `mode=wall` attaches read-only to a line someone already opened (bench wall tiles):
- *   no keyboard, not counted in the per-user limit, refused when the line is not open
+ *   no keyboard, no control (`control-refused` consoles.wall_read_only), no automation,
+ *   not counted in the per-user limit, refused when the line is not open
  *
  * The browser only ever names a device *key* from the diagram. Host and port
  * are resolved here, from the server's own copy of the diagram, and checked
@@ -44,6 +45,7 @@ import { httpError } from '../../lib/httpError.js';
 const ACTIVITY_KEPT = 100;
 const WATCHES_PER_USER = 10;
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
+const SESSION = /^\d{6}(?:-\d{1,4})?$/;
 
 /**
  * @param options  test seam: room timings ({ graceMs, controlTimeoutMs, pilotIdleMs, silentMs, sweepMs }),
@@ -179,35 +181,35 @@ export function createConsolesModule({ config, events, logger, infra, services =
     res.json({ ok: true });
   });
 
-  // Console journal: the days this user may read, and one day as a file
+  // Console journal: the sessions this user may read, and one session as a file
   const teamOfUser = (user) => services.teams?.teamOf?.(user)?.id ?? null;
   router.get('/journal', (req, res) => {
-    const days = journal.list()
+    const sessions = journal.list()
       .filter((d) => journal.canRead(req.user, d.meta, teamOfUser))
-      .map(({ benchDir, deviceDir, day, bench, device, bytes, truncated, meta }) => ({
-        id: `${benchDir}/${deviceDir}/${day}`, bench, device, day, bytes, truncated,
+      .map(({ benchDir, deviceDir, day, session, bench, device, from, to, bytes, truncated, meta }) => ({
+        id: `${benchDir}/${deviceDir}/${day}/${session}`, bench, device, day, from, to, bytes, truncated,
         people: Object.values(meta.attended ?? {}).map((p) => p.name),
         pilots: Object.values(meta.pilots ?? {}).map((p) => p.name),
       }));
-    res.set('Cache-Control', 'no-store').json({ days, retentionDays: config.rooms.journal.retentionDays });
+    res.set('Cache-Control', 'no-store').json({ sessions, retentionDays: config.rooms.journal.retentionDays });
   });
-  router.get('/journal/:bench/:device/:day', (req, res) => {
-    const { bench, device, day } = req.params;
-    if (!DAY.test(day) || store.safeName(bench) !== bench || store.safeName(device) !== device) {
+  router.get('/journal/:bench/:device/:day/:session', (req, res) => {
+    const { bench, device, day, session } = req.params;
+    if (!DAY.test(day) || !SESSION.test(session) || store.safeName(bench) !== bench || store.safeName(device) !== device) {
       throw httpError(400, 'consoles.bad_journal', 'Unknown journal');
     }
-    const meta = journal.meta(bench, device, day);
-    if (!meta) throw httpError(404, 'consoles.no_journal', 'There is no journal for this device on this day.');
+    const meta = journal.meta(bench, device, day, session);
+    if (!meta) throw httpError(404, 'consoles.no_journal', 'There is no such console journal.');
     if (!journal.canRead(req.user, meta, teamOfUser)) {
-      throw httpError(403, 'consoles.journal_forbidden', 'Only the people who were on this console, their team and the admins may read its journal.');
+      throw httpError(403, 'consoles.journal_forbidden', 'Only the people who were on this console session, their team and the admins may read its journal.');
     }
-    const { log: file } = journal.paths(bench, device, day);
-    if (!fs.existsSync(file)) throw httpError(404, 'consoles.no_journal', 'There is no journal for this device on this day.');
-    audit.log(req, 'console.journal.download', { bench: meta.bench, device: meta.device, day });
+    const { log: file } = journal.paths(bench, device, day, session);
+    if (!fs.existsSync(file)) throw httpError(404, 'consoles.no_journal', 'There is no such console journal.');
+    audit.log(req, 'console.journal.download', { bench: meta.bench, device: meta.device, day, session });
     res.set({
       'Cache-Control': 'no-store',
       'Content-Type': 'text/plain; charset=utf-8',
-      'Content-Disposition': `attachment; filename="journal_${bench}_${device}_${day}.log"`,
+      'Content-Disposition': `attachment; filename="journal_${bench}_${device}_${day}_${session}.log"`,
       'X-Content-Type-Options': 'nosniff',
     });
     fs.createReadStream(file).pipe(res);
@@ -276,11 +278,16 @@ export function createConsolesModule({ config, events, logger, infra, services =
       let msg;
       try { msg = JSON.parse(raw.toString()); } catch { return; }
       if (!msg || typeof msg !== 'object') return;
+      // A wall tile only watches: no keys, no break, no size, no control, no automation, whoever
+      // the person is (their own tab may hold the keyboard: this socket still does not)
+      if (readOnly) {
+        if (msg.type === 'control') send({ type: 'control-refused', action: String(msg.action ?? ''), code: 'consoles.wall_read_only', params: {} });
+        return;
+      }
       if (msg.type === 'input') room.write(user, msg.data);
       else if (msg.type === 'resize') room.resize(user, Number(msg.cols), Number(msg.rows));
       else if (msg.type === 'break') room.sendBreak(user);
       else if (msg.type === 'control') onControl(room, user, msg, send);
-      else if (readOnly) return; // a wall tile only watches
       else automation(msg);
     });
 
