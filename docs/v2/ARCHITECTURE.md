@@ -436,6 +436,69 @@ client → server: `{type:'control', action:'request'|'grant'|'deny'|'release'}`
 
 SSE topics: `consoles:rooms` (sticky, all room summaries), `consoles:activity`.
 
+### Device automation (lot: ios)
+
+`src/lib/cliAutomation.js` is the engine on one console line. Steps (only
+inside a task: output is captured while a task runs, a step outside one
+throws `automation.no_task`):
+
+```js
+cli.perform(label, async (cli) => { ... })     // the one exclusive task on the line
+cli.command(cmd, { until, paging, timeout, idle, settle }) → { output, complete, outcome }
+cli.wait(pattern, { timeout, idle, settle, optional }) / cli.expect({ name: RegExp | fn }, opts) → { name, match, outcome }
+cli.waitQuiet(ms, { timeout }) → boolean        // false: the device keeps printing (booting)
+cli.answer(text) / cli.type(text) / cli.send(text) / cli.sendLine(text) / cli.pause(ms) / cli.reset()
+cli.findPrompt({ nudge }) → { host, configMode, mark }
+cli.readRunningConfig(progress) / cli.sendScript(script, options, progress)   // the features, as steps
+cli.exportRunningConfig() / cli.injectScript()  // the same as standalone tasks (console tile)
+cli.cancel()                                    // steps reject with err.cancelled
+```
+
+Prompt checks ignore syslog lines printed after a prompt (`screenTail`), and
+the pager answers every `--More--` even when syslog lines follow it.
+
+`src/lib/drivers/ciscoIos.js`: `new CiscoIos(cli, { timeouts, progress })`.
+A procedure runs inside the task that holds the console (`room.runExclusive`)
+or takes it itself. Each returns `{ ok: true, ... }` or `{ ok: false, reason:
+'ios.<code>', message, params, stage?, lastOutput? }`; cancellation rethrows
+the engine's `cancelled` error with `err.stage`. Codes are translated under
+`ios.errors.*`, progress under `ios.steps.*` (`public/locales/*/ios.json`).
+
+```js
+ios.prepare({ enablePasswords, linePasswords, screen }) → { hostname, startState, steps }
+ios.identify() → { family: 'ios'|'iosxe', kind: 'router'|'switch', model, version, configRegister, registerOk, warnings, ... }
+ios.runningConfig() → { hostname, config }
+ios.vlans() → { supported, vlans: [{ id, name, status, ports }], vtp: { version, mode, domain, password, pruning } | null }
+ios.cdpNeighbors() → { enabled, neighbors: [...] }   ios.interfaces() → { interfaces: [...] }   ios.ping(ipv4, { repeat })
+ios.eraseAndReload({ backup, verifyBackup, facts }) → { hostname, kind, vlanDat, register, answered, warnings }
+toReplayScript(config, { vlans, vtp, facts, rsaModulus }) → { script, dropped, vlans, lineTimeouts }
+comparableConfig(config) → text                     // snapshot vs live, volatile lines removed
+checkBackupProof(proof) → { ok, kind, hostname }
+```
+
+- `prepare` never types into ROMMON, a boot loader or a booting device and
+  never loops on a password prompt (three attempts each for the line password
+  and the enable secret). Pass the room's recent output as `screen`: without
+  it the first key is a wake-up Enter, which would confirm a `[confirm]`
+  someone left on screen.
+- `eraseAndReload` does nothing without `backup`: `{ kind: 'snapshot',
+  snapshotId, config, hostname? }` (the backup it replaces) or `{ kind:
+  'override', by, reason }` (an admin ticked "erase without a backup").
+  `verifyBackup(backup)` is the jobs' own check. Budgets cover the slowest
+  family (`TIMEOUTS`: 15 min boot, 5 min without output); tests pass shorter.
+- Send the replay script with `injectScript(script, { skipComments: false,
+  lineTimeouts })`: banner text may start with `!`, and `lineTimeouts` (from
+  `toReplayScript`) gives `crypto key generate rsa` a longer budget.
+- A switch backup keeps `vtp` with its VLANs (on classic IOS the VTP domain,
+  mode and password live in vlan.dat, not in show running-config) and passes
+  both to `toReplayScript`. `vtp.password` is a secret of the backup, like the
+  ones in the running-config.
+
+`dev/fakeIos.js` impersonates each family (`MODELS`: 1841, 2801, 2811,
+isr4331, 2960, 3560, 3560v2, c1000, c9300l); `dev/mock-lab.js` keeps one
+device per console port for its whole life and answers `nc -z -w <s> <host>
+<port>` (exit 0: the line is free, 1: busy or down).
+
 ## 10. Data directory
 
 ```
@@ -476,8 +539,11 @@ device names used in paths go through `store.resolve`, never string concat.
   admin and nobody:
   `startTestApp({ auth: fakeAuth(), modules: (deps) => [createMyModule(deps)] })`.
 - `npm run lint` (ESLint flat config) must pass.
-- The mocks are importable: `startMockLab({ port: 0, ... })`,
-  `startMockOidc({ port: 0, users })` return `{ port | issuer, close() }`.
+- The mocks are importable: `startMockLab({ port: 0, ssh, telnet, devices, ... })`
+  returns `{ port, close(), device(target) }` (`device('10.22.9.4:2001')` is
+  the simulated device behind that console port); `startMockOidc({ port: 0,
+  users })` returns `{ issuer, close() }`. `test/helpers/ios.js` wires a
+  simulated device to the engine and the driver (`rig()`, `roundTrip()`).
 - Never hard-code a port in a test. Never leave a process running.
 - A feature is not done until its happy path and its refusals are tested.
 

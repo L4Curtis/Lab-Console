@@ -28,8 +28,12 @@ npm start
 
 ## Try it without the lab
 
-`dev/mock-lab.js` runs a fake SSH jump server whose "devices" answer like a
-small Cisco IOS console (login, `enable`, `conf t`, `show ip int brief`…).
+`dev/mock-lab.js` runs a fake SSH jump server whose devices answer like Cisco
+IOS and IOS XE consoles (`dev/fakeIos.js`: enable secret, configuration modes,
+`show running-config` with its pager, VLANs, erase and reload with a boot and
+the initial configuration dialog…). Each console port keeps its device for as
+long as the mock lab runs, takes one session at a time like a real console
+server, and shows nothing until you press Enter.
 
 ```bash
 # in .env
@@ -39,9 +43,15 @@ npm run mock-lab     # terminal 1
 npm start            # terminal 2
 ```
 
-`MOCK_DOWN_PORTS=2003` simulates an unplugged console.
+`MOCK_DOWN_PORTS=2003` simulates an unplugged console, `MOCK_BUSY_PORTS=2004`
+a line held outside the app.
 `MOCK_LOGIN_PORTS=2001` simulates a terminal server that shows `login:`
 immediately and hangs up on an empty login.
+`MOCK_MODELS=2001=2811,2002=c9300l` chooses the model per console port
+(default: 2811 for names starting with R, 2960 otherwise),
+`MOCK_STATES=2005=linepass,2006=dialog,2007=rommon,2008=silent` the state a
+console starts in, `MOCK_ENABLE_SECRET` an enable secret for every device,
+`MOCK_TIME_SCALE=0.02` how fast devices boot.
 
 ## The diagram
 
@@ -251,6 +261,8 @@ src/
   config.js                 .env loading and validation
   lib/                      logger, SSE hub, security helpers, SSH options + shared SSH tunnel,
                             CLI automation (config export, paced script injection)
+  lib/drivers/ciscoIos.js   Cisco IOS / IOS XE procedures: prepare, identify, backup,
+                            erase and reload, replay script
   modules/
     index.js                module registry
     consoles/               lab consoles: diagram parser, registry, SSH→telnet sessions
@@ -263,8 +275,8 @@ public/
   js/shared/                workspace (shared by all sections), terminal + VNC panes, split layout
   js/modules/infra/         Infrastructure section: VMs, network dialog, admin switches
 scripts/check-diagram.js    diagram linter
-dev/mock-lab.js             fake jump server (telnet + port forwarding)
-dev/fakeIos.js              simulated Cisco IOS (paging, config memory, slow-console mode)
+dev/mock-lab.js             fake jump server (telnet, line probe, port forwarding); importable
+dev/fakeIos.js              simulated Cisco IOS / IOS XE (four families, boot, erase, VLANs, slow console)
 dev/mock-proxmox.js         fake Proxmox VE (HTTPS, API, serial + VNC consoles)
 config/infrastructure.json  admin switches
 test/                       node:test unit tests (npm test)
