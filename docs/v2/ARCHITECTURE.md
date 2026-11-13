@@ -592,15 +592,24 @@ device names used in paths go through `store.resolve`, never string concat.
   stay under a minute. (The glob needs Node 22, like the Docker image.)
 - `npm run test:e2e` runs `test/e2e/*.e2e.js` serially: `playwright-core`
   driving the system Chromium (`CHROMIUM_PATH`, default `/usr/bin/chromium`,
-  `--no-sandbox`). The shared harness (`test/e2e/harness.js`: the mock lab,
-  the mock OIDC provider and the app **on ephemeral ports** with a temporary
-  data directory) is not written yet (SPEC, E2E harness). Until then each file
-  starts what it needs: `shared-ui.e2e.js` (dialogs, tabs, i18n),
-  `login.e2e.js` (the mock provider and the local form) and
-  `i18n-console.e2e.js` (the mock lab, a console kept open across a language
-  change). A page is signed in either through the login page or by adding
-  `lab.signIn(who).token` as the `lab.deps.auth.cookieName` cookie to the
-  browser context.
+  headless, `--no-sandbox`). Every file goes through the shared harness,
+  `test/e2e/harness.js`, never its own `chromium.launch`: `const h =
+  useHarness({ oidc, mockLab, env })` starts, in `before()`, the mock lab
+  (devices named after the diagram, a console server login answered by the
+  app's auto-login), the mock OIDC provider and the app **on ephemeral
+  ports** with a temporary data directory, then Chromium; `after()` closes
+  them all and removes the directory, also when a test failed, when start-up
+  failed half-way, or on SIGINT / SIGTERM (`teardown.e2e.js` checks it). A
+  file's own `before()` awaits `h.ready` first (top-level hooks run
+  concurrently). `h.newPage({ locale })` (with `page.errors`),
+  `h.session(page, who)` (cookie of a session opened by the test helper),
+  `h.adminCode()` (the next usable TOTP code); page helpers `signInAs(page,
+  'alice')` (mock provider; first names or user names), `signInAsAdmin(page)`,
+  `signOut(page)`, `setLanguage(page, lang)`, `waitForApp(page)`,
+  `openConsole(page, bench, device)` → the pane, `typeInConsole(pane, line)`,
+  `terminalText(pane | page)` (what is on screen), `waitForTerminal(pane,
+  pattern)`. Helpers wait on conditions, never on fixed delays. Guide:
+  [TESTING.md](TESTING.md).
 - `test/helpers/app.js`: `startTestApp({ env, auth, modules, now })` starts
   the real application, real sign-in included, on a free port with a
   temporary `DATA_DIR` and returns `{ url, wsUrl, app, server, deps, config,
