@@ -343,6 +343,25 @@ history and download of that history.
 ### Lot collab
 Browser notifications (control requested, line freed, job finished); a shared
 note per device; a small chat per bench for its occupants (kept with the team).
+Contracts and endpoints: ARCHITECTURE §9, "Group work".
+- **Notifications**: a bell in the rail turns them on (and asks the browser's
+  permission); they appear only while the window is hidden or not focused, for
+  a request for the keyboard of a line the person pilots, a line they waited
+  for that became free, and a job that finished on a bench they work on
+  (`jobs:done`, published by the jobs lot). Nothing is sent by the server
+  beyond the events the page already receives.
+- **Device note**: one per device, text only (2000 characters), visible to
+  everyone signed in (a badge and the first lines in the tooltip on the
+  diagram, the whole text in the panel), editable by the occupants of the
+  device's bench and by admins. Two people saving at once never overwrite each
+  other silently: the second is told and offered the first one's version.
+- **Bench chat**: the occupants of a bench (the team and its guests) talk in a
+  panel next to the diagram; admins read and can remove a message. It belongs
+  to the team that holds the bench: the same team finds it again, another one
+  starts empty. Plain text, 500 characters, 200 messages kept per thread, 10
+  messages per 20 seconds per person. Not met by design: no files, no links
+  drawn as links, no editing a sent message, no notification of chat messages
+  (the panel's button counts what arrived).
 
 ## Wave 4
 

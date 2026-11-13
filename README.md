@@ -119,6 +119,13 @@ top/middle/bottom). Any other naming falls back to plain tabs.
   their accepted guests and admins open or drive its consoles; anyone may
   watch a line already open. The rule is asked again at every keystroke: a
   bench that gets locked takes the keyboard away at once.
+- **Group work.** A shared note per device (everyone reads it on the diagram,
+  the bench's occupants and admins write it; two people saving at once are
+  told, never overwritten); a small text chat per bench for its occupants,
+  kept with the team that holds the bench (200 messages, rate-limited); and
+  browser notifications, turned on with the bell in the rail, for a request
+  for the keyboard, a line that became free and a job that finished, shown
+  only while the window is not the one in front.
 - **Few SSH connections.** Console lines share connections to the jump
   server, `SSH_CHANNELS_PER_CONNECTION` each (keep it under sshd's
   `MaxSessions`).

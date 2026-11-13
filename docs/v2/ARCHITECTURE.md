@@ -379,7 +379,8 @@ known-browser key), `audit`, `settings` (run-time settings, plus the rows
 `sso` and `switches`), `legacyImports`, `teams`, `benches` (occupancy, locks,
 reservations), `accounts` (with their passkeys), `accountLinks` (invitation
 and reset links), `announcements`, `diagrams` (the index of diagram versions
-and the stack of activations), `journalDays` (§9). Modules that read their
+and the stack of activations), `journalDays` (§9), `collab` (device notes and bench chat, §9
+"Group work"). Modules that read their
 state synchronously on every request keep it in memory with
 `createCachedDocument({ fallback, load, save })` (`src/lib/cachedDocument.js`,
 the contract of `store.json()`: serialized updates, nothing changes when the
@@ -755,6 +756,10 @@ services.accounts = {                          // lot accounts
 }
 services.admin = { announcement() → { text, level, at, expiresAt, by } | null }   // lot admin
 services.jobs = { running(labName) → Job | null, list({ bench }) }
+services.collab = {                            // lot collab
+  notes() → Promise<Note[]>                    // every note of a device still in the diagram
+  noteOf(deviceKey) → Promise<Note | null>     // { key, bench, device, text, rev, updatedAt, by: { id, name } }
+}
 ```
 
 ## 8. Front end
@@ -1010,6 +1015,60 @@ journal together is capped at `JOURNAL_MAX_TOTAL_MB` (1024 by default):
 the current day. `usage()` → `{ bytes, days, maxBytes }` is what the health
 page shows. Downloads are audited (`console.journal.download`).
 
+### Group work (lot: collab)
+
+`src/modules/collab/` (`/api/collab`, repository `repos.collab`, migration 012).
+
+**Device notes.** One shared note per device of the diagram, keyed by the
+device's key (`<page>:<cell>`), read by every signed-in user, written by the
+occupants of the device's bench (`services.benches.isOccupant`, guests
+included) and by admins; plain text, 2000 characters, an empty text deletes
+it. `GET /api/collab/notes` → `{ notes, limits }`; `PUT /api/collab/notes/:key`
+`{ text, rev }`, where `rev` is the revision the editor opened (0: no note):
+another revision is a 409 `collab.note_conflict` (`params.rev` is the current
+one) and nothing is written. 20 saves a minute per person
+(`collab.rate_limited`). Admin switches carry no note. SSE `collab:note`, to
+every signed-in tab: the note as listed, or `{ key, bench, rev: 0, removed:
+true }`. Audited as `collab.note.set` / `collab.note.clear` (bench, device,
+length; never the text). In the browser the diagram shows a badge and the
+first lines in the device's tooltip through `registerDiagramLayer('notes')`,
+console tiles get a "Note" pane action, and the group panel lists them.
+
+**Bench chat.** A text chat for the people working on a bench, kept **with
+the team that holds it** (SPEC "Lot teams"): the thread is the one of (holder
+team, bench), shared by the team's members and the bench's guests. Released
+and taken again by the same team, the conversation is still there; another
+team starts its own; a team that is dissolved loses its threads (a sweep at
+start-up and daily). Occupants read and write; admins read and may take a
+message down; nobody else sees anything (`collab.chat_forbidden`).
+`GET /api/collab/chat/:bench` → `{ bench, messages, canPost, limits }` (the
+last 200, oldest first); `POST` `{ text }`; `DELETE /:bench/:id` (admin). Text
+only, 500 characters and 6 lines, no control or direction-changing
+characters; 10 messages per 20 s per person; at most 200 messages are kept per
+thread. SSE `collab:chat`: `{ bench, message }` or `{ bench, removed: id }`,
+sent to the bench's occupants and the admins, the audience being the
+occupancy at the moment of the post. Removals are audited
+(`collab.chat.delete`); messages are not.
+
+**Notifications** are browser work, from events the page already receives:
+
+| what | event | when it is shown |
+|---|---|---|
+| someone asks for the keyboard of a line I pilot | `consoles:activity` (`kind: control`, `event: request`) with the pilot of `consoles:rooms` | I am the pilot, not the requester |
+| a line I waited for is free | `consoles:free` (`state: free`) | always for me: it is sent to me alone |
+| a job of my bench is over | `jobs:done` `{ bench, jobId, kind, ok }` | `bench` is one I am an occupant of (`benches:state`) |
+
+`jobs:done` is the **jobs lot's** to publish, once per finished job (any
+`kind`: `backup`, `inject`, `reset`…, `ok: false` for a failed one), through
+`events.publish('jobs:done', payload, { audience })` with the bench's
+occupants as audience; the browser checks the bench again. No server-side
+subscription exists or is needed: SSE is the contract. A notification is a
+system notification, only when the window is hidden or not focused (the page
+says it itself otherwise), only when the person turned them on with the bell
+in the rail (which also asks the browser's permission, after a click); the
+choice stays in the browser (`labconsole.notifications`). A tag per source
+keeps several tabs from showing it twice.
+
 ### Device automation (lot: ios)
 
 `src/lib/cliAutomation.js` is the engine on one console line. Steps (only
@@ -1085,21 +1144,22 @@ data/
   <dir>/<name>.json.imported   audit/*.jsonl.imported   files of before the database, kept after their import
 ```
 
-In the database today (migrations 001-011): `schema_migrations`,
+In the database today (migrations 001-012): `schema_migrations`,
 `legacy_imports`, `auth_sessions`, `auth_state` (the local administrator's
 last TOTP step, the known-browser key), `audit_entries`, `settings` (the
 run-time settings per namespace, the SSO page's provider as `sso`, the edited
 admin switches as `switches`), `teams`, `team_members`, `team_invitations`
 (006; `invitee_id`, the account invited, 011), `bench_occupancy`, `bench_locks`, `bench_reservations` (007),
 `accounts`, `account_passkeys`, `account_links` (008), `announcements`,
-`diagram_versions`, `diagram_activations` (009), `journal_days` (010).
+`diagram_versions`, `diagram_activations` (009), `journal_days` (010),
+`device_notes`, `bench_chat_messages` (012).
 Passkey ceremonies' challenges are not stored: they live in memory, five
 minutes, single use.
 
-Planned for wave 3, a repository each (§14): device notes, the script
-library, the jobs and the snapshot index. Bench chat
-(`collab/chat/<bench>.jsonl`) is a log people may read as a file: decide
-with the owner.
+Planned for wave 3, a repository each (§14): the script library, the jobs
+and the snapshot index. Device notes and bench chat are done (lot collab,
+migration 012): the chat is in the database too, not in a `chat/<bench>.jsonl`
+log, because it is bounded and belongs to a team (§9, "Group work").
 
 What stays a file is a document people download or diff: configuration
 backups (snapshots, templates), console journals, diagram versions. The

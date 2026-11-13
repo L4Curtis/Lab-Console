@@ -1,0 +1,89 @@
+{
+  "panel": {
+    "button": "Notes & chat",
+    "title": "Bench notes and chat",
+    "titleFor": "Bench {bench}",
+    "notesHeading": "Device notes"
+  },
+  "notes": {
+    "badge": "✎",
+    "badgeTitle": "Note by {name}",
+    "tooltipHead": "Note by {name}, {time}",
+    "action": "Device note",
+    "title": "Note: {device} ({bench})",
+    "none": "No note on this device yet.",
+    "lastBy": "Last changed by {name}, {time}",
+    "field": "Note of {device}",
+    "placeholder": "What the next person should know: cabling, addresses, state of the configuration…",
+    "count": "{count} / {max} characters",
+    "emptyDeletes": "An empty note is deleted.",
+    "save": "Save",
+    "saved": "Note saved.",
+    "showTheirs": "Show their version",
+    "readOnly": "Only the occupants of the bench and administrators change this note.",
+    "nothing": "No note on this bench.",
+    "add": "Add a note",
+    "edit": "Edit",
+    "open": "Read"
+  },
+  "chat": {
+    "title": "Bench chat",
+    "log": "Messages of the bench",
+    "placeholder": "Write to the team (Enter to send)",
+    "field": "Your message",
+    "send": "Send",
+    "empty": "No messages yet.",
+    "notYours": "The chat is for the people working on this bench: take it, or ask to join.",
+    "unread": {
+      "one": "{count} unread message",
+      "other": "{count} unread messages"
+    },
+    "remove": "Remove this message"
+  },
+  "notify": {
+    "rail": "Alerts",
+    "state": {
+      "on": "Browser alerts are on: click to turn them off",
+      "off": "Turn on browser alerts: keyboard requested, line free, job finished",
+      "denied": "Alerts are blocked by the browser: allow them in the site settings",
+      "unsupported": "This browser cannot show alerts"
+    },
+    "refused": "The browser does not allow alerts. Allow them in the site settings, then click the bell again.",
+    "on": "Alerts are on.",
+    "testTitle": "Alerts are on",
+    "testBody": "You will be told here when someone asks for your keyboard, a line becomes free or a job of your bench finishes.",
+    "control": {
+      "title": "Keyboard requested on {device}",
+      "body": "{name} asks for the keyboard of {device} (bench {bench})."
+    },
+    "free": {
+      "title": "{device} is free",
+      "body": "The line of {device} (bench {bench}) is free: you can open it."
+    },
+    "job": {
+      "titleOk": "Job finished on {bench}",
+      "titleFailed": "Job failed on {bench}",
+      "bodyOk": "Job “{kind}” finished on bench {bench}.",
+      "bodyFailed": "Job “{kind}” failed on bench {bench}: see the report."
+    }
+  },
+  "jobKinds": {
+    "backup": "Backup",
+    "inject": "Injection",
+    "reset": "Reset"
+  },
+  "errors": {
+    "unknown_device": "This device is no longer in the diagram.",
+    "unknown_bench": "This bench does not exist.",
+    "note_forbidden": "Only the occupants of bench {bench} and administrators write its notes.",
+    "chat_forbidden": "The chat of bench {bench} is for its occupants.",
+    "bad_text": "This text contains characters that are not allowed.",
+    "too_long": "Text too long: {max} characters at most.",
+    "too_many_lines": "Too many lines: {max} at most.",
+    "empty_message": "The message is empty.",
+    "bad_revision": "The note's version is invalid: open it again.",
+    "note_conflict": "Someone changed this note in the meantime. Your text is kept: take their version if you need it.",
+    "rate_limited": "Too fast: wait {seconds} s.",
+    "unknown_message": "This message no longer exists."
+  }
+}
