@@ -22,7 +22,14 @@ Feature decisions live in [SPEC.md](SPEC.md). Base: upstream v1.1.1.
    confirmation.** A device whose backup failed is never erased silently.
 4. **The simulator is the only lab.** Code and tests never contact a real
    jump server. Everything is exercised against `dev/` mocks.
-5. **No database.** State lives in JSON / JSONL files under the data directory.
+5. **Structured state in a database, documents in files.** (Owner decision,
+   13 Nov, replacing "no database".) Sessions, the audit trail, settings,
+   accounts, teams, reservations… live in SQLite (`DATA_DIR/lab-console.db`,
+   through the built-in `node:sqlite`), behind an asynchronous interface and
+   portable SQL, so that moving to PostgreSQL later means writing one more
+   adapter and nothing else (§6, "database"). Files stay files where they are
+   documents people download or diff: backed-up configurations, console
+   journals, diagram versions; the database only indexes them.
 6. **The Proxmox module is out of scope.** Do not modify `src/modules/proxmox/`,
    `src/lib/sshTunnel.js` or `public/js/modules/infra/` beyond what
    authentication and i18n strictly require: upstream is reworking it.
@@ -36,6 +43,15 @@ src/
   lib/
     env.js                  env readers + validation errors      (lot: skeleton)
     store.js                data directory, JSON / JSONL files   (lot: skeleton)
+    db/                     the database (lot: db), see §6
+      index.js              openDatabase(), createRepositories(), importLegacyFiles()
+      sqlite.js             the SQLite adapter (node:sqlite); a PostgreSQL one would sit beside it
+      portable.js           the portability rules every statement is checked against
+      values.js             how ids, timestamps, booleans and JSON are stored
+      migrate.js            migrations: loaded, applied in order, recorded
+      migrations/NNN-name.js   one schema change each, never edited once merged
+      repositories/<concern>.js   the only place SQL is written; index.js lists them
+      legacy.js             one-time import of the JSON / JSONL files of before
     audit.js                audit trail                          (lot: skeleton)
     events.js               SSE hub, with per-user audiences     (lot: skeleton)
     httpError.js            API error shape: HttpError, sendError (lot: skeleton)
@@ -61,7 +77,7 @@ public/
   css/<module>.css          one stylesheet per module, loaded by the module; shared.css for dialog / tabs
 dev/                        mock-lab.js, fakeIos.js, mock-oidc.js, mock-proxmox.js
 test/                       *.test.js (node:test)   test/e2e/*.e2e.js (browser)
-test/helpers/               app.js (startTestApp), fakes.js (users, fakeAuth, fake req / res)
+test/helpers/               app.js (startTestApp), fakes.js (users, fakeAuth, fake req / res), db.js (memoryDatabase)
 docs/v2/                    this file, SPEC.md
 ```
 
@@ -243,7 +259,8 @@ at every sign-in.
 - The local administrator's sessions are stored with a fingerprint of its
   credentials (`envAdmin.js` `binding`); after a restart with other
   credentials they are not restored. The known-browser key does not: it is
-  a random secret in `data/auth/device-key.json`, so the administrator's
+  a random secret in the database (`auth_state`; `npm run forget-browsers`
+  removes it), so the administrator's
   known browsers keep their own limits across a change of credentials.
 
 **Roles.** `resolveRole({ groups, adminGroups, storedRole })` in `roles.js`
@@ -267,8 +284,10 @@ Sessions are server-side, keyed by a random 256-bit token in a cookie named
 and `lc_sid` otherwise (development and tests over http). The cookie has no
 `Max-Age`: it ends with the browser. Idle timeout 8 h (an open WebSocket
 counts as activity), absolute lifetime 24 h, at most 10 sessions per user.
-`data/auth/sessions.json` keeps them across a restart, keyed by the SHA-256 of
-the token: the token itself is never stored. When a session ends (sign-out,
+The `auth_sessions` table keeps them across a restart, keyed by the SHA-256 of
+the token: the token itself is never stored. The session store works in
+memory and writes behind (at once for a sign-in, a rotation or an end; "last
+seen" every 30 s), so a request never waits for the database. When a session ends (sign-out,
 revocation, expiry, a new sign-in in the same browser) the WebSockets opened
 with it are destroyed and the user's SSE streams are ended
 (`events.disconnect((u) => u?.id === id)`); they reconnect only with another
@@ -277,7 +296,100 @@ valid session.
 ## 6. Platform services
 
 Created once in `server.js` and passed to every module in `deps`:
-`{ config, logger, events, infra, store, audit, auth, settings, services }`.
+`{ config, logger, events, infra, store, repos, audit, auth, settings, services }`.
+The database is opened, migrated and the legacy files imported before any
+other service is created; `createApp()` is therefore **async** and rejects,
+with nothing left open, when the database cannot be used.
+
+**database** (`src/lib/db/`, passed as `deps.repos`)
+
+Modules never see the database itself, only **repositories**: one per
+concern, the only place SQL is written (a test fails on SQL anywhere else in
+`src/`). `repos = createRepositories(db)` holds them all:
+
+```js
+await repos.audit.insert(entry)
+await repos.sessions.all()
+await repos.transaction(async (r) => { await r.sessions.remove(id); await r.audit.insert(e); })  // one transaction
+```
+
+Today: `sessions`, `authState` (the local administrator's last TOTP step, the
+known-browser key), `audit`, `settings`, `legacyImports`. The wave 2 lots
+(accounts, teams and benches, reservations, invitations, room metadata) move
+their JSON documents onto repositories of their own at merge time (§14,
+"Store structured state").
+
+The data-access interface, implemented by an adapter (`sqlite.js` today):
+
+```js
+await db.query(sql, params)   // → rows (plain objects; [] when none)
+await db.get(sql, params)     // → the first row, or undefined
+await db.run(sql, params)     // → { changes }
+await db.transaction(async (tx) => { … })   // tx: the same interface; committed when fn resolves,
+                                            // rolled back when it throws (the error is passed on)
+await db.close()              // waits for what is queued, then refuses new calls
+```
+
+- **Asynchronous on purpose**, although SQLite is synchronous: a PostgreSQL
+  adapter will not be, and callers must not notice the switch.
+- **One connection, one queue.** Statements and transactions run one at a
+  time in call order: transactions are serialized, and statements issued
+  without awaiting are applied in the order they were issued. Inside a
+  transaction use `tx`, never `db`: a call on `db` waits for the transaction
+  to end (awaiting it inside would wait forever). `tx.transaction()` nests as
+  a savepoint, rolled back alone when its callback fails.
+- **The SQLite file**: `DATA_DIR/lab-console.db` (mode 0600, with its `-wal`
+  and `-shm` files), WAL journal, foreign keys on, busy timeout 5 s,
+  temporary data in memory. `node:sqlite` needs Node 22.13 or later (no flag
+  from that version on; `engines` in package.json). Its "experimental"
+  warning is kept out of the log; any other warning goes through.
+- Errors are `DatabaseError` with a `code`: `db.unique`, `db.foreign_key`,
+  `db.constraint`, `db.params`, `db.not_portable`, `db.closed`, `db.migration`,
+  `db.error`.
+
+**Portability rules.** Every statement and its parameters are checked by the
+adapter before they run (`portable.js`), so a SQLite-only construct fails in
+the first test that reaches it, not on the day of the move:
+
+- placeholders are a plain `?` (the PostgreSQL adapter numbers them); one per
+  parameter, one statement per call;
+- ids are text: a UUID (`newId()`, a UUID v7 whose text order is creation
+  order) or a natural key. No `INTEGER PRIMARY KEY`, no `AUTOINCREMENT`, no rowid;
+- timestamps are ISO-8601 text in UTC, made by the application
+  (`toIso(ms | Date)` → `2026-11-13T09:00:00.000Z`, fixed length, so text
+  order is time order). Never `CURRENT_TIMESTAMP`, `now()`, `datetime()`;
+- booleans are integers 0 / 1 (`toFlag` / `fromFlag`); a JS boolean as a
+  parameter is refused. JSON payloads are text (`toJson` / `fromJson`); a
+  `Date` or an object as a parameter is refused;
+- column types are `TEXT`, `INTEGER`, `BIGINT`, `REAL`;
+- no SQLite-only functions or syntax: no `INSERT OR …`, `REPLACE INTO`
+  (write `INSERT … ON CONFLICT (key) DO UPDATE SET … = excluded.…` or
+  `ON CONFLICT DO NOTHING`), no `PRAGMA`, `GLOB`, `COLLATE`, `IFNULL`,
+  `GROUP_CONCAT`, `json_*()`, `strftime()`, multi-argument `min()` / `max()`,
+  `LIMIT a, b`, quoted identifiers. `RETURNING` is fine. Use standard
+  functions (`coalesce`, `substr`, `lower`, `length`, `count`) or compute in
+  JavaScript;
+- every index is created explicitly in a migration, named `<table>_<what>`;
+  every table has a primary key.
+
+**Migrations.** `src/lib/db/migrations/NNN-name.js` (three digits, then
+lowercase words joined by dashes) exports `async up(tx)` running portable
+statements with `tx.run()`. At start-up the pending ones run in order, all in
+one transaction, each recorded in `schema_migrations (version, name,
+applied_at)`: the database reaches the code's version, or nothing changes and
+the start stops with `Database migration NNN-name failed: …`. A database that
+records a migration the code does not have (a newer version ran on it, or
+two branches used one number) also stops the start. A merged migration is
+never edited: a change is a new file with the next number; two lots that took
+the same number renumber at merge.
+
+**Files of before.** On the first start with the database, `importLegacyFiles()`
+reads `data/auth/sessions.json`, `auth/local-admin.json`,
+`auth/device-key.json` and `audit/<yyyy-mm>.jsonl`, writes their records
+through the repositories in one transaction per file (also recorded in
+`legacy_imports`), then renames each file `<name>.imported`. Nothing is ever
+deleted; a file that cannot be read is kept as `<name>.not-imported` with an
+error in the log; what the database already holds wins over a file.
 
 **store** (`src/lib/store.js`)
 
@@ -324,9 +436,10 @@ audit.log(actor, action, details)   // actor: req | User | 'system'
 audit.query({ since, until, actorId, action, bench, limit })
 ```
 
-`log()` never throws and never rejects; it returns a promise of `true`
-(written) or `false` (lost, and reported in the server log) that callers
-normally ignore. An entry is
+Entries are rows of `audit_entries` (`repos.audit`), indexed on time, actor,
+action and bench. `log()` never throws and never rejects; it returns a
+promise of `true` (stored) or `false` (lost, and reported in the server log)
+that callers normally ignore. An entry is
 `{ ts, action, actor: { id, username, name, role, via }, ip?, details }`;
 `ip` is present when the actor is a request. `query()` resolves to entries
 **newest first** (`limit` defaults to 200, at most 5000); `action` matches
@@ -365,8 +478,10 @@ inside handlers, never at creation time (creation order must not matter).
 Today the consoles module publishes `services.consoles = { registry }`; the
 rooms lot adds `rooms` and `sharedTargets()`.
 
-`createApp().close()` calls every module's `shutdown()`, `auth.shutdown?.()`,
-ends the SSE streams, closes the HTTP server and waits for `store.flush()`.
+`createApp().close()` calls every module's `shutdown()` (and waits for the
+promises they return), `auth.shutdown()`, ends the SSE streams, closes the
+HTTP server, waits for `store.flush()`, then closes the database (after the
+statements the shutdowns queued).
 A module must release in `shutdown()` whatever would keep the process alive
 (timers that are not `unref`'d, file watchers, sockets).
 
@@ -374,18 +489,24 @@ A module must release in `shutdown()` whatever would keep the process alive
 administrator may change at run time. `settings.get('lab')` returns
 `{ ssh, telnet, consoles }` with the shapes of `config.ssh`, `config.telnet`
 and `config.consoles`. **Read it each time a connection or a console is
-opened**, never once at start-up. Today it mirrors the environment; the admin
-lot adds `describe(ns)` (values with secrets replaced by `{ set: true }`),
-`update(ns, patch, actor)`, `register(ns, spec)`, persistence in
-`data/settings/<ns>.json` (mode 600) and the `'change'` event
-(`settings.on('change', (ns, values) => …)`). Modules that keep a long-lived
+opened**, never once at start-up. The environment gives the starting values;
+what an administrator saved (table `settings`, one JSON document per
+namespace, `repos.settings`) is laid over them: objects merged key by key,
+anything else replaced. Saved values are loaded once when the service is
+created (`await createSettings({ config, repo })`), so `get()` stays
+synchronous. The admin lot adds `describe(ns)` (values with secrets replaced
+by `{ set: true }`), `update(ns, patch, actor)` (`repos.settings.save(ns,
+values, actor.id)`, then the cache and the event), `register(ns, spec)` and
+the `'change'` event (`settings.on('change', (ns, values) => …)`). Modules that keep a long-lived
 connection (the Proxmox tunnel) listen for `'change'` and reconnect.
 
 ## 7. Server modules
 
 The upstream contract is unchanged:
-`{ id, title, enabled, router?, upgrade?(req, socket, head) → boolean, shutdown?() }`,
-registered with one line in `src/modules/index.js`. A module owns its folder,
+`{ id, title, enabled, router?, upgrade?(req, socket, head) → boolean, start?(), shutdown?() }`,
+registered with one line in `src/modules/index.js`. `start()` (optional,
+may be async) runs once every module is created and before the server
+listens: the place to load state from a repository into memory. A module owns its folder,
 its `/api/<id>` routes, its `data/<id>/` subtree, its locale namespace and its
 front-end section. It checks roles itself with `auth.requireRole` or
 `req.user.role`.
@@ -595,25 +716,43 @@ device per console port for its whole life and answers `nc -z -w <s> <host>
 
 ```
 data/
-  auth/sessions.json        auth/local-admin.json (last TOTP step used)   auth/device-key.json (known-browser key)
-  audit/<yyyy-mm>.jsonl
-  diagrams/current.drawio   diagrams/versions/<ts>-<user>.drawio   diagrams/index.json
+  lab-console.db (600)      + lab-console.db-wal, lab-console.db-shm: the structured state (§6, "database")
+  diagrams/current.drawio   diagrams/versions/<ts>-<user>.drawio
   journal/<bench>/<device>/<yyyy-mm-dd>.log
-  teams/teams.json          benches/occupancy.json    benches/locks.json    benches/reservations.json
-  accounts/users.json       accounts/invitations.json    auth/oidc.json (600)
-  settings/<ns>.json (600)
   snapshots/<bench>/<ts>-<label>/{manifest.json,<device>.cfg,<device>.vlan.txt}
   templates/<name>/...      same layout as a snapshot
-  collab/notes.json         collab/chat/<bench>.jsonl
-  scripts/library.json
-  admin/announcements.json
+  auth/*.json.imported      audit/*.jsonl.imported   files of before the database, kept after their import
 ```
+
+In the database today (one table each, migrations 001-004):
+`schema_migrations`, `legacy_imports`, `auth_sessions`, `auth_state` (the
+local administrator's last TOTP step, the known-browser key),
+`audit_entries`, `settings`.
+
+Still planned as JSON documents by wave 2 briefs, and moved into the
+database when those lots are merged (a repository each, §14): teams,
+bench occupancy, locks and reservations, accounts and invitations, OIDC
+settings, room metadata, device notes, the script library, announcements,
+the diagram index. Bench chat (`collab/chat/<bench>.jsonl`) is a log people
+may read as a file: decide at merge, with the owner.
+
+What stays a file is a document people download or diff: configuration
+backups (snapshots, templates), console journals, diagram versions. The
+database indexes them (which snapshot, whose diagram version, when) and
+never holds their content.
 
 The image runs read-only; `DATA_DIR` is the only writable path. Bench and
 device names used in paths go through `store.resolve`, never string concat.
+Back up the database with the rest of `DATA_DIR`, service stopped, or with
+`sqlite3 lab-console.db ".backup copy.db"` while it runs: copying the `.db`
+file alone while it runs may miss what is still in the `-wal` file.
 
 ## 11. Testing
 
+- State in tests: `test/helpers/db.js` `memoryDatabase()` → `{ db, repos,
+  close }`, a migrated in-memory database per test (`t.after(close)`), never
+  a shared one. `startTestApp()` uses a real file in its temporary data
+  directory.
 - `npm test` runs every `test/**/*.test.js` with `node:test`. It must pass and
   stay under a minute. (The glob needs Node 22, like the Docker image.)
 - `npm run test:e2e` runs `test/e2e/*.e2e.js` serially: `playwright-core`
@@ -715,25 +854,32 @@ Each recipe names every file to touch. `benches` is the example module.
    import express from 'express';
    import { httpError } from '../../lib/httpError.js';
 
-   export function createBenchesModule({ config, logger, events, store, audit, auth, services }) {
+   // Structured state goes through a repository: see "Store structured state" below
+   export function createBenchesModule({ config, logger, events, repos, audit, auth, services }) {
      const log = logger.child('benches');
-     const occupancy = store.json('benches/occupancy.json', {});
+     const occupancy = new Map(); // bench → user ids: loaded in start(), written through repos.benches
+     const snapshot = () => Object.fromEntries(occupancy);
      const router = express.Router();
      const json = express.json({ limit: '4kb' });
 
-     router.get('/', (_req, res) => res.json({ benches: occupancy.get() }));
+     router.get('/', (_req, res) => res.json({ benches: snapshot() }));
      router.post('/:bench/take', json, async (req, res) => {
        const bench = services.consoles.registry.model.labs.find((l) => l.name === req.params.bench); // read lazily
        if (!bench) throw httpError(404, 'benches.unknown', 'Unknown bench', { bench: req.params.bench });
-       await occupancy.update((all) => { all[bench.name] = [req.user.id]; });
+       await repos.benches.setOccupants(bench.name, [req.user.id]);
+       occupancy.set(bench.name, [req.user.id]);
        audit.log(req, 'bench.take', { bench: bench.name });
-       events.publish('benches:occupancy', occupancy.get(), { sticky: true });
+       events.publish('benches:occupancy', snapshot(), { sticky: true });
        res.json({ ok: true });
      });
      router.delete('/:bench', auth.requireRole('admin'), async (req, res) => { /* … */ res.json({ ok: true }); });
 
-     services.benches = { occupants: (name) => occupancy.get()[name] ?? [] };
-     return { id: 'benches', title: 'Benches', enabled: true, router, shutdown() {} };
+     services.benches = { occupants: (name) => occupancy.get(name) ?? [] };
+     return {
+       id: 'benches', title: 'Benches', enabled: true, router,
+       async start() { for (const { bench, userIds } of await repos.benches.all()) occupancy.set(bench, userIds); },
+       shutdown() {},
+     };
    }
    ```
 
@@ -745,6 +891,70 @@ Each recipe names every file to touch. `benches` is the example module.
 4. Tests in `test/benches.test.js` with
    `startTestApp({ auth: fakeAuth(), modules: (deps) => [createConsolesModule(deps), createBenchesModule(deps)] })`:
    the happy path, then nobody (401), a student on an admin route (403), bad input (4xx).
+
+### Store structured state (a table and its repository)
+
+Records that modules create, change and query (accounts, teams, occupancy,
+reservations, invitations, room metadata…) go into the database. A document
+people download or diff (a configuration backup, a journal, a diagram
+version) stays a file written with `store`; its index row (who, when, which
+bench, the file's path relative to `DATA_DIR`) goes into the database.
+
+1. `src/lib/db/migrations/005-benches.js` (the next free number; never edit a
+   merged migration):
+
+   ```js
+   export async function up(tx) {
+     await tx.run(`CREATE TABLE bench_occupancy (
+       bench TEXT PRIMARY KEY,
+       user_ids TEXT NOT NULL,          -- JSON array
+       since TEXT NOT NULL,             -- ISO-8601 UTC
+       locked INTEGER NOT NULL          -- 0 / 1
+     )`);
+     await tx.run('CREATE INDEX bench_occupancy_since ON bench_occupancy (since)');
+   }
+   ```
+
+2. `src/lib/db/repositories/benches.js`, the only place this table's SQL is
+   written; it converts at its boundary (`values.js`), so the module keeps
+   numbers, booleans, arrays and objects:
+
+   ```js
+   import { toIso, toJson, fromJson, toFlag, fromFlag } from '../values.js';
+
+   export function createBenchesRepository(db, { now = () => new Date() } = {}) {
+     return {
+       async all() {
+         const rows = await db.query('SELECT bench, user_ids, since, locked FROM bench_occupancy ORDER BY bench');
+         return rows.map((r) => ({ bench: r.bench, userIds: fromJson(r.user_ids, []), since: r.since, locked: fromFlag(r.locked) }));
+       },
+       setOccupants: (bench, userIds) => db.run(
+         `INSERT INTO bench_occupancy (bench, user_ids, since, locked) VALUES (?, ?, ?, ?)
+          ON CONFLICT (bench) DO UPDATE SET user_ids = excluded.user_ids, since = excluded.since`,
+         [bench, toJson(userIds), toIso(now()), toFlag(false)],
+       ),
+     };
+   }
+   ```
+
+3. One line in `src/lib/db/repositories/index.js`:
+   `benches: createBenchesRepository(db, options),`. The module reads
+   `deps.repos.benches`; several writes that must succeed together go
+   through `repos.transaction(async (r) => { … r.benches … r.audit … })`.
+4. The JSON file the module used before (if a deployed version wrote one):
+   one importer in `IMPORTERS` of `src/lib/db/legacy.js` (`files`, `parse`,
+   `write`); the file is renamed `.imported` after its import.
+5. Tests with `memoryDatabase()` (`test/helpers/db.js`): the repository's
+   methods, the module through `startTestApp`. `test/dbPortability.test.js`
+   already runs the new migration statement by statement against the
+   portability rules, and fails on SQL written outside `src/lib/db`.
+6. §10 lists the new table.
+
+Merging a wave 2 lot written against JSON files: replace its `store.json()` /
+`store.jsonl()` documents by a migration and a repository as above, keep the
+module's public API (its `services.*` and routes) unchanged, load what it
+keeps in memory in `start()`, and add an importer for any file a deployed
+version (pre-production included) already wrote.
 
 ### Add a rail section
 

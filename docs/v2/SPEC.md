@@ -209,7 +209,7 @@ Same worktree as the accounts lot, after it.
   the admin to confirm with their passkey or their password + TOTP; applied to
   the lines opened next, no restart. Implemented by completing
   `src/lib/settings.js` (`describe`, `update`, `register`, persistence in
-  `data/settings/<ns>.json` mode 600, validation, audit without secrets,
+  the database through `repos.settings` (ARCHITECTURE §6), validation, audit without secrets,
   'change' event). Environment values are the starting point; saved values
   win over them.
 - **Diagram import**: upload a `.drawio`, validate with the existing parser
