@@ -83,6 +83,12 @@ open a console on the mock lab, type a command, sign out.
 
 ## Wave 2
 
+Owner decisions of 12 Nov 2026 shape this wave: **teams** own benches,
+backups and reservations; **accounts** are created through invitation links;
+**passkeys** protect promoted admins; the **SSO** and the **lab connection
+parameters** are set from the administration pages. After launch the site is
+exposed directly to the Internet (no Cloudflare Access in front).
+
 ### Lot rooms — shared consoles
 - A second user opening a device **joins** the same line and sees the recent
   history (server-side scrollback, about 200 KB).
@@ -91,45 +97,129 @@ open a console on the mock lab, type a command, sign out.
   automatically after 30 s without an answer, or when the pilot has been idle
   for 2 min. "Release control". An admin can take it. The pilot can switch the
   console to a shared keyboard.
+- Who may pilot is decided by `services.benches.canPilot(user, device)`
+  (lot teams). Until that lot is merged, treat every signed-in user as allowed,
+  behind that single call.
 - Presence on the diagram: who is on each device, who pilots; states *free*,
   *open in the app*, *busy outside the app*. A live panel lists open consoles,
   people, the last command (rebuilt from the device echo) and an activity feed.
 - Bench wall: every open console of a bench as live read-only tiles.
 - The line stays open while someone is attached, 30 s of grace after the last
   one leaves, 60 min idle timeout, an explicit "free the line" button.
-- "Line busy outside the app": explicit message and "tell me when it is free".
+- "Line busy outside the app" and "device silent" (accepted by the console
+  server, no output: power or cable) are distinct, explicit messages; "tell me
+  when it is free".
 - **Console journal**: what the device printed, with who held the keyboard,
   kept 14 days (`JOURNAL_RETENTION_DAYS`), size-capped, readable by the
-  participants and admins, downloadable. Output only, never keystrokes. A
-  banner tells users that sessions are journaled.
+  participants, the team that held the bench, and admins; downloadable.
+  Output only, never keystrokes. A banner tells users that sessions are
+  journaled.
+- Lab connection parameters (jump server, console login, allowed hosts) are
+  read from `deps.settings.get('lab')` **each time a line is opened**, never
+  from `config` and never once at start-up: the admin lot makes them editable.
 - Generic decoration API on the diagram and action registry on console tiles
   (ARCHITECTURE §8) for the later lots.
 - Fewer SSH connections to the jump server: lines share a small pool of
-  connections instead of one connection each.
+  connections instead of one connection each (mind sshd `MaxSessions`).
 
-### Lot benches — occupancy and reservations
-- "Take the bench": the first user takes a free bench at once; **the next ones
-  ask to join and an occupant accepts or refuses**. Occupants can leave;
-  admins can assign, remove and release.
+### Lot teams — teams, benches, reservations
+- **Teams.** Any student creates a team (name), invites classmates by
+  username, and they accept; members can leave; the last member leaving
+  dissolves it. A student belongs to at most one team at a time (admins: none
+  needed). Admins see, rename, edit and dissolve every team.
+- **Taking a bench.** A member takes a free bench **for the team**; every
+  member is then an occupant. Someone outside the team asks to join; any
+  member accepts or refuses; an accepted guest is an occupant until they leave
+  or the bench is released. Admins can assign a bench to a team, remove
+  people and release.
 - Released by hand or after 3 h without activity (`BENCH_IDLE_HOURS`). On
-  release the application offers a backup of the bench.
-- On a taken bench only its occupants and admins may open or pilot its
-  consoles and run jobs; everyone else watches. On a free bench anyone may
-  open a console. A device shared by several benches follows any of them.
-  Admin switches stay open to every signed-in user.
-- **Reservations**: a small per-bench calendar. At the start of a slot the
-  group that reserved may take the bench; current occupants are warned ten
-  minutes before. Limits per user; admins manage everything.
+  release the application offers a backup of the bench (the jobs lot provides
+  the action; until then the offer is a hook that does nothing).
+- **Permissions.** On a taken bench only its occupants and admins may open or
+  pilot its consoles and run jobs; everyone else watches. On a free bench
+  anyone may open a console. A device shared by several benches follows any
+  of them. Admin switches stay open to every signed-in user.
+- **Bench lock** (admin): freeze a bench with a reason ("prepared for the
+  graded lab"); nobody opens a console or runs a job on it, the reason is shown
+  on the bench; admins only can lift it.
+- **Reservations**: a per-bench calendar, slots booked **by a team**. At the
+  start of its slot the team may take the bench; current occupants are warned
+  ten minutes before. Limits per team (e.g. 2 future slots, 4 h each); admins
+  manage everything.
 - **Bench history**: occupants see who took, backed up, injected or reset
   their bench, and when (from the audit trail).
+- Snapshots, chat and journals will belong to **the team** that held the bench
+  (wave 3 relies on `services.teams.teamOf(user)` and
+  `services.benches.holder(labName)`).
 
-### Lot admin
+### Lot accounts — directory, invitations, passkeys, SSO settings
+Built in the same worktree as the admin lot, before it. Builds on the auth
+lot's extension points (`auth.accounts.add`, `auth.sessions.create`,
+`auth.oidc.configure`; ARCHITECTURE §5).
+- **Directory** (`data/accounts/users.json`): local accounts (username,
+  display name, scrypt hash, role, state, passkeys) and the SSO accounts seen
+  at sign-in (with an optional role set by an admin, which wins over the group
+  mapping). The environment's administrator stays outside the directory and is
+  always admin.
+- **Invitations**: an admin creates a link valid 1 h, 24 h or 7 days, single-use
+  or for N people, with the role it grants (student by default); revocable;
+  list of pending ones. The token is 256 random bits, stored hashed. The sign-up
+  page asks username, display name, password twice (10 characters minimum).
+  **A single-use link gives an active account at once; a multi-use link gives
+  an account pending approval**, which an admin approves or rejects in one
+  click. Sign-up is rate-limited and never says which usernames exist.
+- **Password reset links**, generated by an admin (there is no e-mail): same
+  mechanism, single use, short-lived; using one ends the account's sessions.
+- **Roles and states**: any admin, the environment's admin included, promotes or
+  demotes any account, local or SSO, and disables or re-enables it. The last
+  admin cannot be removed. Changing a role or disabling an account ends its
+  sessions.
+- **Passkeys (WebAuthn)** with `@simplewebauthn/server` and
+  `@simplewebauthn/browser`: an account promoted to admin must register a
+  passkey at its next sign-in and then signs in with it (it replaces TOTP for
+  them); students may add passkeys for their own devices and keep their
+  password. **One-click sign-in** with a passkey on the login page
+  (discoverable credentials, conditional UI where the browser supports it).
+  Relying party id = the host of `PUBLIC_URL`; refuse to offer passkeys when
+  `PUBLIC_URL` is not https (except `localhost` for tests). The environment's
+  administrator keeps password + TOTP.
+- **My account**: display name, password change, passkeys (add, rename,
+  remove; an admin cannot remove the last one), sessions (sign out others).
+- **Login page**: SSO button when configured, local sign-in, passkey button;
+  no hint about which accounts exist.
+- **SSO settings page** (admin): provider name, issuer, client id, client
+  secret (write-only), scopes, groups claim, admin groups, allowed groups; the
+  callback URL shown for copying; "test" (discovery); "try a sign-in" that
+  shows the claims received and the resulting role without opening a session;
+  enable / disable. Saved in `data/auth/oidc.json` (mode 600; the client
+  secret is the one secret stored in clear, encrypted when `APP_SECRET` is
+  set). Applied at once with `auth.oidc.configure`. When `OIDC_ISSUER` is set
+  in the environment, the environment wins and the page is read-only. The
+  discovery request is guarded against SSRF (https only unless the insecure
+  flag, timeouts, size limit, no redirect to an internal address).
+- **Administration section shell**: a rail entry for admins only, built with
+  `shared/tabs.js`, with the tabs Users, Invitations, Sign-in (SSO). The admin
+  lot adds its tabs next to them.
+
+### Lot admin — administration pages
+Same worktree as the accounts lot, after it.
+- **Lab parameters page**: jump server (host, port, username, password or
+  key, host key fingerprint), console server login, allowed console hosts and
+  port range, Proxmox URL and credentials. Secrets are write-only; saving asks
+  the admin to confirm with their passkey or their password + TOTP; applied to
+  the lines opened next, no restart. Implemented by completing
+  `src/lib/settings.js` (`describe`, `update`, `register`, persistence in
+  `data/settings/<ns>.json` mode 600, validation, audit without secrets,
+  'change' event). Environment values are the starting point; saved values
+  win over them.
 - **Diagram import**: upload a `.drawio`, validate with the existing parser
   and linter, preview and diff against the current one, activate. Versions
   kept, one-click rollback, download. 5 MB limit, DOCTYPE / entities refused.
+  Also edit the admin switches list (`infrastructure.json`).
 - Active sessions with revocation; audit viewer with filters; **announcement
   banner** shown to everyone; **health page**: jump server, console servers,
-  Proxmox tunnel state (read-only for students, details for admins).
+  Proxmox tunnel state (read-only for students, details for admins); a page
+  saying what is journaled and for how long.
 
 ## Wave 3
 
@@ -142,9 +232,11 @@ memory, never stored or logged.
 - **Backup**: running-config, VLANs on switches, model and version, five
   devices at a time; stored as a snapshot with a manifest. List, read,
   **diff** (two snapshots, or snapshot vs live), **ZIP download and import**,
-  **search** across snapshots. Visible to the people who occupied the bench
-  when it was taken, and to admins.
-- **Injection**: choose a snapshot; mode "reset then inject" (default) or
+  **search** across snapshots. Owned by the team that held the bench; visible
+  to its members and to admins. The server is not a backup: right after a
+  backup the UI offers the ZIP and says plainly to download it.
+- **Injection**: choose a snapshot; **preview** the exact script each device
+  will receive before starting; mode "reset then inject" (default) or
   "merge". The replay script fixes what makes a `show run` unreplayable:
   `no shutdown` on interfaces that were up, `^C` banners, non-replayable
   lines, VLANs recreated, optional RSA keys. Afterwards the device is read
@@ -166,7 +258,7 @@ history and download of that history.
 
 ### Lot collab
 Browser notifications (control requested, line freed, job finished); a shared
-note per device; a small chat per bench for its occupants.
+note per device; a small chat per bench for its occupants (kept with the team).
 
 ## Wave 4
 
@@ -181,8 +273,9 @@ Guided password recovery (BREAK, ROMMON, configuration register) for a device
 left locked. It needs someone on site to power-cycle the device.
 
 ### Lot overview, lot help
-One screen with every bench: occupants, open consoles, running jobs. A guided
-tour at first sign-in and a help page.
+One screen with every bench: team, occupants, open consoles, running jobs,
+locks. A **personal home page** after sign-in: my team, our bench, our
+backups, recent activity. A guided tour at first sign-in and a help page.
 
 ## Wave 5
 End-to-end scenarios, security review, completeness check against this file,

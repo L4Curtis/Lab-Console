@@ -277,7 +277,7 @@ valid session.
 ## 6. Platform services
 
 Created once in `server.js` and passed to every module in `deps`:
-`{ config, logger, events, infra, store, audit, auth, services }`.
+`{ config, logger, events, infra, store, audit, auth, settings, services }`.
 
 **store** (`src/lib/store.js`)
 
@@ -370,6 +370,17 @@ ends the SSE streams, closes the HTTP server and waits for `store.flush()`.
 A module must release in `shutdown()` whatever would keep the process alive
 (timers that are not `unref`'d, file watchers, sockets).
 
+**settings** (`src/lib/settings.js`, passed as `deps.settings`) — values an
+administrator may change at run time. `settings.get('lab')` returns
+`{ ssh, telnet, consoles }` with the shapes of `config.ssh`, `config.telnet`
+and `config.consoles`. **Read it each time a connection or a console is
+opened**, never once at start-up. Today it mirrors the environment; the admin
+lot adds `describe(ns)` (values with secrets replaced by `{ set: true }`),
+`update(ns, patch, actor)`, `register(ns, spec)`, persistence in
+`data/settings/<ns>.json` (mode 600) and the `'change'` event
+(`settings.on('change', (ns, values) => …)`). Modules that keep a long-lived
+connection (the Proxmox tunnel) listen for `'change'` and reconnect.
+
 ## 7. Server modules
 
 The upstream contract is unchanged:
@@ -387,12 +398,25 @@ services.consoles = {
   rooms,                         // RoomManager, see §9
   sharedTargets(),               // Set of 'host:port' used by several labs
 }
-services.benches = {
-  occupants(labName) → User ids[]
+services.teams = {                           // lot teams
+  teamOf(userOrId) → Team | null               // { id, name, members: userId[] }
+  get(teamId) → Team | null
+  list() → Team[]
+}
+services.benches = {                           // lot teams
+  holder(labName) → { teamId, since } | null   // the team that took the bench
+  occupants(labName) → userId[]                // team members + accepted guests
   isOccupant(user, labName) → boolean
-  canOperate(user, labName) → boolean        // occupant or admin
-  canPilot(user, device) → boolean           // see SPEC §Benches
-  touch(labName)                             // activity, postpones auto-release
+  canOperate(user, labName) → boolean          // occupant or admin, and the bench is not locked
+  canPilot(user, device) → boolean             // the rule of SPEC "Lot teams / Permissions"
+  lock(labName) → { reason, by, at } | null
+  touch(labName)                               // activity, postpones auto-release
+  onRelease(fn)                                // hook: fn({ labName, teamId, by }); the jobs lot offers a backup
+}
+services.accounts = {                          // lot accounts
+  get(userId) → Account | null                 // { id, username, name, role, state, via, hasPasskey }
+  list() → Account[]
+  roleOverride(userId) → 'student' | 'admin' | null
 }
 services.jobs = { running(labName) → Job | null, list({ bench }) }
 ```
@@ -575,7 +599,9 @@ data/
   audit/<yyyy-mm>.jsonl
   diagrams/current.drawio   diagrams/versions/<ts>-<user>.drawio   diagrams/index.json
   journal/<bench>/<device>/<yyyy-mm-dd>.log
-  benches/occupancy.json    benches/reservations.json
+  teams/teams.json          benches/occupancy.json    benches/locks.json    benches/reservations.json
+  accounts/users.json       accounts/invitations.json    auth/oidc.json (600)
+  settings/<ns>.json (600)
   snapshots/<bench>/<ts>-<label>/{manifest.json,<device>.cfg,<device>.vlan.txt}
   templates/<name>/...      same layout as a snapshot
   collab/notes.json         collab/chat/<bench>.jsonl
@@ -659,7 +685,9 @@ device names used in paths go through `store.resolve`, never string concat.
 - Conventional Commits (`feat(auth): …`, `fix(rooms): …`, `test: …`), small
   and logical. Trailer: `Co-Authored-By: Claude <noreply@anthropic.com>`.
 - Never commit `.env`, `data/`, `node_modules/`, credentials or real configs.
-- Dependencies allowed: `openid-client`, `fflate`, `diff` (runtime);
+- Dependencies allowed: `openid-client`, `fflate`, `diff`,
+  `@simplewebauthn/server`, `@simplewebauthn/browser` (runtime; the browser
+  bundle is served from `/vendor` like xterm);
   `playwright-core`, `eslint`, `@eslint/js`, `globals` (dev). TOTP, hashing and
   random values use `node:crypto`. Anything else needs a written reason in
   your report.

@@ -21,6 +21,7 @@ import { securityHeaders, isOriginAllowed, requireSameOrigin, proxyTrust } from 
 import { loadInfrastructure } from './lib/infrastructure.js';
 import { createStore } from './lib/store.js';
 import { createAudit } from './lib/audit.js';
+import { createSettings } from './lib/settings.js';
 import { HttpError, errorBody, sendError } from './lib/httpError.js';
 import { createAuth } from './modules/auth/index.js';
 import { createModules } from './modules/index.js';
@@ -46,9 +47,10 @@ export function createApp({ config, logger = createLogger, createAuth: makeAuth 
   const events = new EventHub({ logger: logger('events') });
   const audit = createAudit({ store, logger: logger('audit'), clientIp: trust.clientIp });
   const infra = loadInfrastructure(config.infraConfigPath, logger('infra'));
+  const settings = createSettings({ config, store, audit, events, logger: logger('settings') });
   const services = {};
   const auth = makeAuth({ config, logger: logger('auth'), events, store, audit, services });
-  const deps = { config, logger: logger('app'), events, infra, store, audit, auth, services };
+  const deps = { config, logger: logger('app'), events, infra, store, audit, auth, settings, services };
   const modules = makeModules(deps);
 
   const app = express();
