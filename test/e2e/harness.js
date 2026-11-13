@@ -259,10 +259,11 @@ export function useHarness(options) {
 
 // ── Page helpers ───────────────────────────────────────────────────────────
 
-/** The application shell is ready: the rail and the user menu are there */
+/** The application shell is ready: the rail, the user menu, and the section on screen has drawn its content */
 export async function waitForApp(page) {
   await page.waitForSelector('#rail-items .rail-btn');
   await page.waitForSelector('.user-menu-btn');
+  await page.waitForSelector('#views > section.view:not([hidden]) > *');
 }
 
 /** Sign in through the login page and the mock provider's user picker; → the provider's user */
