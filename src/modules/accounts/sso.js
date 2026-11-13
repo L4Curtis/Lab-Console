@@ -19,7 +19,7 @@
  * back without opening a session (auth.oidc.trial): the claims received and
  * the role they give are kept for the administrator who asked, 10 minutes
  */
-import crypto from 'node:crypto';
+import { secretKey, sealSecret, openSecret } from '../../lib/sealed.js';
 import { normalizeOidcSettings, CLIENT_AUTH_METHODS } from '../auth/oidcSettings.js';
 import { createSafeFetch, SafeFetchError } from '../../lib/safeFetch.js';
 
@@ -30,35 +30,6 @@ const LOOPBACK = new Set(['localhost', '127.0.0.1', '[::1]']);
 
 /** The fields an administrator edits; the secret is handled apart */
 const FIELDS = ['issuer', 'clientId', 'clientAuthMethod', 'scopes', 'groupsClaim', 'adminGroups', 'allowedGroups', 'providerName', 'allowInsecure', 'enabled'];
-
-/** The key that encrypts the client secret, derived from APP_SECRET; null without it */
-function secretKey(appSecret) {
-  if (!appSecret) return null;
-  return Buffer.from(crypto.hkdfSync('sha256', Buffer.from(appSecret), 'lab-console', 'sso client secret', 32));
-}
-
-export function sealSecret(secret, key) {
-  if (!secret) return '';
-  if (!key) return { clear: secret };
-  const iv = crypto.randomBytes(12);
-  const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);
-  const data = Buffer.concat([cipher.update(secret, 'utf8'), cipher.final()]);
-  return { alg: 'aes-256-gcm', iv: iv.toString('base64url'), tag: cipher.getAuthTag().toString('base64url'), data: data.toString('base64url') };
-}
-
-/** → the secret, or null when it cannot be read (encrypted with another APP_SECRET, or none set now) */
-export function openSecret(sealed, key) {
-  if (!sealed) return '';
-  if (typeof sealed.clear === 'string') return sealed.clear;
-  if (sealed.alg !== 'aes-256-gcm' || !key) return null;
-  try {
-    const decipher = crypto.createDecipheriv('aes-256-gcm', key, Buffer.from(sealed.iv, 'base64url'));
-    decipher.setAuthTag(Buffer.from(sealed.tag, 'base64url'));
-    return Buffer.concat([decipher.update(Buffer.from(sealed.data, 'base64url')), decipher.final()]).toString('utf8');
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Check what the page sent, field by field, with a code the page can
@@ -102,7 +73,7 @@ export function checkSsoInput(body) {
 export function createSso({ config, store, auth, logger, now = Date.now, fetchOptions = {} }) {
   const log = logger ?? { info() {}, warn() {}, error() {} };
   const file = store.json('auth/oidc.json', null);
-  const key = secretKey(config.appSecret);
+  const key = secretKey(config.appSecret, 'sso client secret');
   // The environment names a provider: it wins, and this page only shows it
   const locked = Boolean(config.auth.oidc.issuer);
   const trials = new Map(); // session id → { result, at }
