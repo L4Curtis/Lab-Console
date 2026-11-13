@@ -5,7 +5,9 @@
  *   browser → server   {"type":"export-config"}
  *                      {"type":"inject","script":"…","options":{waitForPrompt,delayMs,stopOnError,skipComments}}
  *                      {"type":"automation-cancel"}
- *   server → browser   {"type":"automation","task","state":"running|done|error|cancelled","message","done","total","result"}
+ *   server → browser   {"type":"automation","task","state":"running|done|error|cancelled","message","code","params","parts","done","total","result"}
+ *                      `message` is the English sentence; `code` and `params` (and, for a summary made of
+ *                      several sentences, `parts`: a list of { code, params }) let the browser translate it
  *                      {"type":"export-result","filename","content"}
  */
 const MAX_SCRIPT_BYTES = 256 * 1024;
@@ -18,22 +20,24 @@ export function createAutomationHandler({ cli, send, canExport, log, label }) {
 
     const task = msg.type === 'export-config' ? 'export' : 'inject';
     const report = (state, message, extra = {}) => send({ type: 'automation', task, state, message, ...extra });
-    if (cli.running) return report('error', 'Another task is still running on this console.'), true;
-    if (task === 'export' && !canExport) return report('error', 'Config export is available on Cisco console devices only.'), true;
+    const refuse = (message, code, params = {}) => (report('error', message, { code, params }), true);
+    if (cli.running) return refuse('Another task is still running on this console.', 'automation.busy');
+    if (task === 'export' && !canExport) return refuse('Config export is available on Cisco console devices only.', 'automation.export_unsupported');
 
     let run;
     if (task === 'export') {
-      run = cli.exportRunningConfig((message) => report('running', message)).then(({ hostname, config, pagingFallback }) => {
+      run = cli.exportRunningConfig((message, p = {}) => report('running', message, p)).then(({ hostname, config, pagingFallback }) => {
         send({ type: 'export-result', filename: exportFilename(hostname), content: config });
         const lines = config.split('\n').length - 1;
-        report('done', `Exported ${lines} lines of ${hostname}'s running-config${pagingFallback ? ' (paging could not be disabled; --More-- pages were skipped through)' : ''}`);
+        report('done', `Exported ${lines} lines of ${hostname}'s running-config${pagingFallback ? ' (paging could not be disabled; --More-- pages were skipped through)' : ''}`,
+          { code: pagingFallback ? 'automation.exported_paging' : 'automation.exported', params: { count: lines, hostname } });
         log.info(`${label}: exported running-config of ${hostname} (${lines} lines)`);
       });
     } else {
       const script = typeof msg.script === 'string' ? msg.script : '';
-      if (!script.trim()) return report('error', 'The script is empty.'), true;
-      if (Buffer.byteLength(script) > MAX_SCRIPT_BYTES) return report('error', 'The script is larger than 256 KB.'), true;
-      if (script.split('\n').length > MAX_SCRIPT_LINES) return report('error', `The script has more than ${MAX_SCRIPT_LINES} lines.`), true;
+      if (!script.trim()) return refuse('The script is empty.', 'automation.script_empty');
+      if (Buffer.byteLength(script) > MAX_SCRIPT_BYTES) return refuse('The script is larger than 256 KB.', 'automation.script_too_large');
+      if (script.split('\n').length > MAX_SCRIPT_LINES) return refuse(`The script has more than ${MAX_SCRIPT_LINES} lines.`, 'automation.script_too_long', { max: MAX_SCRIPT_LINES });
       const o = msg.options || {};
       const options = {
         waitForPrompt: o.waitForPrompt !== false,
@@ -44,15 +48,30 @@ export function createAutomationHandler({ cli, send, canExport, log, label }) {
       run = cli.injectScript(script, options, (message, p = {}) => report('running', message, p)).then((result) => {
         const { sent, total, errors, slow } = result;
         const parts = [`Sent ${sent} of ${total} lines`];
-        if (errors.length) parts.push(`${errors.length} device error${errors.length > 1 ? 's' : ''} (line ${errors.map((e) => e.line).join(', ')})`);
-        if (slow.length) parts.push(`no prompt after line ${slow.join(', ')}`);
-        if (result.stoppedOnError) parts.push('stopped at the first error');
-        if (result.waitingFor) parts.push(`the device is waiting for an answer: "${result.waitingFor}"`);
-        report(errors.length || result.waitingFor ? 'warning' : 'done', parts.join('. '), { result });
+        const coded = [{ code: 'automation.sent', params: { sent, total, count: total } }];
+        if (errors.length) {
+          const lineList = errors.map((e) => e.line).join(', ');
+          parts.push(`${errors.length} device error${errors.length > 1 ? 's' : ''} (line ${lineList})`);
+          coded.push({ code: 'automation.device_errors', params: { count: errors.length, lines: lineList } });
+        }
+        if (slow.length) {
+          parts.push(`no prompt after line ${slow.join(', ')}`);
+          coded.push({ code: 'automation.no_prompt_after', params: { lines: slow.join(', '), count: slow.length } });
+        }
+        if (result.stoppedOnError) {
+          parts.push('stopped at the first error');
+          coded.push({ code: 'automation.stopped_on_error', params: {} });
+        }
+        if (result.waitingFor) {
+          parts.push(`the device is waiting for an answer: "${result.waitingFor}"`);
+          coded.push({ code: 'automation.waiting_for', params: { question: result.waitingFor } });
+        }
+        report(errors.length || result.waitingFor ? 'warning' : 'done', parts.join('. '), { result, parts: coded });
         log.info(`${label}: injected ${sent}/${total} lines, ${errors.length} errors`);
       });
     }
-    run.catch((err) => report(err.cancelled ? 'cancelled' : 'error', err.cancelled ? 'Stopped' : err.message));
+    run.catch((err) => report(err.cancelled ? 'cancelled' : 'error', err.cancelled ? 'Stopped' : err.message,
+      err.code ? { code: err.code, params: err.params ?? {} } : {}));
     return true;
   };
 }

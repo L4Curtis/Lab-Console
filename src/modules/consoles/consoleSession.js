@@ -12,12 +12,16 @@
  * clients - is unreachable. The server uses it itself, only to send a BREAK
  * (needed for Cisco password recovery / ROMMON)
  *
- * Events:  'data' (Buffer) · 'status' ({phase, message}) · 'close' ({reason, code})
+ * Events:  'data' (Buffer) · 'status' ({phase, message, code, params}) · 'close' ({reason, code, info})
+ *
+ * Texts meant for the student come with a stable message `code` and its `params`
+ * next to the English sentence; the browser translates by code. On 'close', `code`
+ * is the telnet exit code and `info` is { code, params } of the reason
  */
 import { EventEmitter } from 'node:events';
 import { StringDecoder } from 'node:string_decoder';
 import { Client } from 'ssh2';
-import { sshConnectOptions, describeSshError } from '../../lib/ssh.js';
+import { sshConnectOptions, sshErrorInfo } from '../../lib/ssh.js';
 import { CliAutomation } from '../../lib/cliAutomation.js';
 
 const TELNET_ESCAPE = '\x1d'; // Ctrl+]
@@ -56,29 +60,31 @@ export class ConsoleSession extends EventEmitter {
   }
 
   start() {
-    this.#status('ssh', `Connecting to jump server ${this.ssh.host}…`);
+    this.#status('ssh', `Connecting to jump server ${this.ssh.host}…`, 'consoles.status_ssh', { host: this.ssh.host });
     const conn = (this.#conn = new Client());
 
     conn.on('ready', () => {
-      this.#status('telnet', `Opening console ${this.target.host}:${this.target.port}…`);
+      this.#status('telnet', `Opening console ${this.target.host}:${this.target.port}…`, 'consoles.status_telnet', { target: `${this.target.host}:${this.target.port}` });
       const command = `telnet ${this.target.host} ${this.target.port}`;
       conn.exec(command, { pty: { term: 'xterm-256color', ...this.size } }, (err, stream) => {
-        if (err) return this.close(`Could not start telnet on the jump server: ${err.message}`);
+        if (err) return this.close(`Could not start telnet on the jump server: ${err.message}`, null, { code: 'consoles.telnet_failed', params: { detail: err.message } });
         this.#stream = stream;
         const write = (s) => this.#stream?.write(s);
         if (this.telnet.autoLogin && this.telnet.password) {
-          this.#autoLogin = new AutoLogin(this.telnet, write, (m) => this.#status('login', m));
+          this.#autoLogin = new AutoLogin(this.telnet, write, (m) => this.#status('login', m, 'consoles.status_login'));
         }
         this.#nudge = new WakeNudge({ idleMs: this.telnet.wakeIdleMs ?? DEFAULT_WAKE_IDLE_MS, write });
         stream.on('data', (buf) => this.#onOutput(buf));
         stream.stderr.on('data', (buf) => this.#onOutput(buf));
         stream.on('exit', (code) => { this.exitCode = code; });
-        stream.on('close', () => this.close(this.exitCode ? `Console closed (telnet exit code ${this.exitCode})` : 'Console closed', this.exitCode));
+        stream.on('close', () => (this.exitCode
+          ? this.close(`Console closed (telnet exit code ${this.exitCode})`, this.exitCode, { code: 'consoles.closed_exit', params: { code: this.exitCode } })
+          : this.close('Console closed', null, { code: 'consoles.closed' })));
       });
     });
 
-    conn.on('error', (err) => this.close(describeSshError(err, this.ssh)));
-    conn.on('close', () => this.close('Connection to the jump server closed'));
+    conn.on('error', (err) => { const { message, ...info } = sshErrorInfo(err, this.ssh); this.close(message, null, info); });
+    conn.on('close', () => this.close('Connection to the jump server closed', null, { code: 'consoles.ssh_closed' }));
 
     conn.connect(sshConnectOptions(this.ssh, this.log));
   }
@@ -113,7 +119,7 @@ export class ConsoleSession extends EventEmitter {
     setTimeout(() => this.#stream?.write('send brk\r'), 150);
   }
 
-  close(reason = 'Session closed', code = null) {
+  close(reason = 'Session closed', code = null, info = { code: 'consoles.session_closed' }) {
     if (this.#closed) return;
     this.#closed = true;
     this.#nudge?.cancel();
@@ -123,7 +129,7 @@ export class ConsoleSession extends EventEmitter {
     try { this.#conn?.end(); } catch { /* ignore */ }
     this.#stream = null;
     this.#conn = null;
-    this.emit('close', { reason, code });
+    this.emit('close', { reason, code, info: { params: {}, ...info } });
   }
 
   get closed() { return this.#closed; }
@@ -135,7 +141,7 @@ export class ConsoleSession extends EventEmitter {
       this.#bannerTail = (this.#bannerTail + text).slice(-200); // the banner may arrive split across chunks
       if (TELNET_CONNECTED.test(this.#bannerTail)) {
         this.#telnetUp = true;
-        this.#status('connected', 'Console connected');
+        this.#status('connected', 'Console connected', 'consoles.status_connected');
       }
     }
     // Auto-login first: if it answers a prompt, the nudge sees that prompt too and stands down
@@ -144,8 +150,8 @@ export class ConsoleSession extends EventEmitter {
     this.cli.feed(this.decoder.write(buf));
   }
 
-  #status(phase, message) {
-    this.emit('status', { phase, message });
+  #status(phase, message, code, params = {}) {
+    this.emit('status', { phase, message, code, params });
   }
 }
 

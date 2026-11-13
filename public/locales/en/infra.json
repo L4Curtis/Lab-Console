@@ -1,0 +1,125 @@
+{
+  "title": "Infrastructure",
+  "subtitle": "Proxmox VMs and admin switches",
+  "tabs": {
+    "vms": "Virtual machines",
+    "switches": "Admin switches"
+  },
+  "placeholder": {
+    "title": "Virtual machines",
+    "subtitle": "Proxmox VE",
+    "heading": "Proxmox VM management will live here",
+    "text": "Start, stop and open the console of the lab virtual machines from the same place as your routers and switches. VM consoles will open in the same terminal workspace.",
+    "note": "Not available yet."
+  },
+  "switches": {
+    "none": "No admin switch is listed in config/infrastructure.json.",
+    "other": "Other",
+    "open": "Open console",
+    "show": "Show console",
+    "busy": "{name} is in use by another session. Try again when it is free.",
+    "state": {
+      "idle": "Free",
+      "open": "Open in your workspace",
+      "busy": "In use by another session",
+      "disabled": "Not on the allow-list"
+    }
+  },
+  "vm": {
+    "filter": "Filter by name, VM id or VLAN",
+    "filterLabel": "Filter virtual machines",
+    "selectAll": "Select all VMs shown",
+    "startSelected": "Start selected",
+    "stopSelected": "Stop selected",
+    "clear": "Clear",
+    "reachedVia": "Proxmox is reached through the SSH jump server",
+    "hostVia": "{host} via {via}",
+    "reload": "Reload from Proxmox",
+    "clone": "Clone template",
+    "colVm": "VM",
+    "colVlan": "VLAN (net0)",
+    "colConsole": "Console",
+    "colPower": "Power",
+    "notConfigured": "Proxmox is not configured",
+    "notConfiguredHint": "Set PROXMOX_URL, PROXMOX_USERNAME and PROXMOX_PASSWORD in .env and restart the platform.",
+    "loading": "Asking Proxmox through the jump server…",
+    "reloaded": "VM list reloaded",
+    "unreachable": "Could not reach Proxmox: {error}",
+    "noMatch": "No VM matches this filter.",
+    "none": "No VMs yet. Use Clone template to create one.",
+    "count": {
+      "one": "{count} VM",
+      "other": "{count} VMs"
+    },
+    "templateCount": {
+      "one": "{count} template",
+      "other": "{count} templates"
+    },
+    "foot": "{vms}. {templates} available to clone.",
+    "rowLabel": "{action} {name}",
+    "serial": "Serial",
+    "vnc": "VNC",
+    "noSerial": "No serial port on this VM (add serial0: socket in Proxmox)",
+    "serialTitle": "Text console in the workspace",
+    "vncTitle": "Graphical console in the workspace",
+    "startFirst": "Start the VM first",
+    "start": "Start",
+    "startTitle": "Start the VM",
+    "stop": "Stop",
+    "stopTitle": "Shut down the guest cleanly (ACPI)",
+    "forceStop": "Force stop",
+    "forceStopTitle": "Cut the power immediately",
+    "select": "Select {name}",
+    "status": {
+      "running": "Running",
+      "stopped": "Stopped",
+      "paused": "Paused"
+    },
+    "location": "{vmid} on {node}",
+    "noNet0": "no net0",
+    "vlanNone": "none",
+    "vlanLabel": "VLAN tag of {name} net0",
+    "vlanTitle": "net0 on {bridge}. Empty = untagged.",
+    "vlanSet": "Set",
+    "vlanNowUntagged": "{name} net0 is now untagged",
+    "vlanNowTagged": "{name} net0 is now on VLAN {vlan}",
+    "selected": {
+      "one": "{count} selected ({running} running, {stopped} stopped)",
+      "other": "{count} selected ({running} running, {stopped} stopped)"
+    },
+    "tickHint": "Tick VMs to start or stop several at once",
+    "confirmStop": {
+      "one": "Shut down {count} VM?",
+      "other": "Shut down {count} VMs?"
+    },
+    "bulkStarting": {
+      "one": "Starting {count} VM. Progress shows above the list.",
+      "other": "Starting {count} VMs. Progress shows above the list."
+    },
+    "bulkStopping": {
+      "one": "Shutting down {count} VM. Progress shows above the list.",
+      "other": "Shutting down {count} VMs. Progress shows above the list."
+    },
+    "bulkFailedStart": "Could not start {names}",
+    "bulkFailedStop": "Could not stop {names}",
+    "confirmForceStop": "Force stop {name}? This is like pulling the power cable.",
+    "powerStarting": "{name}: starting",
+    "powerStopping": "{name}: shutting down",
+    "powerForceStopping": "{name}: force-stopping",
+    "noTemplate": "No template found. Convert a VM to a template in Proxmox first."
+  },
+  "clone": {
+    "title": "Clone template",
+    "template": "Template",
+    "name": "Name",
+    "nameHint": "Letters, digits and dashes. Becomes the VM hostname.",
+    "namePlaceholder": "e.g. vpc-5h1",
+    "node": "Node",
+    "sameNode": "Same node as the template",
+    "vlan": "VLAN tag of net0",
+    "vlanHint": "Leave empty for no tag.",
+    "untagged": "Untagged",
+    "submit": "Clone",
+    "started": "Cloning {name}. Progress shows above the VM list."
+  }
+}

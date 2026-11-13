@@ -1,0 +1,62 @@
+{
+  "errors": {
+    "no_prompt": "No Cisco prompt answered.",
+    "rommon": "The device is in ROMMON (rommon >): it did not load IOS. Someone must check it on site.",
+    "boot_loader": "The switch is at its boot loader (switch:): it did not load IOS. Someone must check it on site.",
+    "booting": "The device is printing continuously (it looks like it is booting): nothing was typed.",
+    "silent": "The device does not answer: check its power and its console cable on site.",
+    "line_password": "The console line asks for a password that is not known: the device is locked until someone recovers it on site.",
+    "login_required": "The device asks for a username: console login is not supported.",
+    "enable_refused": "The enable secret was refused ({attempts} attempts).",
+    "enable_password_required": "The device asks for an enable secret and none was supplied.",
+    "unknown_question": "The device asks a question the driver does not know: \"{question}\". Nothing was answered.",
+    "unknown_state": "The console is in a state the driver does not recognise: \"{line}\".",
+    "not_ios": "This device does not run Cisco IOS or IOS XE: it is left untouched.",
+    "not_privileged": "The device is not in privileged EXEC (#).",
+    "command_refused": "The device refused the command: {detail}",
+    "incomplete_output": "The device stopped answering before the end of the output.",
+    "export_failed": "The running configuration could not be read: {detail}",
+    "bad_target": "Not an IPv4 address: \"{target}\".",
+    "no_backup": "No proof of a backup: the device is not erased.",
+    "backup_mismatch": "The backup is of {expected}, but the device is {hostname}: the device is not erased.",
+    "erase_failed": "The startup configuration could not be erased.",
+    "vlan_delete_failed": "flash:vlan.dat could not be deleted: {detail}",
+    "register_failed": "The configuration register could not be set back to 0x2102.",
+    "reload_refused": "The device did not reload.",
+    "boot_stalled": "The boot stalled: nothing was printed for {seconds} s.",
+    "boot_timeout": "The device did not reach a prompt within {minutes} minutes.",
+    "not_factory": "After the reload the device is not in its factory state: {detail}",
+    "vlans_survived": "VLANs are still present after the reload: {vlans}."
+  },
+  "steps": {
+    "look": "Looking at the console",
+    "wake": "Waking the console (Enter)",
+    "enable": "Entering privileged EXEC (enable)",
+    "line_password": "Answering the console line password",
+    "end": "Leaving configuration mode",
+    "dialog": "Answering \"no\" to the initial configuration dialog",
+    "read_config": "Reading the running configuration",
+    "erase": "Erasing the startup configuration",
+    "vlan": "Deleting flash:vlan.dat",
+    "register": "Setting the configuration register back to 0x2102",
+    "reload": "Reloading without saving",
+    "boot": "Following the boot",
+    "pnp": "Waiting for Plug-and-Play discovery to stop",
+    "factory_check": "Checking the factory state"
+  },
+  "stages": {
+    "check": "checks before erasing",
+    "erase": "erasing the startup configuration",
+    "vlan": "deleting vlan.dat",
+    "register": "configuration register",
+    "reload": "reload",
+    "boot": "boot",
+    "dialog": "initial configuration dialog",
+    "pnp": "Plug-and-Play discovery",
+    "factory_check": "factory state check"
+  },
+  "warnings": {
+    "register_unusual": "The configuration register is not 0x2102: the router ignores or changes how it loads its configuration.",
+    "pnp_not_stopped": "Plug-and-Play discovery did not report that it stopped."
+  }
+}

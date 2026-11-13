@@ -6,9 +6,11 @@
 import { Terminal } from '/vendor/xterm/lib/xterm.mjs';
 import { FitAddon } from '/vendor/xterm-addon-fit/lib/addon-fit.mjs';
 import { icon, h } from '../core/dom.js';
+import { t, tAttr } from '../core/i18n.js';
 import { BasePane } from './pane.js';
 import { TaskBar, downloadText } from './taskBar.js';
 import { openScriptDialog } from './scriptDialog.js';
+import { serverText } from './serverText.js';
 
 // High-contrast palette tuned for long CLI sessions; every ANSI colour,
 // including "bright black" (used for dim text), stays readable on the background
@@ -24,16 +26,17 @@ const THEME = {
   brightBlue: '#97C9F5', brightMagenta: '#E3B8F5', brightCyan: '#94E4EA', brightWhite: '#FFFFFF',
 };
 
-const PHASE_TEXT = { ssh: 'Reaching jump server', telnet: 'Opening console', proxmox: 'Opening VM console', connected: 'Connected', login: 'Connected' };
+// What the status line says for each phase the server reports (terminal.phase.<phase>)
+const PHASES = new Set(['ssh', 'telnet', 'proxmox', 'connected', 'login']);
 
 export class TerminalPane extends BasePane {
   constructor(session, opts) {
     const actions = [];
     // BREAK and config export only make sense on Cisco consoles behind the terminal server
-    const exportBtn = h('button.icon-btn', { type: 'button', title: 'Export config: download show running-config as a .txt file', onclick: () => this.exportConfig() }, icon('download'));
-    const injectBtn = h('button.icon-btn', { type: 'button', title: 'Inject script: send a list of commands, line by line', onclick: () => this.openInject() }, icon('script'));
+    const exportBtn = h('button.icon-btn', { type: 'button', ...tAttr('title', 'terminal.actions.export'), onclick: () => this.exportConfig() }, icon('download'));
+    const injectBtn = h('button.icon-btn', { type: 'button', ...tAttr('title', 'terminal.actions.inject'), onclick: () => this.openInject() }, icon('script'));
     if (session.kind === 'console') {
-      actions.push(h('button.icon-btn', { type: 'button', title: 'Send BREAK (password recovery, ROMMON)', onclick: () => this.#send({ type: 'break' }) }, icon('break')), exportBtn);
+      actions.push(h('button.icon-btn', { type: 'button', ...tAttr('title', 'terminal.actions.break'), onclick: () => this.#send({ type: 'break' }) }, icon('break')), exportBtn);
     }
     if (session.kind === 'console' || session.kind === 'serial') actions.push(injectBtn);
     super(session, opts, actions);
@@ -74,7 +77,7 @@ export class TerminalPane extends BasePane {
 
   connect() {
     this.ws?.close();
-    this.setState('connecting', 'Starting…');
+    this.setState('connecting', () => t('terminal.pane.starting'));
     this.hideEnd();
     if (this.everConnected) this.term.write('\r\n');
     this.everConnected = true;
@@ -88,9 +91,9 @@ export class TerminalPane extends BasePane {
       const msg = JSON.parse(e.data);
       if (msg.type === 'status') {
         const live = msg.phase === 'connected' || msg.phase === 'login';
-        this.setState(live ? 'connected' : 'connecting', PHASE_TEXT[msg.phase] || msg.message);
+        this.setState(live ? 'connected' : 'connecting', () => (PHASES.has(msg.phase) ? t(`terminal.phase.${msg.phase}`) : serverText(msg)));
         // Only pre-connection steps go into the scrollback; once the device talks, the terminal is its own
-        if (!live) this.term.write(`\x1b[90m› ${msg.message}\x1b[0m\r\n`);
+        if (!live) this.term.write(`\x1b[90m› ${serverText(msg)}\x1b[0m\r\n`);
       } else if (msg.type === 'automation') {
         this.task.update(msg);
         this.#setAutomationRunning(msg.state === 'running');
@@ -98,12 +101,12 @@ export class TerminalPane extends BasePane {
         downloadText(msg.filename, msg.content);
       } else if (msg.type === 'error' || msg.type === 'exit') {
         ended = true;
-        this.#end(msg.type === 'error' ? 'error' : 'closed', msg.message);
+        this.#end(msg.type === 'error' ? 'error' : 'closed', () => serverText(msg));
       }
     };
     ws.onclose = (e) => {
       if (ended || ws !== this.ws) return;
-      this.#end('closed', e.code === 1006 ? 'Connection to the platform was lost' : e.reason || 'Session closed');
+      this.#end('closed', () => (e.code === 1006 ? t('terminal.pane.connectionLost') : e.reason || t('terminal.pane.sessionClosed')));
     };
   }
 
@@ -111,7 +114,7 @@ export class TerminalPane extends BasePane {
   exportConfig() {
     if (!this.#canAutomate()) return;
     this.#setAutomationRunning(true);
-    this.task.update({ state: 'running', message: 'Starting the export' });
+    this.task.update({ state: 'running', key: 'terminal.task.startingExport' });
     this.#send({ type: 'export-config' });
   }
 
@@ -122,7 +125,7 @@ export class TerminalPane extends BasePane {
       session: this.session,
       onSend: (script, options) => {
         this.#setAutomationRunning(true);
-        this.task.update({ state: 'running', message: 'Starting the script' });
+        this.task.update({ state: 'running', key: 'terminal.task.startingScript' });
         this.#send({ type: 'inject', script, options });
         this.focus();
       },
@@ -131,7 +134,7 @@ export class TerminalPane extends BasePane {
 
   #canAutomate() {
     if (this.state !== 'connected') {
-      this.task.update({ state: 'error', message: 'Connect to the device first.' });
+      this.task.update({ state: 'error', key: 'terminal.task.connectFirst' });
       return false;
     }
     return !this.task.running;
@@ -145,7 +148,7 @@ export class TerminalPane extends BasePane {
   #end(state, message) {
     this.#setAutomationRunning(false);
     if (this.task.running) this.task.hide();
-    this.term.write(`\r\n\x1b[${state === 'error' ? '91' : '90'}m› ${message}\x1b[0m\r\n`);
+    this.term.write(`\r\n\x1b[${state === 'error' ? '91' : '90'}m› ${message()}\x1b[0m\r\n`);
     this.showEnd(state, message);
   }
 
@@ -172,7 +175,13 @@ export class TerminalPane extends BasePane {
 
   focus() { this.term.focus(); }
 
+  retranslate() {
+    super.retranslate();
+    this.task.retranslate();
+  }
+
   dispose() {
+    this.release();
     if (this.ws) { this.ws.onclose = null; this.ws.close(); }
     this.term.dispose();
     this.el.remove();

@@ -6,25 +6,27 @@
  */
 import { h } from '../../core/dom.js';
 import { getJson } from '../../core/api.js';
+import { tAttr, tNode, loadNamespace } from '../../core/i18n.js';
 import { SplitView } from '../../shared/splitView.js';
 import { VmPanel } from './vmPanel.js';
 import { SwitchPanel } from './switchPanel.js';
 
 const TABS = [
-  { id: 'vms', label: 'Virtual machines' },
-  { id: 'switches', label: 'Admin switches' },
+  { id: 'vms', labelKey: 'infra.tabs.vms' },
+  { id: 'switches', labelKey: 'infra.tabs.switches' },
 ];
 
-export function mount(el, { navigate }) {
+export async function mount(el, { navigate }) {
+  await loadNamespace('infra');
   let tab = 'vms';
   const tabBtns = Object.fromEntries(TABS.map((t) => [t.id,
-    h('button.seg-btn', { type: 'button', role: 'tab', onclick: () => select(t.id) }, t.label)]));
+    h('button.seg-btn', { type: 'button', role: 'tab', onclick: () => select(t.id) }, tNode(t.labelKey))]));
   el.append(h('header.view-head',
-    h('div.view-title', h('h1', 'Infrastructure'), h('p', 'Proxmox VMs and admin switches')),
-    h('div.seg', { role: 'tablist', 'aria-label': 'Infrastructure' }, Object.values(tabBtns))));
+    h('div.view-title', h('h1', tNode('infra.title')), h('p', tNode('infra.subtitle'))),
+    h('div.seg', { role: 'tablist', ...tAttr('aria-label', 'infra.title') }, Object.values(tabBtns))));
 
   const primary = h('div.infra-primary');
-  const split = new SplitView(el, primary, { label: 'Infrastructure' });
+  const split = new SplitView(el, primary, { labelKey: 'infra.title' });
   const panels = { vms: null, switches: new SwitchPanel() };
 
   // The VM panel needs to know whether Proxmox is configured (and how it is reached)

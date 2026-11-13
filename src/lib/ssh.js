@@ -35,11 +35,18 @@ function verifyHostKey(key, ssh, log) {
   return ok;
 }
 
-export function describeSshError(err, ssh) {
-  if (err.level === 'client-authentication') return 'Jump server rejected the SSH credentials (check SSH_USERNAME / SSH_PASSWORD)';
-  if (err.code === 'ECONNREFUSED') return `Jump server ${ssh.host}:${ssh.port} refused the connection`;
-  if (err.code === 'ETIMEDOUT' || /timed out/i.test(err.message)) return `Jump server ${ssh.host} did not answer in time`;
-  if (err.code === 'EHOSTUNREACH' || err.code === 'ENETUNREACH') return `Jump server ${ssh.host} is unreachable from the platform`;
-  if (/host key|verification/i.test(err.message)) return 'Jump server identity check failed (SSH_HOST_FINGERPRINT mismatch)';
-  return `SSH error: ${err.message}`;
+/**
+ * Why an SSH connection to the jump server failed: the English sentence plus a
+ * stable `code` and `params` for the browser to translate (ARCHITECTURE §4)
+ */
+export function sshErrorInfo(err, ssh) {
+  const host = ssh.host;
+  if (err.level === 'client-authentication') return { code: 'consoles.ssh_rejected', params: {}, message: 'Jump server rejected the SSH credentials (check SSH_USERNAME / SSH_PASSWORD)' };
+  if (err.code === 'ECONNREFUSED') return { code: 'consoles.ssh_refused', params: { host, port: ssh.port }, message: `Jump server ${ssh.host}:${ssh.port} refused the connection` };
+  if (err.code === 'ETIMEDOUT' || /timed out/i.test(err.message)) return { code: 'consoles.ssh_timeout', params: { host }, message: `Jump server ${ssh.host} did not answer in time` };
+  if (err.code === 'EHOSTUNREACH' || err.code === 'ENETUNREACH') return { code: 'consoles.ssh_unreachable', params: { host }, message: `Jump server ${ssh.host} is unreachable from the platform` };
+  if (/host key|verification/i.test(err.message)) return { code: 'consoles.ssh_identity', params: {}, message: 'Jump server identity check failed (SSH_HOST_FINGERPRINT mismatch)' };
+  return { code: 'consoles.ssh_error', params: { detail: err.message }, message: `SSH error: ${err.message}` };
 }
+
+export const describeSshError = (err, ssh) => sshErrorInfo(err, ssh).message;

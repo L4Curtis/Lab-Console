@@ -12,7 +12,8 @@ Browser ──WebSocket──► Lab Console ──SSH (exec)──► jump serv
 
 ```bash
 cp .env.example .env        # Windows: Copy-Item .env.example .env
-# edit .env: SSH_* (jump server) and TELNET_* (console login)
+# edit .env: PUBLIC_URL, SSH_* (jump server) and TELNET_* (console login)
+npm run setup-admin         # prints the three LOCAL_ADMIN_* lines: paste them into .env
 docker compose up -d --build
 ```
 
@@ -27,8 +28,12 @@ npm start
 
 ## Try it without the lab
 
-`dev/mock-lab.js` runs a fake SSH jump server whose "devices" answer like a
-small Cisco IOS console (login, `enable`, `conf t`, `show ip int brief`…).
+`dev/mock-lab.js` runs a fake SSH jump server whose devices answer like Cisco
+IOS and IOS XE consoles (`dev/fakeIos.js`: enable secret, configuration modes,
+`show running-config` with its pager, VLANs, erase and reload with a boot and
+the initial configuration dialog…). Each console port keeps its device for as
+long as the mock lab runs, takes one session at a time like a real console
+server, and shows nothing until you press Enter.
 
 ```bash
 # in .env
@@ -38,9 +43,22 @@ npm run mock-lab     # terminal 1
 npm start            # terminal 2
 ```
 
-`MOCK_DOWN_PORTS=2003` simulates an unplugged console.
+To try the identity provider as well, `npm run mock-oidc` starts a fake one
+on `http://127.0.0.1:9100` with a user picker (three students, one admin) and
+prints the `OIDC_*` lines to put in `.env`. Anyone can sign in as anyone
+there: it is a development tool, and it refuses to start with
+`NODE_ENV=production`. A pre-production Docker stack can use it through
+`docker-compose.preprod.yml` (docs/v2/AUTH.md §6).
+
+`MOCK_DOWN_PORTS=2003` simulates an unplugged console, `MOCK_BUSY_PORTS=2004`
+a line held outside the app.
 `MOCK_LOGIN_PORTS=2001` simulates a terminal server that shows `login:`
 immediately and hangs up on an empty login.
+`MOCK_MODELS=2001=2811,2002=c9300l` chooses the model per console port
+(default: 2811 for names starting with R, 2960 otherwise),
+`MOCK_STATES=2005=linepass,2006=dialog,2007=rommon,2008=silent` the state a
+console starts in, `MOCK_ENABLE_SECRET` an enable secret for every device,
+`MOCK_TIME_SCALE=0.02` how fast devices boot.
 
 ## The diagram
 
@@ -95,9 +113,20 @@ top/middle/bottom). Any other naming falls back to plain tabs.
 Recommended on the jump server: a dedicated account that may only run telnet,
 for example `ForceCommand` in `sshd_config` or a restricted shell.
 
-The platform has no login: anyone who can open it can use the lab consoles,
-the admin switches and the Proxmox VMs. Expose it on the lab network only, or
-behind your school's reverse proxy/SSO (set `TRUST_PROXY=true`).
+**Everything needs a signed-in user**: pages, API, live events and the three
+console WebSockets. People sign in through your identity provider (OpenID
+Connect: Pocket ID, Authentik, Keycloak, Authelia…), and a local
+administrator (password + one-time code) always exists for when the provider
+is down. There is no mode without sign-in: the platform refuses to start until
+`LOCAL_ADMIN_*` is set (`npm run setup-admin`). Configuration:
+[docs/v2/AUTH.md](docs/v2/AUTH.md).
+
+Behind a reverse proxy, list every hop in `TRUSTED_PROXIES` (IP addresses or
+CIDR blocks; behind a CDN, its published ranges too) so that client addresses
+are read from `X-Forwarded-For`; the header is ignored when it comes from
+anyone else. The upstream `TRUST_PROXY=true` is refused at start-up. State (sessions, audit trail,
+and later backups) is written to `DATA_DIR` only: the Docker image runs with
+a read-only root filesystem and a volume on `/data`.
 
 ## Console tools (v1.1)
 
@@ -242,6 +271,8 @@ src/
   config.js                 .env loading and validation
   lib/                      logger, SSE hub, security helpers, SSH options + shared SSH tunnel,
                             CLI automation (config export, paced script injection)
+  lib/drivers/ciscoIos.js   Cisco IOS / IOS XE procedures: prepare, identify, backup,
+                            erase and reload, replay script
   modules/
     index.js                module registry
     consoles/               lab consoles: diagram parser, registry, SSH→telnet sessions
@@ -254,8 +285,8 @@ public/
   js/shared/                workspace (shared by all sections), terminal + VNC panes, split layout
   js/modules/infra/         Infrastructure section: VMs, network dialog, admin switches
 scripts/check-diagram.js    diagram linter
-dev/mock-lab.js             fake jump server (telnet + port forwarding)
-dev/fakeIos.js              simulated Cisco IOS (paging, config memory, slow-console mode)
+dev/mock-lab.js             fake jump server (telnet, line probe, port forwarding); importable
+dev/fakeIos.js              simulated Cisco IOS / IOS XE (four families, boot, erase, VLANs, slow console)
 dev/mock-proxmox.js         fake Proxmox VE (HTTPS, API, serial + VNC consoles)
 config/infrastructure.json  admin switches
 test/                       node:test unit tests (npm test)

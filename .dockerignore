@@ -1,5 +1,7 @@
 node_modules
 .env
+data
+docs
 .git
 test
 dev

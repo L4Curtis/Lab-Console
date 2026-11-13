@@ -6,11 +6,19 @@ services:
     env_file: .env
     environment:
       PORT: "3000"            # inside the container; publish another host port below if needed
+      DATA_DIR: /data         # the volume below, whatever .env says
     ports:
       - "${PORT:-3000}:3000"
+    # Nothing is written outside the data volume
+    read_only: true
     volumes:
       # Edit the diagram on the host: the app reloads it within seconds
       - ./diagrams:/app/diagrams:ro
       # Admin switches, VLAN catalog and (optionally) the Proxmox CA file
       - ./config:/app/config:ro
+      # State: sessions, audit trail, backups… (DATA_DIR, the only writable path)
+      - lab-console-data:/data
     restart: unless-stopped
+
+volumes:
+  lab-console-data:

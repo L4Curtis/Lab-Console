@@ -7,12 +7,12 @@ import { h, icon, toast } from '../../core/dom.js';
 import { getJson, live } from '../../core/api.js';
 import { workspace } from '../../shared/workspace.js';
 import { consoleSession } from '../../shared/sessions.js';
-
-const STATE_TEXT = { idle: 'Free', open: 'Open in your workspace', busy: 'In use by another session', disabled: 'Not on the allow-list' };
+import { t, tNode, onLocaleChange } from '../../core/i18n.js';
 
 export class SwitchPanel {
   switches = [];
   busy = new Set();
+  loaded = false;
   #cards = new Map();
 
   constructor() {
@@ -20,11 +20,13 @@ export class SwitchPanel {
     this.el = h('div.panel', this.grid);
     live.on('consoles:busy', (targets) => { this.busy = new Set(targets); this.#refresh(); });
     workspace.addEventListener('change', () => this.#refresh());
+    onLocaleChange(() => { if (this.loaded) this.#render(); });
   }
 
   async show() {
     try {
       ({ switches: this.switches } = await getJson('/api/consoles/admin-switches'));
+      this.loaded = true;
     } catch (err) {
       this.grid.replaceChildren(h('p.form-error', err.message));
       return;
@@ -35,14 +37,14 @@ export class SwitchPanel {
   #render() {
     this.#cards.clear();
     if (!this.switches.length) {
-      this.grid.replaceChildren(h('p.muted', 'No admin switch is listed in config/infrastructure.json.'));
+      this.grid.replaceChildren(h('p.muted', tNode('infra.switches.none')));
       return;
     }
-    const bays = Map.groupBy(this.switches, (s) => s.bay || 'Other');
+    const bays = Map.groupBy(this.switches, (s) => s.bay || t('infra.switches.other'));
     this.grid.replaceChildren(...[...bays].map(([bay, list]) => h('section.bay',
       h('h3', bay),
       h('div.bay-cards', list.map((s) => {
-        const btn = h('button.btn.primary.small', { type: 'button', onclick: () => this.#open(s) }, icon('terminal'), 'Open console');
+        const btn = h('button.btn.primary.small', { type: 'button', onclick: () => this.#open(s) }, icon('terminal'), t('infra.switches.open'));
         const state = h('span.switch-state');
         const card = h('article.switch-card',
           h('span.switch-led', { 'aria-hidden': 'true' }),
@@ -57,7 +59,7 @@ export class SwitchPanel {
   #open(s) {
     const session = consoleSession(s, s.bay);
     if (!workspace.panes.has(session.key) && this.busy.has(`${s.target.host}:${s.target.port}`)) {
-      return toast(`${s.labName} is in use by another session. Try again when it is free.`, 'warn');
+      return toast(t('infra.switches.busy', { name: s.labName }), 'warn');
     }
     workspace.open(session);
   }
@@ -65,12 +67,12 @@ export class SwitchPanel {
   #refresh() {
     const mine = workspace.liveTargets();
     for (const { card, state, btn, s } of this.#cards.values()) {
-      const t = `${s.target.host}:${s.target.port}`;
-      const st = !s.allowed ? 'disabled' : mine.has(t) ? 'open' : this.busy.has(t) ? 'busy' : 'idle';
+      const target = `${s.target.host}:${s.target.port}`;
+      const st = !s.allowed ? 'disabled' : mine.has(target) ? 'open' : this.busy.has(target) ? 'busy' : 'idle';
       card.dataset.state = st;
-      state.textContent = STATE_TEXT[st];
+      state.textContent = t(`infra.switches.state.${st}`);
       btn.disabled = st === 'disabled';
-      btn.lastChild.textContent = st === 'open' ? 'Show console' : 'Open console';
+      btn.lastChild.textContent = t(st === 'open' ? 'infra.switches.show' : 'infra.switches.open');
     }
   }
 }

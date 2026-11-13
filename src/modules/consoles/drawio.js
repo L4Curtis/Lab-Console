@@ -336,9 +336,11 @@ function findWarnings(labs) {
   for (const [k, uses] of byTarget) {
     const names = new Set(uses.map((u) => u.name));
     if (names.size > 1) {
-      warnings.push(`Console ${k} is used by different devices: ${uses.map((u) => `${u.lab}/${u.name}`).join(', ')}`);
+      const devices = uses.map((u) => `${u.lab}/${u.name}`).join(', ');
+      warnings.push({ code: 'consoles.warn_different_devices', params: { target: k, devices }, message: `Console ${k} is used by different devices: ${devices}` });
     } else if (uses.length > 1) {
-      warnings.push(`Console ${k} (${uses[0].name}) appears on several pages: ${uses.map((u) => u.lab).join(', ')} — treated as shared equipment`);
+      const labs = uses.map((u) => u.lab).join(', ');
+      warnings.push({ code: 'consoles.warn_several_pages', params: { target: k, name: uses[0].name, labs }, message: `Console ${k} (${uses[0].name}) appears on several pages: ${labs} — treated as shared equipment` });
     }
   }
   return warnings;

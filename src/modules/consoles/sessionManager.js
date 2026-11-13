@@ -21,19 +21,29 @@ export class SessionManager extends EventEmitter {
     setInterval(() => this.#sweepIdle(), 30_000).unref();
   }
 
-  /** @returns {{ok: true} | {ok: false, reason: string}} */
+  /** @returns {{ok: true} | {ok: false, reason: string, code: string, params: object}} - `code`/`params` let the browser translate `reason` */
   canOpen(device, clientId) {
     if (this.#byTarget.has(targetKey(device.target))) {
       const holder = this.#sessions.get(this.#byTarget.get(targetKey(device.target)));
       const since = holder ? new Date(holder.openedAt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '';
-      return { ok: false, reason: `${device.name}'s console is already in use by another session${since ? ` (since ${since})` : ''}` };
+      return {
+        ok: false,
+        reason: `${device.name}'s console is already in use by another session${since ? ` (since ${since})` : ''}`,
+        code: since ? 'consoles.line_busy_since' : 'consoles.line_busy',
+        params: { name: device.name, since },
+      };
     }
     if (this.#sessions.size >= this.limits.maxSessions) {
-      return { ok: false, reason: 'The platform has reached its maximum number of open consoles. Try again shortly.' };
+      return { ok: false, reason: 'The platform has reached its maximum number of open consoles. Try again shortly.', code: 'consoles.platform_full', params: {} };
     }
     const mine = [...this.#sessions.values()].filter((s) => s.clientId === clientId).length;
     if (mine >= this.limits.maxSessionsPerClient) {
-      return { ok: false, reason: `You can keep at most ${this.limits.maxSessionsPerClient} consoles open. Close one first.` };
+      return {
+        ok: false,
+        reason: `You can keep at most ${this.limits.maxSessionsPerClient} consoles open. Close one first.`,
+        code: 'consoles.client_full',
+        params: { max: this.limits.maxSessionsPerClient },
+      };
     }
     return { ok: true };
   }
@@ -57,8 +67,8 @@ export class SessionManager extends EventEmitter {
     return [...this.#byTarget.keys()];
   }
 
-  closeAll(reason) {
-    for (const { session } of this.#sessions.values()) session.close(reason);
+  closeAll(reason, info) {
+    for (const { session } of this.#sessions.values()) session.close(reason, null, info);
   }
 
   #sweepIdle() {
@@ -66,7 +76,8 @@ export class SessionManager extends EventEmitter {
     for (const { session, device } of this.#sessions.values()) {
       if (now - session.lastActivity > this.limits.idleTimeoutMs) {
         const minutes = Math.round(this.limits.idleTimeoutMs / 60_000);
-        session.close(`Closed after ${minutes} minutes without input - ${device.name}'s console is free again`);
+        session.close(`Closed after ${minutes} minutes without input - ${device.name}'s console is free again`, null,
+          { code: 'consoles.idle_timeout', params: { minutes, name: device.name } });
       }
     }
   }

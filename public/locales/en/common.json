@@ -1,0 +1,45 @@
+{
+  "actions": {
+    "ok": "OK",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "close": "Close",
+    "retry": "Try again"
+  },
+  "dialog": {
+    "typeToConfirm": "Type {text} to confirm"
+  },
+  "tabs": {
+    "loadFailed": "This screen could not be loaded. Reload the page."
+  },
+  "shell": {
+    "appTitle": "Lab Console",
+    "sections": "Sections",
+    "consoles": "Consoles",
+    "infra": "Infra",
+    "off": "off",
+    "turnedOff": "{title} (turned off)",
+    "theme": {
+      "toggle": "Switch between light and dark",
+      "label": "Theme"
+    },
+    "language": {
+      "label": "Language",
+      "fr": "Français",
+      "en": "English"
+    }
+  },
+  "errors": {
+    "server": {
+      "internal": "Internal server error.",
+      "not_found": "Not found.",
+      "bad_request": "Invalid request.",
+      "too_large": "Upload too large.",
+      "cross_origin": "Request refused: it does not come from this page."
+    },
+    "auth": {
+      "required": "Sign in to continue.",
+      "forbidden": "You are not allowed to do this."
+    }
+  }
+}
