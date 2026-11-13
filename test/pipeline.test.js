@@ -132,7 +132,9 @@ describe('signed in: the application behaves as upstream', () => {
       { id: 'proxmox', title: 'Infrastructure', enabled: true },
     ]);
     const labs = await (await get(lab, '/api/consoles/labs')).json();
-    assert.deepEqual(Object.keys(labs).sort(), ['error', 'labs', 'version', 'warnings']);
+    // The upstream keys, plus how long console journals are kept (for the journal notice)
+    assert.deepEqual(Object.keys(labs).sort(), ['error', 'journal', 'labs', 'version', 'warnings']);
+    assert.deepEqual(labs.journal, { retentionDays: 14 });
     assert.ok(labs.labs.length > 0);
     assert.deepEqual(await (await get(lab, '/api/proxmox/status')).json(), { proxmox: false });
     const vms = await get(lab, '/api/proxmox/vms');

@@ -149,7 +149,7 @@ export function createConsolesModule({ config, events, logger, infra, services =
   const json = express.json({ limit: '2kb' });
   router.get('/labs', (_req, res) => {
     const { labs, warnings, version, error } = registry.model;
-    res.set('Cache-Control', 'no-store').json({ labs, warnings, version, error });
+    res.set('Cache-Control', 'no-store').json({ labs, warnings, version, error, journal: { retentionDays: config.rooms.journal.retentionDays } });
   });
   router.get('/admin-switches', (_req, res) => {
     res.set('Cache-Control', 'no-store').json({ switches: [...adminSwitches.values()].map((s) => ({ ...s, allowed: isTargetAllowed(s.target) })) });

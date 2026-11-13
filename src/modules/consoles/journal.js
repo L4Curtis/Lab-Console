@@ -105,7 +105,10 @@ export class ConsoleJournal {
           if (!m) continue;
           const meta = this.meta(benchDir, deviceDir, m[1]);
           if (!meta) continue;
-          out.push({ benchDir, deviceDir, day: m[1], bench: meta.bench, device: meta.device, bytes: meta.bytes ?? 0, truncated: Boolean(meta.truncated), meta });
+          // The file itself says how big it is now (the sidecar follows every few seconds)
+          let bytes = meta.bytes ?? 0;
+          try { bytes = fs.statSync(path.join(root, benchDir, deviceDir, `${m[1]}.log`)).size; } catch { /* output not written yet */ }
+          out.push({ benchDir, deviceDir, day: m[1], bench: meta.bench, device: meta.device, bytes, truncated: Boolean(meta.truncated), meta });
         }
       }
     }
