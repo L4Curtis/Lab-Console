@@ -10,7 +10,7 @@
   "create": {
     "title": "Créer une équipe",
     "intro": "Créez l’équipe de votre groupe, puis invitez vos camarades avec leur identifiant. On ne fait partie que d’une équipe à la fois.",
-    "adminNote": "En tant qu’admin, vous n’avez pas besoin d’équipe pour gérer les baies. Vous pouvez quand même en créer une.",
+    "adminNote": "En tant qu’administrateur, vous n’avez pas besoin d’équipe pour gérer les baies. Vous pouvez quand même en créer une.",
     "name": "Nom de l’équipe",
     "placeholder": "Les routeurs fous",
     "submit": "Créer l’équipe",
