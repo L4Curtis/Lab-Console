@@ -29,7 +29,8 @@
       "en": "English"
     },
     "admin": "Admin",
-    "account": "My account"
+    "account": "My account",
+    "status": "Lab status"
   },
   "errors": {
     "server": {
@@ -42,6 +43,12 @@
     "auth": {
       "required": "Sign in to continue.",
       "forbidden": "You are not allowed to do this."
+    },
+    "settings": {
+      "invalid": "Some values are not valid."
     }
+  },
+  "announcement": {
+    "hide": "Hide the announcement"
   }
 }

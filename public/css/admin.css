@@ -1,0 +1,59 @@
+/* Administration (lab parameters, diagram, switches, sessions, audit,
+   announcement) and the lab status section. Builds on accounts.css */
+
+.lab-panel, .switches-panel { max-width: 860px; }
+.lab-form { display: grid; gap: 16px; }
+.lab-section { display: grid; gap: 12px; margin: 0; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.lab-section legend { padding: 0 6px; font-size: 14px; font-weight: 600; }
+.lab-row { display: grid; gap: 4px; }
+.lab-row.check-row { grid-template-columns: auto 1fr; align-items: center; column-gap: 10px; }
+.lab-row.check-row .lab-label { grid-column: 2; grid-row: 1; }
+.lab-row.check-row input { grid-column: 1; grid-row: 1; }
+.lab-row .hint, .lab-row .field-problem { grid-column: 1 / -1; }
+.lab-row .hint { color: var(--ink-3); font-size: 12px; line-height: 1.4; }
+.lab-row .hint:empty { display: none; }
+.lab-label { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.lab-label label { font-size: 13px; color: var(--ink-2); }
+.origin-pill { font-size: 11.5px; padding: 1px 8px; border-radius: 99px; border: 1px solid var(--line); color: var(--ink-3); }
+.origin-pill[data-origin="saved"] { border-color: var(--console); color: var(--console-strong); }
+.origin-pill[data-origin="resetting"] { border-color: var(--led-amber); color: var(--ink); }
+.range-pair { display: flex; align-items: center; gap: 8px; }
+.range-pair .field { width: 120px; }
+textarea.field.mono, .mono { font-family: var(--mono); font-size: 12.5px; }
+.lab-proxmox { margin-top: 18px; display: grid; gap: 8px; }
+.lab-proxmox h3 { margin: 0; font-size: 14px; }
+
+.diagram-panel { display: grid; gap: 12px; }
+.diagram-preview { display: grid; gap: 12px; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.diagram-preview[hidden] { display: none; }
+.preview-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.preview-head h3 { margin: 0; font-size: 15px; }
+.preview-pages { flex-wrap: wrap; }
+.preview-pages .seg-btn[aria-pressed="true"] { background: var(--surface); color: var(--ink); box-shadow: var(--shadow); }
+.preview-canvas { position: relative; height: 420px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--paper); }
+.diff { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.diff-group h4 { margin: 0 0 4px; font-size: 13px; }
+.diff-group ul, .diagram-preview .notice ul { margin: 0; padding-left: 18px; font-size: 12.5px; }
+tr[data-active="true"] td { background: color-mix(in srgb, var(--led-green) 7%, transparent); }
+
+.switches-table .field { width: 100%; min-width: 80px; height: 30px; font-size: 13px; }
+
+.audit-filters { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
+.audit-filter { display: grid; gap: 3px; font-size: 12px; color: var(--ink-3); }
+.audit-filter .field { height: 32px; }
+.audit-table td { vertical-align: top; }
+.audit-details { margin: 6px 0 0; padding: 8px; max-width: 520px; max-height: 240px; overflow: auto; border-radius: 6px; background: var(--surface-2); font: 12px/1.4 var(--mono); white-space: pre-wrap; }
+
+.announcement-options { display: flex; gap: 12px; flex-wrap: wrap; }
+.announcement-current .notice[data-level="warning"] { border-left-color: var(--led-amber); }
+
+.health-cards { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.health-card { display: flex; gap: 12px; align-items: center; padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.health-card strong { display: block; font-size: 14px; }
+.health-state { font-size: 13px; color: var(--ink-2); }
+.health-led { width: 12px; height: 12px; border-radius: 50%; flex: none; background: var(--ink-3); }
+.health-card[data-state="ok"] .health-led { background: var(--led-green); }
+.health-card[data-state="partial"] .health-led { background: var(--led-amber); }
+.health-card[data-state="down"] .health-led { background: var(--led-red); }
+.health-details { margin-top: 12px; }
+.journaling { display: grid; gap: 12px; }

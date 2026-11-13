@@ -1,9 +1,348 @@
 {
   "title": "Administration",
-  "subtitle": "Comptes, invitations et connexion",
+  "subtitle": "Comptes, paramètres du labo, schéma et suivi",
   "tabs": {
     "users": "Utilisateurs",
     "invitations": "Invitations",
-    "sso": "Connexion (SSO)"
+    "sso": "Connexion (SSO)",
+    "lab": "Paramètres du labo",
+    "diagram": "Schéma",
+    "switches": "Switchs d’admin",
+    "sessions": "Sessions",
+    "audit": "Journal d’audit",
+    "announcement": "Annonce"
+  },
+  "confirm": {
+    "title": "Confirmer la modification",
+    "totpIntro": "Ces paramètres touchent à l’accès au labo. Retapez votre mot de passe et un code de votre application d’authentification.",
+    "password": "Mot de passe",
+    "code": "Code à 6 chiffres",
+    "submit": "Confirmer",
+    "passkeyIntro": "Ces paramètres touchent à l’accès au labo. Confirmez avec votre clé d’accès.",
+    "passkey": "Utiliser ma clé d’accès",
+    "unavailable": "Un compte SSO ne peut pas confirmer cette modification ici. Connectez-vous avec l’administrateur local ou un compte administrateur qui a une clé d’accès."
+  },
+  "lab": {
+    "intro": "Comment Lab Console joint les consoles : serveur de rebond SSH, login du serveur de consoles, adresses autorisées. Une modification s’applique aux prochaines consoles ouvertes, sans redémarrage ; les lignes déjà ouvertes ne bougent pas.",
+    "sections": {
+      "ssh": "Serveur de rebond (SSH)",
+      "telnet": "Login du serveur de consoles",
+      "consoles": "Consoles autorisées"
+    },
+    "fields": {
+      "ssh": {
+        "host": "Adresse",
+        "port": "Port",
+        "username": "Utilisateur",
+        "password": "Mot de passe",
+        "privateKey": "Clé privée",
+        "passphrase": "Phrase de passe de la clé",
+        "hostFingerprint": "Empreinte de la clé d’hôte"
+      },
+      "telnet": {
+        "username": "Utilisateur",
+        "password": "Mot de passe",
+        "autoLogin": "Répondre au login automatiquement",
+        "wakeIdleMs": "Délai avant le réveil (ms)"
+      },
+      "consoles": {
+        "allowedHosts": "Serveurs de consoles autorisés",
+        "portRange": "Plage de ports"
+      }
+    },
+    "hints": {
+      "ssh": {
+        "host": "Nom ou adresse IP du serveur de rebond.",
+        "password": "Laissez vide pour garder le mot de passe actuel.",
+        "privateKey": "Au format PEM (-----BEGIN … PRIVATE KEY-----). Laissez vide pour garder la clé actuelle.",
+        "passphrase": "Seulement si la clé est chiffrée.",
+        "hostFingerprint": "« SHA256:… », comme l’affiche ssh-keygen -lf. Fortement conseillé : sans elle, l’identité du rebond n’est pas vérifiée."
+      },
+      "telnet": {
+        "username": "Vide pour les lignes qui ne demandent qu’un mot de passe.",
+        "password": "Laissez vide pour garder le mot de passe actuel.",
+        "wakeIdleMs": "Silence après la connexion avant un Entrée de réveil ; 0 le désactive."
+      },
+      "consoles": {
+        "allowedHosts": "Séparés par des virgules. Une console ailleurs reste affichée mais ne s’ouvre pas."
+      }
+    },
+    "origin": {
+      "environment": "environnement",
+      "saved": "modifié ici",
+      "resetting": "revient à l’environnement"
+    },
+    "reset": "Revenir à l’environnement",
+    "keepSaved": "Annuler",
+    "secretKept": "défini — vide pour le garder",
+    "secretNone": "non défini",
+    "save": "Enregistrer",
+    "saved": "Paramètres enregistrés : ils servent dès la prochaine console.",
+    "nothing": "Rien n’a changé.",
+    "updated": "Modifié le {date} par {by}.",
+    "fromEnvironment": "Toutes les valeurs viennent de l’environnement.",
+    "unreadable": "Ces secrets enregistrés ne sont plus lisibles (APP_SECRET a changé) : {fields}. La valeur de l’environnement est utilisée ; saisissez-les de nouveau.",
+    "problems": {
+      "type": "Valeur invalide.",
+      "required": "Obligatoire.",
+      "too_long": "Trop long.",
+      "format": "Format invalide.",
+      "out_of_range": "Hors des limites.",
+      "too_many": "Trop d’éléments.",
+      "range_order": "Le début doit être avant la fin.",
+      "unknown": "Champ inconnu.",
+      "credentials_required": "Il faut un mot de passe ou une clé privée.",
+      "key_format": "Clé privée illisible (format PEM ou OpenSSH attendu).",
+      "key_passphrase": "La phrase de passe n’ouvre pas cette clé."
+    },
+    "proxmox": {
+      "title": "Proxmox",
+      "note": "Pour information : le module Proxmox lit encore ces valeurs dans l’environnement. Son tunnel se reconnecte quand le rebond change.",
+      "url": "Adresse",
+      "username": "Utilisateur",
+      "password": "Mot de passe",
+      "fingerprint": "Empreinte du certificat",
+      "state": "État",
+      "off": "non configuré"
+    }
+  },
+  "diagram": {
+    "intro": "Le schéma d’où les étudiants ouvrent les consoles. Un fichier importé est vérifié puis gardé comme version, sans rien changer : prévisualisez-le, comparez, puis activez. Chaque version reste disponible ; « Revenir en arrière » remet le schéma actif juste avant.",
+    "import": "Importer un .drawio",
+    "rollback": "Revenir en arrière",
+    "preview": "Aperçu",
+    "download": "Télécharger",
+    "activate": "Activer",
+    "active": "actif",
+    "fromEnvironment": "fichier d’origine (DIAGRAM_PATH)",
+    "deviceCount": {
+      "one": "{count} équipement",
+      "other": "{count} équipements"
+    },
+    "columns": {
+      "name": "Fichier",
+      "devices": "Équipements",
+      "by": "Par",
+      "at": "Date",
+      "state": "État"
+    },
+    "none": "Aucune version.",
+    "pages": "Pages du schéma",
+    "previewTitle": "Aperçu : {name}",
+    "previewMeta": {
+      "one": "{labs} baie(s), {count} équipement",
+      "other": "{labs} baie(s), {count} équipements"
+    },
+    "warnings": {
+      "one": "{count} avertissement",
+      "other": "{count} avertissements"
+    },
+    "diff": {
+      "labsAdded": "Baies ajoutées",
+      "labsRemoved": "Baies retirées",
+      "devicesAdded": "Équipements ajoutés",
+      "devicesRemoved": "Équipements retirés",
+      "devicesMoved": "Consoles déplacées",
+      "same": "Identique au schéma actif.",
+      "none": "Aucune baie ni console ne change (seul le dessin diffère)."
+    },
+    "activateTitle": "Activer ce schéma ?",
+    "activateBody": "« {name} » devient le schéma de tout le monde, tout de suite. Les consoles ouvertes restent ouvertes.",
+    "activated": "Schéma activé.",
+    "imported": "Fichier vérifié et gardé. Regardez l’aperçu avant de l’activer.",
+    "rollbackTitle": "Revenir au schéma précédent ?",
+    "rollbackBody": "Le schéma actif juste avant redevient celui de tout le monde, tout de suite.",
+    "rolledBack": "Schéma précédent rétabli."
+  },
+  "switches": {
+    "intro": "Les consoles qui ne sont pas sur le schéma (switchs d’administration des baies), visibles dans la section Infra. Enregistrées d’un bloc, utilisées tout de suite.",
+    "columns": {
+      "id": "Identifiant",
+      "name": "Nom",
+      "bay": "Baie",
+      "host": "Serveur de consoles",
+      "port": "Port"
+    },
+    "add": "Ajouter",
+    "remove": "Retirer",
+    "save": "Enregistrer la liste",
+    "done": "Liste enregistrée.",
+    "saved": "Modifiée le {date} par {by}.",
+    "fromEnvironment": "Liste d’origine (INFRA_CONFIG_PATH).",
+    "problems": {
+      "type": "Invalide.",
+      "format": "Format invalide.",
+      "duplicate": "Déjà utilisé.",
+      "required": "Obligatoire.",
+      "out_of_range": "1 à 65535.",
+      "too_many": "Trop de lignes."
+    }
+  },
+  "sessions": {
+    "intro": "Tous les navigateurs connectés en ce moment. Fermer une session déconnecte ce navigateur tout de suite, avec ses consoles.",
+    "columns": {
+      "user": "Personne",
+      "browser": "Navigateur",
+      "ip": "Adresse",
+      "since": "Depuis",
+      "lastSeen": "Dernière activité"
+    },
+    "count": {
+      "one": "{count} session",
+      "other": "{count} sessions"
+    },
+    "sockets": {
+      "one": "{count} console ou flux ouvert",
+      "other": "{count} consoles ou flux ouverts"
+    },
+    "none": "Aucune session.",
+    "thisOne": "cette session",
+    "end": "Fermer",
+    "endAll": "Toutes ses sessions",
+    "endTitle": "Fermer cette session ?",
+    "endBody": "{name} sera déconnecté de ce navigateur, ses consoles fermées.",
+    "endOwn": "C’est votre session : vous serez déconnecté.",
+    "endAllTitle": "Fermer toutes ses sessions ?",
+    "endAllBody": "{name} sera déconnecté de tous ses navigateurs.",
+    "ended": "Session fermée.",
+    "endedAll": {
+      "one": "{count} session fermée.",
+      "other": "{count} sessions fermées."
+    }
+  },
+  "audit": {
+    "intro": "Qui a fait quoi, et quand : connexions, consoles, actions d’administration. Le plus récent d’abord.",
+    "filters": {
+      "action": "Action",
+      "actor": "Personne (identifiant)",
+      "bench": "Baie",
+      "since": "Depuis",
+      "until": "Jusqu’à",
+      "limit": "Lignes"
+    },
+    "actionHint": "ex. console ou admin.diagram",
+    "apply": "Filtrer",
+    "clear": "Effacer",
+    "more": "détails",
+    "columns": {
+      "ts": "Date",
+      "actor": "Qui",
+      "action": "Action",
+      "bench": "Baie",
+      "details": "Détails"
+    },
+    "count": {
+      "one": "{count} entrée",
+      "other": "{count} entrées"
+    },
+    "none": "Aucune entrée pour ces filtres."
+  },
+  "announcement": {
+    "intro": "Un message affiché en bandeau à toutes les personnes connectées, tout de suite, jusqu’à ce que vous le retiriez ou que sa durée soit passée.",
+    "text": "Message",
+    "textHint": "Texte simple, 500 caractères au plus.",
+    "level": "Ton",
+    "levels": {
+      "info": "Information",
+      "warning": "Avertissement"
+    },
+    "duration": "Durée",
+    "untilRemoved": "Jusqu’à ce que je le retire",
+    "hours": {
+      "one": "{count} heure",
+      "other": "{count} heures"
+    },
+    "publish": "Publier",
+    "remove": "Retirer",
+    "published": "Annonce publiée.",
+    "removed": "Annonce retirée.",
+    "current": "En ce moment :",
+    "until": "(jusqu’au {date})",
+    "noEnd": "(sans fin)",
+    "nothing": "Aucune annonce en ce moment."
+  },
+  "status": {
+    "title": "État du labo",
+    "subtitle": "Santé de la chaîne d’accès et ce qui est journalisé",
+    "tabs": {
+      "health": "Santé",
+      "journaling": "Ce qui est journalisé"
+    },
+    "intro": "Ce que voit le serveur : le rebond SSH, les serveurs de consoles derrière lui, et Proxmox. Vérifié au plus toutes les 30 secondes.",
+    "refresh": "Vérifier maintenant",
+    "checked": "Vérification faite.",
+    "checkedAt": "Vérifié le {date}.",
+    "parts": {
+      "jump": "Rebond SSH",
+      "consoleServers": "Serveurs de consoles",
+      "consoleServer": "Serveur de consoles",
+      "proxmox": "Proxmox"
+    },
+    "states": {
+      "ok": "répond",
+      "down": "ne répond pas",
+      "unknown": "inconnu",
+      "off": "non configuré",
+      "partial": "en partie"
+    },
+    "serversUp": {
+      "one": "{ok} sur {count} répond",
+      "other": "{ok} sur {count} répondent"
+    },
+    "columns": {
+      "part": "Élément",
+      "address": "Adresse",
+      "state": "État",
+      "error": "Erreur"
+    }
+  },
+  "journaling": {
+    "intro": "Ce que la plateforme garde de ce que vous faites, et combien de temps.",
+    "audit": {
+      "title": "Journal d’audit",
+      "what": "Les connexions et déconnexions, l’ouverture des consoles et les prises de main, les actions d’administration (comptes, paramètres, schéma, sessions, annonces), avec la personne, l’heure et l’adresse.",
+      "kept": "Gardé sur le serveur, un fichier par mois, sans suppression automatique ; seuls les administrateurs le lisent."
+    },
+    "consoles": {
+      "title": "Journal des consoles",
+      "what": "Ce que les équipements affichent sur les consoles ouvertes depuis la plateforme, avec qui avait le clavier. Jamais ce que vous tapez.",
+      "kept": {
+        "one": "Gardé {count} jour, lisible par les participants, l’équipe qui avait la baie et les administrateurs.",
+        "other": "Gardé {count} jours, lisible par les participants, l’équipe qui avait la baie et les administrateurs."
+      }
+    },
+    "noConsoleJournal": {
+      "title": "Journal des consoles",
+      "what": "Cette version n’enregistre pas encore ce qu’affichent les consoles.",
+      "kept": "Rien n’est gardé."
+    },
+    "sessions": {
+      "title": "Sessions",
+      "what": "Votre session garde votre identité, votre adresse et votre navigateur ; les administrateurs les voient.",
+      "kept": "Elle se ferme après {idle} h sans activité et au plus tard après {max} h."
+    },
+    "never": {
+      "title": "Jamais gardé",
+      "what": "Vos mots de passe (seulement une empreinte), les codes à usage unique, ce que vous tapez dans les consoles."
+    }
+  },
+  "errors": {
+    "confirm_unavailable": "Ce compte ne peut pas confirmer ici : connectez-vous avec l’administrateur local ou un compte administrateur qui a une clé d’accès.",
+    "confirm_throttled": "Trop d’essais de confirmation : attendez quelques minutes.",
+    "confirm_failed": "Confirmation refusée.",
+    "confirm_required": "Confirmez d’abord la modification (clé d’accès, ou mot de passe et code).",
+    "diagram_empty_file": "Le fichier est vide.",
+    "diagram_too_large": "Le schéma dépasse 5 Mo.",
+    "diagram_doctype": "Refusé : un schéma ne peut pas déclarer de DOCTYPE ni d’entités.",
+    "diagram_invalid": "Ce n’est pas un schéma draw.io lisible : {detail}",
+    "diagram_no_device": "Ce schéma n’a aucun équipement avec une console.",
+    "diagram_unknown": "Cette version n’existe pas.",
+    "diagram_already_active": "Cette version est déjà le schéma actif.",
+    "diagram_no_previous": "Il n’y a pas de schéma précédent.",
+    "switches_invalid": "Certaines lignes ne sont pas valides.",
+    "session_unknown": "Cette session n’existe plus.",
+    "audit_bad_filter": "Filtre invalide.",
+    "announcement_empty": "Écrivez d’abord le message.",
+    "announcement_invalid": "Une annonce est un texte simple de 500 caractères au plus, pour 1 heure à 30 jours."
   }
 }

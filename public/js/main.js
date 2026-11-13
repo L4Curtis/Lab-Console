@@ -15,6 +15,7 @@ import { getJson } from './core/api.js';
 import { loadSession, session } from './core/session.js';
 import { initI18n, setLocale, getLocale, onLocaleChange, t, tNode } from './core/i18n.js';
 import { mountUserMenu } from './core/userMenu.js';
+import { mountAnnouncement } from './shared/announcement.js';
 
 const MODULES = [
   { id: 'consoles', path: 'consoles', titleKey: 'common.shell.consoles', icon: 'topology', load: () => import('./modules/consoles/index.js') },
@@ -23,6 +24,8 @@ const MODULES = [
   // Administration: the accounts lot's tabs (users, invitations, SSO); the admin lot adds its own
   { id: 'accounts', path: 'admin', titleKey: 'common.shell.admin', icon: 'shield', when: () => session.isAdmin, load: () => import('./modules/admin/index.js') },
   { id: 'accounts', path: 'account', titleKey: 'common.shell.account', icon: 'user', rail: false, load: () => import('./modules/account/index.js') },
+  // Lab status (health, what is journaled): everyone; the admin lot's server module answers it
+  { id: 'admin', path: 'status', titleKey: 'common.shell.status', icon: 'pulse', load: () => import('./modules/status/index.js') },
 ];
 const available = () => MODULES.filter((m) => m.when?.() !== false);
 
@@ -43,6 +46,7 @@ async function init() {
   await initI18n({ defaultLocale: session.locale, namespaces: ['common', 'terminal'] });
   bindLanguageSwitch();
   mountUserMenu();
+  mountAnnouncement(document.querySelector('.views'));
 
   // The backend says which modules are live; disabled ones show a "soon" tag
   let status = [];
