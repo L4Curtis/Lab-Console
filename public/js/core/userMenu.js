@@ -1,6 +1,6 @@
 /**
  * Who is signed in, in the rail: a badge with the user's initials that opens
- * a small menu (name, role, how they signed in, sign out)
+ * a small menu (name, role, how they signed in, My account, sign out)
  *
  *   import { mountUserMenu } from './core/userMenu.js';
  *   mountUserMenu();          // after loadSession() and initI18n()
@@ -25,7 +25,8 @@ export async function mountUserMenu(rail = document.querySelector('.rail')) {
   const via = h('span.user-menu-via');
   const heading = h('span.user-menu-label');
   const out = h('button.btn.wide.user-menu-out', { type: 'button', onclick: () => { out.disabled = true; signOut(); } });
-  const menu = h('div.user-menu#user-menu', { role: 'dialog', hidden: true }, heading, name, h('div.user-menu-meta', role, via), out);
+  const account = h('a.btn.wide.user-menu-account', { href: '#/account', onclick: () => toggle(false) });
+  const menu = h('div.user-menu#user-menu', { role: 'dialog', hidden: true }, heading, name, h('div.user-menu-meta', role, via), account, out);
   const root = h('div.user-menu-root', button, menu);
 
   function render() {
@@ -37,6 +38,7 @@ export async function mountUserMenu(rail = document.querySelector('.rail')) {
     role.textContent = t(`auth.menu.roles.${user.role}`);
     role.dataset.role = user.role;
     via.textContent = user.via === 'oidc' ? t('auth.menu.viaOidc', { provider: session.providerName ?? 'SSO' }) : t('auth.menu.viaLocal');
+    account.textContent = t('auth.menu.account');
     out.textContent = t('auth.menu.signOut');
   }
 

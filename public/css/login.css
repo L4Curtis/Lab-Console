@@ -74,3 +74,20 @@
 
 .login-langs { display: flex; justify-content: center; gap: 4px; border-top: 1px solid var(--line); padding-top: 10px; }
 .login-langs [aria-pressed="true"] { color: var(--ink); font-weight: 600; }
+
+/* One click with a passkey */
+.login-extra { display: grid; gap: 6px; }
+.login-extra .btn { gap: 8px; }
+.login-key { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+
+/* The passkey a password sign-in still owes */
+.login-step { display: grid; gap: 10px; }
+.login-step h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.login-step p { margin: 0; color: var(--ink-2); font-size: 13.5px; line-height: 1.45; }
+.login-step .login-error { color: var(--led-red); }
+
+/* The page of an invitation or a reset link (join.html) uses the same card */
+.join-signup { display: grid; gap: 6px; }
+.join-signup[hidden] { display: none; }
+.join-done { margin: 0; }
+.join-done .btn { text-decoration: none; }

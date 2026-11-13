@@ -1,0 +1,9 @@
+{
+  "title": "Administration",
+  "subtitle": "Comptes, invitations et connexion",
+  "tabs": {
+    "users": "Utilisateurs",
+    "invitations": "Invitations",
+    "sso": "Connexion (SSO)"
+  }
+}

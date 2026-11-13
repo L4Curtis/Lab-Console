@@ -27,7 +27,9 @@
       "label": "Langue",
       "fr": "Français",
       "en": "English"
-    }
+    },
+    "admin": "Admin",
+    "account": "Mon compte"
   },
   "errors": {
     "server": {
