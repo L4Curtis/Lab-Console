@@ -167,6 +167,7 @@ describe('a local account promoted to administrator', () => {
 
 describe('passkeys in My account', () => {
   let lab;
+  let ritaKey;
   before(async () => { lab = await startAccountsApp({ publicHost: 'localhost' }); });
   after(() => lab.close());
 
@@ -217,6 +218,7 @@ describe('passkeys in My account', () => {
     const { id } = await createLocalAccount(lab, 'rita');
     await promote(lab, id);
     const key = new SoftAuthenticator({ origin: lab.url });
+    ritaKey = key;
     const browser = new TestBrowser();
     await localSignIn(lab, browser, 'rita');
     const options = await call(lab, browser, 'POST', '/auth/passkey/step/options', {});
@@ -239,6 +241,21 @@ describe('passkeys in My account', () => {
     const done = await call(lab, browser, 'POST', '/auth/passkey/step/verify', { response: key.register(options.body.options) });
     assert.equal(done.status, 200);
     assert.equal((await call(lab, browser, 'GET', '/api/accounts/users')).status, 200);
+  });
+
+  test('a role changed during the step: the session opened at its end has the new role', async () => {
+    // rita (administrator, one passkey) types her password; meanwhile she is demoted (sam stays an administrator)
+    const browser = new TestBrowser();
+    assert.deepEqual((await localSignIn(lab, browser, 'rita')).body, { step: 'passkey' });
+    const options = await call(lab, browser, 'POST', '/auth/passkey/step/options', {});
+    assert.equal((await call(lab, 'admin', 'PATCH', `/api/accounts/users/${encodeURIComponent('local:rita')}`, { role: 'student' })).status, 200);
+    const rita = lab.deps.services.accounts.get('local:rita');
+    assert.equal(rita.role, 'student');
+    const done = await call(lab, browser, 'POST', '/auth/passkey/step/verify', { response: ritaKey.authenticate(options.body.options) });
+    assert.equal(done.status, 200);
+    const me = await call(lab, browser, 'GET', '/api/accounts/me');
+    assert.equal(me.body.account.role, 'student');
+    assert.equal((await call(lab, browser, 'GET', '/api/accounts/users')).status, 403, 'no administrator session out of a stale step');
   });
 
   test('SSO accounts rely on their provider: no passkeys for them', async () => {

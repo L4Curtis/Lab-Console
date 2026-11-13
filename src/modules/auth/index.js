@@ -429,16 +429,19 @@ export function createAuth({ config, logger, events, store, audit, services = {}
       },
       /**
        * The owed proof was given: the step ends, a session opens, the browser
-       * becomes known for the name it typed. → { redirect } for the browser
+       * becomes known for the name it typed. `user`: the account as it is now
+       * (its role may have changed during the step); it must be the same
+       * person. → { redirect } for the browser, or null when there is no step
        */
-      complete(req, res, { method = 'passkey' } = {}) {
+      complete(req, res, { method = 'passkey', user } = {}) {
         const step = endStep(req, res);
         if (!step) return null;
-        const session = signIn(req, res, step.user);
+        if (user && user.id !== step.user.id) throw new Error('A step is completed for the person who started it');
+        const session = signIn(req, res, user ?? step.user);
         if (step.deviceName) {
           appendCookie(res, serializeCookie(cookies.device, devices.issue(step.deviceName), { secure: cookies.secure, maxAgeSeconds: devices.maxAgeMs / 1000 }));
         }
-        audit?.log(req, 'auth.login', { method: `${step.method}+${method}`, session: session.id, role: step.user.role });
+        audit?.log(req, 'auth.login', { method: `${step.method}+${method}`, session: session.id, role: session.user.role });
         return { redirect: step.returnTo };
       },
       /** The proof was refused: the step is over, the password must be typed again */

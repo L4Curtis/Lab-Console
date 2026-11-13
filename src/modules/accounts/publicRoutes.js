@@ -328,7 +328,10 @@ export function publicRoutes(ctx) {
       log.warn(`passkey step refused for ${account.id}: ${err.message}`);
       return fail(err.reason ?? err.code);
     }
-    const done = auth.steps.complete(req, res, { method: current.kind === 'passkey-enrol' ? 'passkey-enrol' : 'passkey' });
+    // The account as it is now: an administrator may have changed its role or state during the step
+    const now = directory.get(account.id);
+    if (!now || now.state !== 'active') return fail('account_inactive');
+    const done = auth.steps.complete(req, res, { method: current.kind === 'passkey-enrol' ? 'passkey-enrol' : 'passkey', user: directory.toUser(now) });
     if (!done) return stepExpired(res);
     directory.touch(account.id);
     res.json(done);
