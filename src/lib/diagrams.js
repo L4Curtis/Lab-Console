@@ -15,46 +15,38 @@
  *   diagrams.currentPath                 the file the consoles registry reads (and watches)
  *   diagrams.list()                      → { active, canRollback, versions: [...] } newest first
  *   diagrams.inspect(buffer)             → { labs, warnings, devices } or throws a 4xx (see below)
- *   diagrams.add(buffer, { name, actor }) → the new version (not active yet)
+ *   diagrams.add(buffer, { name, actor }) → { version, warnings, labs } (the new version, not active yet)
  *   diagrams.model(id)                   → the parsed labs of a version (preview)
  *   diagrams.compare(id)                 → what changes against the active one
  *   diagrams.activate(id, actor) / diagrams.rollback(actor)
  *   diagrams.fileOf(id)                  → absolute path of a version (download)
  *   diagrams.on('change', fn)            after an activation; the registry reloads
  *
- * A file is refused (400, code admin.diagram_*) when it is over 5 MB, when it
- * declares a DOCTYPE or entities (anywhere, compressed pages included: the
- * XML parser must never expand anything), when the parser rejects it, or when
- * it has no console device at all.
+ * A file is refused (400, code admin.diagram_*) when it is over 5 MB, when its
+ * pages inflate to more than 4 times that, when it declares a DOCTYPE or
+ * entities (anywhere, compressed pages included: the check is made by the
+ * parser itself, on every document it builds, so no way of writing a page
+ * hides one), when the parser rejects it, or when it has no console device at
+ * all. An import or an activation is also refused while the linter finds two
+ * different devices on one console line (what `npm run check-diagram` fails
+ * on): admin.diagram_lint. Rolling back is never refused for that: it goes
+ * back to what was active.
  */
 import fs from 'node:fs';
 import path from 'node:path';
-import zlib from 'node:zlib';
 import crypto from 'node:crypto';
 import { EventEmitter } from 'node:events';
-import { parseDrawio } from '../modules/consoles/drawio.js';
+import { parseDrawio, DrawioRefusal } from '../modules/consoles/drawio.js';
 import { httpError } from './httpError.js';
 import { safeName } from './store.js';
 
 export const MAX_DIAGRAM_BYTES = 5 * 1024 * 1024;
+/** What the pages of one file may inflate to, in all */
+export const MAX_INFLATED_BYTES = 4 * MAX_DIAGRAM_BYTES;
 const MAX_VERSIONS = 30;
 const ID = /^[0-9TZ-]{20,30}-[A-Za-z0-9._-]{1,40}-[0-9a-f]{6}$/;
-const FORBIDDEN = /<!\s*(DOCTYPE|ENTITY)/i;
-
-/** The text of every page, compressed ones decoded, so that nothing hides a DOCTYPE */
-function pagesOf(text) {
-  const out = [text];
-  for (const m of text.matchAll(/<diagram\b[^>]*>([^<]+)<\/diagram>/g)) {
-    const payload = m[1].trim();
-    if (!payload) continue;
-    try {
-      out.push(decodeURIComponent(zlib.inflateRawSync(Buffer.from(payload, 'base64')).toString('utf8')));
-    } catch {
-      // parseDrawio says which page cannot be decoded
-    }
-  }
-  return out;
-}
+/** Warnings that make `npm run check-diagram` fail: two different devices on one console line */
+const BLOCKING_WARNING = 'consoles.warn_different_devices';
 
 /** Device keys → target, per lab, for a comparison */
 function devicesOf(labs) {
@@ -67,21 +59,29 @@ function devicesOf(labs) {
  * Check a candidate file; → { labs, warnings, devices }. Throws a 400 with a
  * code the page translates. `networkPrefix` is the one the registry uses
  */
-export function inspectDiagram(buffer, { networkPrefix = '10.22.9' } = {}) {
+export function inspectDiagram(buffer, { networkPrefix = '10.22.9', strict = false } = {}) {
   if (!Buffer.isBuffer(buffer) || !buffer.length) throw httpError(400, 'admin.diagram_empty_file', 'The file is empty');
   if (buffer.length > MAX_DIAGRAM_BYTES) throw httpError(413, 'admin.diagram_too_large', 'The diagram is over 5 MB', { max: MAX_DIAGRAM_BYTES });
-  const text = buffer.toString('utf8');
-  if (pagesOf(text).some((page) => FORBIDDEN.test(page))) {
-    throw httpError(400, 'admin.diagram_doctype', 'A diagram may not declare a DOCTYPE or entities');
-  }
   let parsed;
   try {
-    parsed = parseDrawio(text, { networkPrefix });
+    parsed = parseDrawio(buffer.toString('utf8'), { networkPrefix, maxInflatedBytes: MAX_INFLATED_BYTES });
   } catch (err) {
+    if (err instanceof DrawioRefusal) {
+      if (err.code === 'doctype') throw httpError(400, 'admin.diagram_doctype', 'A diagram may not declare a DOCTYPE or entities');
+      throw httpError(413, 'admin.diagram_too_large', 'The diagram inflates to more than 20 MB', { max: MAX_DIAGRAM_BYTES });
+    }
     throw httpError(400, 'admin.diagram_invalid', `Not a draw.io diagram: ${err.message}`, { detail: err.message.slice(0, 200) });
   }
   const devices = parsed.labs.reduce((n, l) => n + l.devices.length, 0);
   if (!parsed.labs.length || !devices) throw httpError(400, 'admin.diagram_no_device', 'This diagram has no console device');
+  const blocking = parsed.warnings.filter((w) => w.code === BLOCKING_WARNING);
+  if (strict && blocking.length) {
+    throw httpError(400, 'admin.diagram_lint', `The linter found ${blocking.length} console line(s) shared by different devices`, {
+      count: blocking.length,
+      lines: blocking.slice(0, 5).map((w) => w.params.target).join(', '),
+      problems: blocking.slice(0, 20).map(({ code, params, message }) => ({ code, params, message })),
+    });
+  }
   return { labs: parsed.labs, warnings: parsed.warnings, devices };
 }
 
@@ -157,7 +157,7 @@ export function createDiagrams({ config, store, logger }) {
   }
 
   async function add(buffer, { name, actor } = {}) {
-    const inspected = inspectDiagram(buffer, { networkPrefix: prefix() });
+    const inspected = inspectDiagram(buffer, { networkPrefix: prefix(), strict: true });
     const id = newId(actor?.user ?? actor);
     const who = actor?.user ?? actor ?? {};
     await store.writeFileAtomic(fileOf(id), buffer);
@@ -185,7 +185,7 @@ export function createDiagrams({ config, store, logger }) {
       return doc;
     });
     for (const old of dropped) await fs.promises.rm(fileOf(old), { force: true }).catch(() => {});
-    return { version, warnings: inspected.warnings };
+    return { version, warnings: inspected.warnings, labs: inspected.labs };
   }
 
   async function readVersion(id) {
@@ -245,6 +245,7 @@ export function createDiagrams({ config, store, logger }) {
   async function activate(id, actor) {
     mustFind(id);
     if (index.get().active === id) throw httpError(409, 'admin.diagram_already_active', 'This version is already the active diagram');
+    inspectDiagram(await readVersion(id), { networkPrefix: prefix(), strict: true });
     return install(id, 'push', actor);
   }
 

@@ -8,14 +8,16 @@
  *   GET    /health                     states only; administrators get the details   ?fresh=1 (admins)
  *   GET    /journaling                 what is recorded and for how long
  * Administrators only:
- *   GET    /lab                        { settings (secrets as { set }), proxmox, confirm: { method } }
+ *   GET    /lab                        { settings (secrets as { set }), proxmox, confirm: { method }, ssoOutcome }
  *   PUT    /lab                        { values, confirmation } → applied to the consoles opened next
- *   GET    /confirm                    { method: 'totp' | 'passkey' | null }
+ *   POST   /lab/confirm-sso            { values } → { url }: an SSO administrator signs in again at the provider;
+ *                                      the change is applied on return, its outcome comes with the next GET /lab
+ *   GET    /confirm                    { method: 'totp' | 'passkey' | 'sso' | null }
  *   POST   /confirm/options            passkey options (navigator.credentials.get)
  *   POST   /confirm                    { password, code } | { response } → { ticket, expiresAt }
  *   GET    /diagrams                   versions, newest first, and which one is active
- *   POST   /diagrams?name=             the raw file (5 MB at most) → { version, warnings, diff }
- *   GET    /diagrams/:id/preview       { labs, warnings, diff }
+ *   POST   /diagrams?name=             the raw file (5 MB at most) → { version, warnings, diff, outsideAllowList }
+ *   GET    /diagrams/:id/preview       { labs, warnings, diff, outsideAllowList }
  *   GET    /diagrams/:id/download      the file
  *   POST   /diagrams/:id/activate      the consoles follow at once
  *   POST   /diagrams/rollback          back to the diagram active before
@@ -44,7 +46,7 @@ const ACTION = /^[a-z][a-z0-9_.-]{0,60}$/;
 export function createAdminModule({ config, logger, events, store, audit, auth, settings, diagrams, infra, services }, { now = Date.now } = {}) {
   const log = logger?.child ? logger.child('admin') : logger ?? { info() {}, warn() {}, error() {} };
   const confirmations = createConfirmations({ auth, services, now });
-  const health = createHealth({ settings, config, logger: log, now });
+  const health = createHealth({ settings, config, services, logger: log, now });
   const announcements = createAnnouncements({ store, events, audit, logger: log, now });
   const stopHealth = settings.on('change', (ns) => { if (ns === 'lab') health.forget(); });
 
@@ -82,13 +84,34 @@ export function createAdminModule({ config, logger, events, store, audit, auth, 
     : { enabled: false });
   const labPage = (req) => ({ settings: settings.describe('lab'), proxmox: proxmoxInfo(), confirm: { method: confirmations.methodOf(req.user) } });
 
-  admin.get('/lab', (req, res) => res.set('Cache-Control', 'no-store').json(labPage(req)));
+  admin.get('/lab', (req, res) => res.set('Cache-Control', 'no-store').json({ ...labPage(req), ssoOutcome: confirmations.takeSsoOutcome(req) }));
   admin.put('/lab', small, async (req, res) => {
     const input = body(req);
-    confirmations.consume(req, input.confirmation);
+    // Order matters: the ticket is checked first, the values next, and the ticket is spent only
+    // when both are good, so a typo in a port does not cost the administrator a new confirmation
+    try {
+      confirmations.verify(req, input.confirmation);
+    } catch (err) {
+      confirmations.spend(input.confirmation); // a ticket that did not fit cannot be tried again
+      throw err;
+    }
+    settings.check('lab', input.values);
+    confirmations.spend(input.confirmation);
     const outcome = await settings.update('lab', input.values, req);
     tellAdmins('lab');
     res.json({ ...labPage(req), changed: outcome.changed, reset: outcome.reset });
+  });
+
+  admin.post('/lab/confirm-sso', small, async (req, res) => {
+    const values = body(req).values;
+    settings.check('lab', values); // a typo is told now, not after a trip to the provider
+    const started = await confirmations.beginSso(req, res, async () => {
+      const outcome = await settings.update('lab', values, req);
+      tellAdmins('lab');
+      return { changed: outcome.changed, reset: outcome.reset };
+    });
+    audit.log(req, 'admin.confirm.sso', { started: true });
+    res.json(started);
   });
 
   admin.get('/confirm', (req, res) => res.json({ method: confirmations.methodOf(req.user) }));
@@ -104,6 +127,13 @@ export function createAdminModule({ config, logger, events, store, audit, auth, 
   });
 
   // Diagram
+  /** Devices of a diagram whose console is outside the allow-list (they would show, but stay inert for students) */
+  const outsideAllowList = (labs) => {
+    const { allowedHosts, portRange } = settings.get('lab').consoles;
+    return labs.flatMap((l) => l.devices
+      .filter((d) => !(allowedHosts.includes(d.target.host) && d.target.port >= portRange.min && d.target.port <= portRange.max))
+      .map((d) => ({ lab: l.name, name: d.name, target: `${d.target.host}:${d.target.port}` })));
+  };
   admin.get('/diagrams', (_req, res) => res.set('Cache-Control', 'no-store').json(diagrams.list()));
   const raw = express.raw({ type: () => true, limit: MAX_DIAGRAM_BYTES + 64 * 1024 });
   admin.post('/diagrams', (req, res, next) => raw(req, res, (err) => {
@@ -120,11 +150,16 @@ export function createAdminModule({ config, logger, events, store, audit, auth, 
     }
     audit.log(req, 'admin.diagram.import', { version: added.version.id, name: added.version.name, size: added.version.size, devices: added.version.devices });
     tellAdmins('diagrams');
-    res.json({ version: added.version, warnings: added.warnings, diff: await diagrams.compare(added.version.id) });
+    res.json({
+      version: added.version,
+      warnings: added.warnings,
+      diff: await diagrams.compare(added.version.id),
+      outsideAllowList: outsideAllowList(added.labs),
+    });
   });
   admin.get('/diagrams/:id/preview', async (req, res) => {
     const model = await diagrams.model(req.params.id);
-    res.set('Cache-Control', 'no-store').json({ version: diagrams.find(req.params.id), labs: model.labs, warnings: model.warnings, diff: await diagrams.compare(req.params.id) });
+    res.set('Cache-Control', 'no-store').json({ version: diagrams.find(req.params.id), labs: model.labs, warnings: model.warnings, diff: await diagrams.compare(req.params.id), outsideAllowList: outsideAllowList(model.labs) });
   });
   admin.get('/diagrams/:id/download', (req, res) => {
     const file = diagrams.fileOf(req.params.id);

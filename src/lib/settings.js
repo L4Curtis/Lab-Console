@@ -10,6 +10,7 @@
  *
  *   settings.get(ns)                     current values (a private copy, secrets included: server only)
  *   settings.describe(ns)                what a page may show: secrets replaced by { set: true|false }
+ *   settings.check(ns, patch)            the validation of update() alone: → { changed, reset } or the same 400, nothing saved
  *   settings.update(ns, patch, actor)    validate, save, audit, emit 'change' → describe(ns)
  *   settings.register(ns, spec)          another namespace (see below)
  *   settings.on('change', (ns, values) => …)   → a function that removes the listener
@@ -105,7 +106,7 @@ function leaves(patch, fields, prefix = '') {
   const out = [];
   for (const [key, value] of Object.entries(patch)) {
     const path = prefix ? `${prefix}.${key}` : key;
-    if (fields[path] || value === null || typeof value !== 'object' || Array.isArray(value)) out.push(path);
+    if (Object.hasOwn(fields, path) || value === null || typeof value !== 'object' || Array.isArray(value)) out.push(path);
     else out.push(...leaves(value, fields, path));
   }
   return out;
@@ -194,7 +195,8 @@ export function createSettings({ config, store, audit, logger } = {}) {
     const changed = [];
     const reset = [];
     for (const path of leaves(patch, fields)) {
-      const field = fields[path];
+      // Own fields only: 'constructor' or '__proto__' in a patch are unknown keys, not inherited members
+      const field = Object.hasOwn(fields, path) ? fields[path] : undefined;
       const raw = read(patch, path);
       if (!field) { problems.push({ field: path, code: 'unknown' }); continue; }
       if (raw === undefined) continue;
@@ -219,6 +221,13 @@ export function createSettings({ config, store, audit, logger } = {}) {
       throw httpError(400, 'settings.invalid', `Some values are not valid: ${problems.map((p) => `${p.field} (${p.code})`).join(', ')}`, { problems });
     }
     return { next, changed, reset };
+  }
+
+  /** Dry run of update(): → { changed, reset } or throws the same 400 settings.invalid; nothing is saved, audited or emitted */
+  function check(ns, patch) {
+    const s = space(ns);
+    const { changed, reset } = apply(s, saved(s), patch);
+    return { changed, reset };
   }
 
   async function update(ns, patch, actor = 'system') {
@@ -268,6 +277,7 @@ export function createSettings({ config, store, audit, logger } = {}) {
       return resolve(space(ns)).values;
     },
     describe,
+    check,
     update,
     register,
     namespaces: () => [...spaces.keys()],

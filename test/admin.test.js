@@ -4,25 +4,31 @@
  * reaching the consoles registry, admin switches, sessions, audit viewer,
  * announcement banner, health, and admin-only access on every route
  */
-import { test, describe, before, after } from 'node:test';
+import { test, describe, before, beforeEach, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import zlib from 'node:zlib';
+import { EventEmitter } from 'node:events';
 import WebSocket from 'ws';
 import { startTestApp, TEST_ADMIN, adminCode } from './helpers/app.js';
 import { call, testClock, createLocalAccount, FAST_SCRYPT } from './helpers/accounts.js';
-import { TestBrowser } from './helpers/browser.js';
+import { TestBrowser, signInWithOidc } from './helpers/browser.js';
 import { SoftAuthenticator } from './helpers/webauthn.js';
 import { createUser } from '../src/modules/auth/index.js';
 import { createConsolesModule } from '../src/modules/consoles/index.js';
 import { createAccountsModule } from '../src/modules/accounts/index.js';
 import { createAdminModule } from '../src/modules/admin/index.js';
 import { startMockLab } from '../dev/mock-lab.js';
+import { startMockOidc } from '../dev/mock-oidc.js';
+import { createHealth, probe } from '../src/modules/admin/health.js';
+import { TICKET_TTL_MS } from '../src/modules/admin/confirm.js';
 import { MAX_DIAGRAM_BYTES } from '../src/lib/diagrams.js';
 
 const envAdmin = createUser({ id: `local:${TEST_ADMIN.username}`, username: TEST_ADMIN.username, name: TEST_ADMIN.username, role: 'admin', via: 'local' });
 const modules = (deps) => [createConsolesModule(deps), createAccountsModule(deps, { passwordCost: FAST_SCRYPT }), createAdminModule(deps)];
+/** The same, with the administration module on a clock the test moves (ticket lifetimes) */
+const modulesAt = (clock) => (deps) => [createConsolesModule(deps), createAccountsModule(deps, { passwordCost: FAST_SCRYPT }), createAdminModule(deps, { now: clock.now })];
 
 /** A one-page diagram with the given devices: [[name, '.211 - 2050'], …] */
 function drawio(devices, { page = 'T1', compressed = false } = {}) {
@@ -56,7 +62,7 @@ describe('administration: who may call what', () => {
   after(() => lab.close());
 
   const ADMIN_ONLY = [
-    ['GET', '/api/admin/lab'], ['PUT', '/api/admin/lab', {}], ['GET', '/api/admin/confirm'], ['POST', '/api/admin/confirm/options', {}],
+    ['GET', '/api/admin/lab'], ['PUT', '/api/admin/lab', {}], ['POST', '/api/admin/lab/confirm-sso', {}], ['GET', '/api/admin/confirm'], ['POST', '/api/admin/confirm/options', {}],
     ['POST', '/api/admin/confirm', {}], ['GET', '/api/admin/diagrams'], ['POST', '/api/admin/diagrams', {}], ['GET', '/api/admin/diagrams/x/preview'],
     ['GET', '/api/admin/diagrams/x/download'], ['POST', '/api/admin/diagrams/x/activate', {}], ['POST', '/api/admin/diagrams/rollback', {}],
     ['GET', '/api/admin/switches'], ['PUT', '/api/admin/switches', {}], ['GET', '/api/admin/sessions'], ['DELETE', '/api/admin/sessions/x'],
@@ -165,6 +171,105 @@ describe('lab parameters and their confirmation', () => {
   });
 });
 
+describe('lab parameters: values are checked before the confirmation is spent', () => {
+  let lab;
+  let clock;
+  before(async () => {
+    clock = testClock();
+    lab = await startTestApp({ modules, now: clock.now });
+  });
+  after(() => lab.close());
+
+  test('a typo in a port is told at once and the same confirmation still works for the corrected value', async () => {
+    const ticket = await confirmAsEnvAdmin(lab, clock);
+    const typo = await call(lab, envAdmin, 'PUT', '/api/admin/lab', { values: { ssh: { port: 'twenty-two' } }, confirmation: ticket });
+    assert.equal(typo.status, 400);
+    assert.equal(typo.body.code, 'settings.invalid');
+    assert.deepEqual(typo.body.params.problems, [{ field: 'ssh.port', code: 'type' }]);
+    assert.equal(lab.deps.settings.get('lab').ssh.port, 1, 'nothing saved');
+
+    const fixed = await call(lab, envAdmin, 'PUT', '/api/admin/lab', { values: { ssh: { port: 2222 } }, confirmation: ticket });
+    assert.equal(fixed.status, 200, 'the ticket was not used up by the 400');
+    assert.equal(lab.deps.settings.get('lab').ssh.port, 2222);
+    const again = await call(lab, envAdmin, 'PUT', '/api/admin/lab', { values: { ssh: { port: 2223 } }, confirmation: ticket });
+    assert.equal(again.status, 403, 'and it is good once');
+  });
+
+  test('a wrong ticket is refused before the values are looked at, and is spent', async () => {
+    const ticket = await confirmAsEnvAdmin(lab, clock);
+    const other = await call(lab, 'admin', 'PUT', '/api/admin/lab', { values: { ssh: { port: 'x' } }, confirmation: ticket });
+    assert.equal(other.status, 403);
+    assert.equal(other.body.code, 'admin.confirm_required');
+    const owner = await call(lab, envAdmin, 'PUT', '/api/admin/lab', { values: { ssh: { port: 2224 } }, confirmation: ticket });
+    assert.equal(owner.status, 403, 'someone else tried it: it is spent');
+  });
+
+  test('keys such as constructor, toString or __proto__ are unknown fields: 400, not 500, and the ticket stays good', async () => {
+    const ticket = await confirmAsEnvAdmin(lab, clock);
+    for (const raw of ['{"values":{"constructor":"x"}}', '{"values":{"toString":"x"}}', '{"values":{"__proto__":"x"}}', '{"values":{"ssh":{"__proto__":{"a":1}}}}']) {
+      const res = await fetch(`${lab.url}/api/admin/lab`, {
+        method: 'PUT',
+        headers: { origin: lab.url, 'content-type': 'application/json', ...lab.as(envAdmin) },
+        body: raw.replace(/\}$/, `,"confirmation":"${ticket}"}`),
+      });
+      const body = await res.json();
+      assert.equal(res.status, 400, raw);
+      assert.equal(body.code, 'settings.invalid', raw);
+      assert.equal(body.params.problems[0].code, 'unknown', raw);
+    }
+    const ok = await call(lab, envAdmin, 'PUT', '/api/admin/lab', { values: { telnet: { username: 'after-the-typos' } }, confirmation: ticket });
+    assert.equal(ok.status, 200);
+  });
+});
+
+describe('confirmation: lifetime of a ticket and number of attempts', () => {
+  let lab;
+  let clock;
+  before(async () => {
+    clock = testClock();
+    lab = await startTestApp({ modules: modulesAt(clock), now: clock.now });
+  });
+  after(() => lab.close());
+
+  test('a ticket older than two minutes is refused, and so is a change that waited for it', async () => {
+    const ticket = await confirmAsEnvAdmin(lab, clock);
+    clock.advance(TICKET_TTL_MS + 1000);
+    const late = await call(lab, envAdmin, 'PUT', '/api/admin/lab', { values: { telnet: { username: 'too-late' } }, confirmation: ticket });
+    assert.equal(late.status, 403);
+    assert.equal(late.body.code, 'admin.confirm_required');
+    assert.notEqual(lab.deps.settings.get('lab').telnet.username, 'too-late');
+
+    const fresh = await confirmAsEnvAdmin(lab, clock);
+    clock.advance(TICKET_TTL_MS - 5000); // the confirmation step moved the clock too; stay inside the window
+    assert.equal((await call(lab, envAdmin, 'PUT', '/api/admin/lab', { values: { telnet: { username: 'in-time' } }, confirmation: fresh })).status, 200);
+  });
+});
+
+describe('confirmation: the attempt limit', () => {
+  let lab;
+  let clock;
+  before(async () => {
+    clock = testClock();
+    lab = await startTestApp({ modules, now: clock.now });
+  });
+  after(() => lab.close());
+
+  test('ten failed attempts, then 429 admin.confirm_throttled for the right password and code too; the code stays good', async () => {
+    for (let i = 0; i < 10; i++) {
+      const wrong = await call(lab, envAdmin, 'POST', '/api/admin/confirm', { password: 'nope', code: '000000' });
+      assert.equal(wrong.status, 401, `attempt ${i + 1}`);
+      assert.equal(wrong.body.code, 'admin.confirm_failed');
+    }
+    clock.advance(30_000);
+    const code = adminCode(clock.ms);
+    const blocked = await call(lab, envAdmin, 'POST', '/api/admin/confirm', { password: TEST_ADMIN.password, code });
+    assert.equal(blocked.status, 429);
+    assert.equal(blocked.body.code, 'admin.confirm_throttled');
+    assert.equal(blocked.body.ticket, undefined);
+    assert.equal(await lab.deps.auth.reauthenticate(envAdmin, { password: TEST_ADMIN.password, code }), true, 'the refused attempt did not burn the code');
+  });
+});
+
 const store = (lab) => lab.deps.store.flush();
 
 describe('passkey confirmation (a local account promoted to administrator)', () => {
@@ -201,6 +306,110 @@ describe('passkey confirmation (a local account promoted to administrator)', () 
     assert.equal(phished.status, 401);
     const again = await call(lab, browser, 'POST', '/api/admin/confirm', { response: key.authenticate(options.body) });
     assert.equal(again.status, 401, 'the challenge was single use');
+  });
+});
+
+describe('confirmation by an SSO administrator: signing in again at the identity provider', () => {
+  let idp;
+  let lab;
+  let ada;
+  before(async () => {
+    idp = await startMockOidc({ port: 0 });
+    lab = await startTestApp({
+      modules,
+      env: { OIDC_ISSUER: idp.issuer, OIDC_CLIENT_ID: 'lab-console', OIDC_CLIENT_SECRET: 'mock-secret', OIDC_ADMIN_GROUPS: 'admins', OIDC_SCOPES: 'openid profile email groups', OIDC_GROUPS_CLAIM: 'groups' },
+    });
+  });
+  beforeEach(async () => {
+    idp.misbehave();
+    ada = (await signInWithOidc(lab, 'admin')).browser;
+  });
+  after(async () => {
+    await lab.close();
+    await idp.close();
+  });
+
+  /** Follow the browser through the provider as `username`; → where it lands in the application */
+  async function atProvider(browser, url, username) {
+    const picker = await (await browser.fetch(url)).text();
+    const request = /\/authorize\/pick\?req=([\w-]+)/.exec(picker)[1];
+    const { url: landed } = await browser.go(`${idp.issuer}/authorize/pick?req=${request}&user=${username}`);
+    return landed;
+  }
+  const start = (browser, values) => call(lab, browser, 'POST', '/api/admin/lab/confirm-sso', { values });
+  const outcome = async (browser) => (await call(lab, browser, 'GET', '/api/admin/lab')).body.ssoOutcome;
+
+  test('the way to confirm is the provider, for an administrator who has no password or passkey here', async () => {
+    assert.equal((await call(lab, ada, 'GET', '/api/admin/confirm')).body.method, 'sso');
+    assert.equal((await call(lab, ada, 'GET', '/api/admin/lab')).body.confirm.method, 'sso');
+    const options = await call(lab, ada, 'POST', '/api/admin/confirm', { password: 'x', code: '123456' });
+    assert.equal(options.status, 403, 'the password form is not for them');
+    assert.equal((await call(lab, envAdmin, 'POST', '/api/admin/lab/confirm-sso', { values: { telnet: { username: 'x' } } })).body.code, 'admin.confirm_unavailable', 'nor is the trip for the environment administrator');
+  });
+
+  test('a fresh sign-in at the provider applies the change on return; its outcome is read once', async () => {
+    const started = await start(ada, { telnet: { username: 'sso-confirmed' } });
+    assert.equal(started.status, 200, JSON.stringify(started.body));
+    const url = new URL(started.body.url);
+    assert.equal(url.origin + url.pathname, `${idp.issuer}/authorize`);
+    assert.equal(url.searchParams.get('prompt'), 'login', 'a fresh sign-in is asked for');
+    assert.equal(url.searchParams.get('max_age'), '0');
+    assert.notEqual(lab.deps.settings.get('lab').telnet.username, 'sso-confirmed', 'nothing yet');
+    const sessions = lab.deps.auth.sessions.list().length;
+
+    assert.equal(await atProvider(ada, started.body.url, 'admin'), `${lab.url}/#/admin/lab`);
+    assert.equal(lab.deps.settings.get('lab').telnet.username, 'sso-confirmed');
+    assert.equal(lab.deps.auth.sessions.list().length, sessions, 'no session was opened or replaced by the trip');
+    const back = await outcome(ada);
+    assert.equal(back.ok, true);
+    assert.deepEqual(back.changed, ['telnet.username']);
+    assert.equal(await outcome(ada), null, 'read once');
+    const [entry] = await lab.deps.audit.query({ action: 'settings.update' });
+    assert.equal(entry.actor.id, 'oidc:mock-admin');
+  });
+
+  test('values that are wrong are refused before the trip, and nothing is waiting afterwards', async () => {
+    const bad = await start(ada, { ssh: { port: 'x' } });
+    assert.equal(bad.status, 400);
+    assert.equal(bad.body.code, 'settings.invalid');
+    assert.ok(!bad.res.headers.getSetCookie().some((c) => c.startsWith('lc_login=')), 'no sign-in started');
+    assert.equal((await start(ada, { constructor: 'x' })).status, 400);
+    assert.equal(await outcome(ada), null);
+  });
+
+  test('another person signing in at the provider changes nothing: it must be the same administrator', async () => {
+    const started = await start(ada, { telnet: { username: 'someone-else' } });
+    await atProvider(ada, started.body.url, 'student1');
+    assert.notEqual(lab.deps.settings.get('lab').telnet.username, 'someone-else');
+    assert.equal((await outcome(ada)).code, 'admin.sso_confirm_mismatch');
+
+    // A different administrator is not the same person either
+    const other = await start(ada, { telnet: { username: 'someone-else' } });
+    await atProvider(ada, other.body.url, 'student2');
+    assert.equal((await outcome(ada)).code, 'admin.sso_confirm_mismatch');
+    assert.notEqual(lab.deps.settings.get('lab').telnet.username, 'someone-else');
+  });
+
+  test('a provider that hands back an old sign-in instead of a fresh one is refused', async () => {
+    idp.misbehave({ staleSignIn: true });
+    const started = await start(ada, { telnet: { username: 'stale' } });
+    await atProvider(ada, started.body.url, 'admin');
+    assert.notEqual(lab.deps.settings.get('lab').telnet.username, 'stale');
+    assert.equal((await outcome(ada)).code, 'admin.sso_confirm_failed');
+  });
+
+  test('a session that ended while its owner was at the provider applies nothing', async () => {
+    const started = await start(ada, { telnet: { username: 'gone' } });
+    const mine = lab.deps.auth.sessions.list().find((s) => s.user.id === 'oidc:mock-admin');
+    lab.deps.auth.sessions.revoke(mine.id);
+    await atProvider(ada, started.body.url, 'admin');
+    assert.notEqual(lab.deps.settings.get('lab').telnet.username, 'gone');
+  });
+
+  test('the number of trips is limited like the other confirmations', async () => {
+    const results = [];
+    for (let i = 0; i < 11; i++) results.push((await start(ada, { telnet: { username: `try-${i}` } })).status);
+    assert.equal(results.at(-1), 429);
   });
 });
 
@@ -244,6 +453,78 @@ describe('diagram import, activation and rollback', () => {
 
     const refusals = await lab.deps.audit.query({ action: 'admin.diagram.refuse' });
     assert.ok(refusals.length >= 6, 'refusals are audited');
+  });
+
+  const MODEL = '<mxGraphModel><root><mxCell id="0"/><mxCell id="1" parent="0"/><mxCell id="x" value="S9&lt;br&gt;.211 - 2060" style="shape=mxgraph.cisco.switches.workgroup_switch;" vertex="1" parent="1"><mxGeometry width="40" height="40" as="geometry"/></mxCell></root></mxGraphModel>';
+  const packOf = (xml) => zlib.deflateRawSync(Buffer.from(encodeURIComponent(xml))).toString('base64');
+  const file = (body) => `<mxfile><diagram name="X" id="x">${body}</diagram></mxfile>`;
+
+  test('a DOCTYPE in a compressed page is refused whether the page is plain, in CDATA, split by a comment or started by a character reference', async () => {
+    const packed = packOf(`<!DOCTYPE m [<!ENTITY a "boom"><!ENTITY b "&a;&a;&a;">]>${MODEL}`);
+    const forms = {
+      plain: packed,
+      cdata: `<![CDATA[${packed}]]>`,
+      comment: `${packed.slice(0, 20)}<!-- x -->${packed.slice(20)}`,
+      charref: `&#${packed.charCodeAt(0)};${packed.slice(1)}`,
+    };
+    for (const [form, body] of Object.entries(forms)) {
+      const res = await upload(lab, 'admin', file(body));
+      assert.equal(res.status, 400, form);
+      assert.equal(res.body.code, 'admin.diagram_doctype', form);
+    }
+    // The same wrappers around an honest page are fine
+    const honest = packOf(MODEL);
+    for (const body of [`<![CDATA[${honest}]]>`, `${honest.slice(0, 20)}<!-- x -->${honest.slice(20)}`, `&#${honest.charCodeAt(0)};${honest.slice(1)}`]) {
+      assert.equal((await upload(lab, 'admin', file(body))).status, 200);
+    }
+  });
+
+  test('a small file that inflates to hundreds of megabytes is refused without being inflated', async () => {
+    const page = (n) => packOf(`<mxGraphModel><root><mxCell id="0" value="${'a'.repeat(n)}"/></root></mxGraphModel>`);
+    const bomb = file(page(60 * 1024 * 1024));
+    assert.ok(bomb.length < 200 * 1024, `${bomb.length} bytes on the wire`);
+    const started = process.hrtime.bigint();
+    const rss = process.memoryUsage().rss;
+    const res = await upload(lab, 'admin', bomb);
+    assert.equal(res.status, 413);
+    assert.equal(res.body.code, 'admin.diagram_too_large');
+    assert.ok(Number(process.hrtime.bigint() - started) / 1e6 < 3000, 'refused quickly');
+    assert.ok(process.memoryUsage().rss - rss < 120 * 1024 * 1024, 'and without the memory a 60 MB inflate would take');
+
+    // Several pages, each under the limit, together over it
+    const four = `<mxfile>${[1, 2, 3, 4].map((i) => `<diagram name="P${i}" id="p${i}">${page(6 * 1024 * 1024)}</diagram>`).join('')}</mxfile>`;
+    const many = await upload(lab, 'admin', four);
+    assert.equal(many.status, 413);
+    assert.equal(many.body.code, 'admin.diagram_too_large');
+  });
+
+  test('two different devices on one console line are refused at import (what check-diagram fails on); one device on two pages is fine', async () => {
+    const before = (await call(lab, 'admin', 'GET', '/api/admin/diagrams')).body.versions.length;
+    const clash = await upload(lab, 'admin', drawio([['R9', '.211 - 2050'], ['S9', '.211 - 2050']]));
+    assert.equal(clash.status, 400);
+    assert.equal(clash.body.code, 'admin.diagram_lint');
+    assert.equal(clash.body.params.count, 1);
+    assert.equal(clash.body.params.lines, '10.22.9.211:2050');
+    assert.equal(clash.body.params.problems[0].params.target, '10.22.9.211:2050');
+    assert.equal((await call(lab, 'admin', 'GET', '/api/admin/diagrams')).body.versions.length, before, 'nothing kept');
+    const [refusal] = await lab.deps.audit.query({ action: 'admin.diagram.refuse' });
+    assert.equal(refusal.details.reason, 'admin.diagram_lint');
+
+    const twoPages = `<mxfile>${['A', 'B'].map((p) => drawio([['R9', '.211 - 2051']], { page: p }).replace(/<\/?mxfile>/g, '')).join('')}</mxfile>`;
+    const shared = await upload(lab, 'admin', twoPages);
+    assert.equal(shared.status, 200, JSON.stringify(shared.body));
+    assert.equal(shared.body.warnings.length, 1, 'a warning, not a refusal');
+  });
+
+  test('the preview names the devices whose console is outside the allow-list', async () => {
+    const imported = await upload(lab, 'admin', drawio([['R9', '.211 - 2052'], ['R8', '.215 - 2052'], ['R7', '.211 - 2500']]), 'outside.drawio');
+    assert.equal(imported.status, 200, JSON.stringify(imported.body));
+    const expected = [{ lab: 'T1', name: 'R8', target: '10.22.9.215:2052' }, { lab: 'T1', name: 'R7', target: '10.22.9.211:2500' }];
+    assert.deepEqual(imported.body.outsideAllowList, expected);
+    const preview = await call(lab, 'admin', 'GET', `/api/admin/diagrams/${imported.body.version.id}/preview`);
+    assert.deepEqual(preview.body.outsideAllowList, expected);
+    const inside = await upload(lab, 'admin', drawio([['R9', '.211 - 2053']]));
+    assert.deepEqual(inside.body.outsideAllowList, []);
   });
 
   test('import shows a preview and the difference; activation reaches the consoles registry; rollback brings it back', async () => {
@@ -298,6 +579,32 @@ describe('diagram import, activation and rollback', () => {
   });
 });
 
+describe('diagram activation and the linter', () => {
+  let lab;
+  before(async () => { lab = await startTestApp({ modules }); });
+  after(() => lab.close());
+
+  test('a version the linter does not accept cannot be activated; going back to it with a rollback is allowed', async () => {
+    // The diagram shipped with the image has a typo the linter reports (B5H)
+    const seeded = (await call(lab, 'admin', 'GET', '/api/admin/diagrams')).body.versions[0];
+    assert.ok(seeded.warnings > 0);
+    const first = (await upload(lab, 'admin', drawio([['R1', '.211 - 2070']], { page: 'ONE' }))).body.version;
+    const second = (await upload(lab, 'admin', drawio([['R1', '.211 - 2071']], { page: 'TWO' }))).body.version;
+    assert.equal((await call(lab, 'admin', 'POST', `/api/admin/diagrams/${first.id}/activate`, {})).status, 200);
+    assert.equal((await call(lab, 'admin', 'POST', `/api/admin/diagrams/${second.id}/activate`, {})).status, 200);
+
+    const refused = await call(lab, 'admin', 'POST', `/api/admin/diagrams/${seeded.id}/activate`, {});
+    assert.equal(refused.status, 400);
+    assert.equal(refused.body.code, 'admin.diagram_lint');
+    assert.equal((await call(lab, 'admin', 'GET', '/api/admin/diagrams')).body.active, second.id, 'still the active one');
+
+    assert.equal((await call(lab, 'admin', 'POST', '/api/admin/diagrams/rollback', {})).body.rolledBackTo, first.id);
+    const back = await call(lab, 'admin', 'POST', '/api/admin/diagrams/rollback', {});
+    assert.equal(back.status, 200);
+    assert.equal(back.body.rolledBackTo, seeded.id, 'a rollback returns to what was active, linter or not');
+  });
+});
+
 describe('admin switches, sessions, audit viewer, announcement, journaling', () => {
   let lab;
   before(async () => { lab = await startTestApp({ modules }); });
@@ -334,6 +641,12 @@ describe('admin switches, sessions, audit viewer, announcement, journaling', () 
     assert.equal((await call(lab, 'admin', 'DELETE', `/api/admin/sessions/${victim.id}`)).status, 200);
     assert.equal((await call(lab, victim, 'GET', '/api/admin/announcement')).status, 401);
     assert.equal((await call(lab, 'admin', 'DELETE', `/api/admin/sessions/${victim.id}`)).status, 404);
+    for (const id of ['no-such-session', 'a'.repeat(64), '..%2F..%2Fetc']) {
+      const unknown = await call(lab, 'admin', 'DELETE', `/api/admin/sessions/${id}`);
+      assert.equal(unknown.status, 404, id);
+      assert.equal(unknown.body.code, 'admin.session_unknown', id);
+    }
+    assert.equal((await lab.deps.audit.query({ action: 'admin.session.revoke' })).length, 1, 'nothing audited for an unknown session');
 
     const a = lab.signIn('student3');
     const b = lab.signIn('student3');
@@ -449,6 +762,45 @@ describe('with the simulated lab: health, and lab parameters used by the next co
     const admin = await call(lab, 'admin', 'GET', '/api/admin/health?fresh=1');
     assert.deepEqual(admin.body.details.consoleServers.map((s) => [s.host, s.state]), [['10.22.9.211', 'ok'], ['10.22.9.212', 'ok']]);
     assert.equal(admin.body.details.jump.host, `127.0.0.1:${mock.port}`);
+  });
+
+  test('a console server counts as up when it answers, even by refusing; Proxmox must accept; silence is down', async () => {
+    const said = (code, text) => ({
+      exec(_command, cb) {
+        const stream = new EventEmitter();
+        stream.stderr = new EventEmitter();
+        cb(null, stream);
+        setImmediate(() => { if (text) stream.stderr.emit('data', Buffer.from(text)); stream.emit('exit', code); });
+      },
+    });
+    const refused = 'nc: connect to 10.22.9.211 port 23 (tcp) failed: Connection refused\n';
+    assert.deepEqual(await probe(said(0, ''), '10.22.9.211', 23, { answers: true }), { state: 'ok' });
+    assert.deepEqual(await probe(said(1, refused), '10.22.9.211', 23, { answers: true }), { state: 'ok', note: 'refused' }, 'a reset comes from the host');
+    assert.equal((await probe(said(1, refused), '10.22.9.71', 8006)).state, 'down', 'the Proxmox API port must accept');
+    assert.equal((await probe(said(1, 'nc: connect to 10.22.9.211 port 23 (tcp) timed out: Operation now in progress\n'), '10.22.9.211', 23, { answers: true })).state, 'down', 'silence');
+    assert.equal((await probe(said(1, ''), '10.22.9.211', 23, { answers: true })).state, 'down');
+    assert.equal((await probe(said(0, ''), 'bad host;rm', 23)).state, 'down', 'nothing odd reaches the shell');
+  });
+
+  test('the Proxmox tunnel state comes from the Proxmox module when it publishes one', async () => {
+    const config = { ...lab.config, proxmox: { enabled: true, url: 'https://10.22.9.71:8006' } };
+    const services = {};
+    const health = createHealth({ settings: lab.deps.settings, config, services });
+    const before = await health.check({ fresh: true });
+    assert.equal(before.proxmox.tunnel, null, 'the module says nothing yet');
+
+    services.proxmox = { tunnel: () => ({ connected: true, transport: 'forward', connections: 1, openChannels: 3 }) };
+    health.forget();
+    const connected = await health.check({ fresh: true });
+    assert.deepEqual(connected.proxmox.tunnel, { state: 'connected', transport: 'forward', connections: 1, openChannels: 3 });
+    assert.equal(connected.jump.state, 'ok');
+
+    services.proxmox = { tunnel: () => ({ connected: false, transport: 'auto', connections: 0, openChannels: 0 }) };
+    health.forget();
+    assert.equal((await health.check({ fresh: true })).proxmox.tunnel.state, 'idle', 'it connects on first use: idle is normal');
+    services.proxmox = { tunnel: () => { throw new Error('boom'); } };
+    health.forget();
+    assert.equal((await health.check({ fresh: true })).proxmox.tunnel, null, 'a module that fails does not fail the page');
   });
 
   test('a new console line uses the lab parameters saved a moment before', async () => {

@@ -119,6 +119,8 @@ export function mount(el) {
           h('p.muted.small-note', t('admin.diagram.previewMeta', { labs: labs.length, count: version.devices }))),
         h('div.row-actions.end', activateBtn, h('button.btn', { type: 'button', onclick: () => { preview.hidden = true; shown = null; } }, t('common.actions.close')))),
         h('div.diff', d.same ? h('p.notice', t('admin.diagram.diff.same')) : changes.length ? changes : h('p.notice', t('admin.diagram.diff.none'))),
+        data.outsideAllowList?.length ? h('div.notice.warn', { dataset: { notice: 'outside-allow-list' } }, h('strong', t('admin.diagram.outsideAllowList', { count: data.outsideAllowList.length })),
+          h('ul', data.outsideAllowList.slice(0, 30).map((x) => h('li', `${x.lab} / ${x.name} → ${x.target}`)))) : null,
         data.warnings?.length ? h('div.notice.warn', h('strong', t('admin.diagram.warnings', { count: data.warnings.length })), h('ul', data.warnings.slice(0, 30).map((w) => h('li', serverText(w))))) : null,
         pages,
         canvas);

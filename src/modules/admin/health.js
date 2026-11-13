@@ -4,8 +4,20 @@
  * server, like everything on the lab network)
  *
  * One SSH connection with the current lab parameters, then one
- * `nc -z -w 3 <host> <port>` per console server (its telnet port, 23) and for
- * Proxmox: the same probe the consoles use, nothing is typed on a line.
+ * `nc -z -w 3 <host> <port>` per console server and for Proxmox: the same
+ * probe the consoles use, nothing is typed on a line.
+ *
+ * A console server is "up" when it ANSWERS on the network: a connection
+ * accepted, or one actively refused (the TCP reset comes from the host). Its
+ * telnet port (23) was not checked against the real equipment, whose
+ * console lines are on 20xx ports: a server that does not listen on 23 must
+ * not read as down. Only silence (a timeout, no route) is "down". Proxmox is
+ * stricter: its API port must accept the connection.
+ *
+ * The Proxmox tunnel itself (the shared SSH connection its module keeps open
+ * for the API and the console sockets) is read from the Proxmox module when
+ * it publishes it (`services.proxmox.tunnel()` → { connected, transport,
+ * connections, openChannels }). It connects on first use, so "idle" is normal.
  * Results are kept 30 seconds, so a page reloaded by a classroom does not
  * hammer the jump server; an administrator may ask for a fresh check (at
  * most every 10 seconds).
@@ -23,23 +35,45 @@ const PROBE_TIMEOUT_MS = 6_000;
 export const CONSOLE_SERVER_PORT = 23;
 const SAFE_HOST = /^[\w.-]{1,253}$/;
 
-function probe(conn, host, port) {
+/**
+ * One `nc -z` through the jump server → { state: 'ok' | 'down' | 'unknown', error? }.
+ * `answers`: a refused connection counts as up (the host answered)
+ */
+export function probe(conn, host, port, { answers = false } = {}) {
   return new Promise((resolve) => {
     if (!SAFE_HOST.test(host) || !Number.isInteger(port)) return resolve({ state: 'down', error: 'invalid address' });
+    let said = '';
     const timer = setTimeout(() => resolve({ state: 'down', error: 'no answer' }), PROBE_TIMEOUT_MS);
     conn.exec(`nc -z -w 3 ${host} ${port}`, (err, stream) => {
       if (err) { clearTimeout(timer); return resolve({ state: 'unknown', error: err.message }); }
-      stream.on('data', () => {}).stderr.on('data', () => {});
-      stream.on('exit', (code) => { clearTimeout(timer); resolve(code === 0 ? { state: 'ok' } : { state: 'down', error: `exit ${code}` }); });
+      const hear = (d) => { said = (said + d).slice(-400); };
+      stream.on('data', hear).stderr.on('data', hear);
+      stream.on('exit', (code) => {
+        clearTimeout(timer);
+        if (code === 0) return resolve({ state: 'ok' });
+        resolve(answers && /refused/i.test(said) ? { state: 'ok', note: 'refused' } : { state: 'down', error: `exit ${code}` });
+      });
       stream.on('close', () => { clearTimeout(timer); resolve({ state: 'unknown', error: 'closed' }); });
     });
   });
 }
 
-export function createHealth({ settings, config, logger, now = Date.now }) {
+export function createHealth({ settings, config, services, logger, now = Date.now }) {
   const log = logger ?? { warn() {} };
   let last = null;      // { at, result }
   let running = null;
+
+  /** What the Proxmox module says about its tunnel; null while it does not say */
+  function tunnelState() {
+    try {
+      const t = services?.proxmox?.tunnel?.();
+      if (!t) return null;
+      return { state: t.connected ? 'connected' : 'idle', transport: t.transport ?? null, connections: t.connections ?? 0, openChannels: t.openChannels ?? 0 };
+    } catch (err) {
+      log.warn(`the Proxmox tunnel state could not be read: ${err.message}`);
+      return null;
+    }
+  }
 
   async function run() {
     const lab = settings.get('lab');
@@ -49,7 +83,7 @@ export function createHealth({ settings, config, logger, now = Date.now }) {
       jump: { state: 'unknown', host: `${lab.ssh.host}:${lab.ssh.port}` },
       consoleServers: lab.consoles.allowedHosts.map((host) => ({ host, port: CONSOLE_SERVER_PORT, state: 'unknown' })),
       proxmox: config.proxmox?.enabled
-        ? { state: 'unknown', host: new URL(config.proxmox.url).host }
+        ? { state: 'unknown', host: new URL(config.proxmox.url).host, tunnel: tunnelState() }
         : { state: 'off' },
     };
     const conn = new ssh2.Client();
@@ -61,7 +95,7 @@ export function createHealth({ settings, config, logger, now = Date.now }) {
         conn.connect({ ...sshConnectOptions(lab.ssh, log), readyTimeout: CONNECT_TIMEOUT_MS, keepaliveInterval: 0 });
       });
       result.jump = { ...result.jump, state: 'ok', ms: now() - started };
-      await Promise.all(result.consoleServers.map(async (s) => Object.assign(s, await probe(conn, s.host, s.port))));
+      await Promise.all(result.consoleServers.map(async (s) => Object.assign(s, await probe(conn, s.host, s.port, { answers: true }))));
       if (config.proxmox?.enabled) {
         const url = new URL(config.proxmox.url);
         Object.assign(result.proxmox, await probe(conn, url.hostname, Number(url.port || 8006)));
@@ -95,6 +129,6 @@ export function summary(result) {
     checkedAt: result.checkedAt,
     jump: { state: result.jump.state },
     consoleServers: { ok: result.consoleServers.filter((s) => s.state === 'ok').length, total: result.consoleServers.length },
-    proxmox: { state: result.proxmox.state },
+    proxmox: { state: result.proxmox.state, ...(result.proxmox.tunnel ? { tunnel: result.proxmox.tunnel.state } : {}) },
   };
 }

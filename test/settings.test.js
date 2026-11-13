@@ -44,6 +44,36 @@ test('settings: an SSH key read from a file (a Buffer) is handed out as text', (
   assert.deepEqual(s.describe('lab').values.ssh.privateKey, { set: true });
 });
 
+test('settings: names inherited from Object are unknown fields (400), never a crash, and nothing is saved', async () => {
+  const s = createSettings({ config });
+  const before = JSON.stringify(s.get('lab'));
+  const patches = [
+    { constructor: 'x' },
+    { toString: 'x' },
+    { hasOwnProperty: { a: 1 } },
+    JSON.parse('{"__proto__": "x"}'),
+    JSON.parse('{"__proto__": {"polluted": true}}'),
+    { ssh: { constructor: 'x' } },
+    { ssh: JSON.parse('{"__proto__": 1}') },
+  ];
+  for (const patch of patches) {
+    for (const run of [() => s.update('lab', patch, actor), async () => s.check('lab', patch)]) {
+      await assert.rejects(Promise.resolve().then(run), (err) => err.status === 400 && err.code === 'settings.invalid'
+        && err.params.problems.length === 1 && err.params.problems[0].code === 'unknown', JSON.stringify(patch));
+    }
+  }
+  assert.equal(JSON.stringify(s.get('lab')), before);
+  assert.equal({}.polluted, undefined);
+});
+
+test('settings: check() is the validation of update() alone', async () => {
+  const s = createSettings({ config });
+  assert.deepEqual(s.check('lab', { ssh: { host: 'other-jump' } }), { changed: ['ssh.host'], reset: [] });
+  assert.equal(s.get('lab').ssh.host, 'jump', 'nothing saved');
+  assert.throws(() => s.check('lab', { ssh: { port: 99999 } }), (err) => err.code === 'settings.invalid' && err.params.problems[0].field === 'ssh.port');
+  assert.throws(() => s.check('lab', null), (err) => err.code === 'settings.invalid');
+});
+
 describe('settings with a data directory', () => {
   let dir;
   let store;

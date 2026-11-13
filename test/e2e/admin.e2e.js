@@ -8,7 +8,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { useHarness, signInAsAdmin, waitForApp, openConsole, typeInConsole, waitForTerminal, TEST_ADMIN, MOCK_TELNET } from './harness.js';
+import { useHarness, signInAs, signInAsAdmin, person, waitForApp, openConsole, typeInConsole, waitForTerminal, TEST_ADMIN, MOCK_TELNET } from './harness.js';
 
 const h = useHarness();
 
@@ -105,6 +105,70 @@ test('a diagram is imported, previewed, activated, then rolled back; students fo
   assert.deepEqual(student.errors, []);
   await admin.context().close();
   await student.context().close();
+});
+
+test('an SSO administrator confirms a lab change by signing in again at the identity provider', async () => {
+  const page = await h.newPage();
+  await signInAs(page, 'ada');
+  await page.evaluate(() => { location.hash = '#/admin/lab'; });
+  await page.waitForSelector('section.view-admin #lab-telnet-wakeIdleMs');
+  await page.waitForFunction(() => document.querySelector('[data-field="ssh.host"] .origin-pill')?.textContent.length > 0);
+  await page.fill('#lab-telnet-wakeIdleMs', '1234');
+  await page.click('section.view-admin button[data-action="save"]');
+  await page.click('dialog.modal button[data-action="confirm"]');
+
+  // Gone to the provider, which asks who is signing in again
+  await page.waitForURL(`${h.idp.issuer}/authorize**`);
+  assert.equal(h.app.deps.settings.get('lab').telnet.wakeIdleMs !== 1234, true, 'nothing is applied before the person is back');
+  await page.click(`a.user[href$="user=${encodeURIComponent(person('ada').username)}"]`);
+  await page.waitForURL((u) => u.href.startsWith(h.url) && u.hash === '#/admin/lab');
+
+  await page.waitForSelector('.toast >> text=Paramètres enregistrés');
+  await page.waitForFunction(() => document.querySelector('[data-field="telnet.wakeIdleMs"] .origin-pill')?.dataset.origin === 'saved');
+  assert.equal(h.app.deps.settings.get('lab').telnet.wakeIdleMs, 1234);
+  assert.equal(await page.inputValue('#lab-telnet-wakeIdleMs'), '1234');
+
+  await h.app.deps.settings.update('lab', { telnet: { wakeIdleMs: null } });
+  assert.deepEqual(page.errors, []);
+  await page.context().close();
+});
+
+test('an SSO administrator who signs in as someone else at the provider changes nothing, and is told so', async () => {
+  const page = await h.newPage();
+  await signInAs(page, 'ada');
+  await page.evaluate(() => { location.hash = '#/admin/lab'; });
+  await page.waitForSelector('section.view-admin #lab-telnet-wakeIdleMs');
+  await page.waitForFunction(() => document.querySelector('[data-field="ssh.host"] .origin-pill')?.textContent.length > 0);
+  await page.fill('#lab-telnet-wakeIdleMs', '4321');
+  await page.click('section.view-admin button[data-action="save"]');
+  await page.click('dialog.modal button[data-action="confirm"]');
+  await page.waitForURL(`${h.idp.issuer}/authorize**`);
+  await page.click(`a.user[href$="user=${encodeURIComponent(person('alice').username)}"]`);
+  await page.waitForURL((u) => u.href.startsWith(h.url) && u.hash === '#/admin/lab');
+  await page.waitForSelector('section.view-admin p.form-error >> text=n’était pas la vôtre');
+  assert.notEqual(h.app.deps.settings.get('lab').telnet.wakeIdleMs, 4321);
+  assert.deepEqual(page.errors, []);
+  await page.context().close();
+});
+
+test('the diagram page refuses a shared console line and warns about consoles outside the allow-list', async () => {
+  const withTargets = (a, b) => NEW_DIAGRAM.replace('.211 - 2013', a).replace('.211 - 2019', b);
+  const admin = await h.newPage();
+  await h.session(admin, 'ada');
+  await admin.goto(`${h.url}/#/admin/diagram`);
+  await waitForApp(admin);
+  await admin.waitForSelector('tr[data-active="true"]');
+
+  await admin.setInputFiles('#diagram-file', { name: 'clash.drawio', mimeType: 'application/xml', buffer: Buffer.from(withTargets('.211 - 2050', '.211 - 2050')) });
+  await admin.waitForSelector('section.view-admin p.form-error >> text=Refusé : 1 ligne de console est partagée');
+  assert.equal(await admin.locator('.diagram-preview').isHidden(), true);
+
+  await admin.setInputFiles('#diagram-file', { name: 'outside.drawio', mimeType: 'application/xml', buffer: Buffer.from(withTargets('.215 - 2013', '.211 - 2019')) });
+  await admin.waitForSelector('.diagram-preview [data-notice="outside-allow-list"] >> text=1 équipement a une console hors de la liste autorisée');
+  await admin.waitForSelector('.diagram-preview [data-notice="outside-allow-list"] li >> text=NEWLAB / R1 → 10.22.9.215:2013');
+
+  assert.deepEqual(admin.errors, []);
+  await admin.context().close();
 });
 
 test('an announcement reaches a student page that is already open, as text', async () => {

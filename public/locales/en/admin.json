@@ -20,7 +20,9 @@
     "submit": "Confirm",
     "passkeyIntro": "These parameters control access to the lab. Confirm with your passkey.",
     "passkey": "Use my passkey",
-    "unavailable": "An SSO account cannot confirm this change here. Sign in with the local administrator or an administrator account that has a passkey."
+    "unavailable": "This account cannot confirm this change here. Sign in with the local administrator, an administrator account with a passkey, or through the identity provider once it is enabled.",
+    "ssoIntro": "These parameters control access to the lab. You will be sent to your identity provider to sign in again; the change is applied when you come back.",
+    "sso": "Sign in again"
   },
   "lab": {
     "intro": "How Lab Console reaches the consoles: SSH jump server, the console server’s login, allowed addresses. A change applies to the next consoles opened, without a restart; lines already open stay as they are.",
@@ -152,7 +154,11 @@
     "imported": "File checked and kept. Look at the preview before activating it.",
     "rollbackTitle": "Go back to the previous diagram?",
     "rollbackBody": "The diagram that was active just before becomes everyone’s again, right away.",
-    "rolledBack": "Previous diagram restored."
+    "rolledBack": "Previous diagram restored.",
+    "outsideAllowList": {
+      "one": "{count} device has a console outside the allow-list: it would show, but stay disabled for students until the lab parameters allow it.",
+      "other": "{count} devices have a console outside the allow-list: they would show, but stay disabled for students until the lab parameters allow them."
+    }
   },
   "switches": {
     "intro": "Consoles that are not on the diagram (the benches’ administration switches), shown in the Infra section. Saved as a whole, used at once.",
@@ -276,14 +282,17 @@
       "jump": "SSH jump server",
       "consoleServers": "Console servers",
       "consoleServer": "Console server",
-      "proxmox": "Proxmox"
+      "proxmox": "Proxmox",
+      "proxmoxTunnel": "Proxmox tunnel"
     },
     "states": {
       "ok": "answering",
       "down": "not answering",
       "unknown": "unknown",
       "off": "not configured",
-      "partial": "partly"
+      "partial": "partly",
+      "connected": "connected",
+      "idle": "idle (connects on first use)"
     },
     "serversUp": {
       "one": "{ok} of {count} answering",
@@ -294,6 +303,11 @@
       "address": "Address",
       "state": "State",
       "error": "Error"
+    },
+    "tunnel": "tunnel {state}",
+    "tunnelDetail": {
+      "one": "{connections} connection, {channels} open channels",
+      "other": "{connections} connections, {channels} open channels"
     }
   },
   "journaling": {
@@ -327,12 +341,12 @@
     }
   },
   "errors": {
-    "confirm_unavailable": "This account cannot confirm here: sign in with the local administrator or an administrator account with a passkey.",
+    "confirm_unavailable": "This account cannot confirm here: sign in with the local administrator, an administrator account with a passkey, or through the identity provider.",
     "confirm_throttled": "Too many confirmation attempts: wait a few minutes.",
     "confirm_failed": "Confirmation refused.",
     "confirm_required": "Confirm the change first (passkey, or password and code).",
     "diagram_empty_file": "The file is empty.",
-    "diagram_too_large": "The diagram is over 5 MB.",
+    "diagram_too_large": "The diagram is too large: 5 MB at most, and its pages may not inflate to more than 20 MB.",
     "diagram_doctype": "Refused: a diagram may not declare a DOCTYPE or entities.",
     "diagram_invalid": "Not a readable draw.io diagram: {detail}",
     "diagram_no_device": "This diagram has no device with a console.",
@@ -343,6 +357,14 @@
     "session_unknown": "This session no longer exists.",
     "audit_bad_filter": "Invalid filter.",
     "announcement_empty": "Write the message first.",
-    "announcement_invalid": "An announcement is plain text, 500 characters at most, for 1 hour to 30 days."
+    "announcement_invalid": "An announcement is plain text, 500 characters at most, for 1 hour to 30 days.",
+    "diagram_lint": {
+      "one": "Refused: {count} console line is shared by different devices ({lines}). Fix the diagram (npm run check-diagram says the same).",
+      "other": "Refused: {count} console lines are shared by different devices ({lines}). Fix the diagram (npm run check-diagram says the same)."
+    },
+    "sso_confirm_failed": "The identity provider did not confirm your sign-in. Nothing was changed.",
+    "sso_confirm_mismatch": "The sign-in at the identity provider was not yours, or not an administrator’s. Nothing was changed.",
+    "sso_confirm_expired": "Your session ended while you were at the identity provider. Nothing was changed.",
+    "sso_unreachable": "The identity provider could not be reached."
   }
 }

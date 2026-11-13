@@ -21,18 +21,50 @@ import { DOMParser } from '@xmldom/xmldom';
 const LABEL_TARGET_SHORT = /(?:^|\s)\.(\d{1,3})\s*[-–—:]\s*(\d{2,5})\b/;
 const LABEL_TARGET_FULL = /\b(\d{1,3}(?:\.\d{1,3}){3})\s*[-–—:]\s*(\d{2,5})\b/;
 
+/** Everything the pages of one file may inflate to, in all (a 5 MB upload is no bomb, a 5 MB page that fills the memory is) */
+export const MAX_INFLATED_BYTES = 20 * 1024 * 1024;
+const FORBIDDEN = /<!\s*(DOCTYPE|ENTITY)/i;
+
+/**
+ * A file the parser will not read at all, whatever the rest says: `code` is
+ * 'doctype' (it declares a DOCTYPE or entities, in the file or in a
+ * compressed page) or 'too_large' (its pages inflate to more than the budget)
+ */
+export class DrawioRefusal extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'DrawioRefusal';
+    this.code = code;
+  }
+}
+
+/**
+ * XML text → document. A DOCTYPE or an entity declaration is refused on the
+ * text and again on the document the parser built: a page hidden in CDATA, in
+ * comments or behind character references only shows up once it is decoded
+ */
+function parseXml(text) {
+  if (FORBIDDEN.test(text)) throw new DrawioRefusal('doctype', 'A diagram may not declare a DOCTYPE or entities');
+  const doc = new DOMParser({ onError: () => {} }).parseFromString(text, 'text/xml');
+  if (doc.doctype || Array.from(doc.childNodes ?? []).some((node) => node.nodeType === 10)) {
+    throw new DrawioRefusal('doctype', 'A diagram may not declare a DOCTYPE or entities');
+  }
+  return doc;
+}
+
 /** Parse a whole .drawio file */
-export function parseDrawio(xmlText, { networkPrefix = '10.22.9' } = {}) {
-  const doc = new DOMParser({ onError: () => {} }).parseFromString(xmlText, 'text/xml');
+export function parseDrawio(xmlText, { networkPrefix = '10.22.9', maxInflatedBytes = MAX_INFLATED_BYTES } = {}) {
+  const doc = parseXml(xmlText);
   const root = doc.documentElement;
   if (!root) throw new Error('Not an XML document');
+  const budget = { left: maxInflatedBytes };
 
   // A bare <mxGraphModel> (single-page export) is accepted too
   const diagrams = root.nodeName === 'mxGraphModel' ? [root] : elements(root, 'diagram');
   if (!diagrams.length) throw new Error('No <diagram> pages found in the draw.io file');
 
   const labs = diagrams.map((d, index) => {
-    const model = d.nodeName === 'mxGraphModel' ? d : resolveModel(d);
+    const model = d.nodeName === 'mxGraphModel' ? d : resolveModel(d, budget);
     const id = d.getAttribute?.('id') || `page-${index + 1}`;
     const name = d.getAttribute?.('name') || `Lab ${index + 1}`;
     return buildLab({ id, name, index, model, networkPrefix });
@@ -44,18 +76,22 @@ export function parseDrawio(xmlText, { networkPrefix = '10.22.9' } = {}) {
 // ─── Page decoding ──────────────────────────────────────────────────────────
 
 /** A <diagram> either contains <mxGraphModel> or a compressed (deflate+base64+URI) payload */
-function resolveModel(diagramEl) {
+function resolveModel(diagramEl, budget) {
   const inline = elements(diagramEl, 'mxGraphModel')[0];
   if (inline) return inline;
+  // The text as the parser reads it: CDATA, comments and character references are resolved
   const payload = (diagramEl.textContent || '').trim();
   if (!payload) return null;
+  let xml;
   try {
-    const inflated = zlib.inflateRawSync(Buffer.from(payload, 'base64')).toString('utf8');
-    const xml = decodeURIComponent(inflated);
-    return new DOMParser({ onError: () => {} }).parseFromString(xml, 'text/xml').documentElement;
-  } catch {
-    throw new Error(`Page "${diagramEl.getAttribute('name')}" is compressed and could not be decoded`);
+    const inflated = zlib.inflateRawSync(Buffer.from(payload, 'base64'), { maxOutputLength: Math.max(budget.left, 1) });
+    budget.left -= inflated.length;
+    xml = decodeURIComponent(inflated.toString('utf8'));
+  } catch (err) {
+    if (err.code === 'ERR_BUFFER_TOO_LARGE') throw new DrawioRefusal('too_large', 'The pages inflate to more than the limit');
+    throw new Error(`Page "${diagramEl.getAttribute('name')}" is compressed and could not be decoded`, { cause: err });
   }
+  return parseXml(xml).documentElement;
 }
 
 // ─── Cell extraction ────────────────────────────────────────────────────────

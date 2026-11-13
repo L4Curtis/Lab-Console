@@ -384,6 +384,7 @@ export function createAuth({ config, logger, events, store, audit, services = {}
         userinfo,
         groups: groupsFrom(result.idClaims, userinfo, oidcSettings.groupsClaim),
         allowed: decision.allowed,
+        userId: decision.user?.id ?? null,
         username: decision.user?.username ?? decision.username,
         role: decision.allowed ? decision.user.role : null,
         groupRole: decision.groupRole,
@@ -521,13 +522,15 @@ export function createAuth({ config, logger, events, store, audit, services = {}
        * Send this browser to the provider with the current settings, and come
        * back to `returnTo` without opening a session: `onResult(outcome)`
        * receives the claims and the role they would give
-       * ({ ok, idClaims, userinfo, groups, allowed, username, role, groupRole, storedRole }
-       * or { ok: false, error }). → { url } to send the browser to
+       * ({ ok, idClaims, userinfo, groups, allowed, userId, username, role, groupRole, storedRole }
+       * or { ok: false, error }). `reauth: true` asks the provider for a fresh
+       * sign-in and refuses an answer that is not one (a person proving
+       * themselves again). → { url } to send the browser to
        */
-      async trial(req, res, { returnTo = '/', onResult }) {
+      async trial(req, res, { returnTo = '/', onResult, reauth = false }) {
         const client = oidc;
         if (!client.enabled) throw Object.assign(new Error('No identity provider is enabled'), { code: 'sso_disabled' });
-        const started = await client.begin();
+        const started = await client.begin({ reauth });
         pending.discard(readCookie(req, cookies.login));
         const id = pending.put({ ...started.pending, client, returnTo: safeReturnPath(returnTo), trial: { onResult } }, { owner: clientIp(req, serverTrust) });
         appendCookie(res, serializeCookie(cookies.login, id, { secure: cookies.secure, maxAgeSeconds: pending.ttlMs / 1000 }));

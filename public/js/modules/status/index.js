@@ -49,7 +49,9 @@ function mountHealth(el) {
     cards.replaceChildren(
       card('jump', data.jump.state),
       card('consoleServers', csState, t('admin.status.serversUp', { ok: cs.ok, count: cs.total })),
-      card('proxmox', data.proxmox.state));
+      card('proxmox', data.proxmox.state, data.proxmox.tunnel
+        ? `${t(`admin.status.states.${data.proxmox.state}`)} · ${t('admin.status.tunnel', { state: t(`admin.status.states.${data.proxmox.tunnel}`) })}`
+        : undefined));
     if (!data.details) { details.replaceChildren(); return; }
     const d = data.details;
     const line = (what, host, state, error) => h('tr', { dataset: { state } }, h('td', what), h('td.mono', host ?? '—'), h('td', t(`admin.status.states.${state}`)), h('td', error ?? ''));
@@ -58,7 +60,9 @@ function mountHealth(el) {
       h('tbody',
         line(t('admin.status.parts.jump'), d.jump.host, d.jump.state, d.jump.code ? tError(d.jump.code, d.jump.params, d.jump.error) : d.jump.error),
         d.consoleServers.map((s) => line(t('admin.status.parts.consoleServer'), `${s.host}:${s.port}`, s.state, s.error)),
-        line(t('admin.status.parts.proxmox'), d.proxmox.host, d.proxmox.state, d.proxmox.error)))));
+        line(t('admin.status.parts.proxmox'), d.proxmox.host, d.proxmox.state, d.proxmox.error),
+        d.proxmox.tunnel ? line(t('admin.status.parts.proxmoxTunnel'), d.proxmox.tunnel.transport, d.proxmox.tunnel.state,
+          t('admin.status.tunnelDetail', { connections: d.proxmox.tunnel.connections, channels: d.proxmox.tunnel.openChannels })) : null))));
   }
 
   async function load(fresh = false) {

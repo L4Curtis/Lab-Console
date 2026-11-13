@@ -6,12 +6,14 @@
  * Each field says whether its value comes from the environment or was saved
  * here, and a saved one can go back to the environment's. Secrets are
  * write-only: the page only knows whether one is set; an empty field keeps
- * it. Saving asks the administrator to confirm (confirm.js). Proxmox is
- * shown for reference: its module reads the environment only.
+ * it. Saving asks the administrator to confirm (confirm.js); an SSO
+ * administrator leaves for the identity provider and finds the result here
+ * on return. Proxmox is shown for reference: its module reads the
+ * environment only (SPEC records that as an owner decision).
  */
 import { h, toast } from '../../../core/dom.js';
 import { request, getJson } from '../../../core/api.js';
-import { t, has, onLocaleChange } from '../../../core/i18n.js';
+import { t, tError, has, onLocaleChange } from '../../../core/i18n.js';
 import { formatDate, errorText } from '../common.js';
 import { askConfirmation } from '../confirm.js';
 
@@ -150,8 +152,16 @@ export function mount(el) {
 
   async function load() {
     try {
-      fill(await getJson('/api/admin/lab'));
+      const next = await getJson('/api/admin/lab');
+      fill(next);
       status.textContent = '';
+      // Back from the identity provider: what became of the change that was waiting
+      const back = next.ssoOutcome;
+      if (back?.ok) toast(t('admin.lab.saved'));
+      else if (back) {
+        showProblems(back.params?.problems);
+        status.textContent = tError(back.code, back.params, back.message);
+      }
     } catch (err) {
       status.textContent = errorText(err);
     }
@@ -168,9 +178,9 @@ export function mount(el) {
     }
     save.disabled = true;
     try {
-      const confirmation = await askConfirmation();
-      if (!confirmation) return;
-      fill(await request('PUT', '/api/admin/lab', { values, confirmation }));
+      const confirmation = await askConfirmation(values);
+      if (!confirmation || confirmation.redirected) return; // cancelled, or on the way to the identity provider
+      fill(await request('PUT', '/api/admin/lab', { values, confirmation: confirmation.ticket }));
       toast(t('admin.lab.saved'));
     } catch (err) {
       showProblems(err.params?.problems);
