@@ -12,7 +12,8 @@
 import { createConsolesModule } from './consoles/index.js';
 import { createProxmoxModule } from './proxmox/index.js';
 import { createAccountsModule } from './accounts/index.js';
+import { createAdminModule } from './admin/index.js';
 
 export function createModules(deps) {
-  return [createConsolesModule(deps), createProxmoxModule(deps), createAccountsModule(deps)];
+  return [createConsolesModule(deps), createProxmoxModule(deps), createAccountsModule(deps), createAdminModule(deps)];
 }

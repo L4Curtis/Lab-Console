@@ -28,7 +28,7 @@ import { createRefusalAudit } from '../auth/refusals.js';
 import { createDirectory, environmentAccount } from './directory.js';
 import { createLinks } from './links.js';
 import { createSso } from './sso.js';
-import { relyingParty, createCeremonies, CEREMONY_TTL_MS } from './passkeys.js';
+import { relyingParty, createCeremonies, CEREMONY_TTL_MS, authenticationOptions, verifyAuthentication, credentialIdOf } from './passkeys.js';
 import { publicRoutes } from './publicRoutes.js';
 import { meRoutes } from './meRoutes.js';
 import { adminRoutes } from './adminRoutes.js';
@@ -106,6 +106,40 @@ export function createAccountsModule({ config, logger, events, store, audit, aut
     },
     /** Called by the sign-in module when an SSO account signs in: recorded; false when disabled */
     admit: (user, { groupRole } = {}) => directory.admitSso(user, { groupRole }),
+    /**
+     * A signed-in local account proves itself again with one of its passkeys
+     * before a sensitive change (the lab parameters, admin module):
+     * available(user), options(req, res) → the browser's options, verify(req,
+     * res, response) → boolean. The challenge is bound to the browser, the
+     * account and the session, single use, like every ceremony
+     */
+    confirmation: {
+      available(user) {
+        const account = user ? directory.get(user.id) : null;
+        return Boolean(rp.available && account?.via === 'local' && account.state === 'active' && account.passkeys?.length);
+      },
+      async options(req, res) {
+        const account = directory.get(req.user?.id);
+        if (!this.available(req.user)) return null;
+        const options = await authenticationOptions(rp, { credentials: account.passkeys, userVerification: 'preferred' });
+        ceremony.start(req, res, { kind: 'confirm', challenge: options.challenge, userId: account.id, sessionId: req.sessionId });
+        return options;
+      },
+      async verify(req, res, response) {
+        const started = ceremony.take(req, res, 'confirm');
+        if (!started || started.userId !== req.user?.id || started.sessionId !== req.sessionId) return false;
+        const found = directory.findCredential(credentialIdOf(response));
+        if (!found || found.account.id !== req.user.id || found.account.state !== 'active') return false;
+        try {
+          const result = await verifyAuthentication(rp, started, response, found.passkey, { requireUserVerification: false });
+          await directory.usePasskey(found.account.id, found.passkey.id, result);
+          return true;
+        } catch (err) {
+          log.warn(`passkey confirmation refused for ${req.user.id}: ${err.reason ?? err.message}`);
+          return false;
+        }
+      },
+    },
   };
 
   const router = express.Router();

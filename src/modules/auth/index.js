@@ -10,6 +10,7 @@
  *   auth.sessions.list() / .revoke(sessionId) / .revokeUser(userId) / .create(user, meta)
  *   auth.sessions.open(req, res, user, meta)   sign a browser in (new session, cookie set)
  *   auth.accounts.add(provider)        another source of local accounts (accounts.js)
+ *   auth.reauthenticate(user, { password, code })   the environment administrator proves itself again → boolean
  *   auth.steps.peek(req) / .complete(req, res, details) / .fail(req, res) / .start(req, res, user, requires)
  *                                      a sign-in waiting for a further proof (a passkey)
  *   auth.oidc.settings / .configure(raw)   the identity provider, replaceable at run time
@@ -432,6 +433,19 @@ export function createAuth({ config, logger, events, store, audit, services = {}
       },
     },
     accounts: { add: accounts.add, get providers() { return accounts.ids; } },
+    /**
+     * Ask the signed-in environment administrator for its password and a
+     * fresh one-time code again, before a sensitive change (the lab
+     * parameters). → true or false; false for anyone else, who confirms with
+     * a passkey instead (the accounts module). An accepted code is burnt, as
+     * at sign-in
+     */
+    async reauthenticate(user, { password, code } = {}) {
+      if (!user || user.id !== envAdmin.user.id) return false;
+      const answer = await envAdmin.verify({ username: user.username, password: typeof password === 'string' ? password : '', code: typeof code === 'string' ? code : '' });
+      return Boolean(answer?.user);
+    },
+    get environmentAdminId() { return envAdmin.user.id; },
     steps: {
       /**
        * The sign-in this browser has in progress: { user, requires, returnTo,
