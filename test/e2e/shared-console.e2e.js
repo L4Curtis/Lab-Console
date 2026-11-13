@@ -119,6 +119,22 @@ test('alice opens R1, bob joins and sees the history, asks for the keyboard, ali
   assert.equal(await alice.locator('g.device[data-state="open"] .deco-badge.badge-pilot').count(), 1, 'presence is still drawn');
   await alice.evaluate(() => window.offProbeLayer());
   await alice.waitForFunction(() => !document.querySelector('.deco-badge.badge-probe'));
+  // A view that is thrown away stops listening to the shared registry
+  const redraws = await alice.evaluate(async () => {
+    const { DiagramView } = await import('/js/modules/consoles/diagramView.js');
+    const { registerDiagramLayer, refreshDiagram } = await import('/js/shared/diagramLayers.js');
+    const view = new DiagramView(document.createElement('div'), { onOpen() {} });
+    let calls = 0;
+    view.refresh = () => { calls += 1; };
+    refreshDiagram();
+    const live = calls;
+    view.destroy();
+    const off = registerDiagramLayer('gone', () => null);
+    refreshDiagram();
+    off();
+    return { live, after: calls - live };
+  });
+  assert.deepEqual(redraws, { live: 1, after: 0 }, 'a destroyed view is not redrawn');
 
   // "Free the line" follows the task rule: on an unowned line anyone who may pilot sees it, not while a job runs
   await paneA.locator('button[data-action="release"]').click();

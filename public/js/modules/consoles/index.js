@@ -198,7 +198,7 @@ export async function mount(el, { navigate }) {
   }
 
   // Sentences made with a number or a name are written again when the language changes
-  onLocaleChange(() => {
+  const offLocale = onLocaleChange(() => {
     renderNotes();
     renderNotice();
     if (loadError) writeLoadError();
@@ -210,13 +210,14 @@ export async function mount(el, { navigate }) {
 
   // Ctrl+K or "/" opens the device finder - but never steals keys from a terminal
   // (Ctrl+K is "erase to end of line" on Cisco IOS)
-  document.addEventListener('keydown', (e) => {
+  const onKey = (e) => {
     if (el.hidden || e.target.closest?.('.xterm, input, textarea')) return;
     if ((e.key === 'k' && (e.ctrlKey || e.metaKey)) || e.key === '/') {
       e.preventDefault();
       quick.open();
     }
-  });
+  };
+  document.addEventListener('keydown', onKey);
 
   return {
     show([labName] = []) {
@@ -226,6 +227,13 @@ export async function mount(el, { navigate }) {
         else pendingLabName = labName;
       }
       split.activate();
+    },
+    // Sections stay mounted today; whoever unmounts this one calls destroy() so
+    // nothing keeps drawing on a detached diagram
+    destroy() {
+      diagram.destroy();
+      offLocale();
+      document.removeEventListener('keydown', onKey);
     },
   };
 }

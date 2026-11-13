@@ -21,6 +21,7 @@
  *   }) | null)
  *   view.refresh()                                     // after the data behind a layer changed
  *   view.decorate('presence', null)                    // remove a layer
+ *   view.destroy()                                     // the view is thrown away: stop listening
  *
  * Other lots do not hold the view: they register their layer once with
  * `registerDiagramLayer(name, fn)` (shared/diagramLayers.js), which every
@@ -50,6 +51,7 @@ export class DiagramView {
   #autoFit = true;
   #deviceEls = new Map();
   #layers = new Map(); // name → (device) => decoration | null
+  #stop = []; // what destroy() undoes: listeners on module-wide registries, the resize observer
 
   constructor(container, { onOpen }) {
     this.onOpen = onOpen;
@@ -66,9 +68,18 @@ export class DiagramView {
       h('button.icon-btn', { type: 'button', ...tAttr('title', 'consoles.diagram.fit'), onclick: () => this.fit(true) }, icon('fit')));
     container.append(this.svg, this.controls, this.tooltip);
     this.#bindPanZoom();
-    onLocaleChange(() => this.#relabel());
-    onDiagramLayersChange(() => this.refresh());
-    new ResizeObserver(() => this.#autoFit && this.fit()).observe(container);
+    const resize = new ResizeObserver(() => this.#autoFit && this.fit());
+    resize.observe(container);
+    this.#stop.push(
+      onLocaleChange(() => this.#relabel()),
+      onDiagramLayersChange(() => this.refresh()),
+      () => resize.disconnect(),
+    );
+  }
+
+  /** Stop listening to the language, the shared layer registry and the container's size */
+  destroy() {
+    for (const stop of this.#stop.splice(0)) stop();
   }
 
   render(lab) {
