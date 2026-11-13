@@ -70,13 +70,17 @@ wrong.
   to sign in a second time.
 - Attempts are limited: 5 per 15 minutes from one address; after two failures
   on a user name, each new attempt on that name waits twice as long as the
-  previous one (1 s, 2 s, 4 s… up to 15 minutes), from any address; and at most
-  50 failures per 15 minutes in total. The answer and its timing are the same
+  previous one (1 s, 2 s, 4 s… up to 15 minutes), from any address; and past
+  50 failures per 15 minutes in total, a name that has failed itself waits
+  until that count goes down (a name nobody failed on still gets its try:
+  strangers failing on made-up names never keep a student with the right
+  password out). The answer and its timing are the same
   whether or not the name exists. These limits only apply to this form: people
   who sign in through the identity provider never meet them.
 - **Known browsers.** The last two limits are shared by everybody, so a
   stranger could keep them on for good. A browser that has signed in
-  successfully keeps a `lc_device` cookie (`__Host-lc_device` over https, 180
+  successfully (with a password, through an invitation's sign-up, or with a
+  passkey) keeps a `lc_device` cookie (`__Host-lc_device` over https, 180
   days, signed, only valid for that user name). Its attempts are counted on
   that browser alone, 5 per 15 minutes with its own backoff, and the shared
   refusals no longer apply to it. It is not a credential: the name, the
@@ -278,7 +282,9 @@ OIDC_PROVIDER_NAME=Authelia
 
 Without `OIDC_ISSUER` in the environment, the **Sign-in (SSO)** tab of the
 Administration section sets the provider: name of the button, issuer, client
-id, client secret (write-only: the page only says whether one is set),
+id, client secret (write-only: the page only says whether one is set; a
+change of issuer or client id needs the new client's secret, or "public
+client" ticked, so the saved secret is never sent to another provider),
 scopes, groups claim, admin groups, allowed groups, on / off. It shows the
 callback URL to give the provider, **Test** fetches the discovery document,
 and **Try a sign-in** goes to the provider and back without opening a session,
@@ -305,11 +311,19 @@ network, and no redirect leads to an internal address.
   administrator's approval (Users tab). Links can be withdrawn.
 - **User names**: 3 to 32 letters and digits with single `.`, `-` or `_`
   between them, unique without regard to case (the local administrator's
-  name included). **Passwords**: 10 characters at least, not a common one,
+  name included). **Known gap, owner decision pending:** someone holding an
+  invitation learns, from the refusal, that a name is taken (any name they
+  try, the local administrator's included: such a name is refused at once,
+  exactly like a reserved name such as `admin`). Sign-up refusals are limited
+  to 10 per link per 15 minutes. Hiding it completely needs the invitation to
+  fix the user name, or the SPEC line "never says which usernames exist" to
+  be relaxed. **Passwords**: 10 characters at least, not a common one,
   not containing the user name; stored as scrypt hashes.
 - **Forgotten password**: there is no e-mail. An administrator makes a reset
   link (Users tab, 1 h or 24 h, single use); using it ends the account's
-  sessions.
+  sessions, and any sign-in started with the old password that was still
+  waiting for its passkey. Changing the password in My account, or clearing
+  an account's passkeys, ends those too.
 - **Passkeys** are offered when `PUBLIC_URL` is https on a domain name (or
   `http://localhost`, for tests): the relying party is the host of
   `PUBLIC_URL`. A local account promoted to admin registers a passkey at its

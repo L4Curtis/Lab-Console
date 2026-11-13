@@ -198,13 +198,16 @@ auth.authenticateUpgrade(req)  // → User | null, for WebSocket upgrades; the s
 auth.sessions.list() / .revoke(sessionId) / .revokeUser(userId)
 auth.sessions.create(user, { ip, userAgent }) // → { id, token, cookie }: a session in the store (tests)
 auth.sessions.open(req, res, user)   // sign this browser in as someone the server authenticated another
-                               //   way (passkey, invitation): previous session ended, cookie set → session
+                               //   way (passkey, invitation): previous session ended, cookie set → session;
+                               //   a local account's browser becomes known for its name (lc_device)
 auth.accounts.add(provider)    // another source of local accounts → remove()
-auth.steps.peek(req) / .complete(req, res, { method, user }) / .fail(req, res) / .start(req, res, user, requires)
-                               // a sign-in whose password was right and that still owes a passkey
+auth.steps.peek(req) / .complete(req, res, { method, user }) / .fail(req, res) / .start(req, res, user, requires, { binding })
+                               // a sign-in whose password was right and that still owes a passkey;
+                               //   peek() hands back the provider's `binding` (see Ways in)
 auth.extend(router, { describe })    // public routes mounted above the gate; describe(req) adds fields to /auth/me
 auth.oidc.settings             // current OIDC settings, without the secret ({ …, hasClientSecret })
-auth.oidc.configure(raw)       // replace them at run time (validated; open sessions untouched)
+auth.oidc.configure(raw)       // replace them at run time (validated; open sessions untouched); an omitted
+                               //   clientSecret keeps the current one for the same issuer and client id only
 auth.oidc.redirectUri          // the callback URL to give the provider
 auth.oidc.trial(req, res, { returnTo, onResult })   // → { url }: a sign-in at the provider that opens no
                                //   session; onResult gets the claims and the role they give
@@ -249,7 +252,11 @@ at every sign-in.
   administrator) gets no session: the answer is `{ step }`, a 5-minute,
   single-use step is kept on the server (cookie `lc_step`, `__Host-` over
   https), and the accounts module finishes it with `auth.steps.complete()`
-  once the passkey is given or registered.
+  once the passkey is given or registered. The provider may add an opaque
+  `binding` to its answer, kept with the step: the directory binds a step to
+  a fingerprint of the password hash and to the passkeys the account had, so
+  a password reset or change, or passkeys cleared, end the steps in progress
+  as they end the sessions.
 - Passkeys (accounts module, `@simplewebauthn/server`): one-click sign-in with
   a discoverable credential and user verification (`/auth/passkey/options`,
   `/auth/passkey/verify`), and the step above. Relying party = the host of
@@ -260,12 +267,15 @@ at every sign-in.
   provider, the environment's administrator keeps password + TOTP.
 - Attempts on the local form are limited (`throttle.js`) per client address
   (5 per 15 min), per user name (exponential backoff after 2 failures, one
-  attempt in flight), and globally (50 failures per 15 min): 429
-  `auth.throttled` with `Retry-After` and `params.seconds`, identical for an
-  unknown name. A browser that already signed in with that name carries a
-  signed `lc_device` cookie (`devices.js`, 180 days) and is limited on its
-  own instead (5 per 15 min, its own backoff), so strangers cannot keep the
-  administrator out. Refusals that cost nothing (throttled attempts, callbacks
+  attempt in flight), and globally (past 50 failures per 15 min, a name that
+  failed itself waits until the count goes down; a name with no failure of
+  its own still gets in, so strangers failing on made-up names never refuse
+  a student's right password): 429 `auth.throttled` with `Retry-After` and
+  `params.seconds`, identical for an unknown name. A browser that already
+  signed in with that name (password, sign-up or passkey) carries a signed
+  `lc_device` cookie (`devices.js`, 180 days) and is limited on its own
+  instead (5 per 15 min, its own backoff), so strangers cannot keep the
+  owner of a name out. Refusals that cost nothing (throttled attempts, callbacks
   without a sign-in in progress, the latter limited to 60 a minute per
   address) are audited once per address and kind per 15 min, then summed up
   in one `auth.login.suppressed` entry (`refusals.js`).
