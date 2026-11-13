@@ -1,0 +1,62 @@
+{
+  "errors": {
+    "no_prompt": "Aucune invite Cisco n’a répondu.",
+    "rommon": "L’équipement est en ROMMON (rommon >) : il n’a pas chargé IOS. Il faut le vérifier sur place.",
+    "boot_loader": "Le commutateur est à son chargeur de démarrage (switch:) : il n’a pas chargé IOS. Il faut le vérifier sur place.",
+    "booting": "L’équipement affiche du texte en continu (il semble démarrer) : rien n’a été tapé.",
+    "silent": "L’équipement ne répond pas : vérifiez sur place son alimentation et son câble console.",
+    "line_password": "La ligne console demande un mot de passe inconnu : l’équipement reste verrouillé jusqu’à une récupération sur place.",
+    "login_required": "L’équipement demande un nom d’utilisateur : la connexion à la console n’est pas prise en charge.",
+    "enable_refused": "Le mot de passe enable a été refusé ({attempts} essais).",
+    "enable_password_required": "L’équipement demande un mot de passe enable et aucun n’a été fourni.",
+    "unknown_question": "L’équipement pose une question que le pilote ne connaît pas : « {question} ». Rien n’a été répondu.",
+    "unknown_state": "La console est dans un état que le pilote ne reconnaît pas : « {line} ».",
+    "not_ios": "Cet équipement ne fonctionne pas sous Cisco IOS ou IOS XE : il n’est pas touché.",
+    "not_privileged": "L’équipement n’est pas en mode privilégié (#).",
+    "command_refused": "L’équipement a refusé la commande : {detail}",
+    "incomplete_output": "L’équipement a cessé de répondre avant la fin de l’affichage.",
+    "export_failed": "La configuration courante n’a pas pu être lue : {detail}",
+    "bad_target": "Ce n’est pas une adresse IPv4 : « {target} ».",
+    "no_backup": "Aucune preuve de sauvegarde : l’équipement n’est pas effacé.",
+    "backup_mismatch": "La sauvegarde est celle de {expected}, mais l’équipement est {hostname} : il n’est pas effacé.",
+    "erase_failed": "La configuration de démarrage n’a pas pu être effacée.",
+    "vlan_delete_failed": "flash:vlan.dat n’a pas pu être supprimé : {detail}",
+    "register_failed": "Le registre de configuration n’a pas pu être remis à 0x2102.",
+    "reload_refused": "L’équipement n’a pas redémarré.",
+    "boot_stalled": "Le démarrage s’est bloqué : rien n’a été affiché pendant {seconds} s.",
+    "boot_timeout": "L’équipement n’a pas atteint d’invite en {minutes} minutes.",
+    "not_factory": "Après le redémarrage, l’équipement n’est pas dans son état d’usine : {detail}",
+    "vlans_survived": "Des VLAN sont toujours présents après le redémarrage : {vlans}."
+  },
+  "steps": {
+    "look": "Lecture de la console",
+    "wake": "Réveil de la console (Entrée)",
+    "enable": "Passage en mode privilégié (enable)",
+    "line_password": "Réponse au mot de passe de la ligne console",
+    "end": "Sortie du mode configuration",
+    "dialog": "Réponse « no » au dialogue de configuration initiale",
+    "read_config": "Lecture de la configuration courante",
+    "erase": "Effacement de la configuration de démarrage",
+    "vlan": "Suppression de flash:vlan.dat",
+    "register": "Remise du registre de configuration à 0x2102",
+    "reload": "Redémarrage sans enregistrer",
+    "boot": "Suivi du démarrage",
+    "pnp": "Attente de la fin de la découverte Plug-and-Play",
+    "factory_check": "Vérification de l’état d’usine"
+  },
+  "stages": {
+    "check": "vérifications avant effacement",
+    "erase": "effacement de la configuration de démarrage",
+    "vlan": "suppression de vlan.dat",
+    "register": "registre de configuration",
+    "reload": "redémarrage",
+    "boot": "démarrage",
+    "dialog": "dialogue de configuration initiale",
+    "pnp": "découverte Plug-and-Play",
+    "factory_check": "vérification de l’état d’usine"
+  },
+  "warnings": {
+    "register_unusual": "Le registre de configuration n’est pas 0x2102 : le routeur ignore ou modifie le chargement de sa configuration.",
+    "pnp_not_stopped": "La découverte Plug-and-Play n’a pas signalé son arrêt."
+  }
+}
