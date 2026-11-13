@@ -27,8 +27,8 @@ export const admin = (extra = {}) =>
  * Known users: student1, student2, student3, admin - or pass your own map
  */
 export function fakeAuth(users = { student1: student(1), student2: student(2), student3: student(3), admin: admin() }) {
-  return (deps) => {
-    const real = createAuth(deps);
+  return async (deps) => {
+    const real = await createAuth(deps);
     const cookies = new Map(); // user name → Cookie header of their session
     const impersonate = (req) => {
       const name = req.headers['x-test-user'] ?? new URL(req.url, 'http://localhost').searchParams.get('as');

@@ -1,7 +1,8 @@
 /**
  * Identity: who is behind a request (ARCHITECTURE §5)
  *
- * createAuth(deps) returns the service every module receives as `deps.auth`:
+ * await createAuth(deps) resolves to the service every module receives as
+ * `deps.auth`, once its saved state (sessions, keys) is loaded:
  *
  *   auth.attach(req, res, next)        sets req.user and req.sessionId (or leaves them undefined)
  *   auth.requireAuth(req, res, next)   401 JSON under /api and for writes, 302 /login otherwise
@@ -74,11 +75,12 @@ export function requireRole(role) {
 const visibleSettings = ({ clientSecret, ...rest }) => ({ ...rest, hasClientSecret: Boolean(clientSecret) });
 
 /**
- * deps: { config, logger, events, store, audit } from the platform; `now` is
- * a test seam (a clock). Throws when there is no local administrator or no
- * PUBLIC_URL: the platform must not start without a way to sign in
+ * deps: { config, logger, events, repos, audit } from the platform (repos:
+ * createRepositories(db), of which it uses `sessions` and `authState`); `now`
+ * is a test seam (a clock). Rejects when there is no local administrator or
+ * no PUBLIC_URL: the platform must not start without a way to sign in
  */
-export function createAuth({ config, logger, events, store, audit, now = Date.now }) {
+export async function createAuth({ config, logger, events, repos, audit, now = Date.now }) {
   const log = logger ?? { info() {}, warn() {}, error() {} };
   const settings = config.auth;
   if (!settings?.localAdmin?.username || !settings.localAdmin.passwordHash || !settings.localAdmin.totpSecret) {
@@ -89,9 +91,9 @@ export function createAuth({ config, logger, events, store, audit, now = Date.no
 
   const cookies = cookieSettings(publicUrl);
   const serverTrust = config.server;
-  const envAdmin = createEnvAdminProvider({ settings: settings.localAdmin, store, logger: log, now });
-  const sessions = createSessionStore({
-    store, logger: log, now,
+  const envAdmin = await createEnvAdminProvider({ settings: settings.localAdmin, state: repos.authState, logger: log, now });
+  const sessions = await createSessionStore({
+    repo: repos.sessions, logger: log, now,
     // The administrator's sessions do not outlive a change of its credentials
     bindingOf: (user) => (user.id === envAdmin.user.id ? envAdmin.binding : undefined),
     onEnd(session, reason) {
@@ -105,7 +107,7 @@ export function createAuth({ config, logger, events, store, audit, now = Date.no
   });
   const pending = createPendingLogins({ now });
   const throttle = createLoginThrottle({ now });
-  const devices = createDeviceCookies({ key: loadDeviceKey({ store, logger: log }), now });
+  const devices = createDeviceCookies({ key: await loadDeviceKey({ state: repos.authState, logger: log }), now });
   const refusals = createRefusalAudit({ audit, now });
   const accounts = createAccountProviders([envAdmin]);
   const startsPerMinute = createRateLimiter({ limit: 30, windowMs: 60_000 });

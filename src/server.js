@@ -1,8 +1,9 @@
 /**
  * Lab Console - HTTP + WebSocket entry point and composition root
  *
- * createApp() builds the platform services once (store, audit, events, auth,
- * services registry), hands them to every module, and wires the request
+ * createApp() builds the platform services once (store, database and
+ * repositories, audit, settings, events, auth, services registry), hands
+ * them to every module, and wires the request
  * pipeline in the order of ARCHITECTURE §4. The order IS the security model:
  * whatever is mounted below the gate needs a signed-in user, so a new route
  * is protected unless someone deliberately mounts it above
@@ -20,6 +21,7 @@ import { EventHub } from './lib/events.js';
 import { securityHeaders, isOriginAllowed, requireSameOrigin, proxyTrust } from './lib/security.js';
 import { loadInfrastructure } from './lib/infrastructure.js';
 import { createStore } from './lib/store.js';
+import { openDatabase, createRepositories, importLegacyFiles } from './lib/db/index.js';
 import { createAudit } from './lib/audit.js';
 import { createSettings } from './lib/settings.js';
 import { HttpError, errorBody, sendError } from './lib/httpError.js';
@@ -29,29 +31,59 @@ import { createModules } from './modules/index.js';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const publicDir = path.join(root, 'public');
 
+/** File name of the database inside DATA_DIR */
+export const DATABASE_FILE = 'lab-console.db';
+
+/**
+ * The platform services, shared by every module (ARCHITECTURE §6). The
+ * database is open and migrated, and the files of the time before it are
+ * imported, before anything that reads its state is created
+ */
+async function createPlatform({ config, logger, makeAuth, makeModules, trust }) {
+  const store = createStore(config.dataDir, { logger: logger('store') });
+  const db = await openDatabase({ file: store.resolve(DATABASE_FILE), logger: logger('db') });
+  try {
+    const repos = createRepositories(db);
+    await importLegacyFiles({ store, repos, logger: logger('db') });
+    const events = new EventHub({ logger: logger('events') });
+    const audit = createAudit({ repo: repos.audit, logger: logger('audit'), clientIp: trust.clientIp });
+    const infra = loadInfrastructure(config.infraConfigPath, logger('infra'));
+    const settings = await createSettings({ config, repo: repos.settings, logger: logger('settings') });
+    const services = {};
+    const auth = await makeAuth({ config, logger: logger('auth'), events, store, repos, audit, services });
+    const deps = { config, logger: logger('app'), events, infra, store, repos, audit, auth, settings, services };
+    let modules = [];
+    try {
+      modules = makeModules(deps);
+      // Modules that load state before serving do it here, once every service exists
+      for (const m of modules) await m.start?.();
+    } catch (err) {
+      await Promise.allSettled([...modules.map((m) => m.shutdown?.()), auth.shutdown?.()]);
+      events.close();
+      throw err;
+    }
+    return { store, db, events, auth, deps, modules };
+  } catch (err) {
+    await store.flush();
+    await db.close().catch(() => {});
+    throw err;
+  }
+}
+
 /**
  * Build the whole application without listening.
  *   config   the frozen object from src/config.js (or loadConfig() in tests)
  *   logger   optional replacement for createLogger, e.g. a silent one in tests
  *   createAuth, createModules   test seams: another identity (see
  *            test/helpers/fakes.js) or another module list, in the real pipeline
- * Returns { app, server, modules, deps, listen(), close() }
+ * Resolves to { app, server, modules, deps, db, listen(), close() } once the
+ * database is ready; rejects (with nothing left open) when it cannot be
  */
-export function createApp({ config, logger = createLogger, createAuth: makeAuth = createAuth, createModules: makeModules = createModules } = {}) {
+export async function createApp({ config, logger = createLogger, createAuth: makeAuth = createAuth, createModules: makeModules = createModules } = {}) {
   if (!config) throw new TypeError('createApp needs a config');
   const log = logger('server');
   const trust = proxyTrust(config.server);
-
-  // ── Platform services, shared by every module (ARCHITECTURE §6) ────────────
-  const store = createStore(config.dataDir, { logger: logger('store') });
-  const events = new EventHub({ logger: logger('events') });
-  const audit = createAudit({ store, logger: logger('audit'), clientIp: trust.clientIp });
-  const infra = loadInfrastructure(config.infraConfigPath, logger('infra'));
-  const settings = createSettings({ config, store, audit, events, logger: logger('settings') });
-  const services = {};
-  const auth = makeAuth({ config, logger: logger('auth'), events, store, audit, services });
-  const deps = { config, logger: logger('app'), events, infra, store, audit, auth, settings, services };
-  const modules = makeModules(deps);
+  const { store, db, events, auth, deps, modules } = await createPlatform({ config, logger, makeAuth, makeModules, trust });
 
   const app = express();
   app.disable('x-powered-by');
@@ -147,20 +179,25 @@ export function createApp({ config, logger = createLogger, createAuth: makeAuth 
     });
   }
 
-  /** Stop everything this instance started: consoles, streams, sockets, pending writes */
-  async function close() {
-    for (const m of modules) m.shutdown?.();
-    auth.shutdown?.();
-    events.close();
-    await new Promise((resolve) => {
-      if (!server.listening) return resolve();
-      server.close(() => resolve());
-      server.closeAllConnections();
-    });
-    await store.flush();
+  /** Stop everything this instance started: consoles, streams, sockets, pending writes, the database */
+  let closing = null;
+  function close() {
+    closing ??= (async () => {
+      const stopped = await Promise.allSettled([...modules.map((m) => m.shutdown?.()), auth.shutdown?.()]);
+      for (const { status, reason } of stopped) if (status === 'rejected') log.error(`shutdown: ${reason?.message ?? reason}`);
+      events.close();
+      await new Promise((resolve) => {
+        if (!server.listening) return resolve();
+        server.close(() => resolve());
+        server.closeAllConnections();
+      });
+      await store.flush();
+      await db.close(); // after everything above: it waits for the statements they queued
+    })();
+    return closing;
   }
 
-  return { app, server, modules, deps, listen, close };
+  return { app, server, modules, deps, db, listen, close };
 }
 
 // ── Process entry point ──────────────────────────────────────────────────────
@@ -177,7 +214,7 @@ if (isMain) {
   const log = createLogger('server');
   let lab;
   try {
-    lab = createApp({ config });
+    lab = await createApp({ config });
     const { host, port } = await lab.listen();
     log.info(`Lab Console listening on http://${host}:${port}`);
     log.info(`Jump server ${config.ssh.username}@${config.ssh.host}:${config.ssh.port}`);

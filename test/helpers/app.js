@@ -157,7 +157,7 @@ export async function startTestApp({ env = {}, logger = silentLogger, auth, modu
   for (let attempt = 1; ; attempt++) {
     port = env.PORT ? Number(env.PORT) : await freePort();
     config = await loadTestConfig({ PORT: String(port), PUBLIC_URL: `http://127.0.0.1:${port}`, ...env }, dataDir);
-    lab = createApp({ config, logger, createAuth: makeAuth, createModules: modules });
+    lab = await createApp({ config, logger, createAuth: makeAuth, createModules: modules });
     try {
       await lab.listen();
       break;

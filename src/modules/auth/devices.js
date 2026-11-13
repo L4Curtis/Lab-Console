@@ -16,42 +16,45 @@
  * not in the cookie, a cookie only counts for the name it was issued for,
  * and nobody can make one without the key. A cookie lives `maxAgeMs` (180 days)
  *
- * The key is a random secret of its own, kept in data/auth/device-key.json
- * (loadDeviceKey). It does not derive from the administrator's credentials on
+ * The key is a random secret of its own, kept in the database (auth_state
+ * 'device-key', loadDeviceKey). It does not derive from the administrator's credentials on
  * purpose: replacing them after a suspected compromise - exactly when someone
  * is likely to be hammering the form - must not turn the administrator's own
  * browsers into strangers that the shared refusals keep out. Whatever was
  * obtained with the old credentials ends anyway: the sessions through their
  * binding (envAdmin.js, sessions.js), and a cookie on its own opens nothing.
- * Deleting the file (then restarting) forgets every known browser
+ * Deleting that value (then restarting) forgets every known browser
  */
 import crypto from 'node:crypto';
 import { nameKey } from './throttle.js';
 
-const KEY_FILE = 'auth/device-key.json';
+const KEY_NAME = 'device-key';
 const KEY_TEXT = /^[A-Za-z0-9_-]{43}$/; // 32 bytes in base64url, no padding
 
 /**
- * The key of the known-browser cookies: the one saved in the data directory,
- * or a new one, saved there, when there is none yet (or it is not usable).
- * If the file cannot be read, a key for this run only: known browsers are
- * strangers until the file is readable again, and it is never overwritten
+ * The key of the known-browser cookies: the one saved in the database, or a
+ * new one, saved there, when there is none yet (or it is not usable). If it
+ * cannot be read, a key for this run only: known browsers are strangers
+ * until it can be read again, and the saved one is never overwritten.
+ * `state` is the auth state repository (createRepositories(db).authState)
  */
-export function loadDeviceKey({ store, logger }) {
+export async function loadDeviceKey({ state, logger }) {
   const log = logger ?? { warn() {}, error() {} };
-  const doc = store.json(KEY_FILE, null);
   let saved;
   try {
-    saved = doc.get();
+    saved = await state.get(KEY_NAME);
   } catch (err) {
-    log.error(`${KEY_FILE} could not be read (${err.message}): known browsers are not recognised until it can be`);
+    log.error(`the known-browser key could not be read (${err.message}): known browsers are not recognised until it can be`);
     return crypto.randomBytes(32);
   }
   if (typeof saved?.key === 'string' && KEY_TEXT.test(saved.key)) return Buffer.from(saved.key, 'base64url');
-  if (saved !== null) log.warn(`${KEY_FILE} holds no usable key: a new one replaces it, known browsers have to sign in again`);
+  if (saved !== undefined) log.warn('the saved known-browser key is not usable: a new one replaces it, known browsers have to sign in again');
   const key = crypto.randomBytes(32);
-  doc.set({ key: key.toString('base64url') })
-    .catch((err) => log.error(`${KEY_FILE} could not be saved (${err.message}): known browsers will not be recognised after a restart`));
+  try {
+    await state.set(KEY_NAME, { key: key.toString('base64url') });
+  } catch (err) {
+    log.error(`the known-browser key could not be saved (${err.message}): known browsers will not be recognised after a restart`);
+  }
   return key;
 }
 

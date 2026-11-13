@@ -1,36 +1,34 @@
 /**
- * Audit trail (src/lib/audit.js): entries are appended with who / what /
+ * Audit trail (src/lib/audit.js): entries are recorded with who / what /
  * when, can be queried, and recording never breaks the action it records
  */
 import { test, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import { createStore } from '../src/lib/store.js';
 import { createAudit } from '../src/lib/audit.js';
 import { clientIp } from '../src/lib/security.js';
-import { tempDataDir } from './helpers/app.js';
+import { memoryDatabase } from './helpers/db.js';
 import { student, admin, recordingLogger, fakeRequest } from './helpers/fakes.js';
 
-let dir;
-let store;
+let memory;
 let log;
 let clock;
 let audit;
-beforeEach(() => {
-  dir = tempDataDir();
-  store = createStore(dir);
+beforeEach(async () => {
+  memory = await memoryDatabase();
   log = recordingLogger();
   clock = new Date('2026-11-12T10:00:00.000Z');
-  audit = createAudit({ store, logger: log, clientIp: (req) => clientIp(req, false), now: () => new Date(clock) });
+  audit = createAudit({ repo: memory.repos.audit, logger: log, clientIp: (req) => clientIp(req, false), now: () => new Date(clock) });
 });
-afterEach(async () => { await store.flush(); fs.rmSync(dir, { recursive: true, force: true }); });
+afterEach(() => memory.close());
 
-const lines = (month) => fs.readFileSync(store.resolve('audit', `${month}.jsonl`), 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+/** Every stored entry, oldest first, as callers get them back */
+const lines = async () => (await memory.repos.audit.query({ limit: 5000 })).reverse();
+const rawRows = () => memory.db.query('SELECT * FROM audit_entries ORDER BY ts, id');
 
-test('log: appends one line per action to the month file', async () => {
+test('log: stores one entry per action', async () => {
   assert.equal(await audit.log(student(1), 'bench.take', { bench: 'B4M' }), true);
   assert.equal(await audit.log(admin(), 'console.control.grant', { bench: 'B4M', device: 'R1', to: 'oidc:student1' }), true);
-  const [first, second] = lines('2026-11');
+  const [first, second] = await lines();
   assert.deepEqual(first, {
     ts: '2026-11-12T10:00:00.000Z',
     action: 'bench.take',
@@ -46,7 +44,7 @@ test('log: the actor may be a request, a user or the system', async () => {
   await audit.log(fakeRequest({ user: student(2), remoteAddress: '::ffff:192.168.10.20' }), 'console.open', { bench: 'B4M', device: 'S1' });
   await audit.log('system', 'bench.release.idle', { bench: 'B4M' });
   await audit.log(fakeRequest({ remoteAddress: '192.168.10.99' }), 'auth.login.failed', {});
-  const [byRequest, bySystem, byNobody] = lines('2026-11');
+  const [byRequest, bySystem, byNobody] = await lines();
   assert.equal(byRequest.actor.id, 'oidc:student2');
   assert.equal(byRequest.ip, '192.168.10.20');
   assert.equal(bySystem.actor.id, 'system');
@@ -55,43 +53,51 @@ test('log: the actor may be a request, a user or the system', async () => {
   assert.equal(byNobody.ip, '192.168.10.99');
 });
 
-test('log: one file per month', async () => {
-  await audit.log('system', 'job.backup.start', { bench: 'B4M' });
-  clock = new Date('2026-12-01T00:00:01.000Z');
-  await audit.log('system', 'job.backup.start', { bench: 'B4M' });
-  assert.deepEqual(fs.readdirSync(store.resolve('audit')).sort(), ['2026-11.jsonl', '2026-12.jsonl']);
+test('log: the indexed columns are filled from the entry', async () => {
+  await audit.log(fakeRequest({ user: student(2), remoteAddress: '192.168.10.20' }), 'console.open', { bench: 'B4M', device: 'S1' });
+  await audit.log('system', 'bench.release.idle', { bench: 42 });
+  const [open, idle] = await rawRows();
+  assert.equal(open.ts, '2026-11-12T10:00:00.000Z');
+  assert.equal(open.action, 'console.open');
+  assert.equal(open.actor_id, 'oidc:student2');
+  assert.equal(open.bench, 'B4M');
+  assert.equal(open.ip, '192.168.10.20');
+  assert.deepEqual(JSON.parse(open.details), { bench: 'B4M', device: 'S1' });
+  assert.match(open.id, /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/, 'a UUID v7');
+  assert.equal(idle.bench, null, 'only a text bench is indexed');
+  assert.equal(idle.ip, null);
 });
 
 test('log: credentials never reach the file, even when a caller passes them by mistake', async () => {
   await audit.log(student(1), 'job.reset.start', {
     bench: 'B4M', enablePassword: 'cisco', nested: { token: 'abc', list: [{ secret: 's3' }] }, totp: '123456', devices: ['R1'],
   });
-  const text = fs.readFileSync(store.resolve('audit', '2026-11.jsonl'), 'utf8');
+  const text = JSON.stringify(await rawRows());
   for (const leaked of ['cisco', 'abc', 's3', '123456']) assert.equal(text.includes(leaked), false, leaked);
-  assert.deepEqual(lines('2026-11')[0].details, {
+  assert.deepEqual((await lines())[0].details, {
     bench: 'B4M', enablePassword: '[redacted]', nested: { token: '[redacted]', list: [{ secret: '[redacted]' }] }, totp: '[redacted]', devices: ['R1'],
   });
 });
 
 test('log: oversized details are cut down, the bench and device are kept', async () => {
   await audit.log(student(1), 'job.inject.start', { bench: 'B4M', device: 'R1', script: 'x'.repeat(100_000) });
-  assert.deepEqual(lines('2026-11')[0].details, { bench: 'B4M', device: 'R1', truncated: true });
+  assert.deepEqual((await lines())[0].details, { bench: 'B4M', device: 'R1', truncated: true });
 });
 
 test('log: a failing write never throws into the caller, and never rejects', async () => {
   const broken = createAudit({
-    store: { jsonl: () => ({ append: () => Promise.reject(new Error('ENOSPC: no space left on device')) }) },
+    repo: { insert: () => Promise.reject(new Error('SQLITE_FULL: database or disk is full')) },
     logger: log,
   });
   let outcome;
   assert.doesNotThrow(() => { outcome = broken.log(student(1), 'bench.take', { bench: 'B4M' }); });
   assert.equal(await outcome, false);
-  assert.match(log.lines.at(-1).message, /audit entry lost \(bench\.take by oidc:student1\): ENOSPC/);
+  assert.match(log.lines.at(-1).message, /audit entry lost \(bench\.take by oidc:student1\): SQLITE_FULL/);
   assert.equal(log.lines.at(-1).level, 'error');
 });
 
 test('log: nothing a caller passes can make it throw', async () => {
-  const exploding = createAudit({ store: { jsonl() { throw new Error('store is gone'); } }, logger: log });
+  const exploding = createAudit({ repo: { insert() { throw new Error('database is gone'); } }, logger: log });
   const circular = {};
   circular.self = circular;
   const getter = { get bench() { throw new Error('boom'); } };
@@ -108,13 +114,13 @@ test('log: nothing a caller passes can make it throw', async () => {
     assert.equal(typeof await outcome, 'boolean');
   }
   // …even when the logger itself is broken
-  const mute = createAudit({ store: { jsonl() { throw new Error('x'); } }, logger: { warn() { throw new Error('y'); }, error() { throw new Error('z'); } } });
+  const mute = createAudit({ repo: { insert() { throw new Error('x'); } }, logger: { warn() { throw new Error('y'); }, error() { throw new Error('z'); } } });
   assert.equal(await mute.log('system', 'bench.take', {}), false);
 });
 
 test('log: a badly named action is recorded anyway, with a warning for the developer', async () => {
   assert.equal(await audit.log(student(1), 'Took the bench', { bench: 'B4M' }), true);
-  assert.equal(lines('2026-11').length, 1);
+  assert.equal((await lines()).length, 1);
   assert.match(log.lines.find((l) => l.level === 'warn').message, /not module\.verb/);
 });
 
@@ -130,7 +136,7 @@ async function seed() {
 }
 const actions = (entries) => entries.map((e) => e.action);
 
-test('query: newest first, across month files', async () => {
+test('query: newest first, across months', async () => {
   await seed();
   const all = await audit.query();
   assert.deepEqual(actions(all), ['bench.release.idle', 'console.open', 'job.reset.start', 'console.control.grant', 'console.open', 'bench.take', 'bench.take']);
@@ -155,4 +161,26 @@ test('query: filters by time, actor, action and bench', async () => {
 test('query: an empty trail is an empty list', async () => {
   assert.deepEqual(await audit.query(), []);
   assert.deepEqual(await audit.query({ since: 'not a date', bench: 'B4M' }), []);
+});
+
+test('query: times may be Dates or milliseconds; one that is not a date is ignored; limits are bounded', async () => {
+  await seed();
+  assert.deepEqual(actions(await audit.query({ since: new Date(Date.UTC(2026, 10, 3)) })), ['bench.release.idle', 'console.open', 'job.reset.start']);
+  assert.deepEqual(actions(await audit.query({ until: Date.UTC(2026, 9, 31, 12) })), ['bench.take', 'bench.take']);
+  assert.equal((await audit.query({ since: 'not a date' })).length, 7);
+  assert.equal((await audit.query({ limit: 'many' })).length, 0);
+  assert.deepEqual(await audit.query({ action: [] }), [], 'an empty list of actions selects nothing');
+});
+
+test('query: entries recorded in the same millisecond come back newest first', async () => {
+  for (const n of [1, 2, 3, 4, 5]) await audit.log(student(n), 'bench.take', { bench: 'B4M' });
+  assert.deepEqual((await audit.query()).map((e) => e.actor.id), [5, 4, 3, 2, 1].map((n) => `oidc:student${n}`));
+});
+
+test('query: an action that looks like a pattern is matched literally', async () => {
+  await audit.log(student(1), 'bench.take', {});
+  await audit.log(student(1), 'benchXtake.now', {});
+  assert.deepEqual(actions(await audit.query({ action: 'bench_take' })), []);
+  assert.deepEqual(actions(await audit.query({ action: 'bench%' })), []);
+  assert.deepEqual(actions(await audit.query({ action: 'bench' })), ['bench.take']);
 });

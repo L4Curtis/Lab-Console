@@ -3,9 +3,10 @@
  *
  * The browser holds a random 256-bit token in a cookie; the server keeps
  * everything else, keyed by the SHA-256 of that token. The token itself is
- * never stored: data/auth/sessions.json (which lets a restart keep everyone
+ * never stored: the auth_sessions table (which lets a restart keep everyone
  * signed in) is useless to whoever reads it, backups included
  *
+ *   const sessions = await createSessionStore({ repo, … });   // loads the saved sessions
  *   const { token, session } = sessions.create(user, { ip, userAgent });
  *   sessions.find(token)              → session | null   (also refreshes the idle timer)
  *   sessions.peek(token)              → session | null   (does not count as activity)
@@ -24,6 +25,12 @@
  * is derived from its user name, password hash and TOTP secret (envAdmin.js),
  * so replacing them and restarting ends every session opened with the old
  * ones - the usual answer to a suspected compromise
+ *
+ * The sessions live in memory, so that every request is answered without
+ * waiting; the repository (repositories/sessions.js) is written behind them:
+ * at once for a sign-in, a rotation or an end, lazily (every 30 s) for "last
+ * seen". Those writes never fail a request: a full disk only costs the
+ * sessions' survival across a restart, and says so in the log
  */
 import crypto from 'node:crypto';
 import { createUser } from './user.js';
@@ -31,97 +38,97 @@ import { createUser } from './user.js';
 export const SESSION_IDLE_MS = 8 * 60 * 60_000;
 export const SESSION_ABSOLUTE_MS = 24 * 60 * 60_000;
 const TOKEN = /^[A-Za-z0-9_-]{43}$/; // 32 random bytes, base64url
-const FILE_VERSION = 1;
 const SAVE_DELAY_MS = 30_000;  // "last seen" is flushed lazily; logins and revocations at once
 const SWEEP_MS = 60_000;
 const MAX_PER_USER = 10;
 
 const hashOf = (token) => crypto.createHash('sha256').update(token).digest('hex');
 
-export function createSessionStore({
-  store, logger, now = Date.now, idleMs = SESSION_IDLE_MS, absoluteMs = SESSION_ABSOLUTE_MS, onEnd = () => {},
+export async function createSessionStore({
+  repo, logger, now = Date.now, idleMs = SESSION_IDLE_MS, absoluteMs = SESSION_ABSOLUTE_MS, onEnd = () => {},
   bindingOf = () => undefined,
 }) {
+  if (!repo) throw new TypeError('createSessionStore needs the sessions repository');
   const log = logger ?? { info() {}, warn() {}, error() {} };
-  const file = store.json('auth/sessions.json', { version: FILE_VERSION, sessions: {} });
   const sessions = new Map(); // hash → session
   const sockets = new Map();  // hash → Set of raw sockets (WebSocket upgrades)
-  let dirty = false;
+  const seen = new Set();     // ids whose lastSeenAt changed since the last write
+  const writes = new Set();   // promises of writes still in flight
   let saveTimer = null;
 
   const expired = (session, at = now()) => at >= session.expiresAt || at - session.lastSeenAt >= idleMs;
 
   // ── Persistence ────────────────────────────────────────────────────────────
-  function load() {
+  /** Write behind: never rejects, never throws into a request */
+  function persist(what, write) {
+    let pending;
+    try {
+      pending = Promise.resolve(write());
+    } catch (err) {
+      pending = Promise.reject(err);
+    }
+    const settled = pending.then(() => true, (err) => {
+      log.error(`sessions could not be saved (${what}): ${err.message}`);
+      return false;
+    });
+    writes.add(settled);
+    settled.finally(() => writes.delete(settled));
+    return settled;
+  }
+
+  async function load() {
     let saved;
     try {
-      saved = file.get();
+      saved = await repo.all();
     } catch (err) {
       log.error(`sessions could not be read (${err.message}); everyone has to sign in again`);
       return;
     }
-    if (saved?.version !== FILE_VERSION || saved.sessions === null || typeof saved.sessions !== 'object') return;
     let unbound = 0;
-    for (const [hash, raw] of Object.entries(saved.sessions)) {
+    for (const raw of saved) {
+      let session;
       try {
-        if (!/^[0-9a-f]{64}$/.test(hash) || typeof raw.id !== 'string') continue;
-        const session = {
-          hash,
+        session = {
+          hash: raw.hash,
           id: raw.id,
           user: createUser(raw.user),
-          createdAt: Number(raw.createdAt),
-          lastSeenAt: Number(raw.lastSeenAt),
-          expiresAt: Number(raw.expiresAt),
+          createdAt: raw.createdAt,
+          lastSeenAt: raw.lastSeenAt,
+          expiresAt: raw.expiresAt,
           ip: typeof raw.ip === 'string' ? raw.ip : '',
           userAgent: typeof raw.userAgent === 'string' ? raw.userAgent : '',
           binding: typeof raw.binding === 'string' ? raw.binding : undefined,
         };
-        if (![session.createdAt, session.lastSeenAt, session.expiresAt].every(Number.isFinite)) continue;
-        // Opened with credentials that have been replaced since (or for an account that is gone)
-        if (session.binding !== bindingOf(session.user)) {
-          unbound += 1;
-          continue;
-        }
-        if (!expired(session)) sessions.set(hash, session);
+        if (!/^[0-9a-f]{64}$/.test(session.hash) || ![session.createdAt, session.lastSeenAt, session.expiresAt].every(Number.isFinite)) session = null;
       } catch {
-        // A record that no longer describes a valid user is simply not restored
+        session = null; // a record that no longer describes a valid user is simply not restored
       }
+      if (session && session.binding !== bindingOf(session.user)) {
+        // Opened with credentials that have been replaced since (or for an account that is gone)
+        unbound += 1;
+        session = null;
+      }
+      if (session && !expired(session)) sessions.set(session.hash, session);
+      else persist('cleanup', () => repo.remove(raw.id));
     }
-    if (unbound) {
-      log.warn(`${unbound} saved session(s) not restored: opened with sign-in credentials that have changed since`);
-      dirty = true; // the file still lists them: rewritten just below
-    }
+    if (unbound) log.warn(`${unbound} saved session(s) not restored: opened with sign-in credentials that have changed since`);
   }
 
-  function snapshot() {
-    const out = {};
-    for (const [hash, s] of sessions) {
-      const { id, username, name, email, role, groups, via } = s.user;
-      out[hash] = {
-        id: s.id,
-        user: { id, username, name, email, role, groups, via },
-        createdAt: s.createdAt, lastSeenAt: s.lastSeenAt, expiresAt: s.expiresAt, ip: s.ip, userAgent: s.userAgent,
-        ...(s.binding === undefined ? {} : { binding: s.binding }),
-      };
-    }
-    return { version: FILE_VERSION, sessions: out };
-  }
-
-  /** Write now. Never rejects: a full disk must not break a sign-in, only its survival across a restart */
-  function save() {
+  /** Write the pending "last seen" times now */
+  function saveSeen() {
     clearTimeout(saveTimer);
     saveTimer = null;
-    dirty = false;
-    return file.set(snapshot()).then(() => true, (err) => {
-      log.error(`sessions could not be saved: ${err.message}`);
-      return false;
-    });
+    const byId = new Map([...sessions.values()].map((s) => [s.id, s]));
+    const entries = [...seen].flatMap((id) => (byId.has(id) ? [[id, byId.get(id).lastSeenAt]] : []));
+    seen.clear();
+    if (!entries.length) return Promise.resolve(true);
+    return persist('activity', () => repo.touchAll(entries));
   }
 
-  function saveSoon() {
-    dirty = true;
+  function seenNow(session) {
+    seen.add(session.id);
     if (saveTimer) return;
-    saveTimer = setTimeout(save, SAVE_DELAY_MS);
+    saveTimer = setTimeout(saveSeen, SAVE_DELAY_MS);
     saveTimer.unref();
   }
 
@@ -130,6 +137,8 @@ export function createSessionStore({
     const session = sessions.get(hash);
     if (!session) return false;
     sessions.delete(hash);
+    seen.delete(session.id);
+    persist('end', () => repo.remove(session.id));
     for (const socket of sockets.get(hash) ?? []) socket.destroy();
     sockets.delete(hash);
     try {
@@ -148,12 +157,11 @@ export function createSessionStore({
     const at = now();
     if (expired(session, at)) {
       drop(hash, 'expired');
-      save();
       return null;
     }
     if (touch && at - session.lastSeenAt > 1000) {
       session.lastSeenAt = at;
-      saveSoon();
+      seenNow(session);
     }
     return session;
   }
@@ -165,14 +173,12 @@ export function createSessionStore({
     for (const [hash, session] of [...sessions]) {
       if (sockets.get(hash)?.size && at < session.expiresAt) {
         session.lastSeenAt = at;
-        dirty = true;
+        seenNow(session);
       } else if (expired(session, at)) {
         drop(hash, 'expired');
         ended += 1;
       }
     }
-    if (ended) save();
-    else if (dirty && !saveTimer) saveSoon();
     return ended;
   }
 
@@ -187,8 +193,7 @@ export function createSessionStore({
     connections: sockets.get(s.hash)?.size ?? 0,
   });
 
-  load();
-  if (dirty) save();
+  await load();
   const sweeper = setInterval(sweep, SWEEP_MS);
   sweeper.unref();
 
@@ -219,7 +224,7 @@ export function createSessionStore({
       // Kept in memory only, for the provider's sign-out; never written to disk (ARCHITECTURE §13)
       session.idToken = idToken;
       sessions.set(session.hash, session);
-      save();
+      persist('sign-in', () => repo.insert(session));
       return { token, session };
     },
 
@@ -240,16 +245,14 @@ export function createSessionStore({
         sockets.set(newHash, sockets.get(oldHash));
         sockets.delete(oldHash);
       }
-      save();
+      persist('rotation', () => repo.rehash(session.id, newHash));
       return next;
     },
 
     /** End the session a token belongs to (sign-out, or a new sign-in replacing it) */
     end(token, reason = 'logout') {
       if (typeof token !== 'string' || !TOKEN.test(token)) return false;
-      const ended = drop(hashOf(token), reason);
-      if (ended) save();
-      return ended;
+      return drop(hashOf(token), reason);
     },
 
     /** End one session by its public id (administration) */
@@ -257,7 +260,6 @@ export function createSessionStore({
       for (const [hash, session] of sessions) {
         if (session.id !== id) continue;
         drop(hash, reason);
-        save();
         return true;
       }
       return false;
@@ -269,7 +271,6 @@ export function createSessionStore({
       for (const [hash, session] of [...sessions]) {
         if (session.user.id === userId && drop(hash, reason)) count += 1;
       }
-      if (count) save();
       return count;
     },
 
@@ -296,10 +297,12 @@ export function createSessionStore({
     sweep,
     get size() { return sessions.size; },
 
-    /** Stop the timers and write what is pending; resolves when it is on disk */
-    shutdown() {
+    /** Stop the timers and write what is pending; resolves (true when every write succeeded) once it is stored */
+    async shutdown() {
       clearInterval(sweeper);
-      return dirty || saveTimer ? save() : Promise.resolve(true);
+      saveSeen();
+      const results = await Promise.all([...writes]);
+      return results.every(Boolean);
     },
   };
 }

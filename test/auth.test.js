@@ -15,8 +15,8 @@ import { startTestApp, loadTestConfig, adminCode, silentLogger } from './helpers
 import fs from 'node:fs';
 import { student, admin, fakeRequest, fakeResponse } from './helpers/fakes.js';
 import { TestBrowser, postLocalSignIn } from './helpers/browser.js';
-import { createStore } from '../src/lib/store.js';
 import { tempDataDir } from './helpers/app.js';
+import { memoryDatabase } from './helpers/db.js';
 
 const through = (middleware, req) => {
   const res = fakeResponse();
@@ -77,8 +77,8 @@ async function streamEnds(res, timeoutMs = 3000) {
 describe('service surface (ARCHITECTURE §5)', () => {
   test('createAuth returns what the other modules rely on, and no switch to turn it off', async () => {
     const config = await loadTestConfig();
-    const dir = tempDataDir();
-    const auth = createAuth({ config, logger: silentLogger(), store: createStore(dir) });
+    const { repos, close } = await memoryDatabase();
+    const auth = await createAuth({ config, logger: silentLogger(), repos });
     try {
       for (const name of ['attach', 'requireAuth', 'requireRole', 'authenticateUpgrade', 'shutdown']) assert.equal(typeof auth[name], 'function', name);
       for (const name of ['list', 'revoke', 'revokeUser', 'create']) assert.equal(typeof auth.sessions[name], 'function', name);
@@ -93,20 +93,19 @@ describe('service surface (ARCHITECTURE §5)', () => {
       assert.equal(typeof hasRole, 'function');
     } finally {
       await auth.shutdown();
-      fs.rmSync(dir, { recursive: true, force: true });
+      await close();
     }
   });
 
   test('createAuth refuses to exist without a local administrator or a PUBLIC_URL', async (t) => {
     const config = await loadTestConfig();
-    const dir = tempDataDir();
-    t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
-    const store = createStore(dir);
+    const { repos, close } = await memoryDatabase();
+    t.after(close);
     const without = (patch) => ({ ...config, ...patch });
     for (const localAdmin of [undefined, { ...config.auth.localAdmin, username: '' }, { ...config.auth.localAdmin, passwordHash: '' }, { ...config.auth.localAdmin, totpSecret: '' }]) {
-      assert.throws(() => createAuth({ config: without({ auth: { ...config.auth, localAdmin } }), store }), /local administrator is not configured/);
+      await assert.rejects(createAuth({ config: without({ auth: { ...config.auth, localAdmin } }), repos }), /local administrator is not configured/);
     }
-    assert.throws(() => createAuth({ config: without({ server: { ...config.server, publicUrl: '' } }), store }), /PUBLIC_URL is required/);
+    await assert.rejects(createAuth({ config: without({ server: { ...config.server, publicUrl: '' } }), repos }), /PUBLIC_URL is required/);
   });
 
   test('requireAuth: next() with a user; 401 JSON under /api and for writes; 302 /login for pages, with the way back', () => {
@@ -387,7 +386,7 @@ describe('replacing the local administrator\'s credentials ends its sessions', (
     const { generateSecret } = await import('../src/modules/auth/totp.js');
     const dataDir = tempDataDir();
     const boot = async (env = {}) => {
-      const app = createApp({ config: await loadTestConfig({ PUBLIC_URL: 'http://127.0.0.1:1', ...env }, dataDir), logger: silentLogger });
+      const app = await createApp({ config: await loadTestConfig({ PUBLIC_URL: 'http://127.0.0.1:1', ...env }, dataDir), logger: silentLogger });
       const { port } = await app.listen({ port: 0 });
       return { app, url: `http://127.0.0.1:${port}` };
     };
@@ -427,7 +426,7 @@ describe('replacing the local administrator\'s credentials ends its sessions', (
     const c = clock();
     const boot = async (env = {}) => {
       const config = await loadTestConfig({ PUBLIC_URL: 'http://127.0.0.1:1', TRUSTED_PROXIES: '127.0.0.1', ...env }, dataDir);
-      const app = createApp({ config, logger: silentLogger, createAuth: (deps) => createAuth({ ...deps, now: c.now }) });
+      const app = await createApp({ config, logger: silentLogger, createAuth: (deps) => createAuth({ ...deps, now: c.now }) });
       const { port } = await app.listen({ port: 0 });
       return { app, url: `http://127.0.0.1:${port}` };
     };
