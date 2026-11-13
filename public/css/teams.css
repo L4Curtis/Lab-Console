@@ -1,0 +1,107 @@
+/* Teams and benches: the bench bar above the diagram, the Team section and
+   its reservation calendar. Only the shared custom properties are used, so
+   both themes work */
+
+/* ── Bench bar ─────────────────────────────────────────────────────────── */
+.bench-bar {
+  display: grid; gap: 6px;
+  padding: 8px 20px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  font-size: 13px;
+}
+.bench-bar[hidden] { display: none; }
+.bench-bar[data-state="taken"] { box-shadow: inset 3px 0 0 var(--led-amber); }
+.bench-bar[data-state="taken"][data-mine="true"] { box-shadow: inset 3px 0 0 var(--led-green); }
+.bench-bar[data-state="locked"] { box-shadow: inset 3px 0 0 var(--led-red); }
+.bench-main { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; }
+.bench-status { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; }
+.bench-status .icon { width: 17px; height: 17px; }
+.bench-people { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.bench-people li, .team-chips li {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 99px;
+  background: var(--console-soft); color: var(--console-strong); font-size: 12px;
+}
+.bench-people li[data-guest="true"] { background: var(--surface-2); color: var(--ink-2); border: 1px dashed var(--line); }
+.bench-people small { color: var(--ink-3); }
+.icon-btn.small { width: 20px; height: 20px; }
+.icon-btn.small .icon { width: 13px; height: 13px; }
+.bench-idle { font-size: 12px; }
+.bench-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.bench-actions a.btn { text-decoration: none; }
+.bench-lock {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 6px 10px; border-radius: 6px;
+  background: color-mix(in srgb, var(--led-red) 12%, var(--surface));
+  color: var(--ink);
+}
+.bench-lock .icon { width: 17px; height: 17px; color: var(--led-red); }
+.bench-lock .btn { margin-left: auto; }
+.bench-requests { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.bench-requests li {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 4px 10px; border-radius: 6px;
+  background: color-mix(in srgb, var(--led-amber) 14%, var(--surface));
+}
+.bench-request-actions { display: inline-flex; gap: 6px; margin-left: auto; }
+.bench-slots { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+.bench-slot { padding: 1px 8px; border-radius: 99px; border: 1px solid var(--line); }
+.bench-slots a.btn { margin-left: auto; text-decoration: none; }
+.bench-history ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; max-height: 60vh; overflow: auto; }
+.bench-history li { display: grid; grid-template-columns: 11em 1fr; gap: 10px; font-size: 13px; }
+.bench-history time { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+
+/* ── Team section ──────────────────────────────────────────────────────── */
+.view-teams .view-head { justify-content: space-between; flex-wrap: wrap; }
+.team-view { flex: 1; min-height: 0; overflow: auto; background: var(--paper); display: flex; flex-direction: column; }
+.team-panel { max-width: 760px; }
+.team-card {
+  display: grid; gap: 10px; padding: 16px 18px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+}
+.team-card h2 { margin: 0; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+.team-card h3 { margin: 6px 0 0; font-size: 13px; color: var(--ink-2); font-weight: 600; }
+.team-card p { margin: 0; font-size: 13px; }
+.team-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.team-head .team-row-actions { margin-left: auto; }
+.team-row-actions { display: inline-flex; gap: 6px; }
+.team-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 13px; }
+.team-list li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 4px 0; border-bottom: 1px solid var(--line); }
+.team-list li:last-child { border-bottom: 0; }
+.team-list .team-row-actions, .team-list li > .btn { margin-left: auto; }
+.team-form { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; }
+.team-form label { display: grid; gap: 4px; font-size: 12.5px; color: var(--ink-2); flex: 1 1 220px; max-width: 320px; }
+.team-invitations { border-color: var(--console); }
+.team-chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.team-table td { vertical-align: top; }
+.team-table td.right { white-space: nowrap; }
+
+/* ── Reservation calendar ──────────────────────────────────────────────── */
+.cal-panel { gap: 10px; }
+.cal-week { font-size: 13px; }
+.cal-note { margin: 0; font-size: 12.5px; }
+.cal-scroll { overflow-x: auto; }
+.cal-grid { min-width: 720px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; }
+.cal-row { display: grid; grid-template-columns: 56px repeat(7, 1fr); }
+.cal-head { border-bottom: 1px solid var(--line); background: var(--surface-2); }
+.cal-day { padding: 6px 8px; font-size: 12px; font-weight: 500; color: var(--ink-2); text-transform: capitalize; }
+.cal-times { display: grid; grid-auto-rows: 36px; }
+.cal-time { font-size: 11px; color: var(--ink-3); padding: 2px 6px; border-bottom: 1px solid var(--line); }
+.cal-col { position: relative; display: grid; grid-auto-rows: 36px; border-left: 1px solid var(--line); }
+.cal-cell { border: 0; border-bottom: 1px solid var(--line); background: none; cursor: pointer; padding: 0; }
+.cal-cell:hover:not(:disabled) { background: var(--console-soft); }
+.cal-cell:disabled { background: var(--surface-2); cursor: default; }
+.cal-cell:focus-visible, .cal-slot:focus-visible { outline: 2px solid var(--console); outline-offset: -2px; }
+.cal-slot {
+  position: absolute; left: 3px; right: 3px; z-index: 1;
+  display: grid; align-content: start; gap: 1px; overflow: hidden;
+  padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px;
+  background: var(--surface-2); color: var(--ink); font: inherit; font-size: 11.5px; text-align: left;
+}
+button.cal-slot { cursor: pointer; }
+.cal-slot[data-mine="true"] { background: var(--console-soft); border-color: var(--console); color: var(--console-strong); }
+.cal-slot span { color: var(--ink-3); }
+.cal-outside-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 12.5px; }
+.cal-outside-list li { display: flex; align-items: center; gap: 6px; }
+.team-bench a { color: var(--console-strong); }

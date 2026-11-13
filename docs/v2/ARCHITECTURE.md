@@ -61,7 +61,7 @@ src/
   modules/
     auth/                   sessions, OIDC, local accounts + TOTP, roles   (lot: auth)
     consoles/               diagram, rooms, console WebSocket    (lot: rooms)
-    benches/                occupancy, reservations, history     (lot: benches)
+    teams/                  teams; benches: occupancy, locks, reservations, history (lot: teams)
     admin/                  diagram import, sessions, audit, announcements, health
     jobs/                   bench jobs, snapshots                (lot: jobs)
     collab/                 device notes, bench chat, notifications
@@ -493,7 +493,28 @@ an audience changes.
 `services.<id> = {...}` while being created and other modules read it lazily,
 inside handlers, never at creation time (creation order must not matter).
 Today the consoles module publishes `services.consoles = { registry }`; the
-rooms lot adds `rooms` and `sharedTargets()`.
+rooms lot adds `rooms` and `sharedTargets()`. The teams lot publishes
+`services.teams` and `services.benches` (§7).
+
+Teams and benches are two modules built by one factory
+(`createTeamsModules(deps)` in `src/modules/teams/index.js`): `/api/teams`
+(create, rename, invite, accept, leave; admins dissolve and remove members)
+and `/api/benches` (take, release, join on request, guests, lock, history,
+reservations). Their SSE topics: `benches:state` (sticky, everyone: holder,
+occupants, lock, automatic release time), `benches:requests:<bench>` (sticky,
+the bench's occupants only), `benches:request` (to the person who asked),
+`benches:warning` (occupants, at most ten minutes before another team's
+slot; `minutes` is what remains),
+`benches:slot` (the team whose slot starts), `benches:reservations` (a
+calendar changed), `teams:invitation` (the person invited only) and
+`teams:changed` (the members, the people invited, admins). In the browser,
+the rail section `#/team` (`public/js/modules/teams/`: my team, the
+reservation calendar, all teams for admins) and the bench bar
+(`teams/benchBar.js`), which the consoles view mounts above the diagram:
+`mountBenchBar(viewEl)` → `{ setBench(name), decorate(diagramView),
+mayOpen(device, benchNames), refusal(benchNames) }`. `decorate` uses the
+diagram's `decorate()` layer when the diagram has one and does nothing
+otherwise.
 
 `createApp().close()` calls every module's `shutdown()` (and waits for the
 promises they return), `auth.shutdown()`, ends the SSE streams, closes the
@@ -536,20 +557,25 @@ services.consoles = {
   rooms,                         // RoomManager, see §9
   sharedTargets(),               // Set of 'host:port' used by several labs
 }
-services.teams = {                           // lot teams
-  teamOf(userOrId) → Team | null               // { id, name, members: userId[] }
+services.teams = {                           // lot teams (src/modules/teams/)
+  teamOf(userOrId) → Team | null               // { id, name, members: userId[], people: [{ id, username, name, since }], invitations }
   get(teamId) → Team | null
   list() → Team[]
 }
-services.benches = {                           // lot teams
+services.benches = {                           // lot teams (src/modules/teams/)
   holder(labName) → { teamId, since } | null   // the team that took the bench
   occupants(labName) → userId[]                // team members + accepted guests
   isOccupant(user, labName) → boolean
-  canOperate(user, labName) → boolean          // occupant or admin, and the bench is not locked
-  canPilot(user, device) → boolean             // the rule of SPEC "Lot teams / Permissions"
+  canOperate(user, labName) → boolean          // admin (locks included), or occupant of an unlocked bench
+  canPilot(user, device) → boolean             // the rule of SPEC "Lot teams / Permissions": admin switches and
+                                               //   admins always; else any bench of the device (same console
+                                               //   line) that is unlocked and free or occupied by the user
   lock(labName) → { reason, by, at } | null
-  touch(labName)                               // activity, postpones auto-release
-  onRelease(fn)                                // hook: fn({ labName, teamId, by }); the jobs lot offers a backup
+  touch(labName)                               // activity, postpones auto-release; cheap (one write a minute)
+  onRelease(fn) → off()                        // hook: fn({ labName, teamId, by, reason }) after every release
+                                               //   (by: Person | 'system'; reason: hand|admin|idle|reservation|dissolved);
+                                               //   an object it returns is handed to the browser that released
+                                               //   (`offers`), e.g. the jobs lot's backup offer
 }
 services.accounts = {                          // lot accounts
   get(userId) → Account | null                 // { id, username, name, role, state, via, hasPasskey }

@@ -11,6 +11,7 @@ import { serverText } from '../../shared/serverText.js';
 import { DiagramView } from './diagramView.js';
 import { LabPicker } from './labPicker.js';
 import { QuickOpen } from './quickOpen.js';
+import { mountBenchBar } from '../teams/benchBar.js';
 
 export async function mount(el, { navigate }) {
   await loadNamespace('consoles', 'terminal');
@@ -35,8 +36,10 @@ export async function mount(el, { navigate }) {
   const canvas = h('div.diagram-canvas');
   const diagramPane = h('div.diagram-pane', h('div.canvas-heading', labTitle, labHint), canvas, notesBtn, notes);
   el.append(head);
+  const benchBar = mountBenchBar(el); // who holds the bench on screen (lot teams)
   const split = new SplitView(el, diagramPane, { labelKey: 'consoles.topology', onResize: () => diagram.fit() });
   const diagram = new DiagramView(canvas, { onOpen: (d) => openDevice(d) });
+  benchBar.decorate(diagram);
   workspace.addEventListener('change', () => refreshStates());
 
   // ── Data ──────────────────────────────────────────────────────────────────
@@ -80,6 +83,7 @@ export async function mount(el, { navigate }) {
     navigate(`#/consoles/${encodeURIComponent(lab.name)}`);
     picker.setActive(lab.id);
     labTitle.textContent = lab.name;
+    benchBar.setBench(lab.name);
     writeHint();
     diagram.render(lab);
     refreshStates();
@@ -100,6 +104,9 @@ export async function mount(el, { navigate }) {
     if (workspace.panes.has(session.key)) return workspace.open(session);
     if (!device.allowed) return toast(t('consoles.notAllowed', { name: device.name }), 'warn');
     if (busy.has(targetOf(device))) return toast(t('consoles.busy', { name: device.name }), 'warn');
+    // A device on several pages follows any of its benches (SPEC "Permissions"); the server decides again
+    const benches = labs.filter((l) => l.devices.some((d) => targetOf(d) === targetOf(device))).map((l) => l.name);
+    if (!benchBar.mayOpen(device, benches)) return toast(benchBar.refusal(benches), 'warn', 6000);
     workspace.open(session);
     diagram.pulse(device.key);
   }

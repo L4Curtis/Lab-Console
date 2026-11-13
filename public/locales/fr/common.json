@@ -16,6 +16,7 @@
     "appTitle": "Lab Console",
     "sections": "Sections",
     "consoles": "Consoles",
+    "team": "Équipe",
     "infra": "Infra",
     "off": "off",
     "turnedOff": "{title} (désactivé)",

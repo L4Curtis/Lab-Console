@@ -1,0 +1,113 @@
+{
+  "title": "Équipe",
+  "subtitle": "Votre groupe de TP : la baie, les réservations et les sauvegardes sont à l’équipe",
+  "loadFailed": "Impossible de charger les équipes. Rechargez la page.",
+  "tabs": {
+    "mine": "Mon équipe",
+    "calendar": "Réservations",
+    "all": "Toutes les équipes"
+  },
+  "create": {
+    "title": "Créer une équipe",
+    "intro": "Créez l’équipe de votre groupe, puis invitez vos camarades avec leur identifiant. On ne fait partie que d’une équipe à la fois.",
+    "adminNote": "En tant qu’administrateur, vous n’avez pas besoin d’équipe pour gérer les baies. Vous pouvez quand même en créer une.",
+    "name": "Nom de l’équipe",
+    "placeholder": "Les routeurs fous",
+    "submit": "Créer l’équipe",
+    "done": "Équipe {name} créée."
+  },
+  "invitations": {
+    "title": "Invitations reçues",
+    "line": "{name} vous invite dans l’équipe {team}",
+    "accept": "Rejoindre",
+    "decline": "Refuser",
+    "joined": "Vous avez rejoint l’équipe {team}."
+  },
+  "members": {
+    "title": {
+      "one": "{count} membre",
+      "other": "{count} membres"
+    },
+    "since": "depuis {time}"
+  },
+  "invite": {
+    "title": "Inviter un camarade",
+    "username": "Identifiant",
+    "placeholder": "son identifiant de connexion",
+    "submit": "Inviter",
+    "done": "Invitation envoyée à {username}.",
+    "pending": "{username} n’a pas encore répondu",
+    "withdraw": "Retirer l’invitation"
+  },
+  "rename": {
+    "button": "Renommer",
+    "title": "Renommer l’équipe",
+    "confirm": "Renommer"
+  },
+  "leave": {
+    "button": "Quitter l’équipe",
+    "title": "Quitter l’équipe {team} ?",
+    "body": "Vous n’aurez plus accès à la baie de l’équipe ni à ses sauvegardes.",
+    "last": "Vous êtes le dernier membre : l’équipe sera dissoute, sa baie libérée et ses réservations annulées.",
+    "confirm": "Quitter"
+  },
+  "bench": {
+    "title": "Baie",
+    "holds": "Votre équipe occupe la baie {bench}.",
+    "open": "Ouvrir ses consoles",
+    "none": "Votre équipe n’occupe aucune baie."
+  },
+  "slots": {
+    "title": "Réservations à venir",
+    "none": "Aucune réservation.",
+    "cancel": "Annuler",
+    "cancelTitle": "Annuler cette réservation ?",
+    "cancelBody": "Baie {bench}, {slot}."
+  },
+  "calendar": {
+    "bench": "Baie",
+    "previous": "Semaine précédente",
+    "next": "Semaine suivante",
+    "thisWeek": "Cette semaine",
+    "week": "Du {from} au {to}",
+    "hint": "Cliquez sur une heure libre pour réserver la baie pour votre équipe ; cliquez sur votre créneau pour l’annuler.",
+    "outside": "Réservations qui ne tiennent pas entre {from} et {to} :",
+    "noBench": "Aucune baie dans le schéma.",
+    "bookTitle": "Réserver {bench}, {day}",
+    "limits": "Au plus {max} réservations à venir par équipe, {hours} h chacune.",
+    "start": "Début",
+    "length": "Durée",
+    "duration": "{hours} h {minutes}",
+    "team": "Équipe",
+    "book": "Réserver",
+    "needTeamTitle": "Il faut une équipe",
+    "needTeam": "Les baies se réservent par équipe : créez la vôtre ou rejoignez-en une dans l’onglet « Mon équipe »."
+  },
+  "all": {
+    "team": "Équipe",
+    "members": "Membres",
+    "bench": "Baie",
+    "none": "Aucune équipe pour l’instant.",
+    "invited": "Invités : {names}",
+    "remove": "Retirer de l’équipe",
+    "removeTitle": "Retirer {name} de l’équipe {team} ?",
+    "removeBody": "S’il était le dernier membre, l’équipe est dissoute.",
+    "dissolve": "Dissoudre",
+    "dissolveTitle": "Dissoudre l’équipe {team} ?",
+    "dissolveBody": "Ses membres se retrouvent sans équipe, sa baie est libérée et ses réservations sont annulées."
+  },
+  "notify": {
+    "invited": "{name} vous invite dans l’équipe {team}. Répondez dans la section Équipe."
+  },
+  "errors": {
+    "bad_name": "Le nom d’une équipe fait de {min} à {max} caractères.",
+    "bad_username": "Ce n’est pas un identifiant valable.",
+    "already_member": "Vous faites déjà partie de l’équipe {team} : quittez-la d’abord.",
+    "name_taken": "Une autre équipe s’appelle déjà {name}.",
+    "unknown": "Cette équipe n’existe pas (ou plus).",
+    "not_member": "Réservé aux membres de cette équipe.",
+    "already_in_team": "{username} fait déjà partie de l’équipe.",
+    "full": "Une équipe compte au plus {max} membres.",
+    "no_invitation": "Cette invitation n’existe pas (ou plus)."
+  }
+}

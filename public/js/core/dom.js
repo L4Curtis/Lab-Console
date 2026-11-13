@@ -73,6 +73,10 @@ const ICONS = {
   upload: '<path d="M12 15V4M7.5 8.5L12 4l4.5 4.5M5 19h14"/>',
   script: '<path d="M7 4h8l4 4v12H7z"/><path d="M15 4v4h4M10 12l2 2-2 2M13.5 16H16"/>',
   stop: '<rect x="7" y="7" width="10" height="10" rx="1.5"/>',
+  team: '<circle cx="9" cy="8" r="3"/><circle cx="17" cy="9.5" r="2.3"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0M14.5 15.2a4.2 4.2 0 0 1 6 3.8"/>',
+  calendar: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M8.5 3v4M15.5 3v4"/>',
+  chevronLeft: '<path d="M14.5 6l-6 6 6 6"/>',
+  chevronRight: '<path d="M9.5 6l6 6-6 6"/>',
 };
 export function icon(name, cls = '') {
   const span = document.createElement('span');
