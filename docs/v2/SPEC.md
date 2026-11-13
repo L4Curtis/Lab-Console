@@ -115,9 +115,14 @@ exposed directly to the Internet (no Cloudflare Access in front).
   default: past it the oldest days go first, never today's), readable by the
   participants, the team that held the bench, and admins; downloadable.
   **Read rights cover the whole day of a console** (owner decision, 13 Nov):
-  whoever was on R1 at any time of a day, and the teams that held its bench
-  that day, read every session of R1 that day, other people's included; the
-  journaling page and the journal dialog say so. The list of days per console
+  whoever was on R1 at any time of a day as someone who may drive it
+  (attached with a keyboard while the bench rule let them pilot, or holding
+  the keyboard), and the teams that held its bench that day, read every
+  session of R1 that day, other people's included; the journaling page and
+  the journal dialog say so. A spectator who may not drive (an outsider
+  watching an open line, a read-only wall tile) is named among the people of
+  the session but gains no right from it (integration review, 13 Nov: to be
+  confirmed by the owner). The list of days per console
   is a table of the database; the output stays in files.
   Output only, never keystrokes. A banner tells users that sessions are
   journaled.
@@ -132,9 +137,12 @@ exposed directly to the Internet (no Cloudflare Access in front).
 ### Lot teams — teams, benches, reservations
 - **Teams.** Any student creates a team (name), invites classmates by
   username, and they accept. The user name must be one the directory knows
-  (`services.accounts.findByUsername`, compared without case; an SSO account
-  is known from its first sign-in): the invitation keeps the account's own
-  spelling, an unknown name is refused (`teams.unknown_user`); members can leave; the last member leaving
+  (`services.accounts.findAllByUsername`, compared without case; an SSO account
+  is known from its first sign-in): the invitation is bound to that account
+  (its id) and keeps its own spelling, so only that account sees, accepts or
+  declines it, never a namesake; an unknown name is refused
+  (`teams.unknown_user`), a name several accounts share too
+  (`teams.ambiguous_user`: an administrator sorts it out); members can leave; the last member leaving
   dissolves it. A student belongs to at most one team at a time (admins: none
   needed). Admins see, rename, edit and dissolve every team.
 - **Taking a bench.** A member takes a free bench **for the team**; every
@@ -148,11 +156,18 @@ exposed directly to the Internet (no Cloudflare Access in front).
 - **Permissions.** On a taken bench only its occupants and admins may open or
   pilot its consoles and run jobs; everyone else watches (a line already open
   can be joined by anyone signed in, read-only). On a free bench anyone may
-  open a console. A device shared by several benches follows any of them.
+  open a console. A device shared by several benches (one console line
+  listed on several benches) is closed to everyone but admins while **any**
+  of them is locked; otherwise it follows any of them (free, or occupied by
+  the user).
   Admin switches stay open to every signed-in user. The consoles ask
   `services.benches.canPilot` when a line opens and at every keystroke and
   control action: a pilot whose bench is locked or taken by another team
-  watches from then on. Console activity postpones the automatic release
+  watches from then on. A person's task (export, inject) asks it again once
+  it has the keyboard, once the line is ready and before every byte it
+  sends: a lock during the wait or the run stops it
+  (`consoles.control_not_allowed`), and nothing more reaches the device. An
+  account the directory holds as disabled may not pilot either. Console activity postpones the automatic release
   (`services.benches.touch`).
 - **Bench lock** (admin): freeze a bench with a reason ("prepared for the
   graded lab"); nobody opens a console or runs a job on it, the reason is shown

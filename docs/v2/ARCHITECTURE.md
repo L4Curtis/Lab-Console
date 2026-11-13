@@ -725,8 +725,9 @@ services.benches = {                           // lot teams (src/modules/teams/)
   isOccupant(user, labName) → boolean
   canOperate(user, labName) → boolean          // admin (locks included), or occupant of an unlocked bench
   canPilot(user, device) → boolean             // the rule of SPEC "Lot teams / Permissions": admin switches and
-                                               //   admins always; else any bench of the device (same console
-                                               //   line) that is unlocked and free or occupied by the user.
+                                               //   admins always; never while any bench of the device (same
+                                               //   console line) is locked; else any of them that is free or
+                                               //   occupied by the user.
                                                //   The rooms ask it when a line opens and at every keystroke and
                                                //   control action (§9)
   lock(labName) → { reason, by, at } | null
@@ -743,7 +744,9 @@ services.accounts = {                          // lot accounts
   roleOverride(userId) → 'student' | 'admin' | null   // forced on an SSO account; null = its groups decide
   admit(user, { groupRole }) → Promise<boolean>       // called by the sign-in module at each SSO sign-in
   findByUsername(name) → Account | null        // compared without case; local accounts first, SSO ones once signed in
-                                               //   (team invitations name people this way: teams.unknown_user otherwise)
+  findAllByUsername(name) → Account[]          // every account with that name (sign-up refuses a name any account
+                                               //   holds, but SSO names come from the provider): a team invitation
+                                               //   binds the one account, teams.unknown_user / teams.ambiguous_user otherwise
   confirmation: {                              // a local administrator proves itself again with a passkey
     available(user) → boolean
     options(req, res) → PublicKeyCredentialRequestOptionsJSON   // challenge bound to browser, account and session
@@ -915,7 +918,12 @@ an answer; an admin takes it at once. One pending request at a time
 
 `runExclusive` refuses at once when the room is closed (`consoles.room_closed`),
 a task already holds it (`consoles.task_running`) or the actor may not pilot
-(`consoles.control_not_allowed`: spectators); it rejects with
+(`consoles.control_not_allowed`: spectators). A person's right to pilot is
+asked again once the keyboard is obtained (a task handed the keyboard after
+its actor lost the right is rejected), once the line is ready, and before
+every byte the task sends (`cli.perform(label, fn, { allowed })`): a lock,
+another team taking the bench or a disabled account stops it with
+`consoles.control_not_allowed` and nothing more is sent. It rejects with
 `code: 'consoles.control_refused'` when the pilot refuses (the contract said
 `console.control.refused`: codes of this module start with `consoles.`). Then
 it waits for the line to be ready (console server login done), locks every
@@ -979,16 +987,18 @@ one session as a text file.
 per console **session** (one line opened, used, closed; a new file after
 midnight), with marker lines (who took the keyboard, tasks, the end), never
 keystrokes; a sidecar `<session>.json` lists who attached, who held the
-keyboard and the teams that held the bench during the session
+keyboard, who watched without the right to drive (`watched`: shown, gives no
+right) and the teams that held the bench during the session
 (`services.benches.holder`, noted at the start, at each attach or handover
-and with each marker), which is what `canRead(user, meta)` checks (those
-people, those teams through `services.teams.teamOf`, admins). **Read rights
+and with each marker), which is what `canRead(user, meta)` checks (the
+people who attached as someone who may drive or held the keyboard, those
+teams through `services.teams.teamOf`, admins). **Read rights
 cover the whole day of a console** (owner decision, 13 Nov):
 `canReadDay(user, dayMetas(b, d, day))` is true when any session of that
 console's day names the user or their team, and then every session of that
-day is readable. Someone who watched R1 for a minute in the afternoon reads
-the morning's sessions of another team on R1, never another day nor another
-console. The journaling page (Lab status) says so.
+day is readable. Someone allowed to drive R1 who was on it for a minute in
+the afternoon reads the morning's sessions of another team on R1, never
+another day nor another console; a spectator who may not drive reads none. The journaling page (Lab status) says so.
 The days that exist per console are listed in the database (`journal_days`,
 `repos.journalDays`: safe names, real names, size, first and last write);
 the journal page, the retention sweep and the global cap read that table,
@@ -1075,12 +1085,12 @@ data/
   <dir>/<name>.json.imported   audit/*.jsonl.imported   files of before the database, kept after their import
 ```
 
-In the database today (migrations 001-010): `schema_migrations`,
+In the database today (migrations 001-011): `schema_migrations`,
 `legacy_imports`, `auth_sessions`, `auth_state` (the local administrator's
 last TOTP step, the known-browser key), `audit_entries`, `settings` (the
 run-time settings per namespace, the SSO page's provider as `sso`, the edited
 admin switches as `switches`), `teams`, `team_members`, `team_invitations`
-(006), `bench_occupancy`, `bench_locks`, `bench_reservations` (007),
+(006; `invitee_id`, the account invited, 011), `bench_occupancy`, `bench_locks`, `bench_reservations` (007),
 `accounts`, `account_passkeys`, `account_links` (008), `announcements`,
 `diagram_versions`, `diagram_activations` (009), `journal_days` (010).
 Passkey ceremonies' challenges are not stored: they live in memory, five

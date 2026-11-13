@@ -2,9 +2,11 @@
  * What only the wave 2 lots together allow, in real browsers:
  *   - a student of the team that holds a bench pilots one of its consoles
  *     while an outsider joins it to watch, and cannot type;
- *   - a locked bench refuses to open its consoles, in the page and on the server;
+ *   - a locked bench refuses to open its consoles, in the page and on the
+ *     server, a console line it shares with a free bench included;
  *   - an invited newcomer signs up, is invited into a team by user name and
  *     lands in it
+ * Each scenario sets up the teams and benches it needs, and gives them back
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -75,7 +77,7 @@ test('a member of the team holding B4M pilots R1; an outsider joins to watch and
   await chloe.context().close();
 });
 
-test('a locked bench refuses to open its consoles: in the page and on the server; an admin still opens them', async () => {
+test('a locked bench refuses to open its consoles, a line it shares with a free bench included: in the page and on the server; an admin still opens them', async () => {
   const ada = await h.newPage();
   await signInAs(ada, 'ada');
   assert.equal((await api(ada, 'PUT', '/api/benches/B5H/lock', { reason: 'Examen en cours' })).status, 200);
@@ -90,7 +92,18 @@ test('a locked bench refuses to open its consoles: in the page and on the server
   assert.equal(await bilal.locator('article.pane.pane-console').count(), 0, 'no console opened');
   assert.equal(await socketAnswer(bilal, first.key), 'consoles.open_not_allowed');
 
+  // R5 of B5H is the same console line as R5 of B4B, a free bench: the lock still closes it
+  const labs = h.app.deps.services.consoles.registry.model.labs;
+  const shared = labs.find((l) => l.name === 'B5H').devices.find((d) => d.name === 'R5');
+  assert.ok(labs.find((l) => l.name === 'B4B').devices.some((d) => d.target.host === shared.target.host && d.target.port === shared.target.port), 'R5 is shared with B4B');
+  assert.equal(h.app.deps.services.benches.holder('B4B'), null, 'B4B is free');
+  await deviceTile(bilal, 'R5').click();
+  await toastWith(bilal, 'verrouill').first().waitFor();
+  assert.equal(await bilal.locator('article.pane.pane-console').count(), 0, 'no console opened');
+  assert.equal(await socketAnswer(bilal, shared.key), 'consoles.open_not_allowed', 'the server refuses the shared line too');
+
   assert.equal(await socketAnswer(ada, first.key), 'open', 'admins work on locked benches');
+  assert.equal(await socketAnswer(ada, shared.key), 'open');
   assert.equal((await api(ada, 'DELETE', '/api/benches/B5H/lock')).status, 200);
   assert.deepEqual(bilal.errors, []);
   await ada.context().close();
@@ -98,16 +111,19 @@ test('a locked bench refuses to open its consoles: in the page and on the server
 });
 
 test('an invited newcomer signs up, is invited into a team by user name, accepts and lands in it', async () => {
-  const alice = await h.newPage();
-  await signInAs(alice, 'alice');
-  await alice.click('#rail-items a[href="#/team"]');
-  const inviteForm = alice.locator('section.view-team form.team-form', { has: alice.locator('input[name="username"]') });
+  // Bilal makes a team of his own and takes a free bench for it: nothing comes from another scenario
+  const bilal = await h.newPage();
+  await signInAs(bilal, 'bilal');
+  assert.equal((await api(bilal, 'POST', '/api/teams', { name: 'Les routeurs' })).status, 201);
+  assert.equal((await api(bilal, 'POST', '/api/benches/B6H/take')).status, 200);
+  await bilal.click('#rail-items a[href="#/team"]');
+  const inviteForm = bilal.locator('section.view-team form.team-form', { has: bilal.locator('input[name="username"]') });
   await inviteForm.waitFor();
 
   // Nobody is called nadia yet: the directory does not know the name
   await inviteForm.locator('input[name="username"]').fill('nadia');
   await inviteForm.locator('button[data-action="invite"]').click();
-  await toastWith(alice, 'Personne ne se connecte ici avec ce nom').waitFor();
+  await toastWith(bilal, 'Personne ne se connecte ici avec ce nom').waitFor();
 
   // An administrator's invitation link; Nadia creates her account with it
   const { url } = await invite(h.app, { note: 'Nadia' });
@@ -121,24 +137,30 @@ test('an invited newcomer signs up, is invited into a team by user name, accepts
   await nadia.click('#join-submit');
   await waitForApp(nadia);
 
-  // Alice invites her, typed in lower case: the invitation names the account as it is spelt
+  // Bilal invites her, typed in lower case: the invitation names the account as it is spelt
   await inviteForm.locator('input[name="username"]').fill('nadia');
   await inviteForm.locator('button[data-action="invite"]').click();
-  await alice.waitForSelector('section.view-team .team-mine >> text=Nadia');
+  await bilal.waitForSelector('section.view-team .team-mine >> text=Nadia');
 
   await nadia.click('#rail-items a[href="#/team"]');
   const pending = nadia.locator('section.view-team button[data-action="accept"]');
   await pending.waitFor();
   await pending.click();
-  await nadia.waitForSelector('section.view-team .team-mine .team-name:text-is("Les commutateurs")');
-  assert.deepEqual(h.app.deps.services.teams.teamOf('local:Nadia').name, 'Les commutateurs');
+  await nadia.waitForSelector('section.view-team .team-mine .team-name:text-is("Les routeurs")');
+  assert.deepEqual(h.app.deps.services.teams.teamOf('local:Nadia').name, 'Les routeurs');
 
   // In her team, she may open the consoles of the bench it holds
-  const pane = await openConsole(nadia, 'B4M', 'R3');
+  const pane = await openConsole(nadia, 'B6H', 'R3');
   await typeInConsole(pane, '');
   await waitForTerminal(pane, /^R3>$/m);
-  assert.deepEqual(alice.errors, []);
+  assert.deepEqual(bilal.errors, []);
   assert.deepEqual(nadia.errors, []);
-  await alice.context().close();
+
+  // Give the bench and the team back
+  assert.equal((await api(bilal, 'POST', '/api/benches/B6H/release')).status, 200);
+  const team = h.app.deps.services.teams.teamOf('local:Nadia');
+  assert.equal((await api(nadia, 'POST', `/api/teams/${team.id}/leave`)).status, 200);
+  assert.equal((await api(bilal, 'POST', `/api/teams/${team.id}/leave`)).status, 200);
+  await bilal.context().close();
   await nadia.context().close();
 });
