@@ -111,8 +111,14 @@ top/middle/bottom). Any other naming falls back to plain tabs.
   and global limits, and a rate limit on opening consoles.
 - **Console journal.** What the devices print (never keystrokes) is kept
   `JOURNAL_RETENTION_DAYS` days with who held the keyboard, session by
-  session, readable by the people who were on that session, the team that
-  held the bench during it and admins only.
+  session. Read access covers the whole day of a console: the people who were
+  on it that day, the teams that held its bench that day and admins only.
+  Capped per device and day (`JOURNAL_MAX_KB_PER_DAY`) and in all
+  (`JOURNAL_MAX_TOTAL_MB`: the oldest days go first).
+- **Bench rule on every key.** On a bench a team holds, only its members,
+  their accepted guests and admins open or drive its consoles; anyone may
+  watch a line already open. The rule is asked again at every keystroke: a
+  bench that gets locked takes the keyboard away at once.
 - **Few SSH connections.** Console lines share connections to the jump
   server, `SSH_CHANNELS_PER_CONNECTION` each (keep it under sshd's
   `MaxSessions`).
@@ -135,9 +141,33 @@ is down. There is no mode without sign-in: the platform refuses to start until
 Behind a reverse proxy, list every hop in `TRUSTED_PROXIES` (IP addresses or
 CIDR blocks; behind a CDN, its published ranges too) so that client addresses
 are read from `X-Forwarded-For`; the header is ignored when it comes from
-anyone else. The upstream `TRUST_PROXY=true` is refused at start-up. State (sessions, audit trail,
-and later backups) is written to `DATA_DIR` only: the Docker image runs with
-a read-only root filesystem and a volume on `/data`.
+anyone else. The upstream `TRUST_PROXY=true` is refused at start-up. State is
+written to `DATA_DIR` only: structured state (sessions, audit trail,
+settings, accounts, teams, benches, reservations…) in an SQLite database,
+`DATA_DIR/lab-console.db`; documents (console journals, diagram versions,
+later backups) as files. The Docker image runs with a read-only root
+filesystem and a volume on `/data`. Files written by earlier v2 builds are
+imported into the database at the first start and kept as `*.imported`.
+
+## Teams, accounts and administration (v2)
+
+- **Teams and benches** (Team section, bench bar above the diagram): a
+  student creates a team and invites classmates by user name; a member takes
+  a free bench for the team; others ask to join; idle benches are released
+  after `BENCH_IDLE_HOURS`; admins lock a bench with a reason; per-bench
+  reservation calendar with warnings before another team's slot.
+- **Accounts**: local accounts created through invitation links (single use,
+  or several people with approval), password reset links made by an admin,
+  passkeys (required for promoted administrators, one-click sign-in), roles
+  and states for local and SSO accounts, My account, SSO settings page.
+- **Administration**: lab parameters (jump server, console login, allowed
+  consoles) applied without a restart and confirmed again before saving
+  (password + code, a passkey, or a fresh sign-in at the identity provider
+  that confirms the session for 5 minutes); diagram import with preview,
+  versions and rollback; admin switches; sessions; audit viewer;
+  announcement banner. **Lab status** for everyone: health of the jump
+  server, the console servers, the open lines and shared SSH connections, the
+  journals' total, and what is recorded.
 
 ## Console tools (v1.1)
 
@@ -203,8 +233,9 @@ The **Infra** entry in the sidebar is open to everyone, like the lab consoles.
   - the **VLAN tag of net0**: type a number and press Enter, or leave empty for untagged.
     The MAC address and the other NIC options are kept;
   - **Clone template**: template, name, node, VLAN. A full clone, with progress shown live.
-- **Admin switches**: the four switches from `config/infrastructure.json`. Their
-  consoles go through the same jump server → telnet chain as the lab devices.
+- **Admin switches**: the switches from `config/infrastructure.json`, or the
+  list an administrator edited (kept in the database). Their consoles go
+  through the same jump server → telnet chain as the lab devices.
 
 All consoles share one workspace, so an admin switch and a VM screen can be
 side by side, and they stay open when you switch sections.
@@ -281,12 +312,17 @@ src/
   server.js                 HTTP + WebSocket entry, mounts modules
   config.js                 .env loading and validation
   lib/                      logger, SSE hub, security helpers, SSH options + shared SSH tunnel,
-                            CLI automation (config export, paced script injection)
+                            CLI automation (config export, paced script injection), settings, diagrams
+  lib/db/                   the database: SQLite adapter, migrations, repositories, import of older files
   lib/drivers/ciscoIos.js   Cisco IOS / IOS XE procedures: prepare, identify, backup,
                             erase and reload, replay script
   modules/
     index.js                module registry
-    consoles/               lab consoles: diagram parser, registry, SSH→telnet sessions
+    auth/                   sign-in: sessions, OpenID Connect, local administrator + TOTP
+    consoles/               lab consoles: diagram parser, registry, shared rooms, journal, SSH pool
+    teams/                  teams, bench occupancy, locks, reservations
+    accounts/               directory, invitations, reset links, passkeys, SSO settings
+    admin/                  lab parameters, confirmation, health, announcements
     proxmox/                Proxmox client (ticket auth, over the SSH tunnel), service, console proxies
 public/
   index.html, css/app.css

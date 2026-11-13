@@ -110,11 +110,15 @@ exposed directly to the Internet (no Cloudflare Access in front).
   server, no output: power or cable) are distinct, explicit messages; "tell me
   when it is free".
 - **Console journal**: what the device printed, with who held the keyboard,
-  kept 14 days (`JOURNAL_RETENTION_DAYS`), size-capped, readable by the
+  kept 14 days (`JOURNAL_RETENTION_DAYS`), size-capped per device and day
+  (`JOURNAL_MAX_KB_PER_DAY`) and in all (`JOURNAL_MAX_TOTAL_MB`, 1024 by
+  default: past it the oldest days go first, never today's), readable by the
   participants, the team that held the bench, and admins; downloadable.
-  Rights are per console session: someone who joins a session still open
-  reads it from its start (accepted limit, bounded by the grace period and
-  idle timeout).
+  **Read rights cover the whole day of a console** (owner decision, 13 Nov):
+  whoever was on R1 at any time of a day, and the teams that held its bench
+  that day, read every session of R1 that day, other people's included; the
+  journaling page and the journal dialog say so. The list of days per console
+  is a table of the database; the output stays in files.
   Output only, never keystrokes. A banner tells users that sessions are
   journaled.
 - Lab connection parameters (jump server, console login, allowed hosts) are
@@ -127,7 +131,10 @@ exposed directly to the Internet (no Cloudflare Access in front).
 
 ### Lot teams — teams, benches, reservations
 - **Teams.** Any student creates a team (name), invites classmates by
-  username, and they accept; members can leave; the last member leaving
+  username, and they accept. The user name must be one the directory knows
+  (`services.accounts.findByUsername`, compared without case; an SSO account
+  is known from its first sign-in): the invitation keeps the account's own
+  spelling, an unknown name is refused (`teams.unknown_user`); members can leave; the last member leaving
   dissolves it. A student belongs to at most one team at a time (admins: none
   needed). Admins see, rename, edit and dissolve every team.
 - **Taking a bench.** A member takes a free bench **for the team**; every
@@ -139,9 +146,14 @@ exposed directly to the Internet (no Cloudflare Access in front).
   release the application offers a backup of the bench (the jobs lot provides
   the action; until then the offer is a hook that does nothing).
 - **Permissions.** On a taken bench only its occupants and admins may open or
-  pilot its consoles and run jobs; everyone else watches. On a free bench
-  anyone may open a console. A device shared by several benches follows any
-  of them. Admin switches stay open to every signed-in user.
+  pilot its consoles and run jobs; everyone else watches (a line already open
+  can be joined by anyone signed in, read-only). On a free bench anyone may
+  open a console. A device shared by several benches follows any of them.
+  Admin switches stay open to every signed-in user. The consoles ask
+  `services.benches.canPilot` when a line opens and at every keystroke and
+  control action: a pilot whose bench is locked or taken by another team
+  watches from then on. Console activity postpones the automatic release
+  (`services.benches.touch`).
 - **Bench lock** (admin): freeze a bench with a reason ("prepared for the
   graded lab"); nobody opens a console or runs a job on it, the reason is shown
   on the bench; admins only can lift it.
@@ -164,7 +176,7 @@ exposed directly to the Internet (no Cloudflare Access in front).
 Built in the same worktree as the admin lot, before it. Builds on the auth
 lot's extension points (`auth.accounts.add`, `auth.sessions.create`,
 `auth.oidc.configure`; ARCHITECTURE §5).
-- **Directory** (`data/accounts/users.json`): local accounts (username,
+- **Directory** (tables `accounts` and `account_passkeys`): local accounts (username,
   display name, scrypt hash, role, state, passkeys) and the SSO accounts seen
   at sign-in (with an optional role set by an admin, which wins over the group
   mapping). The environment's administrator stays outside the directory and is
@@ -175,12 +187,11 @@ lot's extension points (`auth.accounts.add`, `auth.sessions.create`,
   page asks username, display name, password twice (10 characters minimum).
   **A single-use link gives an active account at once; a multi-use link gives
   an account pending approval**, which an admin approves or rejects in one
-  click. Sign-up is rate-limited and never says which usernames exist.
-  *(Not met, owner decision pending: with user-chosen unique names the
-  refusal of a taken name says it exists. A taken name, the environment
-  admin's included, is refused like a reserved one, before any hashing; see
-  AUTH.md §2b. Options: the invitation fixes the user name, or this line is
-  relaxed.)*
+  click. Sign-up is rate-limited. **The sign-up page may say that a chosen
+  user name is taken** (owner decision, 13 Nov): only the holder of a valid
+  invitation can ask, a taken name (the environment admin's included) is
+  refused like a reserved one, before any hashing, and refusals are limited
+  to 10 per link per 15 minutes (AUTH.md §2b).
 - **Password reset links**, generated by an admin (there is no e-mail): same
   mechanism, single use, short-lived; using one ends the account's sessions.
 - **Roles and states**: any admin, the environment's admin included, promotes or
@@ -204,9 +215,9 @@ lot's extension points (`auth.accounts.add`, `auth.sessions.create`,
   secret (write-only), scopes, groups claim, admin groups, allowed groups; the
   callback URL shown for copying; "test" (discovery); "try a sign-in" that
   shows the claims received and the resulting role without opening a session;
-  enable / disable. Saved in `data/auth/oidc.json` (mode 600; the client
-  secret is the one secret stored in clear, encrypted when `APP_SECRET` is
-  set). Applied at once with `auth.oidc.configure`. When `OIDC_ISSUER` is set
+  enable / disable. Saved in the database (`settings` row `sso`; the client
+  secret is kept in clear in the database file, mode 600, encrypted when
+  `APP_SECRET` is set). Applied at once with `auth.oidc.configure`. When `OIDC_ISSUER` is set
   in the environment, the environment wins and the page is read-only. The
   discovery request is guarded against SSRF (https only unless the insecure
   flag, timeouts, size limit, no redirect to an internal address).
@@ -239,13 +250,15 @@ switches, Sessions, Audit trail, Announcement; a "Lab status" rail section
 for everyone with Health and What is recorded.
 - **Confirmation.** The environment's administrator confirms with password +
   code, a local administrator with a passkey, **an SSO administrator by signing
-  in again at the identity provider** (a fresh sign-in is asked for with
-  `prompt=login&max_age=0` and checked; it must be the same person, still an
-  administrator). The browser leaves the page, so the values are checked
-  first and wait on the server; the change is applied when the person comes
-  back and the lab page shows the outcome once. Tickets: 2 minutes, one use,
-  10 attempts per 15 minutes; a ticket is spent only when the values are
-  valid (a typo does not cost a new confirmation).
+  in again at the identity provider** (owner decision, 13 Nov): a dedicated
+  authorization request asks for a fresh sign-in (`prompt=login`,
+  `max_age=0`, checked on return: the same person, still an administrator);
+  its callback marks the admin's session as freshly confirmed for 5 minutes,
+  during which saving needs no further proof. The lab page keeps the
+  non-secret draft across the trip and fills it in again. Tickets: 2 minutes,
+  one use, 10 attempts per 15 minutes (trips to the provider included); a
+  ticket is spent only when the values are valid (a typo does not cost a new
+  confirmation).
 - **Diagram import.** DOCTYPE / entities are refused by the parser on every
   document it builds, compressed pages written in CDATA, with comments or
   with character references included; the pages may not inflate to more than
@@ -262,15 +275,20 @@ for everyone with Health and What is recorded.
   probed lines are all busy may read as down. Proxmox must accept its API
   port. The Proxmox tunnel state is read from
   `services.proxmox.tunnel()` as soon as the Proxmox module publishes it.
+  The page also shows, from the consoles module itself, the lines open, the
+  shared SSH connections to the jump server (details for admins) and the
+  journals' total against `JOURNAL_MAX_TOTAL_MB` (for everyone).
+- **What is recorded** reads the consoles module's journal settings
+  (retention, the caps) and says that read access covers a console's whole
+  day.
+- **Proxmox URL and credentials are shown, not editable** (owner decision,
+  13 Nov: Proxmox is postponed; its tunnel does follow the jump server's
+  parameters).
 
-*Not met, owner decision pending:* **Proxmox URL and credentials are shown,
-not editable**: the Proxmox module stays out of scope (its tunnel does follow
-the jump server's parameters). The Proxmox module does not publish
-`services.proxmox.tunnel()` yet (a three-line addition in
-`src/modules/proxmox/index.js`, which the working rules keep untouched), so
-the health page shows no tunnel line until it does. The page on what is
-journaled shows the console journal's retention only once the rooms lot adds
-`config.rooms.journal`; until then it says console output is not recorded.
+*Not met:* the Proxmox module does not publish `services.proxmox.tunnel()`
+yet (a three-line addition in `src/modules/proxmox/index.js`, which the
+working rules keep untouched), so the health page shows no tunnel line until
+it does.
 
 ## Wave 3
 

@@ -292,8 +292,10 @@ and **Try a sign-in** goes to the provider and back without opening a session,
 showing the claims received and the role they give. Saving applies at once,
 without a restart; open sessions are untouched.
 
-The settings are kept in `data/auth/oidc.json` (mode 600). The client secret
-is in clear in that file unless `APP_SECRET` (32 characters at least, e.g.
+The settings are kept in the database (`DATA_DIR/lab-console.db`, mode 600,
+table `settings`, row `sso`; a `data/auth/oidc.json` written by an earlier
+build is imported at start-up). The client secret is in clear in the
+database unless `APP_SECRET` (32 characters at least, e.g.
 `openssl rand -base64 48`) is set, in which case it is encrypted with it;
 changing `APP_SECRET` makes it unreadable and the page asks for it again.
 When `OIDC_ISSUER` is set in the environment, the environment wins and the
@@ -312,13 +314,12 @@ network, and no redirect leads to an internal address.
   administrator's approval (Users tab). Links can be withdrawn.
 - **User names**: 3 to 32 letters and digits with single `.`, `-` or `_`
   between them, unique without regard to case (the local administrator's
-  name included). **Known gap, owner decision pending:** someone holding an
-  invitation learns, from the refusal, that a name is taken (any name they
-  try, the local administrator's included: such a name is refused at once,
-  exactly like a reserved name such as `admin`). Sign-up refusals are limited
-  to 10 per link per 15 minutes. Hiding it completely needs the invitation to
-  fix the user name, or the SPEC line "never says which usernames exist" to
-  be relaxed. **Passwords**: 10 characters at least, not a common one,
+  name included). **Accepted (owner decision, 13 Nov):** the sign-up page
+  may say that a chosen name is taken. Only someone holding a valid
+  invitation can ask (any name they try, the local administrator's
+  included: such a name is refused at once, exactly like a reserved name
+  such as `admin`), and sign-up refusals are limited to 10 per link per 15
+  minutes. **Passwords**: 10 characters at least, not a common one,
   not containing the user name; stored as scrypt hashes.
 - **Forgotten password**: there is no e-mail. An administrator makes a reset
   link (Users tab, 1 h or 24 h, single use); using it ends the account's

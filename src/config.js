@@ -170,7 +170,7 @@ function deepFreeze(value) {
 
 /**
  * APP_SECRET: the key material that encrypts secrets saved from the
- * administration pages (today the SSO client secret, data/auth/oidc.json).
+ * administration pages (the SSO client secret, the lab parameters' secrets), kept in the database.
  * Optional: without it they are kept in clear in files of mode 600
  */
 function readAppSecret() {

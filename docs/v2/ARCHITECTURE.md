@@ -55,11 +55,12 @@ src/
       migrations/NNN-name.js   one schema change each, never edited once merged
       repositories/<concern>.js   the only place SQL is written; index.js lists them
       legacy.js             one-time import of the JSON / JSONL files of before
+    cachedDocument.js       state kept in memory, written through a repository (the store.json contract)
     audit.js                audit trail                          (lot: skeleton)
     settings.js             run-time settings, labSettings.js the "lab" namespace   (lot: admin)
     sealed.js               secrets saved from the admin pages, encrypted with APP_SECRET
-    diagrams.js             the active diagram in DATA_DIR, its versions and checks   (lot: admin)
-    infrastructure.js       the admin switches list (shipped file, then DATA_DIR)    (lot: admin)
+    diagrams.js             the active diagram in DATA_DIR, its versions (index in the database) and checks   (lot: admin)
+    infrastructure.js       the admin switches list (shipped file, then the database)    (lot: admin)
     events.js               SSE hub, with per-user audiences     (lot: skeleton)
     httpError.js            API error shape: HttpError, sendError (lot: skeleton)
     security.js             headers, origin check, rate limiter, client IP, trusted proxies
@@ -122,7 +123,7 @@ Global keys added by the skeleton:
 | `DATA_DIR` | `./data` | `dataDir` (absolute) | Writable state directory. The Docker image sets `/data`. |
 | `TRUSTED_PROXIES` | empty | `server.trustedProxies` (string[]) | Comma list of proxy IPs / CIDRs (IPv4, IPv6) whose `X-Forwarded-For` is believed: every hop, CDN ranges included. The upstream `TRUST_PROXY=true` (trust every peer) is refused at start-up and `server.trustProxy` no longer exists. |
 | `DEFAULT_LOCALE` | `fr` | `defaultLocale` | UI language for a first visit (`fr` or `en`). |
-| `APP_SECRET` | empty | `appSecret` | Optional, 32 characters at least. Encrypts (AES-256-GCM, key derived with HKDF) the secrets saved from the administration pages: the SSO client secret in `data/auth/oidc.json` and the lab parameters' secrets in `data/settings/lab.json`. Without it they are kept in clear in files of mode 600. Changing it makes them unreadable (the page says so). |
+| `APP_SECRET` | empty | `appSecret` | Optional, 32 characters at least. Encrypts (AES-256-GCM, key derived with HKDF) the secrets saved from the administration pages: the SSO client secret and the lab parameters' secrets (both in the `settings` table of the database). Without it they are kept in clear in the database file (mode 600). Changing it makes them unreadable (the page says so). |
 
 `PORT=0` is accepted and binds any free port (tests, the e2e harness).
 
@@ -374,10 +375,16 @@ await repos.transaction(async (r) => { await r.sessions.remove(id); await r.audi
 ```
 
 Today: `sessions`, `authState` (the local administrator's last TOTP step, the
-known-browser key), `audit`, `settings`, `legacyImports`. The wave 2 lots
-(accounts, teams and benches, reservations, invitations, room metadata) move
-their JSON documents onto repositories of their own at merge time (§14,
-"Store structured state").
+known-browser key), `audit`, `settings` (run-time settings, plus the rows
+`sso` and `switches`), `legacyImports`, `teams`, `benches` (occupancy, locks,
+reservations), `accounts` (with their passkeys), `accountLinks` (invitation
+and reset links), `announcements`, `diagrams` (the index of diagram versions
+and the stack of activations), `journalDays` (§9). Modules that read their
+state synchronously on every request keep it in memory with
+`createCachedDocument({ fallback, load, save })` (`src/lib/cachedDocument.js`,
+the contract of `store.json()`: serialized updates, nothing changes when the
+write fails), loaded in their `start()`; the repository's `save(next, prev)`
+writes only the records that changed, in one transaction.
 
 The data-access interface, implemented by an adapter (`sqlite.js` today):
 
@@ -456,7 +463,13 @@ the same number renumber at merge.
 
 **Files of before.** On the first start with the database, `importLegacyFiles()`
 reads `data/auth/sessions.json`, `auth/local-admin.json`,
-`auth/device-key.json` and `audit/<yyyy-mm>.jsonl`, writes their records
+`auth/device-key.json`, `audit/<yyyy-mm>.jsonl`, and the files the wave 2
+lots wrote before they had tables (the pre-production stack may hold them):
+`settings/<ns>.json`, `auth/oidc.json` (→ row `sso`), `admin/switches.json`
+(→ row `switches`), `teams/teams.json`, `benches/occupancy.json`,
+`benches/locks.json`, `benches/reservations.json`, `accounts/users.json`,
+`accounts/invitations.json`, `admin/announcements.json` and
+`diagrams/index.json` (into an empty index only). It writes their records
 through the repositories in one transaction per file (also recorded in
 `legacy_imports`), then renames each file `<name>.imported`. Nothing is ever
 deleted; a file that cannot be read is kept as `<name>.not-imported` with an
@@ -612,6 +625,9 @@ settings.on('change', (ns, values) => …)   // → off(); after a save that cha
   namespace's `check()` on the values that would apply (lab: a password or a
   key, a key that parses, a passphrase that opens it). Nothing is saved when
   one problem is found.
+- The SSO page (`sso`) and the admin switches (`switches`) keep their own
+  rows in the same table through `repos.settings`; the service never reads
+  or writes a namespace it did not register.
 - Saved in the database (table `settings`, one row per namespace through
   `repos.settings`: the saved fields by dotted path, who saved them and
   when), loaded once when the service is created (`await createSettings({
@@ -625,11 +641,27 @@ settings.on('change', (ns, values) => …)   // → off(); after a save that cha
   consoles registry reloads (the allow-list may have moved), the Proxmox
   tunnel reconnects, the health cache is dropped.
 - Confirmation is not the service's job: the admin module's `PUT /api/admin/lab`
-  requires a ticket (`src/modules/admin/confirm.js`).
+  requires a ticket (`src/modules/admin/confirm.js`, 2 minutes, one change,
+  same user and session). The environment's administrator gets it with its
+  password and a fresh TOTP code, a local administrator with a passkey. An
+  SSO administrator signs in again at the provider (owner decision, 13 Nov):
+  `POST /api/admin/confirm/sso` → a dedicated authorization request with
+  `prompt=login` and `max_age=0`; its callback (same person, still an
+  administrator, a fresh `auth_time`) marks the session as freshly confirmed
+  for 5 minutes (`SSO_FRESH_MS`), during which `POST /api/admin/confirm {}`
+  answers with a ticket; `GET /api/admin/confirm` → `{ method, confirmedUntil }`.
+  Nothing waits on the server meanwhile; the lab page keeps its non-secret
+  draft in `sessionStorage` across the trip. The Proxmox fields stay
+  read-only on that page (owner decision: Proxmox is postponed).
 
-**diagrams** (`src/lib/diagrams.js`, passed as `deps.diagrams`) — the active
-lab diagram is `data/diagrams/current.drawio`, seeded from `DIAGRAM_PATH` on
-the first start (which becomes the first version).
+**diagrams** (`src/lib/diagrams.js`, passed as `deps.diagrams`, `await
+createDiagrams({ config, store, repos })`) — the active lab diagram is
+`data/diagrams/current.drawio`, seeded from `DIAGRAM_PATH` on the first start
+(which becomes the first version). The versions stay files
+(`data/diagrams/versions/<id>.drawio`); their index (name, size, hash, who,
+when, the labs) and the stack of activations live in the database
+(`diagram_versions`, `diagram_activations`: the last activation is the
+active diagram).
 
 ```js
 diagrams.currentPath                 // what the consoles registry reads and watches
@@ -657,8 +689,9 @@ returns to the diagram active before the current one (a stack of activations).
 `infra.adminSwitches` is the current list (read it when a console opens);
 `infra.describe()`, `infra.replace(list, actor)` (validated, audited
 `admin.switches.update`), `infra.on('change')`. The shipped file
-(`INFRA_CONFIG_PATH`) is the starting point; an edited list lives in
-`data/admin/switches.json` and wins.
+(`INFRA_CONFIG_PATH`) is the starting point; an edited list lives in the
+database (`settings` row `switches`, read once by `await
+createInfrastructure({ file, repos, audit })`) and wins.
 
 ## 7. Server modules
 
@@ -678,7 +711,8 @@ services.consoles = {
   registry,                      // LabRegistry: model, getDevice(key), on('change')
   rooms,                         // RoomManager, see §9
   sharedTargets(),               // Set of 'host:port' used by several labs
-  journal,                       // ConsoleJournal: list(), meta(b, d, day, session), canRead(user, meta, teamOf), paths(b, d, day, session) (§9)
+  journal,                       // ConsoleJournal: list(), meta(), canRead(), canReadDay(), dayMetas(), usage(), paths() (§9)
+  pool(),                        // the shared SSH connections: { connections, channels, channelsPerConnection, lines: [{ key, channels, capacity, state }] }
 }
 services.teams = {                           // lot teams (src/modules/teams/)
   teamOf(userOrId) → Team | null               // { id, name, members: userId[], people: [{ id, username, name, since }], invitations }
@@ -692,9 +726,12 @@ services.benches = {                           // lot teams (src/modules/teams/)
   canOperate(user, labName) → boolean          // admin (locks included), or occupant of an unlocked bench
   canPilot(user, device) → boolean             // the rule of SPEC "Lot teams / Permissions": admin switches and
                                                //   admins always; else any bench of the device (same console
-                                               //   line) that is unlocked and free or occupied by the user
+                                               //   line) that is unlocked and free or occupied by the user.
+                                               //   The rooms ask it when a line opens and at every keystroke and
+                                               //   control action (§9)
   lock(labName) → { reason, by, at } | null
-  touch(labName)                               // activity, postpones auto-release; cheap (one write a minute)
+  touch(labName)                               // activity, postpones auto-release; cheap (one write a minute);
+                                               //   the consoles module calls it on every console activity
   onRelease(fn) → off()                        // hook: fn({ labName, teamId, by, reason }) after every release
                                                //   (by: Person | 'system'; reason: hand|admin|idle|reservation|dissolved);
                                                //   an object it returns is handed to the browser that released
@@ -705,6 +742,8 @@ services.accounts = {                          // lot accounts
   list() → Account[]                           // the environment's administrator first ({ environment: true })
   roleOverride(userId) → 'student' | 'admin' | null   // forced on an SSO account; null = its groups decide
   admit(user, { groupRole }) → Promise<boolean>       // called by the sign-in module at each SSO sign-in
+  findByUsername(name) → Account | null        // compared without case; local accounts first, SSO ones once signed in
+                                               //   (team invitations name people this way: teams.unknown_user otherwise)
   confirmation: {                              // a local administrator proves itself again with a passkey
     available(user) → boolean
     options(req, res) → PublicKeyCredentialRequestOptionsJSON   // challenge bound to browser, account and session
@@ -732,6 +771,12 @@ services.jobs = { running(labName) → Job | null, list({ bench }) }
   mounted once by `main.js`) follows the sticky SSE topic `admin:announcement`. **My account** (`#/account`) is
   reached from the user menu. Passkeys in the browser go through
   `core/passkeys.js` (public: the login page and `/join` use it).
+- **Live events.** `live.on(topic, fn)` (`core/api.js`) shares one
+  `EventSource`. A named event without a listener is lost, and sticky topics
+  are only replayed when a stream opens: when a section subscribes to a new
+  topic after the stream is open (the announcement banner opens it at
+  start-up), the stream is opened again once for the topics added in that
+  turn, and every sticky topic is replayed.
 - **Tabs.** A section with several screens uses `shared/tabs.js`:
   `mountTabs(container, tabs, { navigate, base })` where a tab is
   `{ id, title, load: () => import('./tabs/x.js') }` and the tab file exports
@@ -851,8 +896,14 @@ room.presence(user)                     // the presence frame for that user
 
 Who may pilot is `services.benches.canPilot(user, device)` when the teams lot
 provides it, every signed-in user otherwise (one call site, `mayPilot` in
-`src/modules/consoles/index.js`). Anyone signed in may watch an open line;
-opening a new line needs the right to pilot it (`consoles.open_not_allowed`).
+`src/modules/consoles/index.js`, read lazily). It is asked when a line opens,
+at every control action and at every keystroke: a pilot whose bench gets
+locked, or taken by another team, keeps watching but no longer types,
+shares, grants or frees the line. Anyone signed in may watch an open line
+(the browser lets anyone open a tile on a line already open, and asks the
+bench bar only before opening a new one); opening a new line needs the right
+to pilot it (`consoles.open_not_allowed`). Every console activity entry
+(open, join, control, command…) calls `services.benches.touch(bench)`.
 Limits are per user: `MAX_SESSIONS` lines on the platform (joining is free),
 `MAX_SESSIONS_PER_CLIENT` consoles per user (a read-only wall tile does not
 count), 20 openings a minute per user.
@@ -920,8 +971,9 @@ the last 100 entries; `POST /notify { device }` → `{ target, until }` (probe
 every 30 s for 30 min, `nc -z` through the jump server; at most 10 per user),
 `GET /notify`, `DELETE /notify/:target`; `GET /journal` → `{ sessions,
 retentionDays }`, the console sessions this user may read (`{ id, bench,
-device, day, from, to, bytes, truncated, people, pilots }`);
-`GET /journal/:bench/:device/:day/:session` → one session as a text file.
+device, day, from, to, bytes, truncated, people, pilots }`): every session of
+each console day they may read; `GET /journal/:bench/:device/:day/:session` →
+one session as a text file.
 
 **Console journal** (`src/modules/consoles/journal.js`): the device output
 per console **session** (one line opened, used, closed; a new file after
@@ -929,16 +981,24 @@ midnight), with marker lines (who took the keyboard, tasks, the end), never
 keystrokes; a sidecar `<session>.json` lists who attached, who held the
 keyboard and the teams that held the bench during the session
 (`services.benches.holder`, noted at the start, at each attach or handover
-and with each marker), which is what `canRead` checks (those people, those
-teams through `services.teams.teamOf`, admins). Read rights cover that
-session only: watching R1 in the afternoon does not open the morning's
-session of another team. Accepted limit: rights are per session, not per
-interval of presence, so someone who joins a session still open reads it
-from its first byte, including what was printed before they arrived. A
-session ends after the grace period or the idle timeout, which bounds this.
-Capped per device and day, all sessions together
-(`JOURNAL_MAX_KB_PER_DAY`), swept daily (`JOURNAL_RETENTION_DAYS`).
-Downloads are audited (`console.journal.download`).
+and with each marker), which is what `canRead(user, meta)` checks (those
+people, those teams through `services.teams.teamOf`, admins). **Read rights
+cover the whole day of a console** (owner decision, 13 Nov):
+`canReadDay(user, dayMetas(b, d, day))` is true when any session of that
+console's day names the user or their team, and then every session of that
+day is readable. Someone who watched R1 for a minute in the afternoon reads
+the morning's sessions of another team on R1, never another day nor another
+console. The journaling page (Lab status) says so.
+The days that exist per console are listed in the database (`journal_days`,
+`repos.journalDays`: safe names, real names, size, first and last write);
+the journal page, the retention sweep and the global cap read that table,
+and `reconcile()` (at start-up) adds the days found on disk that it does not
+list. Capped per device and day, all sessions together
+(`JOURNAL_MAX_KB_PER_DAY`), swept daily (`JOURNAL_RETENTION_DAYS`), and every
+journal together is capped at `JOURNAL_MAX_TOTAL_MB` (1024 by default):
+`enforceCap()`, hourly and at start-up, deletes the oldest days first, never
+the current day. `usage()` → `{ bytes, days, maxBytes }` is what the health
+page shows. Downloads are audited (`console.journal.download`).
 
 ### Device automation (lot: ios)
 
@@ -1012,20 +1072,24 @@ data/
   journal/<bench>/<device>/<yyyy-mm-dd>/<hhmmss>.log   …/<hhmmss>.json (one console session, who was there)
   snapshots/<bench>/<ts>-<label>/{manifest.json,<device>.cfg,<device>.vlan.txt}
   templates/<name>/...      same layout as a snapshot
-  auth/*.json.imported      audit/*.jsonl.imported   files of before the database, kept after their import
+  <dir>/<name>.json.imported   audit/*.jsonl.imported   files of before the database, kept after their import
 ```
 
-In the database today (one table each, migrations 001-005):
-`schema_migrations`, `legacy_imports`, `auth_sessions`, `auth_state` (the
-local administrator's last TOTP step, the known-browser key),
-`audit_entries`, `settings`.
+In the database today (migrations 001-010): `schema_migrations`,
+`legacy_imports`, `auth_sessions`, `auth_state` (the local administrator's
+last TOTP step, the known-browser key), `audit_entries`, `settings` (the
+run-time settings per namespace, the SSO page's provider as `sso`, the edited
+admin switches as `switches`), `teams`, `team_members`, `team_invitations`
+(006), `bench_occupancy`, `bench_locks`, `bench_reservations` (007),
+`accounts`, `account_passkeys`, `account_links` (008), `announcements`,
+`diagram_versions`, `diagram_activations` (009), `journal_days` (010).
+Passkey ceremonies' challenges are not stored: they live in memory, five
+minutes, single use.
 
-Still planned as JSON documents by wave 2 briefs, and moved into the
-database when those lots are merged (a repository each, §14): teams,
-bench occupancy, locks and reservations, accounts and invitations, OIDC
-settings, room metadata, device notes, the script library, announcements,
-the diagram index. Bench chat (`collab/chat/<bench>.jsonl`) is a log people
-may read as a file: decide at merge, with the owner.
+Planned for wave 3, a repository each (§14): device notes, the script
+library, the jobs and the snapshot index. Bench chat
+(`collab/chat/<bench>.jsonl`) is a log people may read as a file: decide
+with the owner.
 
 What stays a file is a document people download or diff: configuration
 backups (snapshots, templates), console journals, diagram versions. The
@@ -1134,9 +1198,9 @@ file alone while it runs may miss what is still in the `-wal` file.
 - Output shown to other users → rendered as text, never as HTML?
 - Secret → never logged, never sent to the browser, never written to `data/`
   unless it is a hash? Two exceptions, secrets the server must send on:
-  the SSO client secret (`data/auth/oidc.json`) and the lab parameters'
+  the SSO client secret (`settings` row `sso`) and the lab parameters'
   secrets (jump server password, key and passphrase, console server password,
-  `data/settings/lab.json`). Both files are mode 600 and the secrets are
+  `settings` row `lab`). The database file is mode 600 and the secrets are
   encrypted when `APP_SECRET` is set (`src/lib/sealed.js`); no answer and no
   audit entry ever contains them.
 - Limits → per user, not per IP.
@@ -1251,10 +1315,14 @@ bench, the file's path relative to `DATA_DIR`) goes into the database.
    portability rules, and fails on SQL written outside `src/lib/db`.
 6. §10 lists the new table.
 
-Merging a wave 2 lot written against JSON files: replace its `store.json()` /
-`store.jsonl()` documents by a migration and a repository as above, keep the
-module's public API (its `services.*` and routes) unchanged, load what it
-keeps in memory in `start()`, and add an importer for any file a deployed
+Merging a lot written against JSON files (what the wave 2 merge did for
+teams, benches, accounts, admin and the journal's days): replace its
+`store.json()` / `store.jsonl()` documents by a migration and a repository as
+above, keep the module's public API (its `services.*` and routes) unchanged,
+keep in memory what it reads on every request with
+`createCachedDocument()` (`src/lib/cachedDocument.js`: same `get()` /
+`update(fn)` contract, `load()` in `start()`, a repository `save(next, prev)`
+that writes what changed), and add an importer for any file a deployed
 version (pre-production included) already wrote.
 
 ### Add a rail section
