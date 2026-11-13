@@ -62,6 +62,18 @@ const PROBE = /^nc -z -w ([1-9]|[12]\d|30) ([\w.-]{1,253}) (\d{1,5})$/;
  * @param forwards    Map 'labHost:port' → 'localHost:port' for direct-tcpip
  * @param log         (message) => void
  */
+/**
+ * An ed25519 host key ssh2 can read back: about one key in five hundred that
+ * ssh2's generator writes is refused by its own parser ("Malformed OpenSSH
+ * private key"), which made the mock lab fail to start now and then
+ */
+function hostKeyPair() {
+  for (;;) {
+    const key = ssh2.utils.generateKeyPairSync('ed25519').private;
+    if (!(ssh2.utils.parseKey(key) instanceof Error)) return key;
+  }
+}
+
 export function startMockLab({
   port = 2222, host = '127.0.0.1', ssh = {}, telnet = null, names = new Map(), devices = {}, defaults = {},
   downPorts = [], busyPorts = [], loginPorts = [], slowConsole = false, forwards = new Map(), log = () => {},
@@ -72,7 +84,7 @@ export function startMockLab({
   const fleet = new Map();      // 'host:port' → FakeIos
   const inUse = new Set();      // console ports with a session
   const clients = new Set();
-  const hostKey = ssh2.utils.generateKeyPairSync('ed25519').private;
+  const hostKey = hostKeyPair();
 
   const keyOf = (target) => (typeof target === 'string' ? target : `${target.host}:${target.port}`);
   function device(target) {
