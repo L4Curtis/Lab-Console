@@ -283,6 +283,9 @@ test('rooms: a line refused by the console server, and a device that stays silen
 });
 
 test('rooms: the journal keeps what the device printed and who held the keyboard, never what was typed', async () => {
+  const dayDir = path.join(dataDir, 'journal', 'B4M', 'R1', dayOf(Date.now()));
+  const logs = () => (fs.existsSync(dayDir) ? fs.readdirSync(dayDir).filter((f) => f.endsWith('.log')) : []);
+  const earlier = new Set(logs()); // R1's sessions of the tests above
   const m = manager();
   const { room, b: a } = await openReady(m, device('R1', 2001), alice);
   browser(room, bob);
@@ -294,15 +297,81 @@ test('rooms: the journal keeps what the device printed and who held the keyboard
   await a.frame((f) => f.type === 'exit', 'closed');
   await room.journal.close();
   await store.flush();
-  const day = dayOf(Date.now());
-  const log = fs.readFileSync(path.join(dataDir, 'journal', 'B4M', 'R1', `${day}.log`), 'latin1');
+  const [session, ...others] = logs().filter((f) => !earlier.has(f)).map((f) => f.slice(0, -4));
+  assert.equal(others.length, 0, 'one file for this console session');
+  const log = fs.readFileSync(path.join(dayDir, `${session}.log`), 'latin1');
   assert.match(log, /R1>enable/);
   assert.match(log, /keyboard: Alice \(alice\)/);
   assert.match(log, /keyboard: Bob \(bob\)/);
   assert.doesNotMatch(log, new RegExp(TELNET.password), 'the console server password is never echoed, never journaled');
-  const meta = JSON.parse(fs.readFileSync(path.join(dataDir, 'journal', 'B4M', 'R1', `${day}.json`), 'utf8'));
+  const meta = JSON.parse(fs.readFileSync(path.join(dayDir, `${session}.json`), 'utf8'));
   assert.deepEqual(Object.keys(meta.attended).sort(), [alice.id, bob.id]);
   assert.deepEqual(Object.keys(meta.pilots).sort(), [alice.id, bob.id]);
   assert.equal(meta.bench, 'B4M');
-  assert.equal(fs.statSync(path.join(dataDir, 'journal', 'B4M', 'R1', `${day}.log`)).mode & 0o777, 0o600);
+  assert.equal(fs.statSync(path.join(dayDir, `${session}.log`)).mode & 0o777, 0o600);
+});
+
+test('rooms: a refused grant or deny says why: nothing pending, or the requester has left', async () => {
+  const m = manager();
+  const { room, b: a } = await openReady(m, device('R6', 2006), alice);
+  assert.equal(room.denyControl(null, alice).code, 'consoles.control_no_request', 'nobody asked');
+  assert.equal(room.grantControl(undefined, alice).code, 'consoles.control_no_request', 'nobody asked, nobody named');
+  const b = browser(room, bob);
+  room.write(alice, '\r'); // alice is active: bob has to ask
+  assert.deepEqual(room.requestControl(bob), { ok: true, pending: true });
+  assert.equal(room.denyControl(chloe.id, alice).code, 'consoles.control_no_request', 'chloe did not ask');
+  b.detach(); // bob leaves while alice is about to answer
+  await a.frame((f) => f.type === 'control' && f.event === 'cancelled', 'the request went with him');
+  assert.equal(room.grantControl(bob.id, alice).code, 'consoles.control_gone');
+  assert.equal(room.pilot, alice.id, 'alice keeps the keyboard');
+  room.close();
+});
+
+test('rooms: a person on a wall tile only is neither pilot nor typist, even with a shared keyboard', async () => {
+  const m = manager();
+  const { room, b: a } = await openReady(m, device('R2', 2002), alice);
+  const wall = browser(room, bob, { readOnly: true });
+  room.setShared(alice, true);
+  assert.equal(room.mayType(bob), false);
+  assert.equal(room.write(bob, 'show wallhack\r'), false);
+  assert.equal(room.requestControl(bob).code, 'consoles.wall_read_only');
+  assert.equal(room.grantControl(bob.id, alice).code, 'consoles.control_not_allowed');
+  assert.equal((await wall.frame((f) => f.type === 'presence' && f.shared, 'shared')).mayType, false);
+  // Alice keeps a wall tile and closes her tile with a keyboard: she watches now, the keyboard is free
+  const aliceWall = browser(room, alice, { readOnly: true });
+  a.detach();
+  assert.equal(room.pilot, null);
+  assert.equal(room.mayType(alice), false);
+  assert.equal(room.hangUp(bob).code, 'consoles.control_not_pilot', 'a wall tile does not free the line');
+  room.write(alice, 'x');
+  await aliceWall.frame((f) => f.type === 'presence' && f.pilot === null, 'nobody pilots');
+  assert.doesNotMatch(aliceWall.text, /wallhack/);
+  room.close();
+});
+
+test('rooms: under a running task only its actor, the pilot or an admin frees the line; the task then fails with room_closed', async () => {
+  const m = manager();
+  const { room, b: a } = await openReady(m, device('R3', 2003), alice);
+  const watcher = browser(room, chloe);
+  room.releaseControl(alice);
+  assert.equal(room.pilot, null);
+  let release;
+  const job = room.runExclusive('system', 'backup', () => new Promise((resolve) => { release = resolve; }));
+  await until(() => room.task?.state === 'running', 'task running');
+  // chloe may pilot, but she may not stop the job: neither cancelTask nor "free the line"
+  assert.equal(room.cancelTask(chloe).code, 'consoles.control_not_pilot');
+  assert.deepEqual(room.hangUp(chloe), { ok: false, code: 'consoles.task_running', params: { task: 'backup' } });
+  assert.equal(room.hangUp(alice).code, 'consoles.task_running', 'alice released: she is not the pilot any more');
+  assert.equal(watcher.presence().task.state, 'running');
+  release('saved');
+  assert.equal(await job, 'saved', 'the job ends normally');
+  assert.equal(room.closed, false);
+
+  // Now an admin frees it during a task: the job learns that the line closed, not that someone pressed Stop
+  const second = room.runExclusive('system', 'restore', (cli) => cli.pause(10_000));
+  await until(() => room.task?.state === 'running', 'second task running');
+  browser(room, ada);
+  assert.deepEqual(room.hangUp(ada), { ok: true });
+  await assert.rejects(second, (err) => err.code === 'consoles.room_closed' && !err.cancelled && err.params.reason === 'consoles.freed');
+  assert.equal((await a.frame((f) => f.type === 'exit', 'freed')).code, 'consoles.freed');
 });

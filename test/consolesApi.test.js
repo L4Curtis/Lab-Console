@@ -65,6 +65,9 @@ async function until(fn, what, ms = 6000) {
 }
 
 const get = (who, path) => fetch(`${app.url}${path}`, { headers: who ? app.as(who) : {} });
+const notify = (who, device) => fetch(`${app.url}/api/consoles/notify`, {
+  method: 'POST', headers: { ...app.as(who), origin: app.url, 'content-type': 'application/json' }, body: JSON.stringify({ device }),
+});
 
 /** The console server's login is done once "Password:" was answered */
 async function openReady(who, device) {
@@ -168,10 +171,30 @@ test('consoles: a wall tile only watches an open line and is refused on a closed
   const wall = connect('student2', s1, '&mode=wall');
   const p = await wall.frame((f) => f.type === 'presence' && f.users.length === 2, 'watching');
   assert.equal(p.mayType, false);
-  wall.send({ type: 'control', action: 'request' }); // control requests are still possible (a wall tile may ask)
+  // The keyboard is shared and then left free: a wall socket still has no keys, no control, no automation
+  alice.send({ type: 'control', action: 'share' });
+  await wall.frame((f) => f.type === 'presence' && f.shared, 'shared');
+  wall.type('show wallhack\r');
+  wall.send({ type: 'break' });
   wall.send({ type: 'export-config' });
-  await alice.frame((f) => f.type === 'control' && f.event === 'request', 'request reached the pilot');
+  for (const action of ['request', 'hangup', 'take']) wall.send({ type: 'control', action });
+  const refused = await wall.until((x) => x.frames.filter((f) => f.type === 'control-refused').length === 3, 'three refusals')
+    .then(() => wall.frames.filter((f) => f.type === 'control-refused'));
+  assert.deepEqual(refused.map((f) => [f.action, f.code]), [['request', 'consoles.wall_read_only'], ['hangup', 'consoles.wall_read_only'], ['take', 'consoles.wall_read_only']]);
+  alice.send({ type: 'control', action: 'release' });
+  await wall.frame((f) => f.type === 'presence' && f.pilot === null, 'the line is free');
+  wall.send({ type: 'control', action: 'request' });
+  await wall.until((x) => x.frames.filter((f) => f.type === 'control-refused').length === 4, 'refused on a free line too');
+  // Alice types after all that: what reaches the device is hers alone
+  alice.send({ type: 'control', action: 'request' });
+  await alice.frame((f) => f.type === 'presence' && f.mayType, 'alice has it back');
+  alice.type('show users\r');
+  await alice.see(/S2>show users/);
+  assert.doesNotMatch(alice.text, /wallhack/, 'the wall socket\'s keys never reached the device');
+  assert.equal(wall.frames.some((f) => f.type === 'presence' && f.mayType), false);
+  assert.equal(alice.frames.some((f) => f.type === 'control' && f.event === 'request'), false, 'the pilot was never asked');
   assert.equal(wall.frames.some((f) => f.type === 'automation'), false, 'automation is not offered on a wall tile');
+  assert.equal(wall.closed, false, 'the line is still open');
   await wall.close();
   await alice.close();
 });
@@ -212,6 +235,31 @@ test('consoles: a busy line is refused with its own message; "tell me when it is
     assert.equal(unknown.status, 404);
     assert.equal((await unknown.json()).code, 'consoles.device_gone');
     assert.equal((await fetch(`${app.url}/api/consoles/notify`, { method: 'POST', headers: { origin: app.url } })).status, 401);
+    // A device whose console address is outside the allow-list of the lab settings
+    const { settings } = app.deps;
+    const realGet = settings.get;
+    settings.get = (ns) => {
+      const value = realGet.call(settings, ns);
+      return ns === 'lab' ? { ...value, consoles: { ...value.consoles, allowedHosts: ['192.0.2.1'] } } : value;
+    };
+    try {
+      const res = await notify('student1', byName('B4M', 'R5').key);
+      assert.equal(res.status, 403);
+      assert.equal((await res.json()).code, 'consoles.not_allowed');
+    } finally {
+      settings.get = realGet;
+    }
+    // At most 10 lines waited for per user; the same line again is not one more
+    assert.equal((await (await get('student1', '/api/consoles/notify')).json()).watches.length, 0, 'the line freed: nothing waited for');
+    const lines = [...new Map(devices.filter((d) => d !== busy).map((d) => [`${d.target.host}:${d.target.port}`, d])).values()];
+    const others = lines.slice(0, 10);
+    for (const d of others) assert.equal((await notify('student1', d.key)).status, 200, d.name);
+    assert.equal((await (await get('student1', '/api/consoles/notify')).json()).watches.length, 10);
+    const eleventh = await notify('student1', lines[10].key);
+    assert.equal(eleventh.status, 429);
+    assert.deepEqual(await eleventh.json().then(({ code, params }) => ({ code, params })), { code: 'consoles.too_many_watches', params: { max: 10 } });
+    assert.equal((await notify('student1', others[0].key)).status, 200, 'a line already waited for is fine');
+    for (const d of others) await fetch(`${app.url}/api/consoles/notify/${encodeURIComponent(`${d.target.host}:${d.target.port}`)}`, { method: 'DELETE', headers: { ...app.as('student1'), origin: app.url } });
     const del = await fetch(`${app.url}/api/consoles/notify/${encodeURIComponent('10.22.9.211:2016')}`, { method: 'DELETE', headers: { ...app.as('student2'), origin: app.url } });
     assert.equal(del.status, 404);
   } finally {
@@ -233,16 +281,18 @@ test('consoles: the journal is listed and downloaded by those who were there, th
   await app.deps.store.flush();
   await new Promise((r) => setTimeout(r, 50));
 
-  const list = async (who) => (await (await get(who, '/api/consoles/journal')).json()).days;
+  const list = async (who) => (await (await get(who, '/api/consoles/journal')).json()).sessions;
   const mine = (await list('student1')).find((d) => d.bench === 'B4M' && d.device === 'R2');
-  assert.ok(mine, 'alice sees the day she was there');
+  assert.ok(mine, 'alice sees the session she was on');
+  assert.match(mine.id, /^B4M\/R2\/\d{4}-\d{2}-\d{2}\/\d{6}(-\d+)?$/);
+  assert.ok(mine.from && mine.to, 'when it started and ended');
   assert.deepEqual(mine.people, ['Student 1']);
   assert.equal((await list('student2')).some((d) => d.device === 'R2' && d.bench === 'B4M'), false, 'bob was not there');
   assert.ok((await list('admin')).some((d) => d.id === mine.id), 'an admin sees everything');
 
   const download = await get('student1', `/api/consoles/journal/${mine.id}`);
   assert.equal(download.status, 200);
-  assert.match(download.headers.get('content-disposition'), /^attachment; filename="journal_B4M_R2_\d{4}-\d{2}-\d{2}\.log"$/);
+  assert.match(download.headers.get('content-disposition'), /^attachment; filename="journal_B4M_R2_\d{4}-\d{2}-\d{2}_\d{6}(-\d+)?\.log"$/);
   const body = await download.text();
   assert.match(body, /R2>show ip interface brief/);
   assert.doesNotMatch(body, new RegExp(TELNET.password));
@@ -250,12 +300,14 @@ test('consoles: the journal is listed and downloaded by those who were there, th
   assert.equal((await (await get('student2', `/api/consoles/journal/${mine.id}`)).json()).code, 'consoles.journal_forbidden');
   assert.equal((await get('admin', `/api/consoles/journal/${mine.id}`)).status, 200);
   assert.equal((await get(null, `/api/consoles/journal/${mine.id}`)).status, 401);
-  assert.equal((await get('student1', '/api/consoles/journal/B4M/R2/2001-01-01')).status, 404);
-  assert.equal((await get('student1', '/api/consoles/journal/B4M/R2/yesterday')).status, 400);
-  assert.equal((await get('student1', '/api/consoles/journal/..%2F..%2Fauth/R2/2026-11-13')).status, 400);
+  assert.equal((await get('student1', '/api/consoles/journal/B4M/R2/2001-01-01/100000')).status, 404);
+  assert.equal((await get('student1', '/api/consoles/journal/B4M/R2/yesterday/100000')).status, 400);
+  assert.equal((await get('student1', `/api/consoles/journal/B4M/R2/${mine.day}/..%2F..%2Fauth`)).status, 400);
+  assert.equal((await get('student1', '/api/consoles/journal/..%2F..%2Fauth/R2/2026-11-13/100000')).status, 400);
+  assert.equal((await get('student1', `/api/consoles/journal/B4M/R2/${mine.day}`)).status, 404, 'a whole day is not served any more');
 
   // The team that held the bench reads it too: chloe is in team-x, bob is not
-  const meta = JSON.parse(fs.readFileSync(`${app.dataDir}/journal/B4M/R2/${mine.day}.json`, 'utf8'));
+  const meta = JSON.parse(fs.readFileSync(`${app.dataDir}/journal/${mine.id}.json`, 'utf8'));
   assert.deepEqual(meta.teams, ['team-x']);
   app.deps.services.teams = { teamOf: (u) => (u.id === 'oidc:student3' ? { id: 'team-x' } : null) };
   try {
@@ -265,6 +317,24 @@ test('consoles: the journal is listed and downloaded by those who were there, th
   } finally {
     delete app.deps.services.teams;
   }
+
+  // Later the same day bob watches R2 for a moment: he reads that session, never alice's
+  const later = await openReady('student1', r2);
+  const bob = connect('student2', r2);
+  await bob.frame((f) => f.type === 'presence' && f.users.length === 2, 'bob watches');
+  await bob.close();
+  later.send({ type: 'control', action: 'hangup' });
+  await later.frame((f) => f.type === 'exit', 'closed again');
+  await later.close();
+  await app.deps.store.flush();
+  const bobs = (await list('student2')).filter((d) => d.bench === 'B4M' && d.device === 'R2');
+  assert.equal(bobs.length, 1, 'one session for bob');
+  assert.notEqual(bobs[0].id, mine.id);
+  assert.equal(bobs[0].day, mine.day, 'the same device, the same day');
+  assert.equal((await get('student2', `/api/consoles/journal/${bobs[0].id}`)).status, 200);
+  assert.equal((await get('student2', `/api/consoles/journal/${mine.id}`)).status, 403, 'the morning stays alice\'s');
+
   const downloads = await app.deps.audit.query({ action: 'console.journal.download' });
-  assert.ok(downloads.length >= 3, 'every download is audited');
+  assert.ok(downloads.length >= 4, 'every download is audited');
+  assert.ok(downloads.some((d) => d.details.session === mine.id.split('/')[3]));
 });

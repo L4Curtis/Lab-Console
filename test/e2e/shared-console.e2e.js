@@ -109,6 +109,31 @@ test('alice opens R1, bob joins and sees the history, asks for the keyboard, ali
   await setLanguage(bob, 'en');
   await bob.waitForFunction(() => /Student 1 has the keyboard/.test(document.querySelector('.pane-console .presence-status')?.textContent ?? ''));
 
+  // A later lot draws on the diagram with one call too, without holding the view (ARCHITECTURE §8)
+  await alice.evaluate(async () => {
+    const { registerDiagramLayer } = await import('/js/shared/diagramLayers.js');
+    window.offProbeLayer = registerDiagramLayer('probe', (d) => (d.name === 'R2' ? { ring: 'probe', badges: [{ text: 'PR', kind: 'probe', title: 'probe' }] } : null));
+  });
+  await alice.waitForSelector('g.device .deco-badge.badge-probe');
+  await alice.waitForSelector('g.device .deco-ring.ring-probe');
+  assert.equal(await alice.locator('g.device[data-state="open"] .deco-badge.badge-pilot').count(), 1, 'presence is still drawn');
+  await alice.evaluate(() => window.offProbeLayer());
+  await alice.waitForFunction(() => !document.querySelector('.deco-badge.badge-probe'));
+
+  // "Free the line" follows the task rule: on an unowned line anyone who may pilot sees it, not while a job runs
+  await paneA.locator('button[data-action="release"]').click();
+  const hangupB = paneB.locator('button[data-action="hangup"]');
+  await hangupB.waitFor();
+  const room = h.app.deps.services.consoles.rooms.get(R1);
+  let finish;
+  const job = room.runExclusive('system', 'backup', () => new Promise((resolve) => { finish = resolve; }));
+  await bob.waitForFunction(() => /backup/.test(document.querySelector('.pane-console .presence-status')?.textContent ?? ''));
+  assert.equal(await hangupB.count(), 0, 'a bystander cannot cut a job in half');
+  assert.equal(await paneA.locator('button[data-action="hangup"]').count(), 0);
+  finish('saved');
+  assert.equal(await job, 'saved');
+  await hangupB.waitFor();
+
   assert.deepEqual(alice.errors, []);
   assert.deepEqual(bob.errors, []);
   await alice.context().close();

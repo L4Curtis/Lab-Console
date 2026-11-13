@@ -397,7 +397,7 @@ services.consoles = {
   registry,                      // LabRegistry: model, getDevice(key), on('change')
   rooms,                         // RoomManager, see §9
   sharedTargets(),               // Set of 'host:port' used by several labs
-  journal,                       // ConsoleJournal: list(), meta(), canRead(user, meta, teamOf), paths() (§9)
+  journal,                       // ConsoleJournal: list(), meta(b, d, day, session), canRead(user, meta, teamOf), paths(b, d, day, session) (§9)
 }
 services.teams = {                           // lot teams
   teamOf(userOrId) → Team | null               // { id, name, members: userId[] }
@@ -499,7 +499,10 @@ services.jobs = { running(labName) → Job | null, list({ bench }) }
   `badges` is `[{ text, color?, title?, kind? }]` (at most four drawn, then
   "+n"), `tooltip` is extra lines of the device's tooltip; `decorate(layer,
   null)` removes a layer. Call `refresh()` when the data behind a layer
-  changes; the consoles section exposes its view to later lots as it grows.
+  changes. A later lot does not hold the view: it calls
+  `registerDiagramLayer(layer, fn)` → `unregister()` and `refreshDiagram()`
+  from `shared/diagramLayers.js`; every diagram view on the page, drawn
+  before or after, uses those layers after its own (presence).
   Device states (`setStates`): `idle`, `open` (in my workspace), `live` (open
   in the application by someone else: a click joins), `busy` (refused by the
   console server lately: busy outside the application), `disabled`.
@@ -565,7 +568,11 @@ the keyboard; a 'system' task gives it back to the previous pilot.
 The line stays open while someone is attached, 30 s after the last one
 leaves (or after the last task, for a line a job opened that nobody
 watches), 60 min without input (`IDLE_TIMEOUT_MINUTES`); "free the line"
-(`hangUp`: the pilot, an admin, or anyone who may pilot an unowned line).
+(`hangUp`: the pilot, an admin, or anyone who may pilot an unowned line;
+while a task holds the line, only the people `cancelTask` accepts: its actor,
+the pilot, an admin, others get `consoles.task_running`). A line that closes
+under a task (dropped, freed, timed out) rejects it with
+`consoles.room_closed`, never with a user's `automation.stopped`.
 Lab parameters (`settings.get('lab')`: jump server, console login, allowed
 hosts) are read when a line opens. Lines share SSH connections
 (`src/lib/sshPool.js`: `SSH_CHANNELS_PER_CONNECTION`, 8 by default, under
@@ -587,7 +594,10 @@ returned, free), `{type:'control-refused', action, code, params}`, status
 phase `silent`; client → server: `{type:'control',
 action:'request'|'grant'|'deny'|'release'|'take'|'share'|'unshare'|'hangup', to?}`.
 `mode=wall` joins an open line read-only (no keyboard, no automation, not
-counted in the per-user limit). Automation (`export-config`, `inject`) goes
+counted in the per-user limit): the server drops its input, break and resize
+frames and refuses its control frames (`consoles.wall_read_only`), and a
+person attached only through wall tiles can be neither pilot nor typist on a
+shared keyboard. Automation (`export-config`, `inject`) goes
 through `runExclusive`; its progress is sent to everyone on the line, the
 exported file and the refusals only to the person who asked.
 
@@ -600,15 +610,21 @@ free" answered, `state: free|open|expired`).
 HTTP (`/api/consoles`): `GET /rooms` → `{ rooms, busy }`; `GET /activity` →
 the last 100 entries; `POST /notify { device }` → `{ target, until }` (probe
 every 30 s for 30 min, `nc -z` through the jump server; at most 10 per user),
-`GET /notify`, `DELETE /notify/:target`; `GET /journal` → the days this user
-may read; `GET /journal/:bench/:device/:day` → the day as a text file.
+`GET /notify`, `DELETE /notify/:target`; `GET /journal` → `{ sessions,
+retentionDays }`, the console sessions this user may read (`{ id, bench,
+device, day, from, to, bytes, truncated, people, pilots }`);
+`GET /journal/:bench/:device/:day/:session` → one session as a text file.
 
 **Console journal** (`src/modules/consoles/journal.js`): the device output
-per device and day, with marker lines (who took the keyboard, tasks, the
-end), never keystrokes; a sidecar `<day>.json` lists who attached, who held
-the keyboard and the team that held the bench (`services.benches.holder`),
-which is what `canRead` checks (those people, that team through
-`services.teams.teamOf`, admins). Capped per device and day
+per console **session** (one line opened, used, closed; a new file after
+midnight), with marker lines (who took the keyboard, tasks, the end), never
+keystrokes; a sidecar `<session>.json` lists who attached, who held the
+keyboard and the teams that held the bench during the session
+(`services.benches.holder`, noted at the start, at each attach or handover
+and with each marker), which is what `canRead` checks (those people, those
+teams through `services.teams.teamOf`, admins). Read rights cover that
+session only: watching R1 in the afternoon does not open the morning's
+session of another team. Capped per device and day, all sessions together
 (`JOURNAL_MAX_KB_PER_DAY`), swept daily (`JOURNAL_RETENTION_DAYS`).
 Downloads are audited (`console.journal.download`).
 
@@ -682,7 +698,7 @@ data/
   auth/sessions.json        auth/local-admin.json (last TOTP step used)   auth/device-key.json (known-browser key)
   audit/<yyyy-mm>.jsonl
   diagrams/current.drawio   diagrams/versions/<ts>-<user>.drawio   diagrams/index.json
-  journal/<bench>/<device>/<yyyy-mm-dd>.log   journal/<bench>/<device>/<yyyy-mm-dd>.json (who was there)
+  journal/<bench>/<device>/<yyyy-mm-dd>/<hhmmss>.log   …/<hhmmss>.json (one console session, who was there)
   teams/teams.json          benches/occupancy.json    benches/locks.json    benches/reservations.json
   accounts/users.json       accounts/invitations.json    auth/oidc.json (600)
   settings/<ns>.json (600)
