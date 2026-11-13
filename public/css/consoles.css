@@ -1,0 +1,135 @@
+/* ==========================================================================
+   Shared consoles: presence and control in the tiles, presence on the
+   diagram, the live panel, the bench wall, the journal notice and list
+   ========================================================================== */
+
+/* ── In a console tile ─────────────────────────────────────────────────── */
+.pane-presence {
+  background: var(--term-head); border-top: 1px solid rgba(255, 255, 255, .06);
+  color: var(--term-head-ink); font-size: 12px; padding: 4px 10px;
+}
+.presence-row { display: flex; align-items: center; gap: 10px; min-height: 28px; flex-wrap: wrap; }
+.presence-people { display: flex; gap: 2px; }
+.presence-status { flex: 1; min-width: 120px; color: #AFC0CF; }
+.presence-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+.presence-actions .btn:not(.primary), .presence-answer .btn:not(.primary) { background: transparent; border-color: #3A4A59; color: #DCE4EB; }
+.presence-actions .btn .icon { width: 14px; height: 14px; margin-right: 4px; }
+.presence-wait { color: #F2C462; }
+.presence-prompt {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
+  margin: 4px -10px -4px; padding: 6px 10px; background: rgba(242, 196, 98, .14); border-top: 1px solid rgba(242, 196, 98, .35);
+}
+.presence-question { display: flex; align-items: center; gap: 8px; }
+.presence-question strong { color: #FFD884; font-weight: 600; }
+.presence-question .icon { width: 16px; height: 16px; color: #FFD884; }
+.presence-left { color: #AFC0CF; }
+.presence-answer { display: flex; gap: 6px; }
+
+.avatar {
+  --avatar: var(--console);
+  position: relative; display: inline-grid; place-items: center;
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--avatar); color: #fff; font: 600 10.5px/1 var(--font); letter-spacing: .02em;
+  border: 2px solid var(--term-head);
+}
+.avatar.pilot { box-shadow: 0 0 0 2px #7BD88F; }
+.avatar.you { outline: 1px dashed rgba(255, 255, 255, .5); outline-offset: 1px; }
+.avatar-key { position: absolute; right: -6px; bottom: -6px; width: 13px; height: 13px; padding: 1px; border-radius: 3px; background: #7BD88F; color: #0F1821; }
+.avatar-key svg { width: 100%; height: 100%; }
+
+.pane-journal {
+  align-self: center; margin-right: 4px; padding: 1px 6px; border: 1px solid #3A4A59; border-radius: 10px;
+  font-size: 10.5px; color: #8D9DAC; white-space: nowrap; cursor: help;
+}
+.pane-custom-actions { display: flex; }
+.pane[data-silent="true"] .pane-led { background: var(--led-amber); box-shadow: 0 0 6px rgba(212, 140, 18, .8); }
+.pane[data-silent="true"] .pane-status { color: #F2C462; }
+.pane[data-role="spectator"] .xterm-cursor-layer { opacity: .35; }
+@container (max-width: 460px) { .pane-journal { display: none; } .presence-status { min-width: 0; } }
+
+/* ── On the diagram ───────────────────────────────────────────────────── */
+.device[data-state="live"] .device-led { fill: var(--console); }
+.device[data-state="live"] .device-tile { stroke: var(--console); stroke-width: 2.5; }
+.device[data-state="busy"] { cursor: pointer; }
+.deco-ring { fill: none; stroke-width: 2; stroke-dasharray: 4 3; pointer-events: none; }
+.deco-ring.ring-live { stroke: var(--console); }
+.deco-ring.ring-pilot { stroke: var(--led-green); stroke-dasharray: none; }
+.deco-ring.ring-task { stroke: var(--led-amber); stroke-dasharray: none; }
+.deco-badge circle { --badge: var(--console); fill: var(--badge); stroke: var(--paper); stroke-width: 2; }
+.deco-badge.badge-pilot circle { stroke: var(--led-green); stroke-width: 2.5; }
+.deco-badge.badge-more circle { fill: var(--ink-3); }
+.deco-badge text { font: 600 7.5px var(--font); fill: #fff; pointer-events: none; }
+.tip-line { font-size: 12px; color: #C9D4DD; }
+.tip-state.live { color: #97C9F5; }
+
+.wall-btn { position: absolute; top: 18px; right: 22px; z-index: 3; pointer-events: auto; }
+.canvas-heading .wall-btn { position: static; margin-top: 6px; pointer-events: auto; }
+
+/* ── The journal notice ───────────────────────────────────────────────── */
+.journal-notice {
+  position: absolute; left: 22px; right: 22px; bottom: 16px; z-index: 4;
+  display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 12px;
+  background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--console);
+  border-radius: var(--radius); box-shadow: var(--shadow); font-size: 13px; color: var(--ink-2);
+}
+.journal-notice > .icon { color: var(--console); flex: none; }
+.journal-notice p { margin: 0; flex: 1; }
+
+/* ── The live panel ───────────────────────────────────────────────────── */
+.live-btn { position: relative; }
+.live-btn[aria-pressed="true"] { border-color: var(--console); color: var(--console-strong); }
+.live-badge {
+  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
+  background: var(--console); color: #fff; font: 600 11px/18px var(--font); text-align: center;
+}
+.live-panel {
+  position: absolute; top: 10px; right: 10px; bottom: 10px; z-index: 5; width: min(360px, calc(100% - 20px));
+  display: flex; flex-direction: column; overflow: hidden;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow);
+}
+.live-head { display: flex; align-items: center; gap: 10px; padding: 10px 10px 8px 14px; border-bottom: 1px solid var(--line); }
+.live-head h2 { margin: 0; font-size: 15px; }
+.live-count { flex: 1; font-size: 12px; color: var(--ink-3); }
+.live-section { padding: 8px 14px; overflow: auto; }
+.live-section:first-of-type { flex: 0 1 auto; max-height: 55%; }
+.live-section:last-of-type { flex: 1; border-top: 1px solid var(--line); }
+.live-section h3 { margin: 0 0 6px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); }
+.live-rooms, .live-feed { list-style: none; margin: 0; padding: 0; }
+.live-room + .live-room { margin-top: 6px; }
+.live-open {
+  width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; text-align: left; cursor: pointer;
+  padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2);
+}
+.live-open:hover { border-color: var(--console); }
+.live-name { display: flex; gap: 6px; align-items: baseline; }
+.live-name .muted { color: var(--ink-3); font-size: 12px; }
+.live-people { display: flex; gap: 1px; justify-self: end; }
+.live-people .avatar { width: 20px; height: 20px; font-size: 9px; border-color: var(--surface-2); }
+.live-people .avatar-key { width: 11px; height: 11px; right: -5px; bottom: -5px; }
+.live-detail { grid-column: 1 / -1; font-size: 12px; color: var(--ink-2); display: flex; gap: 8px; }
+.live-warn { color: var(--led-amber); font-style: normal; }
+.live-command { grid-column: 1 / -1; font: 12px var(--mono); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.live-feed li { display: flex; gap: 8px; font-size: 12.5px; padding: 3px 0; color: var(--ink-2); }
+.live-feed time { flex: none; font: 11.5px var(--mono); color: var(--ink-3); padding-top: 1px; }
+.live-empty { font-size: 12.5px; color: var(--ink-3); }
+
+/* ── The bench wall ───────────────────────────────────────────────────── */
+.modal.wide.wall-dialog { width: min(1200px, calc(100vw - 32px)); }
+.wall-intro { margin: 0; color: var(--ink-2); }
+.wall-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 10px; }
+.wall-tile { display: flex; flex-direction: column; border-radius: 6px; overflow: hidden; background: var(--term-bg); }
+.wall-tile header { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--term-head); color: var(--term-head-ink); font-size: 12px; }
+.wall-tile header strong { color: #fff; font-size: 13px; }
+.wall-pilot { flex: 1; color: #AFC0CF; }
+.wall-state { color: #F2C462; }
+.wall-tile .btn { background: transparent; border-color: #3A4A59; color: #DCE4EB; }
+.wall-screen { height: 220px; padding: 4px 6px; }
+.wall-tile[data-ended="true"] .wall-screen { opacity: .5; }
+
+/* ── The journal list ─────────────────────────────────────────────────── */
+.journal-intro { margin: 0; color: var(--ink-2); }
+.journal-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.journal-table th, .journal-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+.journal-table th { font-size: 12px; font-weight: 600; color: var(--ink-3); }
+.journal-cut { color: var(--led-amber); font-style: normal; }
+.journal-table .btn .icon { width: 14px; height: 14px; margin-right: 4px; }

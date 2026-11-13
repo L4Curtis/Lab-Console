@@ -7,7 +7,20 @@
  * through a third-party viewer, no overlay tricks
  *
  *   const view = new DiagramView(container, { onOpen(device) {} })
- *   view.render(lab); view.setStates(device => 'idle' | 'open' | 'busy' | 'disabled')
+ *   view.render(lab); view.setStates(device => 'idle' | 'open' | 'live' | 'busy' | 'disabled')
+ *
+ * Decorations (ARCHITECTURE §8): other features draw on the devices without
+ * touching this file. A layer is a function of the device, asked again on
+ * refresh(); what several layers return is combined, in the order the
+ * layers were added:
+ *
+ *   view.decorate('presence', (device) => ({
+ *     ring: 'pilot',                                   // a class: .deco-ring.ring-pilot (the last layer's wins)
+ *     badges: [{ text: 'AM', color: '#3E8FC9', title: 'Alice Martin', kind: 'pilot' }],
+ *     tooltip: ['Alice Martin has the keyboard'],      // extra lines of the device's tooltip
+ *   }) | null)
+ *   view.refresh()                                     // after the data behind a layer changed
+ *   view.decorate('presence', null)                    // remove a layer
  */
 import { svg, h, icon } from '../../core/dom.js';
 import { t, tAttr, onLocaleChange } from '../../core/i18n.js';
@@ -31,6 +44,7 @@ export class DiagramView {
   #k = 1; #tx = 0; #ty = 0;
   #autoFit = true;
   #deviceEls = new Map();
+  #layers = new Map(); // name → (device) => decoration | null
 
   constructor(container, { onOpen }) {
     this.onOpen = onOpen;
@@ -66,7 +80,60 @@ export class DiagramView {
       const b = el.getBBox();
       el.prepend(svg('rect', { class: 'device-hit', x: b.x - 6, y: b.y - 6, width: b.width + 12, height: b.height + 12, rx: 8 }));
     }
+    this.refresh();
     this.fit(true);
+  }
+
+  /** Add (or replace, or with `null` remove) a decoration layer */
+  decorate(layer, fn) {
+    if (fn === null) this.#layers.delete(layer);
+    else if (typeof fn === 'function') this.#layers.set(layer, fn);
+    else throw new TypeError('decorate(layer, fn): fn is (device) => decoration | null');
+    this.refresh();
+  }
+
+  /** Ask every layer again and redraw the decorations (not the diagram) */
+  refresh() {
+    for (const entry of this.#deviceEls.values()) {
+      const deco = this.#decorationOf(entry.device);
+      entry.deco = deco;
+      entry.decoEl?.remove();
+      entry.el.classList.toggle('decorated', Boolean(deco.ring || deco.badges.length));
+      if (!deco.ring && !deco.badges.length) { entry.decoEl = null; continue; }
+      const d = entry.device;
+      const pad = 5;
+      const g = svg('g', { class: 'device-deco', 'aria-hidden': 'true' });
+      if (deco.ring) g.append(svg('rect', { class: `deco-ring ring-${deco.ring}`, x: d.x - pad, y: d.y - pad, width: d.w + 2 * pad, height: d.h + 2 * pad, rx: Math.min(d.w, d.h) * 0.3 }));
+      const r = 8;
+      deco.badges.slice(0, 4).forEach((b, i) => {
+        const cx = d.x + r + i * (r * 1.6) - pad;
+        const cy = d.y - pad - 2;
+        const badge = svg('g', { class: `deco-badge${b.kind ? ` badge-${b.kind}` : ''}` },
+          svg('circle', { cx, cy, r, style: b.color ? `--badge:${b.color}` : null }),
+          svg('text', { x: cx, y: cy + 3.2, 'text-anchor': 'middle' }, String(b.text ?? '').slice(0, 3)));
+        if (b.title) badge.prepend(svg('title', {}, b.title));
+        g.append(badge);
+      });
+      if (deco.badges.length > 4) {
+        const cx = d.x + r + 4 * (r * 1.6) - pad;
+        g.append(svg('g', { class: 'deco-badge badge-more' }, svg('circle', { cx, cy: d.y - pad - 2, r }), svg('text', { x: cx, y: d.y - pad + 1.2, 'text-anchor': 'middle' }, `+${deco.badges.length - 4}`)));
+      }
+      entry.el.append(g);
+      entry.decoEl = g;
+    }
+  }
+
+  #decorationOf(device) {
+    const out = { ring: null, badges: [], tooltip: [] };
+    for (const [name, fn] of this.#layers) {
+      let d = null;
+      try { d = fn(device); } catch (err) { console.warn(`[diagram] layer ${name}: ${err.message}`); }
+      if (!d) continue;
+      if (d.ring) out.ring = d.ring;
+      if (Array.isArray(d.badges)) out.badges.push(...d.badges);
+      if (Array.isArray(d.tooltip)) out.tooltip.push(...d.tooltip.filter(Boolean));
+    }
+    return out;
   }
 
   /** Recolour status LEDs without re-rendering */
@@ -169,10 +236,12 @@ export class DiagramView {
 
   #showTip(d, g) {
     const state = g.dataset.state;
+    const extra = this.#deviceEls.get(d.key)?.deco?.tooltip ?? [];
     this.tooltip.replaceChildren(
       h('strong', d.name),
       h('code', `${d.target.host}:${d.target.port}`),
-      h(`span.tip-state.${state}`, stateText(state)));
+      h(`span.tip-state.${state}`, stateText(state)),
+      ...extra.map((line) => h('span.tip-line', line)));
     const box = g.getBoundingClientRect();
     const host = this.el.getBoundingClientRect();
     this.tooltip.style.left = `${box.left - host.left + box.width / 2}px`;

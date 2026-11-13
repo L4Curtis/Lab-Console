@@ -11,14 +11,17 @@
     "disconnected": "Déconnecté",
     "tryAgain": "Réessayer",
     "connectionLost": "La connexion à la plateforme a été perdue",
-    "sessionClosed": "Session terminée"
+    "sessionClosed": "Session terminée",
+    "notifyFree": "Prévenez-moi quand elle est libre",
+    "notifyArmed": "C’est noté : vous serez prévenu quand la ligne de {name} sera libre (pendant 30 minutes au plus)."
   },
   "phase": {
     "ssh": "Accès au serveur de rebond",
     "telnet": "Ouverture de la console",
     "proxmox": "Ouverture de la console de la VM",
     "connected": "Connecté",
-    "login": "Connecté"
+    "login": "Connecté",
+    "silent": "Équipement muet"
   },
   "actions": {
     "break": "Envoyer un BREAK (récupération de mot de passe, ROMMON)",
@@ -185,6 +188,53 @@
       "bad_pattern": "Un motif d’attente doit être une expression régulière ou une fonction.",
       "stopped_on_error": "Arrêt à la première erreur",
       "waiting_for": "L’équipement attend une réponse : « {question} »"
+    }
+  },
+  "journal": {
+    "badge": "Journalisée",
+    "badgeHint": "Ce que l’équipement affiche sur cette console est gardé dans un journal, avec qui avait la main."
+  },
+  "presence": {
+    "you": "Vous avez la main.",
+    "youShared": "Vous avez la main, clavier partagé.",
+    "pilot": "{name} a la main.",
+    "pilotShared": "{name} a la main, clavier partagé.",
+    "nobody": "Personne n’a la main.",
+    "watchOnly": "Vous pouvez regarder, pas taper.",
+    "task": "Tâche « {task} » en cours ({name}) : clavier suspendu.",
+    "waiting": "Demande envoyée…",
+    "request": "Demander la main",
+    "release": "Rendre la main",
+    "share": "Partager le clavier",
+    "unshare": "Reprendre le clavier",
+    "take": "Prendre la main",
+    "hangup": "Libérer la ligne",
+    "hangupTitle": "Libérer la ligne de {name} ?",
+    "hangupBody": {
+      "one": "{count} autre personne regarde cette console : elle sera coupée pour elle aussi.",
+      "other": "{count} autres personnes regardent cette console : elle sera coupée pour elles aussi."
+    },
+    "hangupAlone": "La console sera fermée et la ligne rendue au serveur de consoles.",
+    "ask": "{name} demande la main",
+    "askTask": "{name} veut lancer « {task} »",
+    "autoIn": {
+      "one": "elle passe dans {count} s sans réponse",
+      "other": "elle passe dans {count} s sans réponse"
+    },
+    "grant": "Donner la main",
+    "deny": "Refuser",
+    "avatarPilot": "{name} a la main",
+    "typingHint": "Vous regardez cette console : demandez la main pour taper.",
+    "notice": {
+      "granted": "{name} vous a donné la main.",
+      "timeout": "Vous avez la main : pas de réponse dans le délai.",
+      "idle": "Vous avez la main : le pilote était inactif.",
+      "takeover": "Vous avez pris la main.",
+      "released": "{name} vous a rendu la main.",
+      "left": "Vous avez la main : {name} est parti.",
+      "denied": "{name} garde la main.",
+      "superseded": "Votre demande est remplacée par une tâche automatique.",
+      "takenOver": "{name} (admin) a pris la main."
     }
   }
 }

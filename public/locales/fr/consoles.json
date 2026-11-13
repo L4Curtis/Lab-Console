@@ -12,7 +12,6 @@
   },
   "noDevice": "Cette page ne contient aucun équipement avec une adresse de console.",
   "notAllowed": "L’adresse de console de {name} n’est pas dans la liste autorisée de la plateforme.",
-  "busy": "La console de {name} est utilisée par une autre session. Réessayez quand elle sera libre.",
   "notes": {
     "one": "{count} remarque sur le schéma",
     "other": "{count} remarques sur le schéma"
@@ -37,12 +36,108 @@
     "zoomIn": "Zoom avant",
     "fit": "Ajuster le schéma à la fenêtre",
     "topology": "Topologie de {name}",
-    "device": "{name} : {state}"
+    "device": "{name} : {state}",
+    "watchers": {
+      "one": "Regarde : {names}",
+      "other": "Regardent : {names}"
+    }
   },
   "state": {
     "idle": "Libre. Cliquez pour ouvrir la console",
     "open": "Ouverte dans votre espace de travail",
-    "busy": "Utilisée par une autre session",
+    "live": "Ouverte par quelqu’un d’autre. Cliquez pour la rejoindre",
+    "busy": "Occupée hors de Lab Console : le serveur de consoles a refusé la ligne",
     "disabled": "Adresse de console non autorisée par la plateforme"
+  },
+  "live": {
+    "button": "En direct",
+    "title": "En direct",
+    "count": {
+      "one": "{count} console ouverte",
+      "other": "{count} consoles ouvertes"
+    },
+    "open": "Consoles ouvertes",
+    "activity": "Activité",
+    "none": "Aucune console ouverte pour l’instant.",
+    "quiet": "Rien de neuf pour l’instant.",
+    "join": "Ouvrir ou rejoindre la console de {name}",
+    "task": "Tâche « {task} » lancée par {name}",
+    "pilot": "{name} a la main",
+    "noPilot": "Personne n’a la main",
+    "lastCommand": "Dernière commande tapée",
+    "someone": "Quelqu’un",
+    "elsewhere": "{name} ({bench}) n’apparaît pas sur le schéma."
+  },
+  "activity": {
+    "open": "{name} a ouvert {device} ({bench})",
+    "join": "{name} a rejoint {device} ({bench})",
+    "leave": "{name} a quitté {device} ({bench})",
+    "freed": "{name} a libéré la ligne de {device} ({bench})",
+    "close": "La console de {device} ({bench}) s’est fermée",
+    "control": {
+      "granted": "{name} a la main sur {device} ({bench})",
+      "timeout": "{name} a pris la main sur {device} : pas de réponse dans le délai",
+      "idle": "{name} a pris la main sur {device} : le pilote était inactif",
+      "takeover": "{name} a pris la main sur {device} (admin)",
+      "released": "{name} a la main sur {device} ({bench})",
+      "left": "{name} a la main sur {device} ({bench})",
+      "request": "{name} demande la main sur {device} ({bench})",
+      "shared": "{name} a partagé le clavier de {device}",
+      "unshared": "{name} a repris le clavier de {device} pour lui seul",
+      "free": "{name} a la main sur {device} ({bench})",
+      "task": "{name} a la main sur {device} après sa tâche",
+      "denied": "{name} garde la main sur {device}",
+      "returned": "{name} a retrouvé la main sur {device}"
+    },
+    "task": {
+      "start": "{name} lance « {task} » sur {device}",
+      "done": "« {task} » terminé sur {device}",
+      "cancelled": "« {task} » arrêté sur {device}",
+      "failed": "« {task} » a échoué sur {device}"
+    }
+  },
+  "wall": {
+    "button": "Mur de la baie",
+    "title": "Mur de la baie {bench}",
+    "intro": "Toutes les consoles ouvertes de la baie, en direct et en lecture seule.",
+    "empty": "Aucune console de cette baie n’est ouverte en ce moment.",
+    "open": "Ouvrir"
+  },
+  "journal": {
+    "button": "Journaux",
+    "title": "Mes journaux de console",
+    "loading": "Chargement…",
+    "intro": "Ce que les équipements ont affiché, jour par jour, sur les consoles où vous étiez, celles de votre équipe (et toutes pour un admin). Conservé {days} jours.",
+    "none": "Aucun journal pour vous pour l’instant.",
+    "columns": {
+      "day": "Jour",
+      "bench": "Baie",
+      "device": "Équipement",
+      "people": "Participants",
+      "size": "Taille",
+      "file": "Fichier"
+    },
+    "download": "Télécharger",
+    "truncated": "(tronqué)",
+    "truncatedHint": "La taille maximale du journal pour la journée a été atteinte : la fin manque.",
+    "bytes": {
+      "one": "{count} octet",
+      "other": "{count} octets"
+    },
+    "kb": {
+      "one": "{count} Ko",
+      "other": "{count} Ko"
+    },
+    "mb": {
+      "one": "{count} Mo",
+      "other": "{count} Mo"
+    },
+    "notice": "Les consoles sont journalisées : ce que les équipements affichent (jamais ce que vous tapez sans écho, comme les mots de passe) est gardé {days} jours avec qui avait la main. Les participants, leur équipe et les admins peuvent le relire.",
+    "dismiss": "J’ai compris"
+  },
+  "notify": {
+    "free": "La console de {name} ({bench}) est libre : vous pouvez l’ouvrir.",
+    "open": "La console de {name} ({bench}) est maintenant ouverte dans Lab Console : vous pouvez la rejoindre.",
+    "expired": "La console de {name} ({bench}) est toujours occupée au bout de 30 minutes : on arrête de surveiller."
   }
 }

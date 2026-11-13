@@ -83,9 +83,12 @@ export class BasePane {
     this.callbacks.onStateChange?.(this);
   }
 
-  /** Session over: show why, offer Reconnect / Close */
-  showEnd(state, message) {
-    this.end = { state, message };
+  /**
+   * Session over: show why, offer Reconnect / Close, and any `extra` action
+   * ([{ key, run }]: a dictionary key for the label, what the button does)
+   */
+  showEnd(state, message, { extra = [] } = {}) {
+    this.end = { state, message, extra };
     this.setState(state, () => t(state === 'error' ? 'terminal.pane.couldNotConnect' : 'terminal.pane.disconnected'));
     this.#fillBanner();
     this.banner.dataset.kind = state;
@@ -94,11 +97,12 @@ export class BasePane {
   }
 
   #fillBanner() {
-    const { state, message } = this.end;
+    const { state, message, extra = [] } = this.end;
     this.banner.replaceChildren(
       h('p', text(message)),
       h('div.banner-actions',
         h('button.btn.primary', { type: 'button', onclick: () => this.connect() }, tNode(state === 'error' ? 'terminal.pane.tryAgain' : 'terminal.pane.reconnect')),
+        ...extra.map((a) => h('button.btn', { type: 'button', onclick: () => a.run() }, tNode(a.key))),
         h('button.btn', { type: 'button', onclick: () => this.callbacks.onClose(this) }, tNode('common.actions.close'))));
   }
 

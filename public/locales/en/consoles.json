@@ -12,7 +12,6 @@
   },
   "noDevice": "This page has no device with a console address.",
   "notAllowed": "{name}'s console address is not on the platform's allow-list.",
-  "busy": "{name}'s console is in use by another session. Try again when it is free.",
   "notes": {
     "one": "{count} diagram note",
     "other": "{count} diagram notes"
@@ -37,12 +36,108 @@
     "zoomIn": "Zoom in",
     "fit": "Fit diagram to view",
     "topology": "Topology of {name}",
-    "device": "{name}: {state}"
+    "device": "{name}: {state}",
+    "watchers": {
+      "one": "Watching: {names}",
+      "other": "Watching: {names}"
+    }
   },
   "state": {
     "idle": "Free. Click to open the console",
     "open": "Open in your workspace",
-    "busy": "In use by another session",
+    "live": "Open by someone else. Click to join",
+    "busy": "Busy outside Lab Console: the console server refused the line",
     "disabled": "Console address not allowed by the platform"
+  },
+  "live": {
+    "button": "Live",
+    "title": "Live",
+    "count": {
+      "one": "{count} open console",
+      "other": "{count} open consoles"
+    },
+    "open": "Open consoles",
+    "activity": "Activity",
+    "none": "No console is open right now.",
+    "quiet": "Nothing new yet.",
+    "join": "Open or join the console of {name}",
+    "task": "Task “{task}” started by {name}",
+    "pilot": "{name} has the keyboard",
+    "noPilot": "Nobody has the keyboard",
+    "lastCommand": "Last command typed",
+    "someone": "Someone",
+    "elsewhere": "{name} ({bench}) is not on the diagram."
+  },
+  "activity": {
+    "open": "{name} opened {device} ({bench})",
+    "join": "{name} joined {device} ({bench})",
+    "leave": "{name} left {device} ({bench})",
+    "freed": "{name} freed the line of {device} ({bench})",
+    "close": "The console of {device} ({bench}) closed",
+    "control": {
+      "granted": "{name} has the keyboard of {device} ({bench})",
+      "timeout": "{name} took the keyboard of {device}: no answer in time",
+      "idle": "{name} took the keyboard of {device}: the pilot was idle",
+      "takeover": "{name} took the keyboard of {device} over (admin)",
+      "released": "{name} has the keyboard of {device} ({bench})",
+      "left": "{name} has the keyboard of {device} ({bench})",
+      "request": "{name} asks for the keyboard of {device} ({bench})",
+      "shared": "{name} shared the keyboard of {device}",
+      "unshared": "{name} took the keyboard of {device} back for themselves",
+      "free": "{name} has the keyboard of {device} ({bench})",
+      "task": "{name} has the keyboard of {device} after their task",
+      "denied": "{name} keeps the keyboard of {device}",
+      "returned": "{name} has the keyboard of {device} back"
+    },
+    "task": {
+      "start": "{name} starts “{task}” on {device}",
+      "done": "“{task}” finished on {device}",
+      "cancelled": "“{task}” stopped on {device}",
+      "failed": "“{task}” failed on {device}"
+    }
+  },
+  "wall": {
+    "button": "Bench wall",
+    "title": "Bench wall {bench}",
+    "intro": "Every open console of the bench, live and read-only.",
+    "empty": "No console of this bench is open right now.",
+    "open": "Open"
+  },
+  "journal": {
+    "button": "Journals",
+    "title": "My console journals",
+    "loading": "Loading…",
+    "intro": "What the devices printed, day by day, on the consoles you were on and your team’s (all of them for an admin). Kept {days} days.",
+    "none": "No journal for you yet.",
+    "columns": {
+      "day": "Day",
+      "bench": "Bench",
+      "device": "Device",
+      "people": "People",
+      "size": "Size",
+      "file": "File"
+    },
+    "download": "Download",
+    "truncated": "(cut)",
+    "truncatedHint": "The journal reached its size limit for the day: the end is missing.",
+    "bytes": {
+      "one": "{count} byte",
+      "other": "{count} bytes"
+    },
+    "kb": {
+      "one": "{count} KB",
+      "other": "{count} KB"
+    },
+    "mb": {
+      "one": "{count} MB",
+      "other": "{count} MB"
+    },
+    "notice": "Consoles are journaled: what the devices print (never what you type without echo, such as passwords) is kept {days} days with who had the keyboard. The people who were there, their team and the admins can read it back.",
+    "dismiss": "Got it"
+  },
+  "notify": {
+    "free": "The console of {name} ({bench}) is free: you can open it.",
+    "open": "The console of {name} ({bench}) is now open in Lab Console: you can join it.",
+    "expired": "The console of {name} ({bench}) is still busy after 30 minutes: we stopped watching."
   }
 }

@@ -11,14 +11,17 @@
     "disconnected": "Disconnected",
     "tryAgain": "Try again",
     "connectionLost": "Connection to the platform was lost",
-    "sessionClosed": "Session closed"
+    "sessionClosed": "Session closed",
+    "notifyFree": "Tell me when it is free",
+    "notifyArmed": "Noted: you will be told when the line of {name} is free (for 30 minutes at most)."
   },
   "phase": {
     "ssh": "Reaching jump server",
     "telnet": "Opening console",
     "proxmox": "Opening VM console",
     "connected": "Connected",
-    "login": "Connected"
+    "login": "Connected",
+    "silent": "Device silent"
   },
   "actions": {
     "break": "Send BREAK (password recovery, ROMMON)",
@@ -185,6 +188,53 @@
       "bad_pattern": "A wait pattern must be a regular expression or a function.",
       "stopped_on_error": "Stopped at the first error",
       "waiting_for": "The device is waiting for an answer: \"{question}\""
+    }
+  },
+  "journal": {
+    "badge": "Journaled",
+    "badgeHint": "What the device prints on this console is kept in a journal, with who had the keyboard."
+  },
+  "presence": {
+    "you": "You have the keyboard.",
+    "youShared": "You have the keyboard, shared.",
+    "pilot": "{name} has the keyboard.",
+    "pilotShared": "{name} has the keyboard, shared.",
+    "nobody": "Nobody has the keyboard.",
+    "watchOnly": "You may watch, not type.",
+    "task": "Task “{task}” running ({name}): keyboard paused.",
+    "waiting": "Request sent…",
+    "request": "Ask for the keyboard",
+    "release": "Give the keyboard back",
+    "share": "Share the keyboard",
+    "unshare": "Take the keyboard back",
+    "take": "Take the keyboard",
+    "hangup": "Free the line",
+    "hangupTitle": "Free the line of {name}?",
+    "hangupBody": {
+      "one": "{count} other person is watching this console: it will close for them too.",
+      "other": "{count} other people are watching this console: it will close for them too."
+    },
+    "hangupAlone": "The console will close and the line goes back to the console server.",
+    "ask": "{name} asks for the keyboard",
+    "askTask": "{name} wants to run “{task}”",
+    "autoIn": {
+      "one": "it passes in {count} s without an answer",
+      "other": "it passes in {count} s without an answer"
+    },
+    "grant": "Give the keyboard",
+    "deny": "Refuse",
+    "avatarPilot": "{name} has the keyboard",
+    "typingHint": "You are watching this console: ask for the keyboard to type.",
+    "notice": {
+      "granted": "{name} gave you the keyboard.",
+      "timeout": "You have the keyboard: no answer in time.",
+      "idle": "You have the keyboard: the pilot was idle.",
+      "takeover": "You took the keyboard.",
+      "released": "{name} gave the keyboard back to you.",
+      "left": "You have the keyboard: {name} left.",
+      "denied": "{name} keeps the keyboard.",
+      "superseded": "Your request was replaced by an automatic task.",
+      "takenOver": "{name} (admin) took the keyboard."
     }
   }
 }
