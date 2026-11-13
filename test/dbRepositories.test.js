@@ -184,8 +184,13 @@ describe('settings repository', () => {
     await repos.settings.save('lab', { ssh: { port: 2222 } }, 'local:root');
     await repos.settings.save('lab', { ssh: { port: 2200 } }, 'local:root');
     await repos.settings.save('mail', { from: 'x@example.org' });
-    assert.deepEqual(await repos.settings.all(), { lab: { ssh: { port: 2200 } }, mail: { from: 'x@example.org' } });
-    assert.deepEqual(await repos.settings.get('lab'), { ssh: { port: 2200 } });
+    const at = '2026-11-13T09:00:00.000Z';
+    assert.deepEqual(await repos.settings.all(), {
+      lab: { values: { ssh: { port: 2200 } }, updatedAt: at, updatedBy: 'local:root' },
+      mail: { values: { from: 'x@example.org' }, updatedAt: at, updatedBy: null },
+    });
+    assert.deepEqual(await repos.settings.get('lab'), { values: { ssh: { port: 2200 } }, updatedAt: at, updatedBy: 'local:root' });
+    assert.deepEqual(await repos.settings.saveIfAbsent('lab', { other: 1 }), { changes: 0 }, 'what the database holds wins');
     assert.deepEqual(await db.query('SELECT namespace, updated_at, updated_by FROM settings ORDER BY namespace'), [
       { namespace: 'lab', updated_at: '2026-11-13T09:00:00.000Z', updated_by: 'local:root' },
       { namespace: 'mail', updated_at: '2026-11-13T09:00:00.000Z', updated_by: null },

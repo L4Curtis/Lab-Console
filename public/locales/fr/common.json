@@ -28,7 +28,10 @@
       "label": "Langue",
       "fr": "Français",
       "en": "English"
-    }
+    },
+    "admin": "Administration",
+    "account": "Mon compte",
+    "status": "État du labo"
   },
   "errors": {
     "server": {
@@ -41,6 +44,12 @@
     "auth": {
       "required": "Connectez-vous pour continuer.",
       "forbidden": "Vous n’avez pas le droit de faire ça."
+    },
+    "settings": {
+      "invalid": "Certaines valeurs ne sont pas valides."
     }
+  },
+  "announcement": {
+    "hide": "Masquer l’annonce"
   }
 }

@@ -9,8 +9,14 @@
  *   auth.requireRole('admin')          middleware, 403 JSON
  *   auth.authenticateUpgrade(req)      → User | null, for WebSocket upgrades
  *   auth.sessions.list() / .revoke(sessionId) / .revokeUser(userId) / .create(user, meta)
+ *   auth.sessions.open(req, res, user, meta)   sign a browser in (new session, cookie set)
  *   auth.accounts.add(provider)        another source of local accounts (accounts.js)
+ *   auth.reauthenticate(user, { password, code })   the environment administrator proves itself again → boolean
+ *   auth.steps.peek(req) / .complete(req, res, details) / .fail(req, res) / .start(req, res, user, requires)
+ *                                      a sign-in waiting for a further proof (a passkey)
  *   auth.oidc.settings / .configure(raw)   the identity provider, replaceable at run time
+ *   auth.oidc.trial(req, res, { returnTo, onResult })   a sign-in at the provider that opens no session
+ *   auth.extend(router, { describe })  more public routes (above the gate), and fields of /auth/me
  *   auth.router                        /login, /js/login.js and /auth/*, mounted before the gate
  *   auth.shutdown()
  *
@@ -18,7 +24,13 @@
  *   - OpenID Connect (oidc.js), for everybody, when a provider is configured;
  *   - local accounts (accounts.js), whose first provider is the administrator
  *     of the environment (envAdmin.js), always there.
- * There is no other way in and no switch that turns the gate off
+ * There is no other way in and no switch that turns the gate off. Other
+ * modules add ways that end in the same session (a passkey, an invitation)
+ * through auth.extend() and auth.sessions.open(), never around them.
+ *
+ * Accounts known to the directory (services.accounts, the accounts module)
+ * are consulted at every provider sign-in: a role set by an administrator
+ * wins over the groups, and a disabled account is refused
  *
  * Routes (all above the gate, so each one protects itself):
  *   GET  /login           the sign-in page (redirects to ?next when already signed in)
@@ -26,7 +38,8 @@
  *   GET  /auth/me         { user, locale, providerName }; user is null when signed out
  *   GET  /auth/login      start an OpenID Connect sign-in        ?next=/path
  *   GET  /auth/callback   the provider sends the browser back here
- *   POST /auth/local      { username, password, code, next } → { redirect }
+ *   POST /auth/local      { username, password, code, next } → { redirect }, or { step } when the
+ *                         account must still prove itself with a passkey (the step cookie is set)
  *   POST /auth/logout     → { redirect } (the provider's sign-out page when it has one)
  */
 import path from 'node:path';
@@ -45,7 +58,7 @@ import { createDeviceCookies, loadDeviceKey } from './devices.js';
 import { createRefusalAudit } from './refusals.js';
 import { createOidc, OidcError } from './oidc.js';
 import { normalizeOidcSettings, isInsecureIssuer } from './oidcSettings.js';
-import { userFromClaims, needsUserinfo } from './claims.js';
+import { userFromClaims, needsUserinfo, subjectOf, groupsFrom } from './claims.js';
 
 export { createUser, hasRole, ROLES } from './user.js';
 
@@ -80,7 +93,7 @@ const visibleSettings = ({ clientSecret, ...rest }) => ({ ...rest, hasClientSecr
  * is a test seam (a clock). Rejects when there is no local administrator or
  * no PUBLIC_URL: the platform must not start without a way to sign in
  */
-export async function createAuth({ config, logger, events, repos, audit, now = Date.now }) {
+export async function createAuth({ config, logger, events, repos, audit, services = {}, now = Date.now }) {
   const log = logger ?? { info() {}, warn() {}, error() {} };
   const settings = config.auth;
   if (!settings?.localAdmin?.username || !settings.localAdmin.passwordHash || !settings.localAdmin.totpSecret) {
@@ -106,6 +119,8 @@ export async function createAuth({ config, logger, events, repos, audit, now = D
     },
   });
   const pending = createPendingLogins({ now });
+  // Sign-ins whose password was right but that still owe a passkey: 5 minutes, single use
+  const steps = createPendingLogins({ ttlMs: 5 * 60_000, max: 2000, perOwner: 5, now });
   const throttle = createLoginThrottle({ now });
   const devices = createDeviceCookies({ key: await loadDeviceKey({ state: repos.authState, logger: log }), now });
   const refusals = createRefusalAudit({ audit, now });
@@ -136,11 +151,17 @@ export async function createAuth({ config, logger, events, repos, audit, now = D
   /** Open a session for someone who just proved who they are; whatever session the browser had ends (new id) */
   function signIn(req, res, user, { idToken } = {}) {
     sessions.end(tokenOf(req), 'replaced');
+    steps.discard(readCookie(req, cookies.step)); // a step left half-way is over too
     const { token, session } = sessions.create(user, { ...meta(req), idToken });
     appendCookie(res, serializeCookie(cookies.session, token, { secure: cookies.secure }));
     req.user = session.user; // from here on the request is theirs (the audit trail signs it with them)
     req.sessionId = session.id;
     return session;
+  }
+
+  /** This browser has signed in as `username`: from now on it is limited on its own (throttle.js, devices.js) */
+  function rememberBrowser(res, username) {
+    appendCookie(res, serializeCookie(cookies.device, devices.issue(username), { secure: cookies.secure, maxAgeSeconds: devices.maxAgeMs / 1000 }));
   }
 
   function attach(req, _res, next) {
@@ -164,6 +185,8 @@ export async function createAuth({ config, logger, events, repos, audit, now = D
 
   // ── Routes ─────────────────────────────────────────────────────────────────
   const router = express.Router();
+  const extensions = express.Router(); // routes other modules add with auth.extend(), mounted before the /auth 404
+  const describers = [];               // their fields of /auth/me
   const sameOrigin = requireSameOrigin(config.server.allowedOrigins);
   const json = express.json({ limit: '4kb' });
   const backToLogin = (res, error) => res.redirect(302, `/login?error=${error}`);
@@ -184,7 +207,11 @@ export async function createAuth({ config, logger, events, repos, audit, now = D
   // Reading it is not activity: a forgotten tab must not keep a session alive
   router.get('/auth/me', (req, res) => {
     const session = sessions.peek(tokenOf(req));
-    res.json({ user: session?.user ?? null, locale: config.defaultLocale, providerName: oidc.providerName });
+    const extra = {};
+    for (const describe of describers) {
+      try { Object.assign(extra, describe(req)); } catch (err) { log.error(`/auth/me extension failed: ${err.message}`); }
+    }
+    res.json({ ...extra, user: session?.user ?? null, locale: config.defaultLocale, providerName: oidc.providerName });
   });
 
   router.get('/auth/login', async (req, res) => {
@@ -225,6 +252,7 @@ export async function createAuth({ config, logger, events, repos, audit, now = D
     if (!attempt) return refuseCheaply('no_pending_login', 'login_expired');
     // The settings changed while this person was at the provider: start again
     if (attempt.client !== oidc) return refuse('provider_changed', 'login_expired');
+    if (attempt.trial) return finishTrial(req, res, attempt);
 
     let result;
     let userinfo = null;
@@ -240,7 +268,7 @@ export async function createAuth({ config, logger, events, repos, audit, now = D
 
     let decision;
     try {
-      decision = userFromClaims({ idClaims: result.idClaims, userinfo, settings: oidcSettings });
+      decision = decide(result.idClaims, userinfo);
     } catch (err) {
       log.warn(`sign-in refused: ${err.message}`);
       return refuse('rejected', 'sso_failed');
@@ -249,6 +277,15 @@ export async function createAuth({ config, logger, events, repos, audit, now = D
       log.warn(`sign-in refused: ${decision.username} is in none of the allowed groups`);
       return refuse('not_allowed', 'not_allowed', { username: decision.username, groups: decision.groups });
     }
+    // The directory has the last word: a disabled account stays out, whatever the provider says
+    let admitted;
+    try {
+      admitted = (await services.accounts?.admit?.(decision.user, { groupRole: decision.groupRole })) !== false;
+    } catch (err) {
+      log.error(`the directory could not record ${decision.user.id}: ${err.message}`);
+      return refuse('directory_unavailable', 'sso_failed');
+    }
+    if (!admitted) return refuse('disabled', 'account_disabled', { username: decision.user.username });
 
     const session = signIn(req, res, decision.user, { idToken: result.idToken });
     audit?.log(req, 'auth.login', { method: 'oidc', session: session.id, role: decision.user.role });
@@ -268,21 +305,28 @@ export async function createAuth({ config, logger, events, repos, audit, now = D
       return sendError(res, 429, 'auth.throttled', 'Too many sign-in attempts. Try again later', { seconds: slot.retryAfterSeconds });
     }
 
-    let user = null;
+    let answer = null;
     try {
-      user = await accounts.verify({ username, password: body.password, code: body.code }, { logger: log });
+      answer = await accounts.verify({ username, password: body.password, code: body.code }, { logger: log });
     } finally {
-      if (user) throttle.succeeded({ client, username, device });
+      if (answer) throttle.succeeded({ client, username, device });
       else throttle.failed({ username, device });
     }
+    const user = answer?.user;
     if (!user) {
       audit?.log(req, 'auth.login.failed', { method: 'local', reason: 'invalid' });
       // One message for every cause: nothing says which field was wrong, or whether the account exists
       return sendError(res, 401, 'auth.invalid_credentials', 'Sign-in failed. Check the user name, the password and the code');
     }
+    // The password was right but this account owes a passkey: no session until it is given
+    if (answer.requires.length) {
+      startStep(req, res, user, answer.requires, { returnTo: safeReturnPath(body.next), deviceName: username, method: 'local', binding: answer.binding });
+      audit?.log(req, 'auth.login.step', { method: 'local', step: answer.requires[0], username: user.username });
+      return res.json({ step: answer.requires[0] });
+    }
 
     const session = signIn(req, res, user);
-    appendCookie(res, serializeCookie(cookies.device, devices.issue(username), { secure: cookies.secure, maxAgeSeconds: devices.maxAgeMs / 1000 }));
+    rememberBrowser(res, username);
     audit?.log(req, 'auth.login', { method: 'local', session: session.id, role: user.role, knownBrowser: Boolean(device) });
     res.json({ redirect: safeReturnPath(body.next) });
   });
@@ -301,8 +345,64 @@ export async function createAuth({ config, logger, events, repos, audit, now = D
     res.json({ redirect });
   });
 
+  // Ways in added by other modules (auth.extend); they protect themselves like the routes above
+  router.use(extensions);
+
   // An unknown /auth/… path is a JSON 404, not a redirect to the page that brought the browser here
   router.use('/auth', (_req, res) => sendError(res, 404, 'server.not_found', 'Not found'));
+
+  // ── Further steps: a password that was right, a passkey still owed ─────────
+  function startStep(req, res, user, requires, { returnTo = '/', deviceName = null, method = 'local', binding = null } = {}) {
+    steps.discard(readCookie(req, cookies.step));
+    const id = steps.put({ user, requires: [...requires], returnTo, deviceName, method, binding }, { owner: clientIp(req, serverTrust) });
+    appendCookie(res, serializeCookie(cookies.step, id, { secure: cookies.secure, maxAgeSeconds: steps.ttlMs / 1000 }));
+  }
+  const stepOf = (req) => steps.peek(readCookie(req, cookies.step));
+  function endStep(req, res) {
+    const step = steps.take(readCookie(req, cookies.step));
+    appendCookie(res, clearCookie(cookies.step, { secure: cookies.secure }));
+    return step;
+  }
+
+  // ── A sign-in at the provider that opens no session (the SSO settings page) ─
+  /** Who would this be, with which role? Groups decide, a role stored in the directory wins */
+  function decide(idClaims, userinfo) {
+    const id = `oidc:${subjectOf(idClaims)}`;
+    const storedRole = services.accounts?.roleOverride?.(id) ?? null;
+    const decision = userFromClaims({ idClaims, userinfo, settings: oidcSettings, storedRole });
+    const groupRole = userFromClaims({ idClaims, userinfo, settings: { ...oidcSettings, allowedGroups: [] } }).user.role;
+    return { ...decision, groupRole, storedRole };
+  }
+
+  async function finishTrial(req, res, attempt) {
+    let outcome;
+    try {
+      const result = await attempt.client.complete(new URL(publicUrl + req.originalUrl), attempt);
+      const userinfo = await attempt.client.userinfo(result.accessToken, result.idClaims.sub).catch(() => null);
+      const decision = decide(result.idClaims, userinfo);
+      outcome = {
+        ok: true,
+        idClaims: result.idClaims,
+        userinfo,
+        groups: groupsFrom(result.idClaims, userinfo, oidcSettings.groupsClaim),
+        allowed: decision.allowed,
+        userId: decision.user?.id ?? null,
+        username: decision.user?.username ?? decision.username,
+        role: decision.allowed ? decision.user.role : null,
+        groupRole: decision.groupRole,
+        storedRole: decision.storedRole,
+      };
+    } catch (err) {
+      log.warn(`trial sign-in failed: ${err.message}`);
+      outcome = { ok: false, error: err?.kind === 'unavailable' ? 'provider_unavailable' : 'sso_failed', message: err.message };
+    }
+    try {
+      await attempt.trial.onResult(outcome);
+    } catch (err) {
+      log.error(`trial sign-in result was lost: ${err.message}`);
+    }
+    res.redirect(302, attempt.returnTo);
+  }
 
   return {
     attach,
@@ -322,24 +422,121 @@ export async function createAuth({ config, logger, events, repos, audit, now = D
         const { token, session } = sessions.create(user, details);
         return { id: session.id, token, cookie: `${cookies.session}=${token}` };
       },
+      /**
+       * Sign this browser in as `user`, whom the caller has just authenticated
+       * (a passkey, an invitation): the browser's previous session ends, a new
+       * one is opened and its cookie set on `res`. A local account's browser
+       * becomes known for its name (devices.js), as after a password: the
+       * shared limits of the local form no longer keep it out. → the session ({ id, user, … })
+       */
+      open(req, res, user, { idToken } = {}) {
+        const session = signIn(req, res, user, { idToken });
+        if (user.via === 'local') rememberBrowser(res, user.username);
+        return session;
+      },
     },
     accounts: { add: accounts.add, get providers() { return accounts.ids; } },
+    /**
+     * Ask the signed-in environment administrator for its password and a
+     * fresh one-time code again, before a sensitive change (the lab
+     * parameters). → true or false; false for anyone else, who confirms with
+     * a passkey instead (the accounts module). An accepted code is burnt, as
+     * at sign-in
+     */
+    async reauthenticate(user, { password, code } = {}) {
+      if (!user || user.id !== envAdmin.user.id) return false;
+      const answer = await envAdmin.verify({ username: user.username, password: typeof password === 'string' ? password : '', code: typeof code === 'string' ? code : '' });
+      return Boolean(answer?.user);
+    },
+    get environmentAdminId() { return envAdmin.user.id; },
+    steps: {
+      /**
+       * The sign-in this browser has in progress: { user, requires, returnTo,
+       * binding } or null. `binding` is what the account provider attached
+       * when the step started (accounts.js), for it to check that the
+       * credentials it was started with are still valid
+       */
+      peek: (req) => {
+        const step = stepOf(req);
+        return step ? { user: step.user, requires: step.requires, returnTo: step.returnTo, binding: step.binding ?? null } : null;
+      },
+      /**
+       * The owed proof was given: the step ends, a session opens, the browser
+       * becomes known for the name it typed. `user`: the account as it is now
+       * (its role may have changed during the step); it must be the same
+       * person. → { redirect } for the browser, or null when there is no step
+       */
+      complete(req, res, { method = 'passkey', user } = {}) {
+        const step = endStep(req, res);
+        if (!step) return null;
+        if (user && user.id !== step.user.id) throw new Error('A step is completed for the person who started it');
+        const session = signIn(req, res, user ?? step.user);
+        if (step.deviceName) rememberBrowser(res, step.deviceName);
+        audit?.log(req, 'auth.login', { method: `${step.method}+${method}`, session: session.id, role: session.user.role });
+        return { redirect: step.returnTo };
+      },
+      /** The proof was refused: the step is over, the password must be typed again */
+      fail(req, res) {
+        return Boolean(endStep(req, res));
+      },
+      /**
+       * Start a step for someone the caller authenticated another way (a new
+       * account that owes a passkey); `binding` as for a provider's answer
+       */
+      start(req, res, user, requires, { returnTo = '/', method = 'signup', binding = null } = {}) {
+        startStep(req, res, user, requires, { returnTo: safeReturnPath(returnTo), deviceName: user.via === 'local' ? user.username : null, method, binding });
+      },
+    },
+    /**
+     * Mount more public routes (above the gate: each one checks what it
+     * needs itself) and, optionally, add fields to GET /auth/me:
+     * describe(req) → an object merged into the answer (never a secret)
+     */
+    extend(extra, { describe } = {}) {
+      if (extra) extensions.use(extra);
+      if (describe) describers.push(describe);
+    },
     oidc: {
       get enabled() { return oidc.enabled; },
       get settings() { return visibleSettings(oidcSettings); },
       /**
        * Replace the identity provider's settings without a restart. `raw` has
        * the shape of normalizeOidcSettings(); an omitted clientSecret keeps
-       * the current one. Open sessions are not touched; sign-ins in progress
-       * have to start again. Throws a TypeError listing the problems
+       * the current one, for the same issuer and client id only (a secret
+       * never goes to another provider). Open sessions are not touched;
+       * sign-ins in progress have to start again. Throws a TypeError listing the problems
        */
       configure(raw) {
-        const merged = { ...oidcSettings, ...raw };
-        if (raw.clientSecret === undefined) merged.clientSecret = oidcSettings.clientSecret;
+        const merged = { ...oidcSettings, ...raw, enabled: raw.enabled };
+        const keepsSecret = raw.clientSecret === undefined;
+        if (keepsSecret) merged.clientSecret = oidcSettings.clientSecret;
         const { settings: next, problems } = normalizeOidcSettings(merged);
+        if (keepsSecret && oidcSettings.clientSecret && (next.issuer !== oidcSettings.issuer || next.clientId !== oidcSettings.clientId)) {
+          problems.push('OIDC_CLIENT_SECRET: a new issuer or client id needs its own secret (or an empty one for a public client)');
+        }
         if (problems.length) throw Object.assign(new TypeError(problems.join('; ')), { problems });
         buildOidc(next);
         return visibleSettings(next);
+      },
+      /** The callback URL to give the provider */
+      get redirectUri() { return oidc.redirectUri; },
+      /**
+       * Send this browser to the provider with the current settings, and come
+       * back to `returnTo` without opening a session: `onResult(outcome)`
+       * receives the claims and the role they would give
+       * ({ ok, idClaims, userinfo, groups, allowed, userId, username, role, groupRole, storedRole }
+       * or { ok: false, error }). `reauth: true` asks the provider for a fresh
+       * sign-in and refuses an answer that is not one (a person proving
+       * themselves again). → { url } to send the browser to
+       */
+      async trial(req, res, { returnTo = '/', onResult, reauth = false }) {
+        const client = oidc;
+        if (!client.enabled) throw Object.assign(new Error('No identity provider is enabled'), { code: 'sso_disabled' });
+        const started = await client.begin({ reauth });
+        pending.discard(readCookie(req, cookies.login));
+        const id = pending.put({ ...started.pending, client, returnTo: safeReturnPath(returnTo), trial: { onResult } }, { owner: clientIp(req, serverTrust) });
+        appendCookie(res, serializeCookie(cookies.login, id, { secure: cookies.secure, maxAgeSeconds: pending.ttlMs / 1000 }));
+        return { url: started.url };
       },
     },
     router,

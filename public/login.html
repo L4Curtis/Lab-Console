@@ -30,25 +30,41 @@
       <a class="btn primary wide" id="sso-button" href="/auth/login"></a>
     </section>
 
-    <!-- Room for other one-click ways in (a passkey button), filled by later versions -->
-    <section class="login-extra" id="login-extra" hidden></section>
+    <!-- One click with a passkey of this site (accounts that registered one) -->
+    <section class="login-extra" id="login-extra" hidden>
+      <button type="button" class="btn wide" id="passkey-button">
+        <svg class="login-key" viewBox="0 0 24 24" aria-hidden="true"><circle cx="8" cy="12" r="3.5" /><path d="M11.5 12H21M17.5 12v3M20.5 12v2" /></svg>
+        <span data-i18n="auth.login.passkey"></span>
+      </button>
+      <p class="login-error" id="passkey-error" role="alert" hidden></p>
+    </section>
 
-    <!-- Local administrator: user name, password and one-time code, sent together -->
+    <!-- Local accounts and the local administrator: user name, password (and the
+         administrator's one-time code), sent together -->
     <details class="login-local" id="login-local">
       <summary data-i18n="auth.login.localToggle"></summary>
       <p class="login-hint" id="local-hint"></p>
       <form id="local-form" method="post" action="/auth/local" novalidate>
         <label for="local-username" data-i18n="auth.login.username"></label>
-        <input id="local-username" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" maxlength="64" required />
+        <input id="local-username" name="username" type="text" autocomplete="username webauthn" autocapitalize="none" spellcheck="false" maxlength="64" required />
         <label for="local-password" data-i18n="auth.login.password"></label>
         <input id="local-password" name="password" type="password" autocomplete="current-password" maxlength="1024" required />
         <label for="local-code" data-i18n="auth.login.code"></label>
-        <input id="local-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required aria-describedby="local-code-hint" />
+        <input id="local-code" name="code" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" aria-describedby="local-code-hint" />
         <small id="local-code-hint" data-i18n="auth.login.codeHint"></small>
         <p class="login-error" id="local-error" role="alert" hidden></p>
         <button class="btn primary wide" id="local-submit" type="submit" data-i18n="auth.login.submit"></button>
       </form>
     </details>
+
+    <!-- The password was right; the account still owes a passkey (an administrator) -->
+    <section class="login-step" id="login-step" hidden aria-labelledby="step-title">
+      <h2 id="step-title"></h2>
+      <p id="step-text"></p>
+      <p class="login-error" id="step-error" role="alert" hidden></p>
+      <button class="btn primary wide" id="step-button" type="button"></button>
+      <button class="btn subtle wide" id="step-restart" type="button" data-i18n="auth.step.restart"></button>
+    </section>
 
     <nav class="login-langs" id="login-langs" data-i18n-aria-label="auth.login.language">
       <button type="button" class="btn subtle small" data-lang="fr" lang="fr" data-i18n="auth.login.languages.fr"></button>

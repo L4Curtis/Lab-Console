@@ -133,6 +133,8 @@ describe('signed in: the application behaves as upstream', () => {
       { id: 'teams', title: 'Teams', enabled: true },
       { id: 'benches', title: 'Benches', enabled: true },
       { id: 'proxmox', title: 'Infrastructure', enabled: true },
+      { id: 'accounts', title: 'Accounts', enabled: true },
+      { id: 'admin', title: 'Administration', enabled: true },
     ]);
     const labs = await (await get(lab, '/api/consoles/labs')).json();
     // The upstream keys, plus how long console journals are kept (for the journal notice)
@@ -149,7 +151,8 @@ describe('signed in: the application behaves as upstream', () => {
     assert.equal(res.status, 200);
     assert.equal(res.headers.get('cache-control'), 'no-store');
     const me = await res.json();
-    assert.deepEqual(Object.keys(me).sort(), ['locale', 'providerName', 'user']);
+    assert.deepEqual(Object.keys(me).sort(), ['locale', 'passkeys', 'providerName', 'user']);
+    assert.equal(me.passkeys, false, 'http on an IP address: no passkeys');
     assert.equal(me.locale, 'fr');
     assert.equal(me.providerName, null);
     assert.equal(me.user.id, 'oidc:admin');
@@ -195,8 +198,9 @@ describe('signed in: the application behaves as upstream', () => {
     const res = await get(lab, '/api/events');
     assert.equal(res.status, 200);
     assert.ok(res.headers.get('content-type').startsWith('text/event-stream'));
-    const events = await readEvents(res, 4);
-    assert.deepEqual(events.map((e) => e.topic).sort(), ['benches:state', 'consoles:busy', 'consoles:rooms', 'labs:version']);
+    const events = await readEvents(res, 5);
+    assert.deepEqual(events.map((e) => e.topic).sort(), ['admin:announcement', 'benches:state', 'consoles:busy', 'consoles:rooms', 'labs:version']);
+    assert.equal(events.find((e) => e.topic === 'admin:announcement').data, null, 'no announcement yet');
     assert.deepEqual(events.find((e) => e.topic === 'consoles:busy').data, []);
     assert.deepEqual(events.find((e) => e.topic === 'consoles:rooms').data, []);
   });
@@ -225,7 +229,7 @@ describe('signed in: the application behaves as upstream', () => {
   });
 
   test('every module received the platform services, and the registry is shared', () => {
-    assert.deepEqual(Object.keys(lab.deps).sort(), ['audit', 'auth', 'config', 'events', 'infra', 'logger', 'repos', 'services', 'settings', 'store']);
+    assert.deepEqual(Object.keys(lab.deps).sort(), ['audit', 'auth', 'config', 'diagrams', 'events', 'infra', 'logger', 'repos', 'services', 'settings', 'store']);
     assert.equal(lab.deps.db, undefined, 'modules reach the database through repositories only');
     assert.equal(typeof lab.deps.services.consoles.registry.getDevice, 'function');
     assert.equal(typeof lab.deps.services.consoles.rooms.open, 'function');

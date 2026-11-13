@@ -47,6 +47,9 @@ export function groupsFrom(idClaims, userinfo, groupsClaim) {
   return toGroups(readClaim(idClaims, groupsClaim)) ?? toGroups(readClaim(userinfo, groupsClaim)) ?? [];
 }
 
+/** The subject of an ID token, as the user id `oidc:<sub>` uses it ('' when there is none) */
+export const subjectOf = (idClaims) => text(idClaims?.sub, 255);
+
 /**
  * Decide who this is and whether they may come in.
  * → { allowed: true, user } or { allowed: false, username, groups }
@@ -56,7 +59,7 @@ export function groupsFrom(idClaims, userinfo, groupsClaim) {
  */
 export function userFromClaims({ idClaims, userinfo = null, settings, storedRole = null }) {
   const pick = (name) => text(idClaims?.[name]) || text(userinfo?.[name]);
-  const sub = text(idClaims?.sub, 255);
+  const sub = subjectOf(idClaims);
   if (!sub) throw new TypeError('The ID token has no subject');
 
   const groups = groupsFrom(idClaims, userinfo, settings.groupsClaim);

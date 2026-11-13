@@ -1,0 +1,74 @@
+/* Administration (users, invitations, SSO) and My account. Uses the custom
+   properties of app.css so both themes work */
+
+.view-admin, .view-account { background: var(--paper); }
+.admin-body { flex: 1; min-height: 0; overflow: auto; }
+.admin-body > .tab-panels, .admin-body .tab-panel { height: 100%; }
+.admin-tabs { margin-left: auto; }
+.account-scroll { flex: 1; min-height: 0; overflow: auto; }
+
+.panel-intro { margin: 0; font-size: 13px; max-width: 75ch; }
+.small-note { font-size: 12px; }
+.check.inline { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--ink-2); }
+
+/* Users and invitations */
+.accounts-table td, .invitations-table td { white-space: nowrap; }
+.account-cell { display: grid; gap: 2px; }
+.account-cell strong { font-size: 14px; }
+.account-notes { display: flex; gap: 6px; margin-top: 3px; }
+.badge.warn { background: color-mix(in srgb, var(--led-amber) 18%, transparent); color: var(--ink); }
+.role-select { height: 30px; font-size: 13px; }
+.state-pill { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 12px; border: 1px solid var(--line); color: var(--ink-2); }
+.state-pill[data-state="active"] { border-color: var(--led-green); color: var(--led-green); }
+.state-pill[data-state="pending"] { border-color: var(--led-amber); color: var(--led-amber); }
+.state-pill[data-state="disabled"], .state-pill[data-state="revoked"], .state-pill[data-state="expired"], .state-pill[data-state="used"] { color: var(--ink-3); }
+tr[data-state="pending"] td { background: color-mix(in srgb, var(--led-amber) 7%, transparent); }
+
+/* A link shown once, with its copy button */
+.link-row { display: flex; gap: 8px; align-items: center; }
+.link-field { flex: 1; font-family: var(--mono); font-size: 12.5px; }
+.link-dialog { display: grid; gap: 14px; }
+
+/* SSO settings */
+.sso-panel { max-width: 760px; }
+.sso-form { display: grid; gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.sso-row { display: grid; gap: 4px; }
+.sso-row label, .sso-callback label { font-size: 13px; color: var(--ink-2); }
+.sso-row .hint, .sso-callback .hint { color: var(--ink-3); font-size: 12px; line-height: 1.4; }
+.field-problem { color: var(--led-red); font-size: 12.5px; }
+.field-problem:empty { display: none; }
+.sso-callback { display: grid; gap: 4px; }
+.sso-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }
+.sso-result { padding: 14px 16px; border: 1px solid var(--line); border-left: 3px solid var(--led-green); border-radius: 10px; background: var(--surface); display: grid; gap: 8px; }
+.sso-result[data-ok="false"] { border-left-color: var(--led-red); }
+.sso-result h3 { margin: 0; font-size: 14px; }
+.sso-result p { margin: 0; font-size: 13px; }
+.sso-endpoints { margin: 0; display: grid; gap: 6px; font-size: 12.5px; }
+.sso-endpoints div { display: grid; grid-template-columns: 170px 1fr; gap: 10px; }
+.sso-endpoints dt { color: var(--ink-3); }
+.sso-endpoints dd { margin: 0; font-family: var(--mono); overflow-wrap: anywhere; }
+.sso-claims { margin: 8px 0 0; padding: 10px; max-height: 320px; overflow: auto; border-radius: 8px; background: var(--term-bg); color: var(--term-head-ink); font: 12px/1.45 var(--mono); }
+.notice { margin: 0; padding: 9px 12px; border-radius: var(--radius); border-left: 3px solid var(--console); background: var(--surface-2); font-size: 13px; line-height: 1.45; }
+.notice.warn { border-left-color: var(--led-amber); }
+.notice[hidden] { display: none; }
+
+/* My account */
+.account-panel { max-width: 760px; }
+.account-card { display: grid; gap: 10px; padding: 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.account-card h2 { margin: 0; font-size: 15px; font-weight: 600; }
+.account-card p { margin: 0; font-size: 13px; }
+.account-facts { margin: 0; display: grid; gap: 6px; font-size: 13.5px; }
+.account-facts div { display: grid; grid-template-columns: 160px 1fr; gap: 10px; }
+.account-facts dt { color: var(--ink-3); }
+.account-facts dd { margin: 0; }
+.passkey-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.passkey-list li { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 8px; }
+.passkey-list li[data-current="true"] { border-color: var(--console); }
+.passkey-list li > :only-child, .passkey-list li > .passkey-text:first-child { grid-column: span 2; }
+.passkey-text { display: grid; gap: 2px; min-width: 0; }
+.passkey-text strong { font-size: 13.5px; overflow-wrap: anywhere; }
+
+@media (max-width: 720px) {
+  .sso-endpoints div, .account-facts div { grid-template-columns: 1fr; gap: 2px; }
+  .accounts-table td, .invitations-table td { white-space: normal; }
+}

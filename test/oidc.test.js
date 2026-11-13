@@ -190,13 +190,19 @@ describe('OpenID Connect with a confidential client', () => {
     assert.deepEqual(await out.json(), { redirect: '/login' });
   });
 
-  test('the provider can be replaced at run time; open sessions stay, the secret is never shown', async () => {
+  test('the provider can be replaced at run time; open sessions stay, the secret is never shown nor sent to another provider', async () => {
     const { browser } = await signInWithOidc(lab, 'student1');
     const other = await startMockOidc({ port: 0, users: [{ sub: 'other-1', username: 'zoe', name: 'Zoé', email: 'z@example.test', groups: ['staff'] }] });
     try {
-      const visible = lab.deps.auth.oidc.configure({ issuer: other.issuer, providerName: 'Other', adminGroups: ['staff'] });
+      // The current secret belongs to the current provider: another issuer (or client id) needs its own
+      assert.throws(() => lab.deps.auth.oidc.configure({ issuer: other.issuer, providerName: 'Other', adminGroups: ['staff'] }), /needs its own secret/);
+      assert.throws(() => lab.deps.auth.oidc.configure({ clientId: 'another-client' }), /needs its own secret/);
+      assert.equal(lab.deps.auth.oidc.settings.issuer, idp.issuer, 'refused: nothing changed');
+      assert.equal(lab.deps.auth.oidc.configure({ providerName: 'Mock SSO' }).hasClientSecret, true, 'the same provider keeps its secret');
+
+      const visible = lab.deps.auth.oidc.configure({ issuer: other.issuer, clientSecret: 'mock-secret', providerName: 'Other', adminGroups: ['staff'] });
       assert.equal(visible.clientSecret, undefined);
-      assert.equal(visible.hasClientSecret, true, 'the secret was kept');
+      assert.equal(visible.hasClientSecret, true, 'the secret given with it');
       assert.equal(lab.deps.auth.oidc.settings.issuer, other.issuer);
       assert.ok(!JSON.stringify(lab.deps.auth.oidc.settings).includes('mock-secret'));
       assert.equal((await me(lab, browser)).id, 'oidc:mock-student1', 'the open session is untouched');
@@ -210,7 +216,7 @@ describe('OpenID Connect with a confidential client', () => {
       assert.throws(() => lab.deps.auth.oidc.configure({ issuer: 'http://id.example.org' }), /must use https/);
       assert.equal(lab.deps.auth.oidc.settings.issuer, other.issuer, 'a refused change changes nothing');
     } finally {
-      lab.deps.auth.oidc.configure({ issuer: idp.issuer, providerName: 'Mock SSO', adminGroups: ['admins'] });
+      lab.deps.auth.oidc.configure({ issuer: idp.issuer, clientSecret: 'mock-secret', providerName: 'Mock SSO', adminGroups: ['admins'] });
       await other.close();
     }
   });

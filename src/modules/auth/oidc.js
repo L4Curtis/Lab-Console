@@ -4,6 +4,7 @@
  *
  *   const oidc = createOidc({ settings, publicUrl, logger });   // settings: see oidcSettings.js
  *   const { url, pending } = await oidc.begin();          // send the browser to `url`
+ *   oidc.begin({ reauth: true })                           // ... asking the provider for a fresh sign-in (prompt=login, max_age=0)
  *   const { idClaims, userinfo, idToken } = await oidc.complete(callbackUrl, pending);
  *   oidc.endSessionUrl({ idToken })                        // provider sign-out, or null
  *
@@ -12,12 +13,22 @@
  * still signs in, and the provider is tried again at the next attempt.
  * One instance serves one set of settings; when they change, the sign-in
  * module builds a new instance (createAuth().oidc.configure)
+ *
+ * Every request to the provider (discovery, keys, token, userinfo) goes
+ * through the guarded fetch of src/lib/safeFetch.js: the issuer an
+ * administrator typed may be on the local network, but the endpoints its
+ * discovery document lists may not lead anywhere else inside it, and
+ * nothing is fetched without a deadline and a size limit
  */
 import * as client from 'openid-client';
 import { isInsecureIssuer } from './oidcSettings.js';
+import { createSafeFetch } from '../../lib/safeFetch.js';
 
 const DISCOVERY_TIMEOUT_S = 10;
+const MAX_RESPONSE_BYTES = 1024 * 1024;
 const RETRY_AFTER_FAILURE_MS = 10_000;
+/** A re-authentication counts when the person signed in at the provider this recently (seconds) */
+const REAUTH_MAX_AGE_S = 120;
 
 /** What went wrong, in terms the sign-in page can explain: `kind` is 'unavailable' or 'rejected' */
 export class OidcError extends Error {
@@ -50,7 +61,12 @@ export function createOidc({ settings, publicUrl, logger, now = Date.now }) {
     const execute = [client.enableNonRepudiationChecks]; // always verify the ID token's signature against the provider's keys
     if (insecure) execute.push(client.allowInsecureRequests);
 
-    const attempt = client.discovery(new URL(settings.issuer), settings.clientId, undefined, authentication, { execute, timeout: DISCOVERY_TIMEOUT_S })
+    const issuer = new URL(settings.issuer);
+    const guarded = createSafeFetch({
+      trustedHost: issuer.hostname, allowInsecure: settings.allowInsecure, timeoutMs: DISCOVERY_TIMEOUT_S * 1000, maxBytes: MAX_RESPONSE_BYTES,
+    });
+    const options = { execute, timeout: DISCOVERY_TIMEOUT_S, [client.customFetch]: guarded };
+    const attempt = client.discovery(issuer, settings.clientId, undefined, authentication, options)
       .then((found) => {
         log.info(`identity provider discovered: ${found.serverMetadata().issuer}`);
         return found;
@@ -69,8 +85,12 @@ export function createOidc({ settings, publicUrl, logger, now = Date.now }) {
     providerName: settings.enabled ? settings.providerName : null,
     redirectUri,
 
-    /** Start a sign-in: the URL to send the browser to, and what must be remembered until it comes back */
-    async begin() {
+    /**
+     * Start a sign-in: the URL to send the browser to, and what must be remembered until it comes back.
+     * `reauth`: the person must prove themselves again at the provider (prompt=login, max_age=0), and
+     * complete() refuses an ID token that does not show a sign-in of the last two minutes
+     */
+    async begin({ reauth = false } = {}) {
       const config = await discover();
       const codeVerifier = client.randomPKCECodeVerifier();
       const state = client.randomState();
@@ -82,8 +102,9 @@ export function createOidc({ settings, publicUrl, logger, now = Date.now }) {
         code_challenge_method: 'S256',
         state,
         nonce,
+        ...(reauth ? { prompt: 'login', max_age: '0' } : {}),
       });
-      return { url: url.href, pending: { state, nonce, codeVerifier } };
+      return { url: url.href, pending: { state, nonce, codeVerifier, ...(reauth ? { reauth: true } : {}) } };
     },
 
     /**
@@ -106,6 +127,13 @@ export function createOidc({ settings, publicUrl, logger, now = Date.now }) {
       }
       const idClaims = tokens.claims();
       if (!idClaims?.sub) throw new OidcError('rejected', 'The provider returned no ID token');
+      if (pending.reauth) {
+        // A provider that ignored prompt=login would hand back the session it already had
+        const signedInAt = Number.isFinite(idClaims.auth_time) ? idClaims.auth_time : idClaims.iat;
+        if (!Number.isFinite(signedInAt) || now() / 1000 - signedInAt > REAUTH_MAX_AGE_S) {
+          throw new OidcError('rejected', 'The provider did not ask for a fresh sign-in');
+        }
+      }
       return { idClaims, idToken: tokens.id_token, accessToken: tokens.access_token };
     },
 

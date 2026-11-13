@@ -51,13 +51,18 @@ const SESSION = /^\d{6}(?:-\d{1,4})?$/;
  * @param options  test seam: room timings ({ graceMs, controlTimeoutMs, pilotIdleMs, silentMs, sweepMs }),
  *                 watch timings ({ watchRetryMs, watchMaxMs }), `now`
  */
-export function createConsolesModule({ config, events, logger, infra, services = {}, store, audit, settings }, options = {}) {
+export function createConsolesModule({ config, events, logger, infra, services = {}, store, audit, settings, diagrams }, options = {}) {
   const log = logger.child('consoles');
   const now = options.now ?? (() => Date.now());
   const lab = () => settings.get('lab');
   const isTargetAllowed = (t) => targetAllowed(lab().consoles, t);
 
-  const registry = new LabRegistry({ diagramPath: config.diagramPath, networkPrefix: config.consoles.networkPrefix, isTargetAllowed, logger: log });
+  // The active diagram is the data directory's (deps.diagrams); an activation or a new allow-list reloads it
+  const registry = new LabRegistry({ diagramPath: diagrams?.currentPath ?? config.diagramPath, networkPrefix: config.consoles.networkPrefix, isTargetAllowed, logger: log });
+  const stopFollowing = [
+    diagrams?.on('change', () => registry.load()),
+    settings.on('change', (ns) => { if (ns === 'lab') registry.load(); }),
+  ];
 
   /**
    * Who may drive a console: the bench rule of the teams lot when it is
@@ -91,12 +96,12 @@ export function createConsolesModule({ config, events, logger, infra, services =
   });
   const allowOpen = createRateLimiter({ limit: config.limits.opensPerMinute, windowMs: 60_000 });
 
-  // Admin switches: console devices that live outside the lab diagrams
-  const adminSwitches = new Map(infra.adminSwitches.map((s) => [s.key, s]));
-  for (const s of adminSwitches.values()) {
-    if (!isTargetAllowed(s.target)) log.warn(`admin switch ${s.labName}: ${s.target.host}:${s.target.port} is outside the allow-list (disabled)`);
+  // Admin switches: console devices that live outside the lab diagrams; the list is editable, read it each time
+  const adminSwitches = () => infra.adminSwitches.map((s) => ({ ...s, allowed: isTargetAllowed(s.target) }));
+  for (const s of adminSwitches()) {
+    if (!s.allowed) log.warn(`admin switch ${s.labName}: ${s.target.host}:${s.target.port} is outside the allow-list (disabled)`);
   }
-  const findDevice = (key) => (key.startsWith('admin:') ? adminSwitches.get(key) : registry.getDevice(key)) ?? null;
+  const findDevice = (key) => (key.startsWith('admin:') ? adminSwitches().find((s) => s.key === key) : registry.getDevice(key)) ?? null;
 
   // ── Live feeds ────────────────────────────────────────────────────────────
   const activity = [];
@@ -154,7 +159,7 @@ export function createConsolesModule({ config, events, logger, infra, services =
     res.set('Cache-Control', 'no-store').json({ labs, warnings, version, error, journal: { retentionDays: config.rooms.journal.retentionDays } });
   });
   router.get('/admin-switches', (_req, res) => {
-    res.set('Cache-Control', 'no-store').json({ switches: [...adminSwitches.values()].map((s) => ({ ...s, allowed: isTargetAllowed(s.target) })) });
+    res.set('Cache-Control', 'no-store').json({ switches: adminSwitches() });
   });
   router.get('/rooms', (_req, res) => {
     res.set('Cache-Control', 'no-store').json({ rooms: rooms.list(), busy: rooms.busyOutside() });
@@ -335,6 +340,7 @@ export function createConsolesModule({ config, events, logger, infra, services =
     shutdown() {
       clearInterval(heartbeat);
       clearInterval(journalSweep);
+      for (const stop of stopFollowing) stop?.();
       registry.close();
       watch.close();
       rooms.shutdown('Platform is restarting', { code: 'consoles.restarting' });

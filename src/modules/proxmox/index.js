@@ -26,7 +26,7 @@ import { bridgeSerial, bridgeVnc } from './consoleProxy.js';
 
 const MAX_VM_CONSOLES = 20;
 
-export function createProxmoxModule({ config, events, logger }) {
+export function createProxmoxModule({ config, events, logger, settings }) {
   const log = logger.child('proxmox');
   const cfg = config.proxmox;
   const router = express.Router();
@@ -38,7 +38,14 @@ export function createProxmoxModule({ config, events, logger }) {
     return base;
   }
 
-  const tunnel = new SshTunnel({ ssh: config.ssh, logger: log.child('tunnel') });
+  const tunnel = new SshTunnel({ ssh: settings?.get('lab').ssh ?? config.ssh, logger: log.child('tunnel') });
+  // The jump server's parameters may change from the administration pages: reconnect with the new ones
+  const stopFollowing = settings?.on('change', (ns, values) => {
+    if (ns !== 'lab') return;
+    tunnel.ssh = values.ssh;
+    tunnel.close();
+    log.info('lab parameters changed: the Proxmox tunnel reconnects on next use');
+  });
   const client = new ProxmoxClient({ ...cfg, tunnel, logger: log });
   const service = new ProxmoxService({ client, events, logger: log });
 
@@ -110,5 +117,5 @@ export function createProxmoxModule({ config, events, logger }) {
     return true;
   }
 
-  return { ...base, upgrade, shutdown: () => { client.close(); tunnel.close(); } };
+  return { ...base, upgrade, shutdown: () => { stopFollowing?.(); client.close(); tunnel.close(); } };
 }

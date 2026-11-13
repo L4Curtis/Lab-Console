@@ -32,7 +32,10 @@ Feature decisions live in [SPEC.md](SPEC.md). Base: upstream v1.1.1.
    journals, diagram versions; the database only indexes them.
 6. **The Proxmox module is out of scope.** Do not modify `src/modules/proxmox/`,
    `src/lib/sshTunnel.js` or `public/js/modules/infra/` beyond what
-   authentication and i18n strictly require: upstream is reworking it.
+   authentication and i18n strictly require: upstream is reworking it. One
+   exception (admin lot): its SSH tunnel follows the lab settings and
+   reconnects on their `'change'` event; its Proxmox URL and credentials
+   still come from the environment only.
 
 ## 2. Repository layout
 
@@ -53,6 +56,10 @@ src/
       repositories/<concern>.js   the only place SQL is written; index.js lists them
       legacy.js             one-time import of the JSON / JSONL files of before
     audit.js                audit trail                          (lot: skeleton)
+    settings.js             run-time settings, labSettings.js the "lab" namespace   (lot: admin)
+    sealed.js               secrets saved from the admin pages, encrypted with APP_SECRET
+    diagrams.js             the active diagram in DATA_DIR, its versions and checks   (lot: admin)
+    infrastructure.js       the admin switches list (shipped file, then DATA_DIR)    (lot: admin)
     events.js               SSE hub, with per-user audiences     (lot: skeleton)
     httpError.js            API error shape: HttpError, sendError (lot: skeleton)
     security.js             headers, origin check, rate limiter, client IP, trusted proxies
@@ -62,7 +69,9 @@ src/
     auth/                   sessions, OIDC, local accounts + TOTP, roles   (lot: auth)
     consoles/               diagram, rooms, console WebSocket    (lot: rooms)
     teams/                  teams; benches: occupancy, locks, reservations, history (lot: teams)
-    admin/                  diagram import, sessions, audit, announcements, health
+    accounts/               directory, invitations, reset links, passkeys, SSO settings (lot: accounts)
+    admin/                  lab parameters + confirmation, diagram versions, switches, sessions,
+                            audit viewer, announcements, health, journaling   (lot: admin)
     jobs/                   bench jobs, snapshots                (lot: jobs)
     collab/                 device notes, bench chat, notifications
     scripts/                shared script library
@@ -113,6 +122,7 @@ Global keys added by the skeleton:
 | `DATA_DIR` | `./data` | `dataDir` (absolute) | Writable state directory. The Docker image sets `/data`. |
 | `TRUSTED_PROXIES` | empty | `server.trustedProxies` (string[]) | Comma list of proxy IPs / CIDRs (IPv4, IPv6) whose `X-Forwarded-For` is believed: every hop, CDN ranges included. The upstream `TRUST_PROXY=true` (trust every peer) is refused at start-up and `server.trustProxy` no longer exists. |
 | `DEFAULT_LOCALE` | `fr` | `defaultLocale` | UI language for a first visit (`fr` or `en`). |
+| `APP_SECRET` | empty | `appSecret` | Optional, 32 characters at least. Encrypts (AES-256-GCM, key derived with HKDF) the secrets saved from the administration pages: the SSO client secret in `data/auth/oidc.json` and the lab parameters' secrets in `data/settings/lab.json`. Without it they are kept in clear in files of mode 600. Changing it makes them unreadable (the page says so). |
 
 `PORT=0` is accepted and binds any free port (tests, the e2e harness).
 
@@ -137,12 +147,18 @@ Every new variable is documented in `.env.example`. Secrets never get defaults.
 is run directly (`node src/server.js`). Order inside `createApp`:
 
 1. `securityHeaders`
-2. public static assets: `/css`, `/vendor`, `/locales`, `/js/core`,
-   `/favicon.svg` (also answered on `/favicon.ico`). A missing public file is a
-   404, never a redirect to the login page.
+2. public static assets: `/css`, `/vendor` (`/vendor/simplewebauthn` is the
+   WebAuthn browser library), `/locales`, `/js/core`, `/favicon.svg` (also
+   answered on `/favicon.ico`). A missing public file is a 404, never a
+   redirect to the login page.
 3. `GET /api/health` (liveness only, no detail)
 4. auth routes: `app.use(auth.router)` — `/login`, `/js/login.js`, `/auth/*`
-   (all `Cache-Control: no-store` and `X-Robots-Tag: noindex, nofollow`)
+   (all `Cache-Control: no-store` and `X-Robots-Tag: noindex, nofollow`), and
+   the routes other modules add with `auth.extend()`: the accounts module's
+   `/join`, `/reset`, `/js/join.js`, `POST /auth/invitation`, `/auth/signup`,
+   `/auth/reset-link`, `/auth/reset` and `/auth/passkey/*`. Each checks what
+   it needs itself (a link's token, a passkey ceremony) and is listed in the
+   allow-list of `test/routeWalk.test.js`
 5. **gate**: `auth.attach` then `auth.requireAuth` — everything below needs a user
 6. state-changing requests (anything but GET / HEAD, on any path) must pass
    the existing same-origin check: `requireSameOrigin(allowedOrigins)` from
@@ -205,11 +221,27 @@ auth.requireAuth(req, res, next)   // 401 JSON under /api and for writes, 302 /l
 auth.requireRole('admin')      // middleware, 403 JSON
 auth.authenticateUpgrade(req)  // → User | null, for WebSocket upgrades; the socket closes when the session ends
 auth.sessions.list() / .revoke(sessionId) / .revokeUser(userId)
-auth.sessions.create(user, { ip, userAgent }) // → { id, token, cookie }: a session for someone the server
-                               //   authenticated another way (passkey, invitation), and for tests
+auth.sessions.create(user, { ip, userAgent }) // → { id, token, cookie }: a session in the store (tests)
+auth.sessions.open(req, res, user)   // sign this browser in as someone the server authenticated another
+                               //   way (passkey, invitation): previous session ended, cookie set → session;
+                               //   a local account's browser becomes known for its name (lc_device)
 auth.accounts.add(provider)    // another source of local accounts → remove()
+auth.steps.peek(req) / .complete(req, res, { method, user }) / .fail(req, res) / .start(req, res, user, requires, { binding })
+                               // a sign-in whose password was right and that still owes a passkey;
+                               //   peek() hands back the provider's `binding` (see Ways in)
+auth.extend(router, { describe })    // public routes mounted above the gate; describe(req) adds fields to /auth/me
+auth.reauthenticate(user, { password, code })   // → boolean: the environment's administrator proves itself
+                               //   again before a sensitive change (an accepted code is burnt); false for anyone else
+auth.environmentAdminId        // 'local:<LOCAL_ADMIN_USERNAME>'
 auth.oidc.settings             // current OIDC settings, without the secret ({ …, hasClientSecret })
-auth.oidc.configure(raw)       // replace them at run time (validated; open sessions untouched)
+auth.oidc.configure(raw)       // replace them at run time (validated; open sessions untouched); an omitted
+                               //   clientSecret keeps the current one for the same issuer and client id only
+auth.oidc.redirectUri          // the callback URL to give the provider
+auth.oidc.trial(req, res, { returnTo, onResult, reauth })   // → { url }: a sign-in at the provider that opens no
+                               //   session; onResult gets the claims, the user id and the role they give.
+                               //   `reauth: true` asks for a fresh sign-in (prompt=login, max_age=0) and refuses
+                               //   an answer whose auth_time/iat is older than 2 minutes (an SSO administrator
+                               //   confirming a lab change: admin/confirm.js)
 auth.router                    // /login, /js/login.js, /auth/*; mounted before the gate
 auth.cookieName                // '__Host-lc_sid' | 'lc_sid'
 auth.shutdown()                // stops the timers, writes the sessions; called when the application closes
@@ -242,17 +274,39 @@ at every sign-in.
   next }` to `POST /auth/local`; every registered provider is asked, the first
   one being the environment's administrator (`envAdmin.js`: scrypt hash,
   RFC 6238 TOTP ±1 step, a step that was accepted is dead, even across a
-  restart). A provider is `{ id, verify({ username, password, code }) → { user }
-  | null }` and does the same work whether or not the name exists. One generic
-  refusal (401 `auth.invalid_credentials`) for every cause.
+  restart), the second the directory of the accounts module (accounts created
+  through invitations; the code is ignored). A provider is `{ id, verify({
+  username, password, code }) → { user, requires? } | null }` and does the
+  same work whether or not the name exists. One generic refusal (401
+  `auth.invalid_credentials`) for every cause. A provider that answers
+  `requires: ['passkey' | 'passkey-enrol']` (a local account promoted to
+  administrator) gets no session: the answer is `{ step }`, a 5-minute,
+  single-use step is kept on the server (cookie `lc_step`, `__Host-` over
+  https), and the accounts module finishes it with `auth.steps.complete()`
+  once the passkey is given or registered. The provider may add an opaque
+  `binding` to its answer, kept with the step: the directory binds a step to
+  a fingerprint of the password hash and to the passkeys the account had, so
+  a password reset or change, or passkeys cleared, end the steps in progress
+  as they end the sessions.
+- Passkeys (accounts module, `@simplewebauthn/server`): one-click sign-in with
+  a discoverable credential and user verification (`/auth/passkey/options`,
+  `/auth/passkey/verify`), and the step above. Relying party = the host of
+  `PUBLIC_URL`, origin = `PUBLIC_URL`; offered only over https on a domain
+  name, or on `http://localhost` (tests). Challenges stay on the server, 5
+  minutes, single use, bound to the browser (cookie `lc_passkey`) and to what
+  they were issued for. Local accounts only: SSO accounts rely on their
+  provider, the environment's administrator keeps password + TOTP.
 - Attempts on the local form are limited (`throttle.js`) per client address
   (5 per 15 min), per user name (exponential backoff after 2 failures, one
-  attempt in flight), and globally (50 failures per 15 min): 429
-  `auth.throttled` with `Retry-After` and `params.seconds`, identical for an
-  unknown name. A browser that already signed in with that name carries a
-  signed `lc_device` cookie (`devices.js`, 180 days) and is limited on its
-  own instead (5 per 15 min, its own backoff), so strangers cannot keep the
-  administrator out. Refusals that cost nothing (throttled attempts, callbacks
+  attempt in flight), and globally (past 50 failures per 15 min, a name that
+  failed itself waits until the count goes down; a name with no failure of
+  its own still gets in, so strangers failing on made-up names never refuse
+  a student's right password): 429 `auth.throttled` with `Retry-After` and
+  `params.seconds`, identical for an unknown name. A browser that already
+  signed in with that name (password, sign-up or passkey) carries a signed
+  `lc_device` cookie (`devices.js`, 180 days) and is limited on its own
+  instead (5 per 15 min, its own backoff), so strangers cannot keep the
+  owner of a name out. Refusals that cost nothing (throttled attempts, callbacks
   without a sign-in in progress, the latter limited to 60 a minute per
   address) are audited once per address and kind per 15 min, then summed up
   in one `auth.login.suppressed` entry (`refusals.js`).
@@ -265,16 +319,22 @@ at every sign-in.
 
 **Roles.** `resolveRole({ groups, adminGroups, storedRole })` in `roles.js`
 is the only place a role is decided: admin when a group is in
-`OIDC_ADMIN_GROUPS`, otherwise student, and a role stored per user (wave 2)
-wins. `isAllowed()` applies `OIDC_ALLOWED_GROUPS` (an admin group always
-counts); a refused user lands on `/login?error=not_allowed`.
+`OIDC_ADMIN_GROUPS`, otherwise student, and a role stored per user wins: at
+every provider sign-in the callback asks `services.accounts.roleOverride(id)`
+(set by an administrator on the Users tab), then `services.accounts.admit(user,
+{ groupRole })`, which records the account in the directory and answers
+`false` for a disabled one (`/login?error=account_disabled`). Local accounts
+carry their role in the directory. `isAllowed()` applies `OIDC_ALLOWED_GROUPS`
+(an admin group always counts); a refused user lands on
+`/login?error=not_allowed`.
 
-`GET /auth/me` is public and returns `{ user, locale, providerName }`
+`GET /auth/me` is public and returns `{ user, locale, providerName, passkeys }`
 (`user: null` when nobody is signed in, `locale` = `DEFAULT_LOCALE`,
-`providerName` = the sign-in button's label or `null` without a provider);
-the browser reads it once through `public/js/core/session.js`
-(`await loadSession()`, then `session.user`, `session.isAdmin`,
-`session.locale`, `session.providerName`; `signOut()` posts `/auth/logout`
+`providerName` = the sign-in button's label or `null` without a provider,
+`passkeys` = whether this site offers them); the browser reads it once
+through `public/js/core/session.js` (`await loadSession()`, then
+`session.user`, `session.isAdmin`, `session.locale`, `session.providerName`,
+`session.passkeys`; `signOut()` posts `/auth/logout`
 and follows its `redirect`, the provider's end-session page when it has one).
 `public/js/core/userMenu.js` (`mountUserMenu()`, called once from `main.js`)
 shows the user, the role and the sign-out button at the bottom of the rail.
@@ -296,7 +356,7 @@ valid session.
 ## 6. Platform services
 
 Created once in `server.js` and passed to every module in `deps`:
-`{ config, logger, events, infra, store, repos, audit, auth, settings, services }`.
+`{ config, logger, events, infra, store, repos, audit, auth, settings, diagrams, services }`.
 The database is opened, migrated and the legacy files imported before any
 other service is created; `createApp()` is therefore **async** and rejects,
 with nothing left open, when the database cannot be used.
@@ -524,19 +584,81 @@ A module must release in `shutdown()` whatever would keep the process alive
 (timers that are not `unref`'d, file watchers, sockets).
 
 **settings** (`src/lib/settings.js`, passed as `deps.settings`) — values an
-administrator may change at run time. `settings.get('lab')` returns
-`{ ssh, telnet, consoles }` with the shapes of `config.ssh`, `config.telnet`
-and `config.consoles`. **Read it each time a connection or a console is
-opened**, never once at start-up. The environment gives the starting values;
-what an administrator saved (table `settings`, one JSON document per
-namespace, `repos.settings`) is laid over them: objects merged key by key,
-anything else replaced. Saved values are loaded once when the service is
-created (`await createSettings({ config, repo })`), so `get()` stays
-synchronous. The admin lot adds `describe(ns)` (values with secrets replaced
-by `{ set: true }`), `update(ns, patch, actor)` (`repos.settings.save(ns,
-values, actor.id)`, then the cache and the event), `register(ns, spec)` and
-the `'change'` event (`settings.on('change', (ns, values) => …)`). Modules that keep a long-lived
-connection (the Proxmox tunnel) listen for `'change'` and reconnect.
+administrator may change at run time. **Read them each time a connection or
+a console is opened**, never once at start-up.
+
+```js
+settings.get(ns)                    // current values, a private copy (secrets included: server side only)
+settings.describe(ns)               // { values (secrets as { set: true|false }), fields, saved: [paths], unreadable: [paths],
+                                    //   updatedAt, updatedBy, encrypted }
+settings.check(ns, patch)           // update()'s validation alone → { changed, reset }, or the same 400; nothing saved
+settings.update(ns, patch, actor)   // → describe(ns) + { changed, reset }; 400 settings.invalid { problems: [{ field, code }] }
+                                    //   only the fields a namespace lists exist: 'constructor' or '__proto__' are { code: 'unknown' }
+settings.register(ns, { defaults: () => values, fields: { 'dotted.path': { type, … } }, check?(values) → problems })
+settings.on('change', (ns, values) => …)   // → off(); after a save that changed something
+```
+
+- `get('lab')` returns `{ ssh, telnet, consoles }` with the shapes of
+  `config.ssh`, `config.telnet` and `config.consoles` (an SSH key read from a
+  file is handed out as text). Editable fields (`src/lib/labSettings.js`):
+  `ssh.host|port|username|password|privateKey|passphrase|hostFingerprint`,
+  `telnet.username|password|autoLogin|wakeIdleMs`,
+  `consoles.allowedHosts|portRange`. Everything else (timeouts, tunnel
+  transport, the diagram's network prefix) stays with the environment.
+- The environment gives the starting values; a saved field wins; saving
+  `null` for a field brings the environment's value back. A patch carries
+  only what changes; a secret left out is kept. Types: `string`, `int`,
+  `bool`, `list`, `range`, `secret`; every field is checked, then the
+  namespace's `check()` on the values that would apply (lab: a password or a
+  key, a key that parses, a passphrase that opens it). Nothing is saved when
+  one problem is found.
+- Saved in the database (table `settings`, one row per namespace through
+  `repos.settings`: the saved fields by dotted path, who saved them and
+  when), loaded once when the service is created (`await createSettings({
+  config, repo, audit })`), so `get()` stays synchronous; a namespace
+  registered later finds what was saved for it. Secrets are sealed with `src/lib/sealed.js` (AES-256-GCM under a key
+  derived from `APP_SECRET`, in clear without it); one that cannot be opened
+  any more falls back to the environment and is listed in `unreadable`.
+- `update()` audits `settings.update` with `{ ns, changed, reset, values }`:
+  field names only for secrets, new values for the others.
+- Modules that keep a long-lived connection listen for `'change'`: the
+  consoles registry reloads (the allow-list may have moved), the Proxmox
+  tunnel reconnects, the health cache is dropped.
+- Confirmation is not the service's job: the admin module's `PUT /api/admin/lab`
+  requires a ticket (`src/modules/admin/confirm.js`).
+
+**diagrams** (`src/lib/diagrams.js`, passed as `deps.diagrams`) — the active
+lab diagram is `data/diagrams/current.drawio`, seeded from `DIAGRAM_PATH` on
+the first start (which becomes the first version).
+
+```js
+diagrams.currentPath                 // what the consoles registry reads and watches
+diagrams.list()                      // { active, canRollback, previous, versions: [...] } newest first
+diagrams.add(buffer, { name, actor }) → { version, warnings, labs }   // checked, kept, NOT active
+diagrams.model(id) / diagrams.compare(id)   // parsed labs / what changes against the active one
+diagrams.activate(id, actor) / diagrams.rollback(actor)
+diagrams.fileOf(id)                  // absolute path of a version (download)
+diagrams.on('change', fn)            // after an activation or a rollback
+```
+
+A file is refused (`admin.diagram_*`) over 5 MB or when its pages inflate to
+more than 20 MB in all (`diagram_too_large`; the inflate itself is capped),
+with a DOCTYPE or an entity declaration anywhere (`diagram_doctype`: checked
+by the parser, `parseDrawio`, on the file and on every page it decodes, so
+CDATA, comments or character references around a compressed page hide
+nothing), when the parser rejects it, without a single console device, and
+at import or activation while two different devices share a console line
+(`diagram_lint`, what `npm run check-diagram` fails on; a rollback is never
+refused for it). 30 versions are
+kept (never the active one nor the last ones a rollback may need). A rollback
+returns to the diagram active before the current one (a stack of activations).
+
+**infra** (`src/lib/infrastructure.js`, `deps.infra`) — the admin switches.
+`infra.adminSwitches` is the current list (read it when a console opens);
+`infra.describe()`, `infra.replace(list, actor)` (validated, audited
+`admin.switches.update`), `infra.on('change')`. The shipped file
+(`INFRA_CONFIG_PATH`) is the starting point; an edited list lives in
+`data/admin/switches.json` and wins.
 
 ## 7. Server modules
 
@@ -579,17 +701,37 @@ services.benches = {                           // lot teams (src/modules/teams/)
                                                //   (`offers`), e.g. the jobs lot's backup offer
 }
 services.accounts = {                          // lot accounts
-  get(userId) → Account | null                 // { id, username, name, role, state, via, hasPasskey }
-  list() → Account[]
-  roleOverride(userId) → 'student' | 'admin' | null
+  get(userId) → Account | null                 // { id, username, name, role, state, via, hasPasskey, … }
+  list() → Account[]                           // the environment's administrator first ({ environment: true })
+  roleOverride(userId) → 'student' | 'admin' | null   // forced on an SSO account; null = its groups decide
+  admit(user, { groupRole }) → Promise<boolean>       // called by the sign-in module at each SSO sign-in
+  confirmation: {                              // a local administrator proves itself again with a passkey
+    available(user) → boolean
+    options(req, res) → PublicKeyCredentialRequestOptionsJSON   // challenge bound to browser, account and session
+    verify(req, res, response) → Promise<boolean>
+  }
 }
+services.admin = { announcement() → { text, level, at, expiresAt, by } | null }   // lot admin
 services.jobs = { running(labName) → Job | null, list({ bench }) }
 ```
 
 ## 8. Front end
 
 - **Sections.** `public/js/main.js` keeps the `MODULES` array; a new rail
-  section is one line there and one folder in `public/js/modules/`.
+  section is one line there and one folder in `public/js/modules/`. `id` is
+  the server module (`/api/modules`), `path` the address and the section's
+  class (`section.view-<path>`); `when: () => session.isAdmin` keeps a section
+  away from students, `rail: false` leaves it out of the rail. The
+  **Administration** section (`#/admin/<tab>`, `modules/admin/index.js`) is
+  for administrators, built with `shared/tabs.js`; the accounts lot's tabs are
+  `users`, `invitations`, `sso`; the admin lot's are `lab`, `diagram`,
+  `switches`, `sessions`, `audit`, `announcement` (one file in
+  `modules/admin/tabs/`, one line each). **Lab status** (`#/status/<tab>`,
+  `modules/status/index.js`, every signed-in user): `health` and
+  `journaling`. The **announcement banner** (`shared/announcement.js`,
+  mounted once by `main.js`) follows the sticky SSE topic `admin:announcement`. **My account** (`#/account`) is
+  reached from the user menu. Passkeys in the browser go through
+  `core/passkeys.js` (public: the login page and `/join` use it).
 - **Tabs.** A section with several screens uses `shared/tabs.js`:
   `mountTabs(container, tabs, { navigate, base })` where a tab is
   `{ id, title, load: () => import('./tabs/x.js') }` and the tab file exports
@@ -866,7 +1008,7 @@ device per console port for its whole life and answers `nc -z -w <s> <host>
 ```
 data/
   lab-console.db (600)      + lab-console.db-wal, lab-console.db-shm: the structured state (§6, "database")
-  diagrams/current.drawio   diagrams/versions/<ts>-<user>.drawio
+  diagrams/current.drawio   diagrams/versions/<ts>-<user>-<rand>.drawio
   journal/<bench>/<device>/<yyyy-mm-dd>/<hhmmss>.log   …/<hhmmss>.json (one console session, who was there)
   snapshots/<bench>/<ts>-<label>/{manifest.json,<device>.cfg,<device>.vlan.txt}
   templates/<name>/...      same layout as a snapshot
@@ -991,7 +1133,12 @@ file alone while it runs may miss what is still in the `-wal` file.
 - Upload → size limit, type check, no path from the archive trusted?
 - Output shown to other users → rendered as text, never as HTML?
 - Secret → never logged, never sent to the browser, never written to `data/`
-  unless it is a hash?
+  unless it is a hash? Two exceptions, secrets the server must send on:
+  the SSO client secret (`data/auth/oidc.json`) and the lab parameters'
+  secrets (jump server password, key and passphrase, console server password,
+  `data/settings/lab.json`). Both files are mode 600 and the secrets are
+  encrypted when `APP_SECRET` is set (`src/lib/sealed.js`); no answer and no
+  audit entry ever contains them.
 - Limits → per user, not per IP.
 
 ## 14. Recipes

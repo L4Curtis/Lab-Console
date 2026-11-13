@@ -19,7 +19,8 @@ import express from 'express';
 import { createLogger } from './lib/logger.js';
 import { EventHub } from './lib/events.js';
 import { securityHeaders, isOriginAllowed, requireSameOrigin, proxyTrust } from './lib/security.js';
-import { loadInfrastructure } from './lib/infrastructure.js';
+import { createInfrastructure } from './lib/infrastructure.js';
+import { createDiagrams } from './lib/diagrams.js';
 import { createStore } from './lib/store.js';
 import { openDatabase, createRepositories, importLegacyFiles } from './lib/db/index.js';
 import { createAudit } from './lib/audit.js';
@@ -47,11 +48,13 @@ async function createPlatform({ config, logger, makeAuth, makeModules, trust }) 
     await importLegacyFiles({ store, repos, logger: logger('db') });
     const events = new EventHub({ logger: logger('events') });
     const audit = createAudit({ repo: repos.audit, logger: logger('audit'), clientIp: trust.clientIp });
-    const infra = loadInfrastructure(config.infraConfigPath, logger('infra'));
-    const settings = await createSettings({ config, repo: repos.settings, logger: logger('settings') });
+    const infra = createInfrastructure({ file: config.infraConfigPath, store, audit, logger: logger('infra') });
+    const settings = await createSettings({ config, repo: repos.settings, audit, logger: logger('settings') });
+    // The active diagram lives in the data directory (seeded from DIAGRAM_PATH on the first start)
+    const diagrams = createDiagrams({ config, store, logger: logger('diagrams') });
     const services = {};
     const auth = await makeAuth({ config, logger: logger('auth'), events, store, repos, audit, services });
-    const deps = { config, logger: logger('app'), events, infra, store, repos, audit, auth, settings, services };
+    const deps = { config, logger: logger('app'), events, infra, store, repos, audit, auth, settings, diagrams, services };
     let modules = [];
     try {
       modules = makeModules(deps);
@@ -99,6 +102,8 @@ export async function createApp({ config, logger = createLogger, createAuth: mak
   app.use('/vendor/xterm', vendor('@xterm/xterm'));
   app.use('/vendor/xterm-addon-fit', vendor('@xterm/addon-fit'));
   app.use('/vendor/novnc', vendor('@novnc/novnc'));
+  // WebAuthn in the browser (the login page uses it: public, like the rest of /vendor)
+  app.use('/vendor/simplewebauthn', vendor(path.join('@simplewebauthn', 'browser', 'esm')));
   app.use('/vendor/fonts/plex-sans', vendor('@fontsource/ibm-plex-sans'));
   app.use('/vendor/fonts/plex-mono', vendor('@fontsource/ibm-plex-mono'));
   // fallthrough off: a missing public asset is a 404, never a redirect to the login page

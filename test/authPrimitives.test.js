@@ -142,10 +142,10 @@ describe('password hashes', () => {
 describe('cookies', () => {
   test('names and flags: __Host- and Secure over https, plain names over http', () => {
     const https = cookieSettings('https://lab.example.org');
-    assert.deepEqual({ ...https }, { secure: true, session: '__Host-lc_sid', login: '__Host-lc_login', device: '__Host-lc_device' });
+    assert.deepEqual({ ...https }, { secure: true, session: '__Host-lc_sid', login: '__Host-lc_login', device: '__Host-lc_device', step: '__Host-lc_step' });
     assert.equal(serializeCookie(https.session, 'abc', { secure: true }), '__Host-lc_sid=abc; Path=/; HttpOnly; SameSite=Lax; Secure');
     const http = cookieSettings('http://127.0.0.1:3000');
-    assert.deepEqual({ ...http }, { secure: false, session: 'lc_sid', login: 'lc_login', device: 'lc_device' });
+    assert.deepEqual({ ...http }, { secure: false, session: 'lc_sid', login: 'lc_login', device: 'lc_device', step: 'lc_step' });
     assert.equal(serializeCookie(http.session, 'abc', {}), 'lc_sid=abc; Path=/; HttpOnly; SameSite=Lax');
     assert.equal(clearCookie('lc_sid', {}), 'lc_sid=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0');
     assert.throws(() => serializeCookie('lc_sid', 'a;b'), TypeError);
@@ -288,16 +288,26 @@ describe('login throttle', () => {
     assert.deepEqual(run('root'), run('nobody-has-this-name'));
   });
 
-  test('globally: at most 50 failures in 15 minutes, whatever the address and the name', () => {
+  test('globally: past 50 failures in 15 minutes, a name that failed itself waits; a name nobody failed on still gets in', () => {
     const c = clock();
     const throttle = createLoginThrottle({ now: c.now });
     for (let i = 0; i < 50; i++) {
       assert.equal(throttle.take({ client: `10.0.${i}.1`, username: `n${i}` }).allowed, true);
       throttle.failed({ username: `n${i}` });
     }
-    assert.equal(throttle.take({ client: '10.9.9.9', username: 'fresh' }).scope, 'global');
+    // A stranger's failures on names they made up never refuse an account they never tried
+    const fresh = throttle.take({ client: '10.9.9.9', username: 'fresh' });
+    assert.equal(fresh.allowed, true, 'a name with no failure of its own');
+    throttle.succeeded({ client: '10.9.9.9', username: 'fresh' });
+    // Guesses spread over many names: each one gets one try, then waits for the count to go down
+    assert.equal(throttle.take({ client: '10.9.9.10', username: 'other' }).allowed, true);
+    throttle.failed({ username: 'other' });
+    const again = throttle.take({ client: '10.9.9.11', username: 'other' });
+    assert.equal(again.scope, 'global', 'its first failure is enough while the count is full');
+    assert.equal(again.retryAfterSeconds, 15 * 60);
+    assert.equal(throttle.take({ client: '10.9.9.12', username: 'n3' }).scope, 'global');
     c.advance(15 * 60_000);
-    assert.equal(throttle.take({ client: '10.9.9.9', username: 'fresh' }).allowed, true);
+    assert.equal(throttle.take({ client: '10.9.9.12', username: 'n3' }).allowed, true, 'the count went down');
   });
 
   test('a known browser is neither refused by the name\'s backoff nor by the global count', () => {
@@ -311,6 +321,7 @@ describe('login throttle', () => {
     // A stranger keeps the name at its longest backoff, and fills the global count
     for (let i = 0; i < 12; i++) { fail(`198.51.100.${i}`, 'root'); c.advance(16 * 60_000); }
     for (let i = 0; i < 50; i++) fail(`10.1.${i}.1`, `n${i}`);
+    fail('198.51.100.99', 'root'); // and fails once more on the name itself
     assert.equal(throttle.take({ client: '192.0.2.1', username: 'root' }).allowed, false, 'a new browser is kept out');
 
     const slot = throttle.take({ client: '192.0.2.1', username: 'root', device: 'browser-a' });
@@ -756,20 +767,25 @@ describe('account providers', () => {
     const registry = createAccountProviders([provider('a', () => null)]);
     const remove = registry.add(provider('b', (cred) => (cred.username === 'alice' ? { user: one } : null)));
     assert.deepEqual(registry.ids, ['a', 'b']);
-    assert.equal(await registry.verify({ username: 'alice' }), one);
+    assert.deepEqual(await registry.verify({ username: 'alice' }), { user: one, requires: [], binding: null });
     assert.deepEqual(asked, ['a', 'b']);
     asked.length = 0;
     assert.equal(await registry.verify({ username: 'bob' }), null);
     assert.deepEqual(asked, ['a', 'b'], 'every provider is asked for an unknown name too');
 
-    registry.add(provider('c', () => ({ user: one })));
+    const remove2 = registry.add(provider('c', () => ({ user: one })));
     assert.equal(await registry.verify({ username: 'alice' }), null, 'two providers claiming the same person: refused');
     remove();
     assert.deepEqual(registry.ids, ['a', 'c']);
     registry.add(provider('d', () => { throw new Error('disk on fire'); }));
-    assert.equal(await registry.verify({ username: 'alice' }), one, 'a broken provider counts as "no"');
-    registry.add(provider('e', () => ({ user: one, requires: ['passkey'] })));
-    assert.equal(await registry.verify({ username: 'alice' }), null, 'a further step this build cannot offer is a refusal');
+    assert.deepEqual(await registry.verify({ username: 'alice' }), { user: one, requires: [], binding: null }, 'a broken provider counts as "no"');
+    remove2();
+    const removeE = registry.add(provider('e', (cred) => (cred.username === 'alice' ? { user: one, requires: ['passkey', 42] } : null)));
+    assert.deepEqual(await registry.verify({ username: 'alice' }), { user: one, requires: ['passkey'], binding: null }, 'a further step travels with the user');
+    removeE();
+    const bound = registry.add(provider('f', (cred) => (cred.username === 'alice' ? { user: one, requires: ['passkey'], binding: { password: 'fp' } } : null)));
+    assert.deepEqual((await registry.verify({ username: 'alice' })).binding, { password: 'fp' }, 'and what the provider binds it to');
+    bound();
     assert.throws(() => registry.add(provider('a', () => null)), /already registered/);
     assert.throws(() => registry.add({ id: 'x' }), TypeError);
   });

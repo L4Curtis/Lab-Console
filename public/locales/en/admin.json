@@ -1,0 +1,370 @@
+{
+  "title": "Administration",
+  "subtitle": "Accounts, lab parameters, diagram and monitoring",
+  "tabs": {
+    "users": "Users",
+    "invitations": "Invitations",
+    "sso": "Sign-in (SSO)",
+    "lab": "Lab parameters",
+    "diagram": "Diagram",
+    "switches": "Admin switches",
+    "sessions": "Sessions",
+    "audit": "Audit trail",
+    "announcement": "Announcement"
+  },
+  "confirm": {
+    "title": "Confirm the change",
+    "totpIntro": "These parameters control access to the lab. Type your password again and a code from your authenticator app.",
+    "password": "Password",
+    "code": "6-digit code",
+    "submit": "Confirm",
+    "passkeyIntro": "These parameters control access to the lab. Confirm with your passkey.",
+    "passkey": "Use my passkey",
+    "unavailable": "This account cannot confirm this change here. Sign in with the local administrator, an administrator account with a passkey, or through the identity provider once it is enabled.",
+    "ssoIntro": "These parameters control access to the lab. You will be sent to your identity provider to sign in again; the change is applied when you come back.",
+    "sso": "Sign in again"
+  },
+  "lab": {
+    "intro": "How Lab Console reaches the consoles: SSH jump server, the console server’s login, allowed addresses. A change applies to the next consoles opened, without a restart; lines already open stay as they are.",
+    "sections": {
+      "ssh": "Jump server (SSH)",
+      "telnet": "Console server login",
+      "consoles": "Allowed consoles"
+    },
+    "fields": {
+      "ssh": {
+        "host": "Address",
+        "port": "Port",
+        "username": "User name",
+        "password": "Password",
+        "privateKey": "Private key",
+        "passphrase": "Key passphrase",
+        "hostFingerprint": "Host key fingerprint"
+      },
+      "telnet": {
+        "username": "User name",
+        "password": "Password",
+        "autoLogin": "Answer the login automatically",
+        "wakeIdleMs": "Wake-up delay (ms)"
+      },
+      "consoles": {
+        "allowedHosts": "Allowed console servers",
+        "portRange": "Port range"
+      }
+    },
+    "hints": {
+      "ssh": {
+        "host": "Name or IP address of the jump server.",
+        "password": "Leave empty to keep the current password.",
+        "privateKey": "PEM format (-----BEGIN … PRIVATE KEY-----). Leave empty to keep the current key.",
+        "passphrase": "Only if the key is encrypted.",
+        "hostFingerprint": "\"SHA256:…\", as printed by ssh-keygen -lf. Strongly advised: without it, the jump server’s identity is not checked."
+      },
+      "telnet": {
+        "username": "Empty for lines that only ask for a password.",
+        "password": "Leave empty to keep the current password.",
+        "wakeIdleMs": "Silence after connecting before one wake-up Enter; 0 turns it off."
+      },
+      "consoles": {
+        "allowedHosts": "Comma-separated. A console elsewhere stays on the diagram but does not open."
+      }
+    },
+    "origin": {
+      "environment": "environment",
+      "saved": "set here",
+      "resetting": "back to the environment"
+    },
+    "reset": "Back to the environment",
+    "keepSaved": "Cancel",
+    "secretKept": "set — leave empty to keep it",
+    "secretNone": "not set",
+    "save": "Save",
+    "saved": "Parameters saved: the next console uses them.",
+    "nothing": "Nothing changed.",
+    "updated": "Changed on {date} by {by}.",
+    "fromEnvironment": "Every value comes from the environment.",
+    "unreadable": "These saved secrets can no longer be read (APP_SECRET changed): {fields}. The environment’s value is used; type them again.",
+    "problems": {
+      "type": "Invalid value.",
+      "required": "Required.",
+      "too_long": "Too long.",
+      "format": "Invalid format.",
+      "out_of_range": "Out of range.",
+      "too_many": "Too many items.",
+      "range_order": "The start must come before the end.",
+      "unknown": "Unknown field.",
+      "credentials_required": "A password or a private key is needed.",
+      "key_format": "Unreadable private key (PEM or OpenSSH format expected).",
+      "key_passphrase": "The passphrase does not open this key."
+    },
+    "proxmox": {
+      "title": "Proxmox",
+      "note": "For reference: the Proxmox module still reads these values from the environment. Its tunnel reconnects when the jump server changes.",
+      "url": "Address",
+      "username": "User",
+      "password": "Password",
+      "fingerprint": "Certificate fingerprint",
+      "state": "State",
+      "off": "not configured"
+    }
+  },
+  "diagram": {
+    "intro": "The diagram students open consoles from. An imported file is checked and kept as a version, without changing anything: preview it, compare, then activate. Every version stays available; “Roll back” restores the diagram that was active just before.",
+    "import": "Import a .drawio",
+    "rollback": "Roll back",
+    "preview": "Preview",
+    "download": "Download",
+    "activate": "Activate",
+    "active": "active",
+    "fromEnvironment": "original file (DIAGRAM_PATH)",
+    "deviceCount": {
+      "one": "{count} device",
+      "other": "{count} devices"
+    },
+    "columns": {
+      "name": "File",
+      "devices": "Devices",
+      "by": "By",
+      "at": "Date",
+      "state": "State"
+    },
+    "none": "No version.",
+    "pages": "Diagram pages",
+    "previewTitle": "Preview: {name}",
+    "previewMeta": {
+      "one": "{labs} bench(es), {count} device",
+      "other": "{labs} bench(es), {count} devices"
+    },
+    "warnings": {
+      "one": "{count} warning",
+      "other": "{count} warnings"
+    },
+    "diff": {
+      "labsAdded": "Benches added",
+      "labsRemoved": "Benches removed",
+      "devicesAdded": "Devices added",
+      "devicesRemoved": "Devices removed",
+      "devicesMoved": "Consoles moved",
+      "same": "Same as the active diagram.",
+      "none": "No bench or console changes (only the drawing differs)."
+    },
+    "activateTitle": "Activate this diagram?",
+    "activateBody": "“{name}” becomes everyone’s diagram, right away. Open consoles stay open.",
+    "activated": "Diagram activated.",
+    "imported": "File checked and kept. Look at the preview before activating it.",
+    "rollbackTitle": "Go back to the previous diagram?",
+    "rollbackBody": "The diagram that was active just before becomes everyone’s again, right away.",
+    "rolledBack": "Previous diagram restored.",
+    "outsideAllowList": {
+      "one": "{count} device has a console outside the allow-list: it would show, but stay disabled for students until the lab parameters allow it.",
+      "other": "{count} devices have a console outside the allow-list: they would show, but stay disabled for students until the lab parameters allow them."
+    }
+  },
+  "switches": {
+    "intro": "Consoles that are not on the diagram (the benches’ administration switches), shown in the Infra section. Saved as a whole, used at once.",
+    "columns": {
+      "id": "Id",
+      "name": "Name",
+      "bay": "Bench",
+      "host": "Console server",
+      "port": "Port"
+    },
+    "add": "Add",
+    "remove": "Remove",
+    "save": "Save the list",
+    "done": "List saved.",
+    "saved": "Changed on {date} by {by}.",
+    "fromEnvironment": "Original list (INFRA_CONFIG_PATH).",
+    "problems": {
+      "type": "Invalid.",
+      "format": "Invalid format.",
+      "duplicate": "Already used.",
+      "required": "Required.",
+      "out_of_range": "1 to 65535.",
+      "too_many": "Too many lines."
+    }
+  },
+  "sessions": {
+    "intro": "Every browser signed in right now. Ending a session signs that browser out at once, with its consoles.",
+    "columns": {
+      "user": "Person",
+      "browser": "Browser",
+      "ip": "Address",
+      "since": "Since",
+      "lastSeen": "Last activity"
+    },
+    "count": {
+      "one": "{count} session",
+      "other": "{count} sessions"
+    },
+    "sockets": {
+      "one": "{count} console or stream open",
+      "other": "{count} consoles or streams open"
+    },
+    "none": "No session.",
+    "thisOne": "this session",
+    "end": "End",
+    "endAll": "All their sessions",
+    "endTitle": "End this session?",
+    "endBody": "{name} will be signed out of this browser, their consoles closed.",
+    "endOwn": "This is your session: you will be signed out.",
+    "endAllTitle": "End all their sessions?",
+    "endAllBody": "{name} will be signed out of every browser.",
+    "ended": "Session ended.",
+    "endedAll": {
+      "one": "{count} session ended.",
+      "other": "{count} sessions ended."
+    }
+  },
+  "audit": {
+    "intro": "Who did what, and when: sign-ins, consoles, administration actions. Newest first.",
+    "filters": {
+      "action": "Action",
+      "actor": "Person (id)",
+      "bench": "Bench",
+      "since": "Since",
+      "until": "Until",
+      "limit": "Lines"
+    },
+    "actionHint": "e.g. console or admin.diagram",
+    "apply": "Filter",
+    "clear": "Clear",
+    "more": "details",
+    "columns": {
+      "ts": "Date",
+      "actor": "Who",
+      "action": "Action",
+      "bench": "Bench",
+      "details": "Details"
+    },
+    "count": {
+      "one": "{count} entry",
+      "other": "{count} entries"
+    },
+    "none": "No entry for these filters."
+  },
+  "announcement": {
+    "intro": "A message shown in a banner to everyone signed in, right away, until you remove it or its time is over.",
+    "text": "Message",
+    "textHint": "Plain text, 500 characters at most.",
+    "level": "Tone",
+    "levels": {
+      "info": "Information",
+      "warning": "Warning"
+    },
+    "duration": "Duration",
+    "untilRemoved": "Until I remove it",
+    "hours": {
+      "one": "{count} hour",
+      "other": "{count} hours"
+    },
+    "publish": "Publish",
+    "remove": "Remove",
+    "published": "Announcement published.",
+    "removed": "Announcement removed.",
+    "current": "Showing now:",
+    "until": "(until {date})",
+    "noEnd": "(no end)",
+    "nothing": "No announcement right now."
+  },
+  "status": {
+    "title": "Lab status",
+    "subtitle": "Health of the access chain and what is recorded",
+    "tabs": {
+      "health": "Health",
+      "journaling": "What is recorded"
+    },
+    "intro": "What the server sees: the SSH jump server, the console servers behind it, and Proxmox. Checked every 30 seconds at most.",
+    "refresh": "Check now",
+    "checked": "Check done.",
+    "checkedAt": "Checked on {date}.",
+    "parts": {
+      "jump": "SSH jump server",
+      "consoleServers": "Console servers",
+      "consoleServer": "Console server",
+      "proxmox": "Proxmox",
+      "proxmoxTunnel": "Proxmox tunnel"
+    },
+    "states": {
+      "ok": "answering",
+      "down": "not answering",
+      "unknown": "unknown",
+      "off": "not configured",
+      "partial": "partly",
+      "connected": "connected",
+      "idle": "idle (connects on first use)"
+    },
+    "serversUp": {
+      "one": "{ok} of {count} answering",
+      "other": "{ok} of {count} answering"
+    },
+    "columns": {
+      "part": "Part",
+      "address": "Address",
+      "state": "State",
+      "error": "Error"
+    },
+    "tunnel": "tunnel {state}",
+    "tunnelDetail": {
+      "one": "{connections} connection, {channels} open channels",
+      "other": "{connections} connections, {channels} open channels"
+    }
+  },
+  "journaling": {
+    "intro": "What the platform keeps of what you do, and for how long.",
+    "audit": {
+      "title": "Audit trail",
+      "what": "Sign-ins and sign-outs, consoles opened and control handovers, administration actions (accounts, parameters, diagram, sessions, announcements), with the person, the time and the address.",
+      "kept": "Kept on the server, one file per month, never deleted automatically; only administrators read it."
+    },
+    "consoles": {
+      "title": "Console journal",
+      "what": "What the devices print on the consoles opened from the platform, with who had the keyboard. Never what you type.",
+      "kept": {
+        "one": "Kept {count} day, readable by the participants, the team that held the bench and administrators.",
+        "other": "Kept {count} days, readable by the participants, the team that held the bench and administrators."
+      }
+    },
+    "noConsoleJournal": {
+      "title": "Console journal",
+      "what": "This version does not record what the consoles print yet.",
+      "kept": "Nothing is kept."
+    },
+    "sessions": {
+      "title": "Sessions",
+      "what": "Your session keeps your identity, your address and your browser; administrators see them.",
+      "kept": "It ends after {idle} h without activity and after {max} h at most."
+    },
+    "never": {
+      "title": "Never kept",
+      "what": "Your passwords (only a hash), one-time codes, what you type in the consoles."
+    }
+  },
+  "errors": {
+    "confirm_unavailable": "This account cannot confirm here: sign in with the local administrator, an administrator account with a passkey, or through the identity provider.",
+    "confirm_throttled": "Too many confirmation attempts: wait a few minutes.",
+    "confirm_failed": "Confirmation refused.",
+    "confirm_required": "Confirm the change first (passkey, or password and code).",
+    "diagram_empty_file": "The file is empty.",
+    "diagram_too_large": "The diagram is too large: 5 MB at most, and its pages may not inflate to more than 20 MB.",
+    "diagram_doctype": "Refused: a diagram may not declare a DOCTYPE or entities.",
+    "diagram_invalid": "Not a readable draw.io diagram: {detail}",
+    "diagram_no_device": "This diagram has no device with a console.",
+    "diagram_unknown": "No such version.",
+    "diagram_already_active": "This version is already the active diagram.",
+    "diagram_no_previous": "There is no previous diagram.",
+    "switches_invalid": "Some lines are not valid.",
+    "session_unknown": "This session no longer exists.",
+    "audit_bad_filter": "Invalid filter.",
+    "announcement_empty": "Write the message first.",
+    "announcement_invalid": "An announcement is plain text, 500 characters at most, for 1 hour to 30 days.",
+    "diagram_lint": {
+      "one": "Refused: {count} console line is shared by different devices ({lines}). Fix the diagram (npm run check-diagram says the same).",
+      "other": "Refused: {count} console lines are shared by different devices ({lines}). Fix the diagram (npm run check-diagram says the same)."
+    },
+    "sso_confirm_failed": "The identity provider did not confirm your sign-in. Nothing was changed.",
+    "sso_confirm_mismatch": "The sign-in at the identity provider was not yours, or not an administrator’s. Nothing was changed.",
+    "sso_confirm_expired": "Your session ended while you were at the identity provider. Nothing was changed.",
+    "sso_unreachable": "The identity provider could not be reached."
+  }
+}

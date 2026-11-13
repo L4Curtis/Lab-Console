@@ -15,6 +15,7 @@ export const session = {
   user: null,          // User (ARCHITECTURE §5) or null when nobody is signed in
   locale: 'fr',        // server default language, for a first visit
   providerName: null,  // label of the identity provider's sign-in button; null when there is none
+  passkeys: false,     // whether this site offers passkeys (https, or localhost)
   get isAdmin() { return this.user?.role === 'admin'; },
 };
 
@@ -28,6 +29,7 @@ export function loadSession({ reload = false } = {}) {
         session.user = me?.user ?? null;
         session.locale = me?.locale ?? 'fr';
         session.providerName = me?.providerName ?? null;
+        session.passkeys = me?.passkeys === true;
       })
       .catch((err) => { console.warn(`[session] /auth/me failed: ${err.message}`); })
       .then(() => { session.loaded = true; return session; });

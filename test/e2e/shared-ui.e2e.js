@@ -36,7 +36,7 @@ test('boot: session and language are loaded before the screens, without errors',
     return { user: session.user.id, isAdmin: session.isAdmin, loaded: session.loaded, locale: getLocale(), cancel: t('common.actions.cancel') };
   });
   assert.deepEqual(state, { user: 'oidc:admin', isAdmin: true, loaded: true, locale: 'fr', cancel: 'Annuler' });
-  assert.equal(await page.locator('#rail-items .rail-btn').count(), 3, 'the existing sections are still there, and Team');
+  assert.equal(await page.locator('#rail-items .rail-btn').count(), 5, 'the existing sections are still there, Team, Administration for an administrator, and the lab status');
   await page.waitForSelector('section.view-consoles svg');
   assert.ok(await page.locator('section.view-consoles svg').count() > 0, 'the consoles screen rendered its diagram');
   assert.deepEqual(pageErrors, []);
@@ -383,7 +383,7 @@ test('language switch: the FR / EN buttons in the rail change the visible texts 
     theme: document.querySelector('#theme-toggle span').textContent,
     title: document.querySelector('section.view-consoles .view-title h1').textContent,
   }));
-  assert.deepEqual(await texts(), { rail: ['Consoles', 'Équipe', 'Infra'], theme: 'Thème', title: 'Consoles du labo' });
+  assert.deepEqual(await texts(), { rail: ['Consoles', 'Équipe', 'Infra', 'Administration', 'État du labo'], theme: 'Thème', title: 'Consoles du labo' });
   const before = await texts();
   await setLanguage(page, 'en');
   assert.equal(await page.getAttribute('.lang-btn[data-lang="en"]', 'aria-pressed'), 'true');

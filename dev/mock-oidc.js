@@ -26,6 +26,8 @@
  *   groupsInUserinfoOnly  no groups in the ID token, only at /userinfo
  *   groupsAsString        groups is one string ("students,admins"), not an array
  *   badSignature          the ID token's signature does not verify
+ *   staleSignIn           the ID token says the person signed in an hour ago, as a provider
+ *                         that ignores prompt=login would (a re-authentication must be refused)
  *   noUserinfo / noEndSession   the endpoint is not advertised
  */
 import crypto from 'node:crypto';
@@ -232,7 +234,8 @@ export async function startMockOidc({
     const accessToken = random();
     accessTokens.set(accessToken, { user, expiresAt: Date.now() + 5 * 60_000 });
     const idToken = signJwt({
-      iss: issuer, sub: user.sub, aud: clientId, iat: now, exp: now + 300, auth_time: now,
+      iss: issuer, sub: user.sub, aud: clientId, exp: now + 300,
+      iat: flags.staleSignIn ? now - 3600 : now, auth_time: flags.staleSignIn ? now - 3600 : now,
       ...(grant.nonce !== null ? { nonce: flags.wrongNonce ? `not-${grant.nonce}` : grant.nonce } : {}),
       name: user.name, preferred_username: user.username, email: user.email,
       ...(flags.groupsInUserinfoOnly ? {} : { groups: groupsOf(user) }),

@@ -63,6 +63,13 @@ export function createPendingLogins({ ttlMs = 10 * 60_000, max = 5000, perOwner 
       return entry.expiresAt > now() ? entry.data : null;
     },
 
+    /** Look at the data without taking it. null when unknown or expired */
+    peek(id) {
+      if (typeof id !== 'string' || !ID.test(id)) return null;
+      const entry = entries.get(hashOf(id));
+      return entry && entry.expiresAt > now() ? entry.data : null;
+    },
+
     /** Forget without using (the browser started over) */
     discard(id) {
       if (typeof id === 'string' && ID.test(id)) forget(hashOf(id));
