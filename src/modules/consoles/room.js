@@ -136,7 +136,10 @@ export class ConsoleRoom extends EventEmitter {
     p.user = user; // the latest copy (a name change)
     p.clients++;
     if (!client.readOnly) p.counted++;
-    this.journal?.attended(user);
+    // The journal's read rights come from being on the line as someone who may drive it; a
+    // spectator (a wall tile, an outsider watching an open line) is named for display only
+    if (!client.readOnly && this.canPilot(user)) this.journal?.attended(user);
+    else this.journal?.watched?.(user);
 
     // What a newcomer needs before the live stream: where the line stands, then the recent output
     if (this.session.lastStatus) client.send({ type: 'status', ...this.session.lastStatus });
@@ -334,6 +337,11 @@ export class ConsoleRoom extends EventEmitter {
    *   - refused at once when the room is closed, a task already runs, or the
    *     actor may not pilot (spectators): codes consoles.room_closed,
    *     consoles.task_running, consoles.control_not_allowed;
+   *   - the actor's right to pilot is asked again once the keyboard is
+   *     obtained, once the line is ready, and before every byte the task
+   *     sends: a bench locked (or taken by another team, or the account
+   *     disabled) meanwhile stops it with consoles.control_not_allowed, and
+   *     nothing more reaches the device;
    *   - otherwise the keyboard is obtained with the handover rule; a pilot's
    *     "deny" rejects with consoles.control_refused;
    *   - then it waits until the line is ready (console server login done),
@@ -359,16 +367,26 @@ export class ConsoleRoom extends EventEmitter {
     this.#changed();
     let outcome = 'done';
     let obtained = false;
+    const mayGoOn = () => !user || this.canPilot(user);
+    const notAllowed = () => new RoomError(`You may watch ${this.device.name}, not drive it.`, 'consoles.control_not_allowed', { name: this.device.name });
     try {
       await this.#cancellable(task, this.#obtain(task, user));
       obtained = true;
+      if (!mayGoOn()) throw notAllowed();
       await this.#cancellable(task, this.session.ready);
       if (this.#closed) throw new RoomError('This console has closed.', 'consoles.room_closed');
+      if (!mayGoOn()) throw notAllowed();
       task.state = 'running';
       task.abort = () => this.cli.cancel();
       this.journal?.mark(`task ${task.label} by ${task.actor.name}`);
       this.#changed();
-      return await this.cli.perform(task.label, (cli) => fn(cli));
+      try {
+        return await this.cli.perform(task.label, (cli) => fn(cli), { allowed: mayGoOn });
+      } catch (err) {
+        // Stopped because the actor lost the right to drive, not by a Stop
+        if (err.cancelled && !mayGoOn()) throw Object.assign(notAllowed(), { cause: err });
+        throw err;
+      }
     } catch (err) {
       // The line went away under the task (dropped, freed, timed out): not a user's Stop
       if (this.#closed) {
@@ -502,6 +520,12 @@ export class ConsoleRoom extends EventEmitter {
   /** A request was answered yes (or by the clock): a person gets the keyboard, a task goes on */
   #hand(pending, event, by) {
     if (pending.kind === 'task') {
+      // A person's task goes on only while its actor may still drive (a bench locked during the wait)
+      if (pending.from !== SYSTEM && !this.canPilot(pending.from)) {
+        pending.reject?.(new RoomError(`You may watch ${this.device.name}, not drive it.`, 'consoles.control_not_allowed', { name: this.device.name }));
+        this.#changed();
+        return refusal('consoles.control_not_allowed', { name: this.device.name });
+      }
       this.#control(event, by, pending.from, { label: pending.label });
       pending.resolve?.();
       this.#changed();

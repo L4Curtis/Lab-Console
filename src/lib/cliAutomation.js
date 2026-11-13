@@ -3,7 +3,9 @@
  *
  * Two layers live here:
  *   1. A small step API that device drivers (src/lib/drivers/) compose:
- *        perform(label, fn)   take the keyboard: the one exclusive task on this line
+ *        perform(label, fn, { allowed })   take the keyboard: the one exclusive task on this line;
+ *                             `allowed()` is asked before every byte the task sends: once it
+ *                             says no, nothing more is sent and the task stops (`cancelled`)
  *        command(cmd, opts)   run a command, capture its output, answer --More--
  *        wait / expect        wait for a pattern (timeout, idle, settle)
  *        waitQuiet(ms)        wait until the device stops printing
@@ -76,6 +78,7 @@ export class CliAutomation {
   #moreAnswered = 0;  // … and answered with a space
   #moreTail = '';     // end of the previous chunk, so a marker split across chunks still counts
   #erase = null;      // IOS's erase of an answered marker, when it would hit other text: { phase, n }
+  #allowed = null;    // the running task's right to type, asked before every byte it sends
 
   /**
    * @param write   (text) => void - raw bytes to the device, bypassing the student lock
@@ -119,7 +122,7 @@ export class CliAutomation {
       if (this.#moreSeen > this.#moreAnswered) {
         this.#moreAnswered = this.#moreSeen;
         this.#erase = { phase: 'armed', n: 0 };
-        this.write(' ');
+        try { this.#out(' '); } catch { /* the task lost its right to type: it is being cancelled */ }
       }
     }
     this.#waiter?.poke();
@@ -128,8 +131,8 @@ export class CliAutomation {
   // ── Composable steps: the public API drivers build on ─────────────────────
 
   /** Take the keyboard and run `fn(this)` as the one exclusive task on this line. */
-  perform(label, fn) {
-    return this.#run(label, () => fn(this));
+  perform(label, fn, { allowed = null } = {}) {
+    return this.#run(label, () => fn(this), allowed);
   }
 
   /** The cleaned output captured so far (ANSI / CR stripped, backspaces applied). */
@@ -145,10 +148,10 @@ export class CliAutomation {
   reset() { this.#clear(); }
 
   /** Send `text` to the device at once (no pacing). */
-  send(text = '') { this.#needTask(); this.write(text); }
+  send(text = '') { this.#needTask(); this.#out(text); }
 
   /** Send `text` + Enter at once. */
-  sendLine(text = '') { this.#needTask(); this.write(`${text}\r`); }
+  sendLine(text = '') { this.#needTask(); this.#out(`${text}\r`); }
 
   /** Type `text` in small chunks so a slow console's input buffer never overflows. */
   async type(text, opts = {}) {
@@ -221,7 +224,7 @@ export class CliAutomation {
     this.#autoMore = paging;
     try {
       if (pace) await this.#type(`${cmd}\r`, DEFAULT_TYPING);
-      else this.write(`${cmd}\r`);
+      else this.#out(`${cmd}\r`);
       const outcome = await this.#waitFor(asTest(until), { timeout, idle, settle });
       return { output: this.#buf, complete: outcome === 'match', outcome };
     } finally {
@@ -235,7 +238,7 @@ export class CliAutomation {
    */
   async findPrompt({ nudge = true, timeout = 6000 } = {}) {
     this.#needTask();
-    if (nudge) { this.#clear(); this.write('\r'); }
+    if (nudge) { this.#clear(); this.#out('\r'); }
     const ok = await this.#waitFor((b) => CISCO_PROMPT.test(screenTail(b)), { timeout, settle: 150 });
     if (ok !== 'match') throw new AutomationError('No Cisco prompt answered. Log in to the device first (until you see a prompt such as R1# ), then try again.', 'automation.no_prompt');
     const [, host, configMode, mark] = screenTail(this.#buf).match(CISCO_PROMPT);
@@ -366,9 +369,10 @@ export class CliAutomation {
 
   // ── Internals ─────────────────────────────────────────────────────────────
 
-  async #run(task, fn) {
+  async #run(task, fn, allowed = null) {
     if (this.#task) throw new AutomationError(`Another task (${this.#task}) is still running on this console.`, 'automation.busy_task', { task: this.#task });
     this.#task = task;
+    this.#allowed = typeof allowed === 'function' ? allowed : null;
     this.#cancelled = false;
     this.#clear();
     this.onStart(task);
@@ -376,6 +380,7 @@ export class CliAutomation {
       return await fn();
     } finally {
       this.#task = null;
+      this.#allowed = null;
       this.#autoMore = false;
       this.#clear();
     }
@@ -385,7 +390,7 @@ export class CliAutomation {
   async #type(text, { chunkBytes, chunkDelayMs }) {
     for (let i = 0; i < text.length; i += chunkBytes) {
       this.#checkCancelled();
-      this.write(text.slice(i, i + chunkBytes));
+      this.#out(text.slice(i, i + chunkBytes));
       if (i + chunkBytes < text.length) await this.#sleep(chunkDelayMs);
     }
   }
@@ -471,6 +476,15 @@ export class CliAutomation {
     this.#erase = null;
   }
   #checkCancelled() { if (this.#cancelled) throw new Cancelled(); }
+
+  /** Bytes of the running task to the device: never once it lost its right to type */
+  #out(text) {
+    if (this.#allowed && !this.#allowed()) {
+      this.cancel();
+      throw new Cancelled();
+    }
+    this.write(text);
+  }
   #needTask() {
     if (!this.#task) throw new AutomationError('A console step ran outside perform(): nothing would be captured.', 'automation.no_task');
   }

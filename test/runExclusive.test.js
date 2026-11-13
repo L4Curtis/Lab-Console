@@ -201,3 +201,63 @@ test('runExclusive: a line a job opened and nobody watches hangs up after the gr
   assert.equal(await r.runExclusive('system', 'backup', async () => 'saved'), 'saved');
   await until(() => r.closed);
 });
+
+test('runExclusive: a person\'s task stops once its actor may no longer pilot: during the wait for the pilot, for the line, and while it runs; nothing more is typed', async () => {
+  // 1. the bench is locked while the pilot is asked, and the pilot does not answer
+  let bobMay = true;
+  const rule = (u) => u.id !== eve.id && (u.id !== bob.id || bobMay);
+  const r = room({ options: { controlTimeoutMs: 80 }, canPilot: rule });
+  const a = attach(r, alice);
+  attach(r, bob);
+  r.write(alice, 'x');
+  let ran = false;
+  const waiting = r.runExclusive(bob, 'inject', async (cli) => { ran = true; cli.send('conf t\r'); });
+  await until(() => a.event('request'));
+  bobMay = false;
+  await assert.rejects(waiting, { code: 'consoles.control_not_allowed', params: { name: 'R1' } });
+  assert.equal(ran, false, 'the task never ran');
+  assert.ok(!r.session.typed.some((x) => x.startsWith('[cli]')), 'not a byte reached the device');
+  assert.equal(r.task, null);
+  assert.equal(r.pilot, alice.id, 'the pilot keeps the keyboard');
+
+  // …and when the pilot says yes after the lock
+  bobMay = true;
+  const granted = r.runExclusive(bob, 'inject', async () => { ran = true; });
+  await until(() => r.presence(alice).pending?.kind === 'task');
+  bobMay = false;
+  r.grantControl(r.presence(alice).pending.from.id, alice);
+  await assert.rejects(granted, { code: 'consoles.control_not_allowed' });
+  assert.equal(ran, false);
+
+  // 2. locked while the line is still logging in
+  let ready;
+  bobMay = true;
+  const slow = room({ session: fakeSession({ ready: new Promise((res) => { ready = res; }) }), canPilot: rule });
+  attach(slow, bob);
+  const pending = slow.runExclusive(bob, 'export', async () => { ran = true; });
+  await tick();
+  assert.equal(slow.task.state, 'waiting');
+  bobMay = false;
+  ready();
+  await assert.rejects(pending, { code: 'consoles.control_not_allowed' });
+  assert.equal(ran, false);
+
+  // 3. locked while it runs: the next byte is not sent, the task stops
+  bobMay = true;
+  const run = room({ canPilot: rule });
+  attach(run, bob);
+  const running = run.runExclusive(bob, 'inject', async (cli) => {
+    cli.send('line 1\r');
+    bobMay = false;
+    cli.send('line 2\r');
+    cli.send('line 3\r');
+  });
+  await assert.rejects(running, (err) => err.code === 'consoles.control_not_allowed' && !err.cancelled);
+  assert.deepEqual(run.session.typed.filter((x) => x.startsWith('[cli]')), ['[cli]line 1\r']);
+  assert.equal(run.task, null);
+  assert.equal(run.write(bob, 'z'), false, 'and no keyboard either');
+
+  // A system task is not a person: the bench rule does not stop it
+  const job = room({ canPilot: () => false });
+  assert.equal(await job.runExclusive('system', 'backup', async (cli) => { cli.send('x'); return 'ok'; }), 'ok');
+});
