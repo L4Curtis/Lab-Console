@@ -313,7 +313,8 @@ describe('local administrator sign-in', () => {
       c.advance(2 ** Math.max(0, i - 1) * 1000);
     }
     for (let i = 0; i < 44; i++) assert.equal(await guess(`name${i}`), 401, `guess ${i}`); // fifty failures in all
-    assert.equal(await guess('someone-else'), 429, 'the global count is full');
+    assert.equal(await guess('someone-else'), 401, 'a name nobody failed on still gets its try');
+    assert.equal(await guess('someone-else'), 429, 'then the full global count holds it');
     assert.equal(await guess('root'), 429, 'and the name is backed off');
 
     c.advance(31_000); // a new code
@@ -328,8 +329,8 @@ describe('local administrator sign-in', () => {
     assert.equal(entry.details.knownBrowser, true);
 
     // The cookie only counts for its own name, and is limited on its own
-    const other = await postLocalSignIn(lab, { username: 'someone', password: 'x-x-x-x-x-x', code: adminCode(c.ms), ip: '192.0.2.53' }, mine);
-    assert.equal(other.status, 429, 'for another name the browser is a stranger');
+    const other = await postLocalSignIn(lab, { username: 'someone-else', password: 'x-x-x-x-x-x', code: adminCode(c.ms), ip: '192.0.2.53' }, mine);
+    assert.equal(other.status, 429, 'for another name the browser is a stranger: the shared refusals reach it');
     await other.arrayBuffer();
     for (let i = 0; i < 2; i++) {
       const wrong = await post({ ip: '192.0.2.54', password: 'not-the-password' }, mine);

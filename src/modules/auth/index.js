@@ -156,6 +156,11 @@ export function createAuth({ config, logger, events, store, audit, services = {}
     return session;
   }
 
+  /** This browser has signed in as `username`: from now on it is limited on its own (throttle.js, devices.js) */
+  function rememberBrowser(res, username) {
+    appendCookie(res, serializeCookie(cookies.device, devices.issue(username), { secure: cookies.secure, maxAgeSeconds: devices.maxAgeMs / 1000 }));
+  }
+
   function attach(req, _res, next) {
     const session = sessions.find(tokenOf(req));
     if (session) {
@@ -312,13 +317,13 @@ export function createAuth({ config, logger, events, store, audit, services = {}
     }
     // The password was right but this account owes a passkey: no session until it is given
     if (answer.requires.length) {
-      startStep(req, res, user, answer.requires, { returnTo: safeReturnPath(body.next), deviceName: username, method: 'local' });
+      startStep(req, res, user, answer.requires, { returnTo: safeReturnPath(body.next), deviceName: username, method: 'local', binding: answer.binding });
       audit?.log(req, 'auth.login.step', { method: 'local', step: answer.requires[0], username: user.username });
       return res.json({ step: answer.requires[0] });
     }
 
     const session = signIn(req, res, user);
-    appendCookie(res, serializeCookie(cookies.device, devices.issue(username), { secure: cookies.secure, maxAgeSeconds: devices.maxAgeMs / 1000 }));
+    rememberBrowser(res, username);
     audit?.log(req, 'auth.login', { method: 'local', session: session.id, role: user.role, knownBrowser: Boolean(device) });
     res.json({ redirect: safeReturnPath(body.next) });
   });
@@ -344,9 +349,9 @@ export function createAuth({ config, logger, events, store, audit, services = {}
   router.use('/auth', (_req, res) => sendError(res, 404, 'server.not_found', 'Not found'));
 
   // ── Further steps: a password that was right, a passkey still owed ─────────
-  function startStep(req, res, user, requires, { returnTo = '/', deviceName = null, method = 'local' } = {}) {
+  function startStep(req, res, user, requires, { returnTo = '/', deviceName = null, method = 'local', binding = null } = {}) {
     steps.discard(readCookie(req, cookies.step));
-    const id = steps.put({ user, requires: [...requires], returnTo, deviceName, method }, { owner: clientIp(req, serverTrust) });
+    const id = steps.put({ user, requires: [...requires], returnTo, deviceName, method, binding }, { owner: clientIp(req, serverTrust) });
     appendCookie(res, serializeCookie(cookies.step, id, { secure: cookies.secure, maxAgeSeconds: steps.ttlMs / 1000 }));
   }
   const stepOf = (req) => steps.peek(readCookie(req, cookies.step));
@@ -416,16 +421,27 @@ export function createAuth({ config, logger, events, store, audit, services = {}
       /**
        * Sign this browser in as `user`, whom the caller has just authenticated
        * (a passkey, an invitation): the browser's previous session ends, a new
-       * one is opened and its cookie set on `res`. → the session ({ id, user, … })
+       * one is opened and its cookie set on `res`. A local account's browser
+       * becomes known for its name (devices.js), as after a password: the
+       * shared limits of the local form no longer keep it out. → the session ({ id, user, … })
        */
-      open: (req, res, user, { idToken } = {}) => signIn(req, res, user, { idToken }),
+      open(req, res, user, { idToken } = {}) {
+        const session = signIn(req, res, user, { idToken });
+        if (user.via === 'local') rememberBrowser(res, user.username);
+        return session;
+      },
     },
     accounts: { add: accounts.add, get providers() { return accounts.ids; } },
     steps: {
-      /** The sign-in this browser has in progress: { user, requires, returnTo } or null */
+      /**
+       * The sign-in this browser has in progress: { user, requires, returnTo,
+       * binding } or null. `binding` is what the account provider attached
+       * when the step started (accounts.js), for it to check that the
+       * credentials it was started with are still valid
+       */
       peek: (req) => {
         const step = stepOf(req);
-        return step ? { user: step.user, requires: step.requires, returnTo: step.returnTo } : null;
+        return step ? { user: step.user, requires: step.requires, returnTo: step.returnTo, binding: step.binding ?? null } : null;
       },
       /**
        * The owed proof was given: the step ends, a session opens, the browser
@@ -438,9 +454,7 @@ export function createAuth({ config, logger, events, store, audit, services = {}
         if (!step) return null;
         if (user && user.id !== step.user.id) throw new Error('A step is completed for the person who started it');
         const session = signIn(req, res, user ?? step.user);
-        if (step.deviceName) {
-          appendCookie(res, serializeCookie(cookies.device, devices.issue(step.deviceName), { secure: cookies.secure, maxAgeSeconds: devices.maxAgeMs / 1000 }));
-        }
+        if (step.deviceName) rememberBrowser(res, step.deviceName);
         audit?.log(req, 'auth.login', { method: `${step.method}+${method}`, session: session.id, role: session.user.role });
         return { redirect: step.returnTo };
       },
@@ -448,9 +462,12 @@ export function createAuth({ config, logger, events, store, audit, services = {}
       fail(req, res) {
         return Boolean(endStep(req, res));
       },
-      /** Start a step for someone the caller authenticated another way (a new account that owes a passkey) */
-      start(req, res, user, requires, { returnTo = '/', method = 'signup' } = {}) {
-        startStep(req, res, user, requires, { returnTo: safeReturnPath(returnTo), method });
+      /**
+       * Start a step for someone the caller authenticated another way (a new
+       * account that owes a passkey); `binding` as for a provider's answer
+       */
+      start(req, res, user, requires, { returnTo = '/', method = 'signup', binding = null } = {}) {
+        startStep(req, res, user, requires, { returnTo: safeReturnPath(returnTo), deviceName: user.via === 'local' ? user.username : null, method, binding });
       },
     },
     /**
@@ -468,13 +485,18 @@ export function createAuth({ config, logger, events, store, audit, services = {}
       /**
        * Replace the identity provider's settings without a restart. `raw` has
        * the shape of normalizeOidcSettings(); an omitted clientSecret keeps
-       * the current one. Open sessions are not touched; sign-ins in progress
-       * have to start again. Throws a TypeError listing the problems
+       * the current one, for the same issuer and client id only (a secret
+       * never goes to another provider). Open sessions are not touched;
+       * sign-ins in progress have to start again. Throws a TypeError listing the problems
        */
       configure(raw) {
         const merged = { ...oidcSettings, ...raw, enabled: raw.enabled };
-        if (raw.clientSecret === undefined) merged.clientSecret = oidcSettings.clientSecret;
+        const keepsSecret = raw.clientSecret === undefined;
+        if (keepsSecret) merged.clientSecret = oidcSettings.clientSecret;
         const { settings: next, problems } = normalizeOidcSettings(merged);
+        if (keepsSecret && oidcSettings.clientSecret && (next.issuer !== oidcSettings.issuer || next.clientId !== oidcSettings.clientId)) {
+          problems.push('OIDC_CLIENT_SECRET: a new issuer or client id needs its own secret (or an empty one for a public client)');
+        }
         if (problems.length) throw Object.assign(new TypeError(problems.join('; ')), { problems });
         buildOidc(next);
         return visibleSettings(next);

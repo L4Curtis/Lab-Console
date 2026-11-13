@@ -15,6 +15,10 @@
  * passkey, for an account promoted to administrator) answers
  * `{ user, requires: ['passkey'] }` or `['passkey-enrol']`: the sign-in then
  * continues as a step (auth.steps, index.js) instead of opening a session.
+ * It may add `binding`: whatever it needs to tell later that the credentials
+ * the step was started with are still the account's (a fingerprint of the
+ * password hash, the passkeys it had); the step keeps it and auth.steps.peek()
+ * hands it back, untouched.
  *
  * The contract every provider keeps: the same work, the same answer and the
  * same time whether or not the user name exists (hash a dummy password for
@@ -50,8 +54,8 @@ export function createAccountProviders(initial = []) {
       const matches = answers.filter((a) => a?.user);
       // Two providers claiming the same credentials is a configuration error, never a sign-in
       if (matches.length !== 1) return null;
-      const [{ user, requires }] = matches;
-      return { user, requires: Array.isArray(requires) ? requires.filter((r) => typeof r === 'string') : [] };
+      const [{ user, requires, binding }] = matches;
+      return { user, requires: Array.isArray(requires) ? requires.filter((r) => typeof r === 'string') : [], binding: binding ?? null };
     },
   };
 }

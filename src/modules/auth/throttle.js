@@ -11,13 +11,18 @@
  *     waits twice as long as the previous one (1 s, 2 s, 4 s… up to
  *     `maxBackoffMs`), and only one attempt per name is in flight at a time.
  *     This is what stops a guessing campaign spread over many addresses;
- *   - globally: at most `global` failed attempts in `windowMs`, whatever
- *     their origin, as a last resort.
+ *   - globally: once `global` attempts failed in `windowMs`, whatever their
+ *     origin, a name that has failed itself gets no further attempt until the
+ *     count goes down, as a last resort against guesses spread over many
+ *     names and addresses. A name with no failure of its own still gets in:
+ *     the local form is the way in for every invited student, so strangers
+ *     failing on names they made up must never refuse a right password for
+ *     an account they never tried.
  *
  * The last two are shared by everyone, so on their own they would let any
- * stranger keep the administrator out for good: one wrong guess on the name
- * each time its backoff expires, or fifty random failures every quarter of an
- * hour. Hence known browsers (the "device cookie" of the OWASP guidance on
+ * stranger keep the owner of a name out for good: one wrong guess on the
+ * name each time its backoff expires, then fifty random failures every
+ * quarter of an hour. Hence known browsers (the "device cookie" of the OWASP guidance on
  * lockouts, see devices.js): a browser that already signed in with this name
  * presents a signed cookie, and its attempts are counted on that browser
  * alone - `perClient` attempts per window and its own backoff - instead of
@@ -119,7 +124,7 @@ export function createLoginThrottle(options = {}) {
       const userKey = nameKey(username);
 
       failures = recent(failures, at);
-      if (failures.length >= global) return refuse('global', failures[0] + windowMs - at);
+      const crowded = failures.length >= global;
 
       const mine = recent(clients.get(clientKey) ?? [], at);
       if (mine.length >= perClient) {
@@ -134,6 +139,8 @@ export function createLoginThrottle(options = {}) {
         entry = undefined;
       }
       if (entry?.inFlight) return refuse('name', baseBackoffMs);
+      // Under a crowd of failures, only the names that failed themselves wait
+      if (crowded && entry?.failures > 0) return refuse('global', failures[0] + windowMs - at);
       if (entry) {
         const wait = entry.lastFailureAt + backoffOf(entry) - at;
         if (wait > 0) return refuse('name', wait);
