@@ -287,6 +287,17 @@ describe('roles, states and the last administrator', () => {
     assert.equal((await call(lab, 'admin', 'PATCH', '/api/accounts/users/local%3Anobody', { state: 'active' })).status, 404);
   });
 
+  test('a change of role and state together is all or nothing: a pending account keeps its role', async () => {
+    const { token } = await invite(lab, { uses: 2 });
+    assert.deepEqual((await signUp(lab, token, { username: 'hugo' })).body, { pending: true });
+    const res = await call(lab, 'admin', 'PATCH', '/api/accounts/users/local%3Ahugo', { role: 'admin', state: 'active' });
+    assert.equal(res.status, 409);
+    assert.equal(res.body.code, 'accounts.pending');
+    const hugo = (await call(lab, 'admin', 'GET', '/api/accounts/users')).body.users.find((u) => u.id === 'local:hugo');
+    assert.deepEqual([hugo.role, hugo.state], ['student', 'pending']);
+    assert.equal((await auditEntries(lab, 'accounts.role')).some((e) => e.details.account === 'local:hugo'), false);
+  });
+
   test('a student and nobody are refused every administration route', async () => {
     const routes = [
       ['GET', '/api/accounts/users'], ['PATCH', '/api/accounts/users/local%3Agina', { role: 'admin' }],

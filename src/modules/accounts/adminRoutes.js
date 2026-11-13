@@ -58,6 +58,8 @@ export function adminRoutes(ctx) {
       throw httpError(400, 'accounts.bad_role', 'Unknown role');
     }
     if (wantsState && !['active', 'disabled'].includes(input.state)) throw httpError(400, 'accounts.bad_state', 'Unknown state');
+    // Refused before anything is saved: a request changes all it asks for, or nothing
+    if (wantsState && account.state === 'pending') throw httpError(409, 'accounts.pending', 'Approve or reject this account first');
     // A local administrator signs in with a passkey: there must be a way to register one
     if (wantsRole && input.role === 'admin' && account.via === 'local' && !rp.available) {
       throw httpError(409, 'accounts.passkeys_unavailable', 'A local account can only be an administrator when passkeys are available (https)');
@@ -65,20 +67,27 @@ export function adminRoutes(ctx) {
 
     let summary = directory.summary(account);
     const entries = [];
-    if (wantsRole) {
-      const { before, after, changed: stored, account: updated } = await directory.setRole(account.id, input.role);
-      summary = updated;
-      if (stored) entries.push(['accounts.role', { account: account.id, username: account.username, from: before, to: after, ...(account.via === 'oidc' ? { forced: input.role } : {}) }]);
+    let ended = 0;
+    try {
+      if (wantsRole) {
+        const { before, after, changed: stored, account: updated } = await directory.setRole(account.id, input.role);
+        summary = updated;
+        if (stored) entries.push(['accounts.role', { account: account.id, username: account.username, from: before, to: after, ...(account.via === 'oidc' ? { forced: input.role } : {}) }]);
+      }
+      if (wantsState) {
+        const { before, after, account: updated } = await directory.setState(account.id, input.state);
+        summary = updated;
+        if (before !== after) entries.push(['accounts.state', { account: account.id, username: account.username, from: before, to: after }]);
+      }
+    } finally {
+      // Whatever changed, the account starts again from a sign-in that sees the
+      // change - also when the role was saved and the state then refused
+      if (entries.length) {
+        ended = auth.sessions.revokeUser(account.id);
+        for (const [action, details] of entries) audit.log(req, action, { ...details, sessionsEnded: ended });
+        changed('users');
+      }
     }
-    if (wantsState) {
-      const { before, after, account: updated } = await directory.setState(account.id, input.state);
-      summary = updated;
-      if (before !== after) entries.push(['accounts.state', { account: account.id, username: account.username, from: before, to: after }]);
-    }
-    // Whatever changed, the account starts again from a sign-in that sees the change
-    const ended = entries.length ? auth.sessions.revokeUser(account.id) : 0;
-    for (const [action, details] of entries) audit.log(req, action, { ...details, sessionsEnded: ended });
-    if (entries.length) changed('users');
     res.json({ account: summary, sessionsEnded: ended });
   });
 
