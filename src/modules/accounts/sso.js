@@ -138,7 +138,8 @@ export function createSso({ config, store, auth, logger, now = Date.now, fetchOp
 
   /**
    * Save and apply. `body` is what the page sent: every field, plus
-   * `clientSecret` (a new secret; absent or empty = keep the current one)
+   * `clientSecret` (a new secret; absent or empty = keep the current one,
+   * refused when the issuer or the client id changes: secret_required)
    * and `clearClientSecret: true` (a public client from now on).
    * → { changed: [field names], secretChanged }. Throws { status, code, problems } on refusal
    */
@@ -149,6 +150,15 @@ export function createSso({ config, store, auth, logger, now = Date.now, fetchOp
 
     const current = auth.oidc.settings;
     const newSecret = typeof body.clientSecret === 'string' && body.clientSecret !== '' ? body.clientSecret.slice(0, 1000) : undefined;
+    // The saved secret belongs to one client of one provider: it never follows
+    // a change of issuer or client id, or anyone able to save this page could
+    // send it to a provider of their choosing and read it there
+    const otherClient = values.issuer !== current.issuer || values.clientId !== current.clientId;
+    if (current.hasClientSecret && otherClient && newSecret === undefined && body.clearClientSecret !== true) {
+      throw Object.assign(new Error('A new issuer or client id needs its own client secret'), {
+        status: 400, code: 'accounts.sso_invalid', problems: [{ field: 'clientSecret', code: 'secret_required' }],
+      });
+    }
     const secretChanged = Boolean(newSecret) || (body.clearClientSecret === true && current.hasClientSecret);
     const raw = { ...values, ...(newSecret ? { clientSecret: newSecret } : body.clearClientSecret === true ? { clientSecret: '' } : {}) };
     const check = normalizeOidcSettings({ ...raw, clientSecret: raw.clientSecret ?? '' });

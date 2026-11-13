@@ -145,12 +145,12 @@ export function createLinks({ store, now = Date.now }) {
       });
     },
 
-    /** → the link as an administrator sees it, or null when unknown or already revoked */
-    async revoke(id, by) {
+    /** → the link as an administrator sees it, or null when unknown, of another kind, or already revoked */
+    async revoke(id, by, { kind } = {}) {
       let revoked = null;
       await change((links) => {
-        const link = links[id];
-        if (!link || link.revokedAt) return;
+        const link = Object.hasOwn(links, id) ? links[id] : null;
+        if (!link || link.revokedAt || (kind && link.kind !== kind)) return;
         link.revokedAt = now();
         link.revokedBy = by;
         revoked = view(link);

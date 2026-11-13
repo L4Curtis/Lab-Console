@@ -26,12 +26,15 @@ import { requireSameOrigin, createRateLimiter, clientIp } from '../../lib/securi
 import { hashPassword } from '../auth/password.js';
 import { safeReturnPath } from '../auth/pendingLogins.js';
 import { checkUsername, checkPassword, cleanDisplayName } from './policy.js';
+import { stepBinding, stepBindingHolds } from './directory.js';
 import {
   registrationOptions, verifyRegistration, authenticationOptions, verifyAuthentication, credentialIdOf, PasskeyError,
 } from './passkeys.js';
 
 const publicDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'public');
 const WINDOW = 15 * 60_000;
+/** Passkey requests per client address and minute: one-click sign-in (options and verify together), and the step after a password */
+export const PASSKEY_LIMITS = Object.freeze({ oneClick: 120, step: 30, windowMs: 60_000 });
 
 const PASSWORD_MESSAGES = {
   password_short: 'The password needs at least 10 characters',
@@ -84,12 +87,18 @@ export function publicRoutes(ctx) {
   // A classroom shares one public address: generous per address, strict per link
   const linkAttempts = createRateLimiter({ limit: 120, windowMs: WINDOW });
   const signupFailures = createFailureCounter({ limit: 10, windowMs: WINDOW });
-  const passkeyAttempts = createRateLimiter({ limit: 30, windowMs: 60_000 });
+  // One-click sign-in: every opening of the local form asks for options
+  // (conditional UI), so a classroom behind one address needs room
+  const passkeyAttempts = createRateLimiter({ limit: PASSKEY_LIMITS.oneClick, windowMs: PASSKEY_LIMITS.windowMs });
+  // The step after a password has its own budget: the class's one-click
+  // traffic never refuses a promoted administrator's step
+  const stepAttempts = createRateLimiter({ limit: PASSKEY_LIMITS.step, windowMs: PASSKEY_LIMITS.windowMs });
   const addressOf = (req) => clientIp(req, config.server);
   const body = (req) => (req.body !== null && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {});
-  const limited = (limiter) => (req, res, next) => {
+  /** Refuse past the limiter's budget, with that limiter's own window as Retry-After */
+  const limited = (limiter, windowMs) => (req, res, next) => {
     if (limiter(addressOf(req))) return next();
-    res.set('Retry-After', String(WINDOW / 1000));
+    res.set('Retry-After', String(Math.ceil(windowMs / 1000)));
     sendError(res, 429, 'accounts.throttled', 'Too many attempts. Try again later');
   };
   const noStore = (_req, res, next) => {
@@ -109,13 +118,13 @@ export function publicRoutes(ctx) {
   router.get('/js/join.js', (_req, res) => res.sendFile(path.join(publicDir, 'js', 'join.js')));
 
   // ── Invitations ────────────────────────────────────────────────────────────
-  router.post('/auth/invitation', sameOrigin, small, limited(linkAttempts), (req, res) => {
+  router.post('/auth/invitation', sameOrigin, small, limited(linkAttempts, WINDOW), (req, res) => {
     const { link, problem } = links.find(body(req).token, { kind: 'invite' });
     if (problem) return badLink(req, res, problem, 'invitation');
     res.json({ role: link.role, approval: link.maxUses > 1, expiresAt: new Date(link.expiresAt).toISOString() });
   });
 
-  router.post('/auth/signup', sameOrigin, small, limited(linkAttempts), async (req, res) => {
+  router.post('/auth/signup', sameOrigin, small, limited(linkAttempts, WINDOW), async (req, res) => {
     const input = body(req);
     const first = links.find(input.token, { kind: 'invite' });
     if (first.problem) return badLink(req, res, first.problem, 'invitation');
@@ -127,7 +136,11 @@ export function publicRoutes(ctx) {
     };
 
     const username = typeof input.username === 'string' ? input.username.trim() : '';
-    const usernameProblem = checkUsername(username);
+    // A name already taken (the environment's administrator's included) is
+    // refused like a reserved one, before any hashing: same answer, same time.
+    // Which names exist cannot be hidden from someone choosing one (an owner
+    // decision is pending, docs/v2/AUTH.md); the per-link limit keeps probing slow
+    const usernameProblem = checkUsername(username) ?? (directory.isTaken(username) ? 'username_unavailable' : null);
     if (usernameProblem) return refuse(() => sendError(res, usernameProblem === 'username_invalid' ? 400 : 409, `accounts.${usernameProblem}`, 'This user name cannot be used'));
     const name = cleanDisplayName(input.name);
     if (!name) return refuse(() => sendError(res, 400, 'accounts.name_invalid', 'Give a display name of 1 to 64 characters'));
@@ -171,7 +184,7 @@ export function publicRoutes(ctx) {
     if (created.state === 'pending') return res.json({ pending: true });
     // A single-use link: the account is active at once. An administrator still owes a passkey first
     if (user.role === 'admin') {
-      auth.steps.start(req, res, user, ['passkey-enrol'], { method: 'signup' });
+      auth.steps.start(req, res, user, ['passkey-enrol'], { method: 'signup', binding: stepBinding(created) });
       return res.json({ step: 'passkey-enrol' });
     }
     const session = auth.sessions.open(req, res, user);
@@ -189,13 +202,13 @@ export function publicRoutes(ctx) {
     return { link, account };
   }
 
-  router.post('/auth/reset-link', sameOrigin, small, limited(linkAttempts), (req, res) => {
+  router.post('/auth/reset-link', sameOrigin, small, limited(linkAttempts, WINDOW), (req, res) => {
     const target = resetTarget(body(req).token);
     if (target.problem) return badLink(req, res, target.problem, 'reset');
     res.json({ username: target.account.username, expiresAt: new Date(target.link.expiresAt).toISOString() });
   });
 
-  router.post('/auth/reset', sameOrigin, small, limited(linkAttempts), async (req, res) => {
+  router.post('/auth/reset', sameOrigin, small, limited(linkAttempts, WINDOW), async (req, res) => {
     const input = body(req);
     const first = resetTarget(input.token);
     if (first.problem) return badLink(req, res, first.problem, 'reset');
@@ -225,7 +238,7 @@ export function publicRoutes(ctx) {
     return sendError(res, 401, 'accounts.passkey_refused', 'This passkey was not accepted');
   };
 
-  router.post('/auth/passkey/options', sameOrigin, small, limited(passkeyAttempts), async (req, res) => {
+  router.post('/auth/passkey/options', sameOrigin, small, limited(passkeyAttempts, PASSKEY_LIMITS.windowMs), async (req, res) => {
     if (!rp.available) return unavailable(res);
     // A passkey that signs in alone must have checked who holds it (PIN, fingerprint)
     const options = await authenticationOptions(rp, { userVerification: 'required' });
@@ -233,7 +246,7 @@ export function publicRoutes(ctx) {
     res.json({ options });
   });
 
-  router.post('/auth/passkey/verify', sameOrigin, large, limited(passkeyAttempts), async (req, res) => {
+  router.post('/auth/passkey/verify', sameOrigin, large, limited(passkeyAttempts, PASSKEY_LIMITS.windowMs), async (req, res) => {
     if (!rp.available) return unavailable(res);
     const input = body(req);
     const started = ceremony.take(req, res, 'login');
@@ -264,19 +277,24 @@ export function publicRoutes(ctx) {
   });
 
   // ── Passkeys: the step a password sign-in still owes ──────────────────────
-  /** The step in progress and its account, still active; null otherwise */
+  /**
+   * The step in progress and its account, still active and still holding the
+   * credentials the step was started with (directory.js stepBinding: a reset
+   * or a change of password, or passkeys cleared, end it); null otherwise
+   */
   function currentStep(req) {
     const step = auth.steps.peek(req);
     if (!step) return null;
     const account = directory.get(step.user.id);
     if (!account || account.state !== 'active' || account.via !== 'local') return null;
+    if (!stepBindingHolds(step.binding, account)) return null;
     // The account may have registered a passkey since (another tab): then it signs in with it
     const kind = (account.passkeys ?? []).length ? 'passkey' : 'passkey-enrol';
     return { step, account, kind };
   }
   const stepExpired = (res) => sendError(res, 401, 'accounts.step_expired', 'Sign in again');
 
-  router.post('/auth/passkey/step/options', sameOrigin, small, limited(passkeyAttempts), async (req, res) => {
+  router.post('/auth/passkey/step/options', sameOrigin, small, limited(stepAttempts, PASSKEY_LIMITS.windowMs), async (req, res) => {
     if (!rp.available) return unavailable(res);
     const current = currentStep(req);
     if (!current) {
@@ -294,7 +312,7 @@ export function publicRoutes(ctx) {
     res.json({ kind, options });
   });
 
-  router.post('/auth/passkey/step/verify', sameOrigin, large, limited(passkeyAttempts), async (req, res) => {
+  router.post('/auth/passkey/step/verify', sameOrigin, large, limited(stepAttempts, PASSKEY_LIMITS.windowMs), async (req, res) => {
     if (!rp.available) return unavailable(res);
     const input = body(req);
     const current = currentStep(req);

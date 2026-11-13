@@ -194,6 +194,13 @@ describe('invitations and sign-up', () => {
       assert.equal(res.body.code, code, username);
     }
     assert.equal(TEST_ADMIN.username, 'root');
+    // A taken name, the environment administrator's included, gets the very answer a reserved one does
+    const probe = (await invite(lab)).token; // its own link: the per-link limit counts these refusals
+    const reserved = await signUp(lab, probe, { username: 'admin' });
+    for (const taken of ['ROOT', 'Alice', 'alice']) {
+      const res = await signUp(lab, probe, { username: taken });
+      assert.deepEqual([res.status, res.body], [reserved.status, reserved.body], taken);
+    }
     assert.equal((await signUp(lab, token, { username: 'dora', name: '' })).body.code, 'accounts.name_invalid');
     for (const [password, code] of [['short', 'password_short'], ['motdepasse', 'password_common'], ['dora-is-great', 'password_like_username']]) {
       assert.equal((await signUp(lab, token, { username: 'dora', password })).body.code, `accounts.${code}`);
@@ -318,6 +325,70 @@ describe('roles, states and the last administrator', () => {
     }
     // The role a student's browser believes it has is irrelevant: henri is still a student
     assert.equal((await call(lab, 'admin', 'GET', '/api/accounts/users')).body.users.find((u) => u.id === 'local:henri').role, 'student');
+  });
+});
+
+describe('administration refusals, one by one', () => {
+  let lab;
+  before(async () => { lab = await startAccountsApp(); });
+  after(() => lab.close());
+
+  test('approve or reject an account that is not waiting: 409 accounts.not_pending', async () => {
+    const { id } = await createLocalAccount(lab, 'jules');
+    for (const action of ['approve', 'reject']) {
+      const res = await call(lab, 'admin', 'POST', `/api/accounts/users/${encodeURIComponent(id)}/${action}`);
+      assert.equal(res.status, 409, action);
+      assert.equal(res.body.code, 'accounts.not_pending', action);
+    }
+    assert.equal(lab.deps.services.accounts.get(id).state, 'active', 'nothing changed');
+    assert.equal((await call(lab, 'admin', 'POST', '/api/accounts/users/local%3Anobody/approve')).body.code, 'accounts.unknown');
+  });
+
+  test('a state that does not exist: 400 accounts.bad_state, nothing changed', async () => {
+    const { id } = await createLocalAccount(lab, 'kim');
+    for (const state of ['deleted', 'pending', '', null, 1]) {
+      const res = await call(lab, 'admin', 'PATCH', `/api/accounts/users/${encodeURIComponent(id)}`, { state });
+      assert.equal(res.status, 400, JSON.stringify(state));
+      assert.equal(res.body.code, 'accounts.bad_state', JSON.stringify(state));
+    }
+    assert.equal(lab.deps.services.accounts.get(id).state, 'active');
+  });
+
+  test('a duration that is not offered: 400 accounts.bad_ttl, for invitations and reset links', async () => {
+    const before = (await call(lab, 'admin', 'GET', '/api/accounts/invitations')).body.invitations.length;
+    for (const ttl of ['2h', '7 days', 3600, '']) {
+      const res = await call(lab, 'admin', 'POST', '/api/accounts/invitations', { ttl });
+      assert.equal(res.status, 400, JSON.stringify(ttl));
+      assert.equal(res.body.code, 'accounts.bad_ttl', JSON.stringify(ttl));
+    }
+    const { id } = await createLocalAccount(lab, 'lina');
+    for (const ttl of ['7d', '2h', 60]) {
+      const res = await call(lab, 'admin', 'POST', `/api/accounts/users/${encodeURIComponent(id)}/reset-link`, { ttl });
+      assert.equal(res.status, 400, JSON.stringify(ttl));
+      assert.equal(res.body.code, 'accounts.bad_ttl', JSON.stringify(ttl));
+    }
+    assert.equal((await call(lab, 'admin', 'GET', '/api/accounts/invitations')).body.invitations.length, before + 1, 'only the one of the sign-up above');
+  });
+
+  test('revoking an invitation that does not exist, or a reset link through the invitations: 404 accounts.unknown_invitation', async () => {
+    const unknown = await call(lab, 'admin', 'DELETE', '/api/accounts/invitations/no-such-id');
+    assert.equal(unknown.status, 404);
+    assert.equal(unknown.body.code, 'accounts.unknown_invitation');
+    const { id } = await createLocalAccount(lab, 'milo');
+    const reset = await call(lab, 'admin', 'POST', `/api/accounts/users/${encodeURIComponent(id)}/reset-link`, { ttl: '1h' });
+    assert.equal(reset.status, 200);
+    const resetId = Object.values(lab.deps.store.json('accounts/invitations.json').get().links).find((l) => l.kind === 'reset').id;
+    const wrongKind = await call(lab, 'admin', 'DELETE', `/api/accounts/invitations/${resetId}`);
+    assert.equal(wrongKind.status, 404);
+    assert.equal(wrongKind.body.code, 'accounts.unknown_invitation');
+    const stillValid = await call(lab, null, 'POST', '/auth/reset-link', { token: reset.body.url.split('#')[1] });
+    assert.equal(stillValid.status, 200, 'and the reset link was left alone');
+    for (const name of ['__proto__', 'constructor', 'toString']) {
+      assert.equal((await call(lab, 'admin', 'DELETE', `/api/accounts/invitations/${name}`)).body.code, 'accounts.unknown_invitation', name);
+    }
+    assert.equal(Object.hasOwn(Object.prototype, 'revokedAt'), false, 'nothing written on the prototype');
+    const { token } = await invite(lab);
+    assert.equal((await call(lab, null, 'POST', '/auth/invitation', { token })).status, 200, 'a new invitation is still usable');
   });
 });
 

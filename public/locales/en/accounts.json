@@ -171,7 +171,7 @@
     "hints": {
       "providerName": "The button's text: \"Sign in with …\".",
       "issuer": "Exactly as the provider states it, final slash included or not.",
-      "clientSecret": "Leave empty to keep the current secret. It is never shown again.",
+      "clientSecret": "Leave empty to keep the current secret, as long as the issuer and the client id stay the same. It is never shown again.",
       "scopes": "Separated by spaces; openid is required.",
       "groupsClaim": "A claim name or a dotted path, for example realm_access.roles.",
       "adminGroups": "Separated by commas. Their members are administrators.",
@@ -302,6 +302,7 @@
     "issuer_invalid": "This is not a valid issuer URL (https://…, without ? or #).",
     "issuer_insecure": "The issuer must use https (except localhost, or the http option of a test bench).",
     "client_id_required": "The client ID is required.",
+    "secret_required": "The issuer or the client id changed: type this client's secret, or tick \"public client\".",
     "auth_method_invalid": "Unknown way of sending the secret.",
     "scopes_openid": "The scopes must include openid.",
     "provider_name_long": "40 characters at most.",

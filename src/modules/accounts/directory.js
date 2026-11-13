@@ -53,6 +53,22 @@ export function environmentAccount(username) {
 
 const isActiveAdmin = (account) => account.state === 'active' && effectiveRole(account) === 'admin';
 
+const fingerprint = (hash) => crypto.createHash('sha256').update(String(hash ?? '')).digest('base64url');
+
+/**
+ * What a sign-in step started with this account's credentials must still
+ * find when it ends (auth.steps): the same password, and every passkey it
+ * could have used. A password reset or change, or passkeys cleared by an
+ * administrator, end the steps in progress as they end the sessions; a
+ * passkey added meanwhile (another tab) does not
+ */
+export const stepBinding = (account) => ({ password: fingerprint(account.passwordHash), passkeys: (account.passkeys ?? []).map((p) => p.id) });
+export function stepBindingHolds(binding, account) {
+  if (!binding || typeof binding.password !== 'string' || !Array.isArray(binding.passkeys)) return false;
+  const ids = new Set((account.passkeys ?? []).map((p) => p.id));
+  return binding.password === fingerprint(account.passwordHash) && binding.passkeys.every((id) => ids.has(id));
+}
+
 export function createDirectory({ store, envAdminName, now = Date.now, passwordCost = SCRYPT_DEFAULTS, logger }) {
   const log = logger ?? { error() {}, warn() {} };
   const file = store.json('accounts/users.json', { version: FILE_VERSION, accounts: {} });
@@ -153,7 +169,7 @@ export function createDirectory({ store, envAdminName, now = Date.now, passwordC
       if (!account || account.passwordHash !== found.passwordHash || account.state !== 'active') return null;
       const user = toUser(account);
       // An administrator signs in with a passkey: the password alone is not enough
-      if (user.role === 'admin') return { user, requires: [(account.passkeys ?? []).length ? 'passkey' : 'passkey-enrol'] };
+      if (user.role === 'admin') return { user, requires: [(account.passkeys ?? []).length ? 'passkey' : 'passkey-enrol'], binding: stepBinding(account) };
       return { user };
     },
   };

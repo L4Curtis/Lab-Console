@@ -47,9 +47,13 @@ export function relyingParty(publicUrl) {
   return Object.freeze({ available, rpID: hostname, origin: url.origin, name: RP_NAME });
 }
 
-/** Challenges waiting for their answer (see the header); the id goes in the browser's cookie */
+/**
+ * Challenges waiting for their answer (see the header); the id goes in the
+ * browser's cookie. Per client address, room for a classroom behind one
+ * public address: each opening of the login page holds one (conditional UI)
+ */
 export function createCeremonies({ now = Date.now } = {}) {
-  return createPendingLogins({ ttlMs: CEREMONY_TTL_MS, max: 5000, perOwner: 20, now });
+  return createPendingLogins({ ttlMs: CEREMONY_TTL_MS, max: 10_000, perOwner: 100, now });
 }
 
 const transportsOf = (response) => (Array.isArray(response?.response?.transports)

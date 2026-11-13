@@ -111,6 +111,45 @@ describe('SSO settings: saved, applied at once, the secret write-only', () => {
     assert.equal((await call(lab, 'admin', 'PUT', '/api/accounts/sso', mockSettings(idp, { issuer: 'https://id.example.org?x=1' }))).body.params.problems[0].code, 'issuer_invalid');
   });
 
+  test('the saved secret never follows a change of issuer or client id: a new one is required', async () => {
+    const other = await startMockOidc({ port: 0 });
+    try {
+      assert.equal((await call(lab, 'admin', 'GET', '/api/accounts/sso')).body.settings.hasClientSecret, true);
+      for (const change of [{ issuer: other.issuer }, { clientId: 'another-client' }]) {
+        const res = await call(lab, 'admin', 'PUT', '/api/accounts/sso', mockSettings(idp, { ...change, clientSecret: '' }));
+        assert.equal(res.status, 400, JSON.stringify(change));
+        assert.equal(res.body.code, 'accounts.sso_invalid');
+        assert.deepEqual(res.body.params.problems, [{ field: 'clientSecret', code: 'secret_required' }]);
+      }
+      const now = (await call(lab, 'admin', 'GET', '/api/accounts/sso')).body.settings;
+      assert.deepEqual([now.issuer, now.clientId], [idp.issuer, 'lab-console'], 'nothing changed');
+
+      // Nor through the sign-in module directly
+      assert.throws(() => lab.deps.auth.oidc.configure({ ...lab.deps.auth.oidc.settings, issuer: other.issuer, enabled: true }), /needs its own secret/);
+      assert.equal(lab.deps.auth.oidc.settings.issuer, idp.issuer);
+
+      // With its own secret, or as a public client, the change goes through
+      const moved = await call(lab, 'admin', 'PUT', '/api/accounts/sso', mockSettings(idp, { issuer: other.issuer, clientSecret: 'other-secret' }));
+      assert.equal(moved.status, 200);
+      assert.equal(moved.body.settings.hasClientSecret, true);
+      const pub = await call(lab, 'admin', 'PUT', '/api/accounts/sso', mockSettings(idp, { clientSecret: '', clearClientSecret: true }));
+      assert.equal(pub.status, 200);
+      assert.equal(pub.body.settings.hasClientSecret, false);
+    } finally {
+      assert.equal((await call(lab, 'admin', 'PUT', '/api/accounts/sso', mockSettings(idp))).status, 200);
+      await other.close();
+    }
+  });
+
+  test('try a sign-in while the provider is switched off: 409 accounts.sso_disabled', async () => {
+    assert.equal((await call(lab, 'admin', 'PUT', '/api/accounts/sso', mockSettings(idp, { enabled: false, clientSecret: '' }))).status, 200);
+    const res = await call(lab, 'admin', 'POST', '/api/accounts/sso/trial');
+    assert.equal(res.status, 409);
+    assert.equal(res.body.code, 'accounts.sso_disabled');
+    assert.ok(!res.res.headers.getSetCookie().some((c) => c.startsWith('lc_login=')), 'no sign-in started');
+    assert.equal((await call(lab, 'admin', 'PUT', '/api/accounts/sso', mockSettings(idp, { clientSecret: '' }))).status, 200);
+  });
+
   test('a role set by an administrator wins over the groups; a disabled SSO account stays out', async () => {
     const { browser } = await signInWithOidc(lab, 'student3');
     assert.equal((await call(lab, browser, 'GET', '/api/accounts/me')).body.account.role, 'student');

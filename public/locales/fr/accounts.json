@@ -171,7 +171,7 @@
     "hints": {
       "providerName": "Le texte du bouton : « Se connecter avec … ».",
       "issuer": "Exactement comme le fournisseur l'annonce, barre finale comprise ou non.",
-      "clientSecret": "Laissez vide pour garder le secret actuel. Il n'est jamais réaffiché.",
+      "clientSecret": "Laissez vide pour garder le secret actuel, tant que l'émetteur et l'identifiant client ne changent pas. Il n'est jamais réaffiché.",
       "scopes": "Séparées par des espaces ; openid est obligatoire.",
       "groupsClaim": "Un nom de revendication ou un chemin pointé, par exemple realm_access.roles.",
       "adminGroups": "Séparés par des virgules. Leurs membres sont administrateurs.",
@@ -302,6 +302,7 @@
     "issuer_invalid": "Ce n'est pas une URL d'émetteur valable (https://…, sans ? ni #).",
     "issuer_insecure": "L'émetteur doit être en https (sauf localhost, ou l'option http d'un banc de test).",
     "client_id_required": "L'identifiant client est obligatoire.",
+    "secret_required": "L'émetteur ou l'identifiant client a changé : saisissez le secret de ce client, ou cochez « client public ».",
     "auth_method_invalid": "Mode d'envoi du secret inconnu.",
     "scopes_openid": "Les portées doivent comprendre openid.",
     "provider_name_long": "40 caractères au plus.",

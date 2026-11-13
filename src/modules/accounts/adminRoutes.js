@@ -147,8 +147,8 @@ export function adminRoutes(ctx) {
   });
 
   router.delete('/invitations/:id', async (req, res) => {
-    const revoked = await links.revoke(req.params.id, actorOf(req));
-    if (!revoked || revoked.kind !== 'invite') return sendError(res, 404, 'accounts.unknown_invitation', 'No such invitation');
+    const revoked = await links.revoke(req.params.id, actorOf(req), { kind: 'invite' });
+    if (!revoked) return sendError(res, 404, 'accounts.unknown_invitation', 'No such invitation');
     audit.log(req, 'accounts.invitation.revoke', { link: revoked.id });
     changed('invitations');
     res.json({ invitation: revoked });

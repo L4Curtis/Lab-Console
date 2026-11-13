@@ -49,19 +49,25 @@ export class SoftAuthenticator {
     return Buffer.concat([sha256(rpId), Buffer.from([flags]), count, attested ?? Buffer.alloc(0)]);
   }
 
-  /** Answer navigator.credentials.create(options) */
-  register(options, { origin = this.origin, rpId = this.rpId, userVerified = true } = {}) {
-    const { privateKey, publicKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' });
+  /**
+   * Answer navigator.credentials.create(options). `credential`: present one
+   * this authenticator already holds again (what a real one refuses to do,
+   * and what the server must refuse when it comes)
+   */
+  register(options, { origin = this.origin, rpId = this.rpId, userVerified = true, credential: again } = {}) {
+    const { privateKey, publicKey } = again
+      ? { privateKey: again.privateKey, publicKey: crypto.createPublicKey(again.privateKey) }
+      : crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' });
     const jwk = publicKey.export({ format: 'jwk' });
-    const id = crypto.randomBytes(32);
+    const id = again ? Buffer.from(again.id, 'base64url') : crypto.randomBytes(32);
     const cose = cbor(new Map([[1, 2], [3, -7], [-1, 1], [-2, Buffer.from(jwk.x, 'base64url')], [-3, Buffer.from(jwk.y, 'base64url')]]));
     const length = Buffer.alloc(2);
     length.writeUInt16BE(id.length);
     const attested = Buffer.concat([Buffer.alloc(16), length, id, cose]);
     const authData = this.#authData({ rpId, userVerified, counter: 0, attested });
     const clientData = Buffer.from(JSON.stringify({ type: 'webauthn.create', challenge: options.challenge, origin, crossOrigin: false }));
-    const credential = { id: b64url(id), privateKey, userHandle: options.user.id, counter: 0 };
-    this.credentials.push(credential);
+    const credential = again ?? { id: b64url(id), privateKey, userHandle: options.user.id, counter: 0 };
+    if (!again) this.credentials.push(credential);
     return {
       id: credential.id,
       rawId: credential.id,
