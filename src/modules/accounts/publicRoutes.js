@@ -252,10 +252,12 @@ export function publicRoutes(ctx) {
       log.warn(err.message);
       return refused(req, res, err.reason, { account: account.id });
     }
-    // Checked after the signature: whether an account is disabled is not for strangers to learn
-    if (account.state !== 'active' || account.via !== 'local') return refused(req, res, 'account_inactive', { account: account.id });
+    // Checked after the signature (whether an account is disabled is not for
+    // strangers to learn), on the account as it is now
+    const current = directory.get(account.id);
+    if (!current || current.state !== 'active' || current.via !== 'local') return refused(req, res, 'account_inactive', { account: account.id });
     await directory.usePasskey(account.id, passkey.id, result);
-    const user = directory.toUser(account);
+    const user = directory.toUser(current);
     const session = auth.sessions.open(req, res, user);
     audit.log(req, 'auth.login', { method: 'passkey', session: session.id, role: user.role, passkey: passkey.id });
     res.json({ redirect: safeReturnPath(input.next) });
