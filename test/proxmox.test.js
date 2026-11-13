@@ -200,3 +200,32 @@ test('VNC auth response is standard DES (RFB spec test vector)', () => {
   const res = vncAuthResponse('password', Buffer.from([...Array(16).keys()]));
   assert.equal(res.toString('hex'), 'b866924125c8eebb9debc1db61c538e2');
 });
+
+test('the tunnel follows the lab parameters: a new jump server password applies without a restart', async () => {
+  const { default: express } = await import('express');
+  const { createProxmoxModule } = await import('../src/modules/proxmox/index.js');
+  const { createSettings } = await import('../src/lib/settings.js');
+  const config = {
+    server: { allowedOrigins: [] },
+    ssh: { ...sshCfg(), password: 'wrong' },
+    telnet: { username: '', password: '', autoLogin: true, wakeIdleMs: 0 },
+    consoles: { networkPrefix: '10.22.9', allowedHosts: ['10.22.9.211'], portRange: { min: 2000, max: 2099 } },
+    proxmox: { enabled: true, url: 'https://10.22.9.71:8006', username: 'labportal', realm: 'pam', password: 'pw', fingerprint: pve.fingerprint },
+  };
+  const settings = createSettings({ config });
+  const mod = createProxmoxModule({ config, events, logger: log, settings });
+  const app = express().use('/api/proxmox', mod.router);
+  const server = await new Promise((r) => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
+  const url = `http://127.0.0.1:${server.address().port}/api/proxmox/nodes`;
+  try {
+    assert.equal((await fetch(url)).status, 502, 'the jump server refuses the old password');
+    await settings.update('lab', { ssh: { password: 'jp' } }, 'system');
+    const res = await fetch(url);
+    assert.equal(res.status, 200, 'reconnected with the new one');
+    assert.ok((await res.json()).nodes.length > 0);
+  } finally {
+    mod.shutdown();
+    server.closeAllConnections();
+    await new Promise((r) => server.close(r));
+  }
+});
