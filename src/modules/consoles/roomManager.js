@@ -5,7 +5,8 @@
  *
  *   rooms.get(targetKey) → ConsoleRoom | undefined
  *   rooms.list() → RoomSummary[]
- *   rooms.open(device, user, { cols, rows, readOnly }) → ConsoleRoom   creates or returns (throws RoomError)
+ *   rooms.open(device, user, { cols, rows, readOnly, task }) → ConsoleRoom   creates or returns (throws RoomError);
+ *                                     `task`: for a bench job, which attaches no browser (not counted per user)
  *   rooms.on('change', (summaries) => …) · rooms.on('activity', (entry) => …)
  *   rooms.busyOutside() → ['host:port', …]   lines the console server refused lately
  *
@@ -82,7 +83,7 @@ export class RoomManager extends EventEmitter {
    * Joining a line someone opened is always possible for a signed-in user
    * (to watch); opening a new line needs the right to pilot it.
    */
-  canOpen(device, user, { readOnly = false } = {}) {
+  canOpen(device, user, { readOnly = false, task = false } = {}) {
     const lab = this.settings.get('lab');
     if (!targetAllowed(lab.consoles, device.target)) {
       return { ok: false, code: 'consoles.not_allowed', params: { name: device.name }, message: `${device.name}'s console address is not on the platform's allow-list.` };
@@ -97,15 +98,16 @@ export class RoomManager extends EventEmitter {
         return { ok: false, code: 'consoles.platform_full', params: {}, message: 'The platform has reached its maximum number of open consoles. Try again shortly.' };
       }
     }
-    if (!readOnly && !room?.isAttached(user.id, { countReadOnly: false }) && this.countFor(user.id) >= this.limits.maxSessionsPerClient) {
+    // A bench job's lines are not consoles of its user: the job attaches no browser to them
+    if (!readOnly && !task && !room?.isAttached(user.id, { countReadOnly: false }) && this.countFor(user.id) >= this.limits.maxSessionsPerClient) {
       return { ok: false, code: 'consoles.client_full', params: { max: this.limits.maxSessionsPerClient }, message: `You can keep at most ${this.limits.maxSessionsPerClient} consoles open. Close one first.` };
     }
     return { ok: true };
   }
 
   /** The room of `device`, opened if needed (the caller attaches to it). Throws RoomError when refused */
-  open(device, user, { cols, rows, readOnly = false } = {}) {
-    const verdict = this.canOpen(device, user, { readOnly });
+  open(device, user, { cols, rows, readOnly = false, task = false } = {}) {
+    const verdict = this.canOpen(device, user, { readOnly, task });
     if (!verdict.ok) throw new RoomError(verdict.message, verdict.code, verdict.params);
     const key = targetKey(device.target);
     const existing = this.#rooms.get(key);
