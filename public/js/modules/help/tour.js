@@ -145,6 +145,13 @@ export async function startTour() {
 
   addEventListener('resize', place);
   document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !document.querySelector('dialog[open]')) end('skipped'); }, { signal: abort.signal });
+  // Someone who leaves the step's page by themselves (rail, address bar) is done with the tour:
+  // a card describing another page must not follow them around. It can be replayed from Help.
+  addEventListener('hashchange', () => {
+    const step = STEPS[index];
+    const section = (location.hash || '#/home').split('/')[1];
+    if (step.route && section !== step.route.split('/')[1]) end('skipped');
+  }, { signal: abort.signal });
   const offLocale = onLocaleChange(write);
   running = { done };
   await go(0);

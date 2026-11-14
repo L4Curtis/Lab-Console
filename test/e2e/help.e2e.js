@@ -245,3 +245,16 @@ test('the tour survives a step whose element never appears: no ring, the card st
   assert.deepEqual(page.errors.filter((e) => !/Failed to load|ERR_FAILED|aborted/i.test(String(e))), []);
   await page.context().close();
 });
+
+test('leaving the step\'s page by oneself closes the tour: its card never follows to another section', async () => {
+  const page = await h.newPage();
+  await signInAs(page, 'chloe');
+  await page.evaluate(() => { location.hash = '#/help'; });
+  await page.locator('section.view-help button[data-action="replay-tour"]').click();
+  await page.waitForFunction(() => document.querySelector('.tour-card')?.dataset.step === 'home');
+  await page.evaluate(() => { location.hash = '#/infra'; });
+  await card(page).waitFor({ state: 'detached' });
+  assert.equal(await tourState(page), 'skipped');
+  assert.deepEqual(page.errors, []);
+  await page.context().close();
+});
