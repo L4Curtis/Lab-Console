@@ -1,6 +1,6 @@
 {
   "title": "Équipe",
-  "subtitle": "Votre groupe de TP : la baie, les réservations et les sauvegardes sont à l’équipe",
+  "subtitle": "Votre groupe de TP : la baie, les réservations et les sauvegardes sont à l’équipe",
   "loadFailed": "Impossible de charger les équipes.",
   "tabs": {
     "mine": "Mon équipe",
@@ -46,9 +46,9 @@
   },
   "leave": {
     "button": "Quitter l’équipe",
-    "title": "Quitter l’équipe {team} ?",
+    "title": "Quitter l’équipe {team} ?",
     "body": "Vous n’aurez plus accès à la baie de l’équipe ni à ses sauvegardes.",
-    "last": "Vous êtes le dernier membre : l’équipe sera dissoute, sa baie libérée et ses réservations annulées.",
+    "last": "Vous êtes le dernier membre : l’équipe sera dissoute, sa baie libérée et ses réservations annulées.",
     "confirm": "Quitter"
   },
   "bench": {
@@ -61,7 +61,7 @@
     "title": "Réservations à venir",
     "none": "Aucune réservation.",
     "cancel": "Annuler",
-    "cancelTitle": "Annuler cette réservation ?",
+    "cancelTitle": "Annuler cette réservation ?",
     "cancelBody": "Baie {bench}, {slot}."
   },
   "calendar": {
@@ -70,8 +70,8 @@
     "next": "Semaine suivante",
     "thisWeek": "Cette semaine",
     "week": "Du {from} au {to}",
-    "hint": "Cliquez sur une heure libre pour réserver la baie pour votre équipe ; cliquez sur votre créneau pour l’annuler.",
-    "outside": "Réservations qui ne tiennent pas entre {from} et {to} :",
+    "hint": "Cliquez sur une heure libre pour réserver la baie pour votre équipe ; cliquez sur votre créneau pour l’annuler.",
+    "outside": "Réservations qui ne tiennent pas entre {from} et {to} :",
     "noBench": "Aucune baie dans le schéma.",
     "bookTitle": "Réserver {bench}, {day}",
     "limits": "Au plus {max} réservations à venir par équipe, {hours} h chacune.",
@@ -81,19 +81,19 @@
     "team": "Équipe",
     "book": "Réserver",
     "needTeamTitle": "Il faut une équipe",
-    "needTeam": "Les baies se réservent par équipe : créez la vôtre ou rejoignez-en une dans l’onglet « Mon équipe »."
+    "needTeam": "Les baies se réservent par équipe : créez la vôtre ou rejoignez-en une dans l’onglet « Mon équipe »."
   },
   "all": {
     "team": "Équipe",
     "members": "Membres",
     "bench": "Baie",
     "none": "Aucune équipe pour l’instant.",
-    "invited": "Invités : {names}",
+    "invited": "Invités : {names}",
     "remove": "Retirer de l’équipe",
-    "removeTitle": "Retirer {name} de l’équipe {team} ?",
+    "removeTitle": "Retirer {name} de l’équipe {team} ?",
     "removeBody": "S’il était le dernier membre, l’équipe est dissoute.",
     "dissolve": "Dissoudre",
-    "dissolveTitle": "Dissoudre l’équipe {team} ?",
+    "dissolveTitle": "Dissoudre l’équipe {team} ?",
     "dissolveBody": "Ses membres se retrouvent sans équipe, sa baie est libérée et ses réservations sont annulées."
   },
   "notify": {
@@ -102,7 +102,7 @@
   "errors": {
     "bad_name": "Le nom d’une équipe fait de {min} à {max} caractères.",
     "bad_username": "Ce n’est pas un identifiant valable.",
-    "already_member": "Vous faites déjà partie de l’équipe {team} : quittez-la d’abord.",
+    "already_member": "Vous faites déjà partie de l’équipe {team} : quittez-la d’abord.",
     "name_taken": "Une autre équipe s’appelle déjà {name}.",
     "unknown": "Cette équipe n’existe pas (ou plus).",
     "not_member": "Réservé aux membres de cette équipe.",
@@ -110,7 +110,7 @@
     "already_in_team": "{username} fait déjà partie de l’équipe.",
     "full": "Une équipe compte au plus {max} membres.",
     "no_invitation": "Cette invitation n’existe pas (ou plus).",
-    "ambiguous_user": "Plusieurs comptes portent ce nom d’utilisateur : un administrateur doit d’abord régler la question.",
+    "ambiguous_user": "Plusieurs comptes portent ce nom d’utilisateur : un administrateur doit d’abord régler la question.",
     "unknown_user": "Personne ne se connecte ici avec ce nom d’utilisateur. Un camarade qui se connecte par l’université est connu après sa première connexion."
   }
 }

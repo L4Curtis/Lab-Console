@@ -216,3 +216,32 @@ test('api.js: a failed request carries status, code, params and a translated mes
   answer(200, { ok: true });
   assert.deepEqual(await request('GET', '/api/health'), { ok: true });
 });
+
+// ── Typography and dates ────────────────────────────────────────────────────
+
+const strings = (lang) => namespacesOf(lang).flatMap((ns) => Object.entries(flatten(dictionary(lang, ns))).map(([key, text]) => [`${ns}.${key}`, text]));
+
+test('typography (fr): a non-breaking space before : ; ? ! and typographic apostrophes everywhere', () => {
+  const plainSpace = strings('fr').filter(([, text]) => /\S [:;?!](\s|$)/.test(text)).map(([key]) => key);
+  assert.deepEqual(plainSpace, [], 'a plain space lets the punctuation start a new line: use U+00A0');
+  const straight = strings('fr').filter(([, text]) => /\w'\w/.test(text)).map(([key]) => key);
+  assert.deepEqual(straight, [], 'use the apostrophe ’ as the other pages do');
+});
+
+test('no "(s)" pseudo-plural in any language: the plural forms exist', () => {
+  const found = ['fr', 'en'].flatMap((lang) => strings(lang).filter(([, text]) => /\w\(s\)/.test(text)).map(([key]) => `${lang} ${key}`));
+  assert.deepEqual(found, []);
+});
+
+test('dates read the same way everywhere: lower-case month, no comma, year only in the long form', async () => {
+  const { fmtShort, fmtLong, fmtDay, fmtDateTime, fmtCalendarDay } = await import('../public/js/core/format.js');
+  await i18n.initI18n({ defaultLocale: 'fr' });
+  const at = new Date(2026, 10, 14, 13, 28).toISOString();
+  assert.equal(fmtShort(at), '14 nov. 13:28');
+  assert.equal(fmtLong(at), '14 nov. 2026 13:28');
+  assert.equal(fmtDateTime(at), 'sam. 14 nov. 13:28');
+  assert.equal(fmtDay(new Date(2026, 10, 9, 12).toISOString()), 'lun. 9 nov.');
+  assert.equal(fmtCalendarDay('2026-11-14'), 'sam. 14 nov.');
+  assert.equal(fmtLong(null), '—');
+  assert.equal(fmtShort(null), '');
+});

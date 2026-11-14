@@ -6,7 +6,8 @@
  */
 import { h, icon } from '../../core/dom.js';
 import { getJson } from '../../core/api.js';
-import { t, tNode, getLocale } from '../../core/i18n.js';
+import { t, tNode } from '../../core/i18n.js';
+import { fmtTime, fmtCalendarDay } from '../../core/format.js';
 import { openDialog } from '../../shared/dialog.js';
 import { errorText } from '../../shared/serverText.js';
 
@@ -23,7 +24,7 @@ export async function openJournalDialog() {
     body.replaceChildren(intro, h('div.table-wrap', h('table.journal-table',
       h('thead', h('tr', ...['day', 'time', 'bench', 'device', 'people', 'size', 'file'].map((c) => h('th', { scope: 'col' }, t(`consoles.journal.columns.${c}`))))),
       h('tbody', ...days.map((d) => h('tr',
-        h('td', d.day),
+        h('td', fmtCalendarDay(d.day)),
         h('td', span(d.from, d.to)),
         h('td', d.bench),
         h('td', h('strong', d.device)),
@@ -38,7 +39,7 @@ export async function openJournalDialog() {
 
 /** 10:02 – 11:47, or 10:02 – ongoing */
 function span(from, to) {
-  const clock = (iso) => (iso ? new Date(iso).toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit' }) : '');
+  const clock = (iso) => (iso ? fmtTime(iso) : '');
   return `${clock(from)} – ${to ? clock(to) : t('consoles.journal.ongoing')}`;
 }
 

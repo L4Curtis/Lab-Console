@@ -1,8 +1,8 @@
 {
   "adminSwitches": [
-    { "id": "b5-sw1", "name": "Admin switch 1", "bay": "Bay 5", "host": "10.22.9.212", "port": 2040 },
-    { "id": "b5-sw2", "name": "Admin switch 2", "bay": "Bay 5", "host": "10.22.9.212", "port": 2044 },
-    { "id": "b6-sw1", "name": "Admin switch 1", "bay": "Bay 6", "host": "10.22.9.212", "port": 2041 },
-    { "id": "b6-sw2", "name": "Admin switch 2", "bay": "Bay 6", "host": "10.22.9.212", "port": 2043 }
+    { "id": "b5-sw1", "name": "Switch admin 1", "bay": "Baie 5", "host": "10.22.9.212", "port": 2040 },
+    { "id": "b5-sw2", "name": "Switch admin 2", "bay": "Baie 5", "host": "10.22.9.212", "port": 2044 },
+    { "id": "b6-sw1", "name": "Switch admin 1", "bay": "Baie 6", "host": "10.22.9.212", "port": 2041 },
+    { "id": "b6-sw2", "name": "Switch admin 2", "bay": "Baie 6", "host": "10.22.9.212", "port": 2043 }
   ]
 }

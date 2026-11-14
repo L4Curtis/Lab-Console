@@ -284,7 +284,7 @@
     "not_occupant": "Seuls les occupants de la baie (et les administrateurs) lancent des tâches dessus.",
     "locked": "Baie verrouillée : {reason}",
     "bench_busy": "Une autre tâche tourne déjà sur cette baie ({name}).",
-    "check_running": "Une vérification tourne sur cette baie ({name}) : attendez qu’elle se termine.",
+    "check_running": "Une vérification tourne sur cette baie ({name}) : attendez qu’elle se termine.",
     "bad_devices": "Liste d’équipements invalide.",
     "unknown_device": "Un de ces équipements n’est pas sur cette baie.",
     "no_devices": "Cochez au moins un équipement.",
@@ -327,7 +327,10 @@
     "interrupted": "Le serveur a redémarré pendant la tâche : vérifiez l’équipement sur sa console.",
     "device_failed": "L’équipement n’a pas pu être traité.",
     "shared_in_use": "{device} partage sa ligne console avec {bench}, tenue par une autre équipe : il n’est pas touché.",
-    "script_errors": "L’équipement a refusé {count} ligne(s) : rien n’a été enregistré. Lisez les lignes refusées, puis enregistrez à la main si vous le souhaitez.",
+    "script_errors": {
+      "one": "L’équipement a refusé {count} ligne : rien n’a été enregistré. Lisez la ligne refusée, puis enregistrez à la main si vous le souhaitez.",
+      "other": "L’équipement a refusé {count} lignes : rien n’a été enregistré. Lisez les lignes refusées, puis enregistrez à la main si vous le souhaitez."
+    },
     "check_differs": "L’équipement ne se relit pas comme la source (+{added} / −{removed}) : rien n’a été enregistré.",
     "startup_unread": "La configuration de démarrage n’a pas pu être lue."
   },

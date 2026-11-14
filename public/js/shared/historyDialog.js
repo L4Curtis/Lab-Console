@@ -12,7 +12,8 @@
  */
 import { h, icon, loadCss } from '../core/dom.js';
 import { getJson } from '../core/api.js';
-import { t, tNode, tAttr, loadNamespace, onLocaleChange, getLocale } from '../core/i18n.js';
+import { t, tNode, tAttr, loadNamespace, onLocaleChange } from '../core/i18n.js';
+import { fmtTime, fmtCalendarDay } from '../core/format.js';
 import { openDialog } from './dialog.js';
 import { errorText } from './serverText.js';
 
@@ -65,8 +66,8 @@ export async function openHistoryDialog({ pane }) {
     render();
   }
 
-  const clock = (iso) => (iso ? new Date(iso).toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit' }) : '');
-  const dayName = (day) => new Date(`${day}T12:00:00`).toLocaleDateString(getLocale(), { weekday: 'short', day: 'numeric', month: 'short' });
+  const clock = (iso) => (iso ? fmtTime(iso) : '');
+  const dayName = fmtCalendarDay;
   const download = (query, key, extra = '') => h('a.btn.small', { href: `/api/consoles/history/download?device=${device}${extra}`, download: '', dataset: { action: key } }, icon('download'), query);
   const matchesList = (found, mapMeta) => h('ol.hist-matches', found.matches.map((m) => h('li',
     h('span.hist-where', mapMeta(m)),

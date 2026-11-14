@@ -137,10 +137,7 @@
     "none": "No version.",
     "pages": "Diagram pages",
     "previewTitle": "Preview: {name}",
-    "previewMeta": {
-      "one": "{labs} bench(es), {count} device",
-      "other": "{labs} bench(es), {count} devices"
-    },
+    "previewMeta": "Benches: {labs} · devices: {count}",
     "warnings": {
       "one": "{count} warning",
       "other": "{count} warnings"
@@ -315,8 +312,8 @@
     },
     "tunnel": "tunnel {state}",
     "linesOpen": {
-      "one": "{count} line open · {connections} SSH connection(s)",
-      "other": "{count} lines open · {connections} SSH connection(s)"
+      "one": "{count} line open · SSH connections: {connections}",
+      "other": "{count} lines open · SSH connections: {connections}"
     },
     "journalUsed": "{used} MB of {max} MB",
     "journalSize": "{used} MB",

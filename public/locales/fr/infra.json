@@ -125,6 +125,6 @@
     "started": "Clonage de {name} en cours. La progression s’affiche au-dessus de la liste des VM."
   },
   "errors": {
-    "unreachable": "Proxmox est injoignable pour le moment. Réessayez dans un instant ; les administrateurs trouvent la cause dans le journal."
+    "unreachable": "Proxmox est injoignable pour le moment. Réessayez dans un instant ; les administrateurs trouvent la cause dans le journal."
   }
 }

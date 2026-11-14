@@ -19,13 +19,14 @@
  */
 import { h, icon } from '../../core/dom.js';
 import { getJson, request, live } from '../../core/api.js';
-import { t, tNode, tAttr, onLocaleChange, getLocale } from '../../core/i18n.js';
+import { t, tNode, tAttr, onLocaleChange } from '../../core/i18n.js';
+import { fmtTime } from '../../core/format.js';
 import { session } from '../../core/session.js';
 import { avatar } from '../../shared/presenceBar.js';
 import { benchSummary, isOccupant, onBenches } from '../teams/data.js';
 import { noteOf, onNotes, mayEdit, openNoteDialog, knowDevices } from './notes.js';
 
-const clock = (iso) => new Intl.DateTimeFormat(getLocale(), { hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
+const clock = fmtTime;
 
 export function mountBenchPanel({ host }) {
   let lab = null;

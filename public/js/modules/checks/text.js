@@ -2,7 +2,8 @@
  * What the bench checks say, in the user's language: line states, cabling
  * verdicts and their reasons, interface states, steps, codes of the server
  */
-import { t, has, getLocale } from '../../core/i18n.js';
+import { t, has } from '../../core/i18n.js';
+import { fmtTime, fmtDayMonth } from '../../core/format.js';
 import { codeText } from '../../shared/serverText.js';
 
 export { codeText };
@@ -56,7 +57,7 @@ export function reasonText(reason) {
 
 export function timeText(value) {
   if (!value) return '';
-  return new Intl.DateTimeFormat(getLocale(), { hour: '2-digit', minute: '2-digit' }).format(new Date(value));
+  return fmtTime(value);
 }
 
 /** "à 10:42" today, "le 12 nov. à 10:42" another day */
@@ -65,5 +66,5 @@ export function ageText(value) {
   const d = new Date(value);
   const today = new Date().toDateString() === d.toDateString();
   if (today) return t('checks.at', { time: timeText(value) });
-  return t('checks.atDay', { day: new Intl.DateTimeFormat(getLocale(), { day: 'numeric', month: 'short' }).format(d), time: timeText(value) });
+  return t('checks.atDay', { day: fmtDayMonth(d), time: timeText(value) });
 }

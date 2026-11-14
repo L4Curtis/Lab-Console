@@ -6,7 +6,7 @@
  */
 import { h, icon } from '../../../core/dom.js';
 import { getJson, live, request, callOrToast } from '../../../core/api.js';
-import { t, getLocale, onLocaleChange } from '../../../core/i18n.js';
+import { t, onLocaleChange } from '../../../core/i18n.js';
 import { session } from '../../../core/session.js';
 import { confirmDialog, formDialog } from '../../../shared/dialog.js';
 import { fmtSlot } from '../data.js';
@@ -163,7 +163,7 @@ export function mount(el, { navigate }) {
       });
       return h('div.cal-col', { role: 'gridcell' }, cells, blocks);
     });
-    const times = h('div.cal-times', hours.map((hour) => h('div.cal-time', new Intl.DateTimeFormat(getLocale(), { hour: '2-digit', minute: '2-digit' }).format(new Date(2026, 0, 1, hour)))));
+    const times = h('div.cal-times', hours.map((hour) => h('div.cal-time', fmtTime(new Date(2026, 0, 1, hour)))));
     grid.replaceChildren(head, h('div.cal-row.cal-body', times, columns));
     renderOutside(days, myTeamId);
   }

@@ -16,7 +16,7 @@ import { h, toast } from '../../../core/dom.js';
 import { request, getJson } from '../../../core/api.js';
 import { t, tError, tAttr, has, onLocaleChange } from '../../../core/i18n.js';
 import { askConfirmation, keepDraft, takeDraft } from '../confirm.js';
-import { fmtLong } from '../../../core/format.js';
+import { fmtLong, fmtTime } from '../../../core/format.js';
 
 // The draft of an SSO administrator who left to sign in again keeps no secret
 const SECRET_KINDS = new Set(['secret', 'secretArea']);
@@ -177,7 +177,7 @@ export function mount(el) {
       const back = next.ssoOutcome;
       const draft = back ? takeDraft('lab') : null;
       if (draft) applyDraft(draft);
-      if (back?.ok) toast(t('admin.lab.ssoConfirmed', { time: new Date(back.confirmedUntil).toLocaleTimeString() }), 'info', 10_000);
+      if (back?.ok) toast(t('admin.lab.ssoConfirmed', { time: fmtTime(back.confirmedUntil) }), 'info', 10_000);
       else if (back) status.textContent = tError(back.code, back.params, back.message);
     } catch (err) {
       status.textContent = err.message;

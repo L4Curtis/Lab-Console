@@ -54,7 +54,7 @@
     "settings": {
       "invalid": "Certaines valeurs ne sont pas valides."
     },
-    "network": "Impossible de joindre le serveur : vérifiez votre connexion."
+    "network": "Impossible de joindre le serveur : vérifiez votre connexion."
   },
   "announcement": {
     "hide": "Masquer l’annonce"

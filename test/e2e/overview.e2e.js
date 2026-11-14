@@ -115,7 +115,7 @@ test('the overview shows both teams\' benches to both, moves when one of them fr
   const seen = card(chloe, 'B4M').locator('.ov-consoles li[data-device="R1"]');
   await seen.waitFor();
   assert.match(await seen.textContent(), /piloté par Alice Martin/);
-  await card(chloe, 'B4M').locator('.ov-lines', { hasText: '1 ligne ouverte sur 10' }).waitFor();
+  await card(chloe, 'B4M').locator('.ov-lines', { hasText: '1 console ouverte sur 10' }).waitFor();
   assert.doesNotMatch(await overview(chloe).textContent(), /private-to-alice/);
 
   // Alice's backup is on her home page, and on nobody else's

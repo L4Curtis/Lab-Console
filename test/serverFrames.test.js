@@ -221,7 +221,7 @@ test('frames: the summary of a script that stopped early agrees with the total, 
   assert.deepEqual(frame.parts.map((p) => p.code), ['automation.sent', 'automation.device_errors', 'automation.no_prompt_after', 'automation.stopped_on_error', 'automation.waiting_for']);
   await i18n.setLocale('fr', { persist: false });
   const fr = serverText(frame);
-  assert.ok(fr.startsWith('Lignes envoyées : 1 sur 5. 1 erreur de l’équipement (ligne 1). Pas de prompt après les lignes 2, 3.'), fr);
+  assert.ok(fr.startsWith('Lignes envoyées\u00a0: 1 sur 5. 1 erreur de l’équipement (ligne 1). Pas de prompt après les lignes 2, 3.'), fr);
   assert.doesNotMatch(fr, /[{}]/);
   await i18n.setLocale('en', { persist: false });
   assert.ok(serverText(frame).startsWith('Sent 1 of 5 lines. 1 device error (line 1).'));

@@ -12,7 +12,8 @@
  */
 import { h, icon, toast, loadCss } from '../core/dom.js';
 import { getJson, request } from '../core/api.js';
-import { t, tNode, tAttr, loadNamespace, onLocaleChange, getLocale } from '../core/i18n.js';
+import { t, tNode, tAttr, loadNamespace, onLocaleChange } from '../core/i18n.js';
+import { fmtDate } from '../core/format.js';
 import { openDialog, formDialog, confirmDialog } from './dialog.js';
 
 const SHELVES = ['personal', 'team', 'published'];
@@ -55,7 +56,7 @@ export async function openScriptLibrary({ pick = true } = {}) {
   const dlg = openDialog(body, { title: t(pick ? 'scripts.library.titlePick' : 'scripts.library.title'), wide: true, initialFocus: search });
   search.addEventListener('input', () => { filter = search.value.trim().toLowerCase(); render(); });
 
-  const when = (iso) => new Date(iso).toLocaleDateString(getLocale(), { day: 'numeric', month: 'short', year: 'numeric' });
+  const when = fmtDate;
 
   async function load() {
     try {

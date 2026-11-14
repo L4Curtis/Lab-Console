@@ -327,7 +327,10 @@
     "interrupted": "The server restarted during the job: check the device on its console.",
     "device_failed": "The device could not be processed.",
     "shared_in_use": "{device} shares its console line with {bench}, held by another team: it is left alone.",
-    "script_errors": "The device refused {count} line(s): nothing was saved. Read the refused lines, then save by hand if you wish.",
+    "script_errors": {
+      "one": "The device refused {count} line: nothing was saved. Read the refused line, then save by hand if you wish.",
+      "other": "The device refused {count} lines: nothing was saved. Read the refused lines, then save by hand if you wish."
+    },
     "check_differs": "The device does not read back as the source (+{added} / −{removed}): nothing was saved.",
     "startup_unread": "The startup configuration could not be read."
   },

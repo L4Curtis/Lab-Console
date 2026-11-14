@@ -45,7 +45,7 @@
   },
   "console": {
     "connecting": "connexion en cours",
-    "silent": "appareil muet"
+    "silent": "équipement muet"
   },
   "card": {
     "yours": "Votre baie",
@@ -61,12 +61,12 @@
     "onBench": "Sur la baie",
     "guest": "invité",
     "jobBy": {
-      "one": "par {name} · {done}/{total} appareil",
-      "other": "par {name} · {done}/{total} appareils"
+      "one": "par {name} · {done}/{total} équipement",
+      "other": "par {name} · {done}/{total} équipements"
     },
     "lines": {
-      "one": "{count} ligne ouverte sur {total}",
-      "other": "{count} lignes ouvertes sur {total}"
+      "one": "{count} console ouverte sur {total}",
+      "other": "{count} consoles ouvertes sur {total}"
     },
     "busy": {
       "one": "{count} occupée hors de l’application",
@@ -77,7 +77,7 @@
       "one": "{count} muette",
       "other": "{count} muettes"
     },
-    "silentHint": "L’équipement ne répond pas sur sa ligne (console ouverte, ou dernière vérification des lignes) : éteint, câble débranché ou planté.",
+    "silentHint": "L’équipement ne répond pas sur sa ligne (console ouverte, ou dernière vérification des lignes) : éteint, câble débranché ou planté.",
     "freeLines": {
       "one": "{count} libre",
       "other": "{count} libres"
@@ -85,7 +85,7 @@
     "freeHint": "La dernière vérification des lignes a trouvé la ligne libre et l’équipement a répondu.",
     "checkedAt": "lignes vérifiées à {time}",
     "pilot": "piloté par {name}",
-    "noPilot": "personne au clavier",
+    "noPilot": "personne n’a la main",
     "people": {
       "one": "{count} personne",
       "other": "{count} personnes"
@@ -139,8 +139,8 @@
     "backups": {
       "title": "Nos dernières sauvegardes",
       "devices": {
-        "one": "{count} appareil",
-        "other": "{count} appareils"
+        "one": "{count} équipement",
+        "other": "{count} équipements"
       },
       "empty": "Aucune sauvegarde pour l’instant.",
       "all": "Toutes les sauvegardes"

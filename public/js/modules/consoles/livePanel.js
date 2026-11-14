@@ -8,6 +8,7 @@
 import { h, icon } from '../../core/dom.js';
 import { getJson, live } from '../../core/api.js';
 import { t, tNode, tAttr, onLocaleChange } from '../../core/i18n.js';
+import { fmtTime } from '../../core/format.js';
 import { avatar } from '../../shared/presenceBar.js';
 import { taskName } from '../../shared/serverText.js';
 
@@ -84,7 +85,7 @@ export class LivePanel {
   }
 }
 
-const clock = (ts) => new Date(ts).toLocaleTimeString(document.documentElement.lang || undefined, { hour: '2-digit', minute: '2-digit' });
+const clock = fmtTime;
 
 /** One activity entry as a sentence */
 export function describe(e) {
