@@ -28,8 +28,13 @@
  * server shutdown) first undoes it (CiscoRecovery.putBack: state 'restoring',
  * a cancel then waits for it): in the same task while its actor may still
  * type, else as a 'system' task on the line (the bench locked or taken
- * mid-way, the line hung up). At shutdown nothing is booted (no time): the
- * register / file / variable only. What could not be put back ends the
+ * mid-way, the line hung up). At shutdown (the module's drain(), before the
+ * consoles close) nothing is booted (no time): the register / file / variable
+ * only, and the row keeps `putBack` { booted: false, at: 'rommon' |
+ * 'bootLoader' } so the next start says where the device was left. A bypass
+ * step refused before its command was typed (`untouched`: parked_exists, the
+ * wrong screen) sets nothing aside: no put-back, the device is only booted
+ * out of ROMMON / switch: (putBack { nothing: true }). What could not be put back ends the
  * recovery 'failed' with `recovery.left_<bypass>` and stays in the row
  * (`bypassed`); the next recovery of the device resumes at the restore step
  * when the device sits at its factory prompt (planFrom).
@@ -205,6 +210,10 @@ export class RecoveryRunner {
             ending = err;
             cli.resume();
             await this.#putBack(rec, driver);
+          } else if (rec.hidden.bootBack && !rec.hidden.shutdown && !room.closed && room.canPilot(actor)) {
+            // The bypass step refused before typing: nothing to undo, the device only needs booting
+            cli.resume();
+            await this.#bootBack(rec, driver);
           }
           throw err;
         }
@@ -233,8 +242,15 @@ export class RecoveryRunner {
       await this.#confirmation(rec, id, cli);
       if (!this.mayGoOn(rec)) throw new Stop({ reason: 'recovery.not_allowed', message: 'The bench is no longer yours: the recovery stops.' });
       // From the moment its command may reach the device, the bypass counts as in place
-      if (id === BYPASS_STEP[this.#method(rec)]) this.#setBypass(rec, BYPASS[this.#method(rec)]);
+      const bypassing = id === BYPASS_STEP[this.#method(rec)];
+      if (bypassing) this.#setBypass(rec, BYPASS[this.#method(rec)]);
       const r = await this.#step(rec, id, () => driver.run(id, rec.facts));
+      if (bypassing && !r.ok && r.untouched) {
+        // Refused before its command was typed (parked_exists: config.text is intact): nothing
+        // set aside; the device sits in ROMMON / at switch:, it is booted back on the way out
+        this.#setBypass(rec, null);
+        rec.hidden.bootBack = true;
+      }
       if (r.ok) {
         Object.assign(rec.facts, factsOf(r));
         if (id === BYPASS_STEP[this.#method(rec)] && r.parked === false) this.#setBypass(rec, null); // no config.text: nothing set aside
@@ -292,6 +308,25 @@ export class RecoveryRunner {
     rec.putBack = r.ok ? { ok: true, booted: Boolean(r.booted), at: r.at ?? null } : { ok: false, code: r.reason, params: r.params ?? {}, message: r.message, lastOutput: r.lastOutput ?? null };
     if (r.ok) this.#setBypass(rec, null);
     this.audit.log(rec.hidden.actorUser, 'recovery.put_back', { bench: rec.bench, device: rec.device.name, recovery: rec.id, ok: r.ok, code: r.ok ? null : r.reason });
+    this.#publish(rec);
+  }
+
+  /** Nothing to undo, but the device was halted at its monitor by the power cycle: boot it (state 'restoring') */
+  async #bootBack(rec, driver) {
+    rec.state = 'restoring';
+    rec.awaiting = null;
+    rec.current = 'put_back';
+    rec.progress = null;
+    this.#publish(rec);
+    let r;
+    try {
+      r = await driver.bootBack();
+    } catch (err) {
+      r = { ok: true, booted: false, at: null, warning: err.code ?? err.message };
+    }
+    rec.current = null;
+    rec.putBack = { ok: true, booted: Boolean(r.booted), at: r.at ?? null, nothing: true };
+    this.audit.log(rec.hidden.actorUser, 'recovery.put_back', { bench: rec.bench, device: rec.device.name, recovery: rec.id, ok: true, code: null, booted: Boolean(r.booted) });
     this.#publish(rec);
   }
 
@@ -451,5 +486,7 @@ function record(rec) {
     id: rec.id, bench: rec.bench, device: rec.device, family: rec.family, actor: rec.actor, teamId: rec.teamId, state: rec.state,
     steps: rec.steps.map(({ id, state, code, params, at, tries, result }) => ({ id, state, code, params, at, tries, ...(result ? { result } : {}) })),
     code: rec.code, bypassed: rec.bypassed ?? null, createdAt: rec.createdAt, endedAt: rec.endedAt,
+    // How the put-back ended: a device put back without booting (shutdown) sits in ROMMON / at switch:
+    putBack: rec.putBack ? { ok: rec.putBack.ok, booted: Boolean(rec.putBack.booted), at: rec.putBack.at ?? null, code: rec.putBack.code ?? null } : null,
   };
 }

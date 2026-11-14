@@ -257,8 +257,15 @@ test('a parked config.text left by someone next to config.text: nothing renamed,
     r.dev.parked = { name: PARKED_NAME, cfg: structuredClone(r.dev.startup) };
     const { results } = await recover(r, 'catalyst', { person: false });
     assert.equal(results.park_config.reason, 'recovery.parked_exists');
+    assert.equal(results.park_config.untouched, true, 'refused before the rename: nothing set aside');
     assert.ok(!typedLines(r).some((l) => /^rename/.test(l)));
     assert.equal(r.dev.startup.hostname, 'S1');
+    // Nothing to undo: the switch is only booted out of switch:, with its own config.text
+    const back = await r.cli.perform('recovery', () => new CiscoRecovery(r.cli, { family: 'catalyst', timeouts: RT }).bootBack());
+    assert.deepEqual({ ok: back.ok, booted: back.booted }, { ok: true, booted: true }, JSON.stringify(back));
+    assert.ok(bootedOwn(r.dev, 'S1'), `${r.dev.state} ${r.dev.cfg.hostname}`);
+    assert.ok(r.dev.parked, 'the parked file is left alone');
+    assert.ok(!typedLines(r).some((l) => DESTRUCTIVE.test(l)));
   } finally { r.done(); }
 });
 
@@ -268,6 +275,11 @@ test('steps check their screen first: confreg on a device that is not in ROMMON 
     const rec = new CiscoRecovery(r.cli, { family: 'isr_g1', timeouts: RT });
     const res = await r.cli.perform('recovery', () => rec.setConfreg());
     assert.equal(res.reason, 'recovery.unexpected_screen');
+    assert.equal(res.untouched, true);
+    assert.deepEqual(typedLines(r), []);
+    // bootBack away from ROMMON / switch: types nothing but an Enter either
+    const back = await r.cli.perform('recovery', () => rec.bootBack());
+    assert.deepEqual({ ok: back.ok, booted: back.booted }, { ok: true, booted: false });
     assert.deepEqual(typedLines(r), []);
   } finally { r.done(); }
 });

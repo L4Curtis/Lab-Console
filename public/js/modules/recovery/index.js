@@ -32,6 +32,12 @@ import { registerDiagramLayer, refreshDiagram } from '../../shared/diagramLayers
 
 const FINAL = new Set(['done', 'failed', 'cancelled']);
 const LEFT_CODE = /^recovery\.left_/; // the recovery ended with its device still bypassed
+
+/** What a successful put-back did: undone and booted, undone only (shutdown), or nothing to undo */
+function putBackText(p) {
+  if (p.nothing) return p.booted ? 'recovery.bootedBack' : 'recovery.notBootedBack';
+  return p.booted ? 'recovery.putBackDone' : 'recovery.putBackNotBooted';
+}
 let running = [];                 // 'recovery:running': [{ id, bench, device: { key, name }, state, awaiting, current, actor }]
 const followers = new Set();      // open dialogs: fn(recovery)
 
@@ -159,6 +165,7 @@ export function openRecoveryDialog(key) {
     return [
       h('p.recovery-intro', t('recovery.intro')),
       info.left ? h('p.recovery-problem', { role: 'status', dataset: { left: info.left } }, t(`recovery.leftBefore.${info.left}`)) : null,
+      info.halted ? h('p.recovery-problem', { role: 'status', dataset: { halted: info.halted } }, t(`recovery.haltedBefore.${info.halted}`)) : null,
       info.canStart ? null : h('p.recovery-problem', { role: 'status' }, t('recovery.cannotStart', { reason: codeText(info.refusal?.code, info.refusal?.params, '') })),
       h('form.recovery-start', { onsubmit: (e) => { e.preventDefault(); start(select.value); } },
         h('label.field-label', h('span', t('recovery.family')), select), go),
@@ -187,7 +194,7 @@ export function openRecoveryDialog(key) {
         h('p.recovery-error', codeText(err.code, err.params, err.message ?? '')),
         rec.cause?.code ? h('p.recovery-cause', t('recovery.cause', { reason: codeText(rec.cause.code, rec.cause.params, '') })) : null,
         !LEFT_CODE.test(rec.code ?? '') && rec.bypassed ? h('p.recovery-problem', t(`recovery.leftBefore.${rec.bypassed}`)) : null,
-        rec.putBack?.ok ? h('p.recovery-putback', t(rec.putBack.booted ? 'recovery.putBackDone' : 'recovery.putBackNotBooted')) : null,
+        rec.putBack?.ok ? h('p.recovery-putback', t(putBackText(rec.putBack))) : null,
         h('p.muted', left ? t('recovery.leftHint') : t('recovery.failedHint')),
         err.lastOutput ? lastOutput(err.lastOutput) : null));
     } else if (rec.state === 'restoring') {

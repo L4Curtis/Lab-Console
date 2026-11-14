@@ -332,6 +332,35 @@ test('abandoned after park_config: put back all the same', async () => {
   assert.ok(bootedOwn(s3, 'S3-2010'), `${s3.state} ${s3.cfg.hostname}`);
 });
 
+test('park_config refused (config.text.recovery next to config.text): nothing set aside, nothing to put back, the switch booted back', async () => {
+  const s3 = j.dev('S3'); // booted with its own startup-config by the test above
+  s3.parked = { name: 'config.text.recovery', cfg: { ...structuredClone(s3.startup), hostname: 'OLD' } };
+  try {
+    const s = await start('student1', 'S3', 'catalyst');
+    const id = s.body.recovery.id;
+    await walk(id, s3, ['power_cycle', 'flash_init'], 'park_config', { mode: true });
+    await confirm('student1', id, 'park_config');
+    const rec = await ended(id);
+    assert.equal(rec.state, 'failed');
+    assert.equal(rec.code, 'recovery.parked_exists', JSON.stringify(rec.error));
+    assert.equal(rec.bypassed, null, 'nothing was renamed: no bypass');
+    assert.equal(rec.cause, null);
+    assert.deepEqual({ ok: rec.putBack.ok, booted: rec.putBack.booted, nothing: rec.putBack.nothing }, { ok: true, booted: true, nothing: true });
+    assert.ok(bootedOwn(s3, 'S3-2010'), `${s3.state} ${s3.cfg.hostname}`);
+    assert.equal(s3.startup.hostname, 'S3-2010', 'config.text untouched');
+    assert.equal(s3.parked.cfg.hostname, 'OLD', 'the parked file untouched');
+    const row = await j.app.deps.repos.recoveries.get(id);
+    assert.equal(row.bypassed, null);
+    assert.equal(row.code, 'recovery.parked_exists');
+    assert.deepEqual(row.putBack, { ok: true, booted: true, at: 'password', code: null }, 'locked again by its own line password, as found');
+    const info = await j.api('student1', 'GET', `/api/recovery/devices/${encodeURIComponent(j.key('S3'))}`);
+    assert.equal(info.body.left, null);
+    assert.equal(info.body.halted, null);
+  } finally {
+    s3.parked = null;
+  }
+});
+
 test('stopped from the console tile after boot: put back (0x2102 for the next boot), said to be stopped from the console', async () => {
   const r1 = j.dev('R1');
   await bootOwn(r1);
@@ -436,18 +465,41 @@ test('a shared console line another team holds, an admin switch: refused', async
   }
 });
 
-test('server shutdown after confreg: the register put back without booting, the row saved', async () => {
+test('a put-back without booting is kept in the row: the next start says where the device was left', async () => {
+  const repos = j.app.deps.repos;
+  const id = '0190a000-0000-7000-8000-0000000000aa';
+  await repos.recoveries.save({
+    id, bench: 'B4M', device: { key: j.key('R5'), name: 'R5' }, family: 'isr_g1', actor: { id: 'u1', name: 'A' }, teamId: null,
+    state: 'cancelled', steps: [], code: 'recovery.cancelled', bypassed: null, putBack: { ok: true, booted: false, at: 'rommon', code: null },
+    createdAt: new Date().toISOString(), endedAt: new Date().toISOString(),
+  });
+  assert.deepEqual((await repos.recoveries.get(id)).putBack, { ok: true, booted: false, at: 'rommon', code: null });
+  const info = await j.api('student1', 'GET', `/api/recovery/devices/${encodeURIComponent(j.key('R5'))}`);
+  assert.equal(info.body.halted, 'rommon');
+  assert.equal(info.body.left, null);
+});
+
+// Last: it closes the whole application, as a stopping server does (every module, in the same call)
+test('server shutdown after confreg: the whole app closes, the register is put back first, without booting, the row saved', async () => {
   const r4 = j.dev('R4');
   const s = await start('student1', 'R4', 'isr_g1');
   const id = s.body.recovery.id;
   await walk(id, r4, ['power_cycle', 'confreg'], 'boot');
-  await recovery.runner.shutdown();
+  assert.equal(r4.nextConfReg, '0x2142');
+  // The database closes with the app: keep what was last saved
+  const repo = j.app.deps.repos.recoveries;
+  const save = repo.save;
+  let stored = null;
+  repo.save = (rec) => { if (rec.id === id) stored = structuredClone(rec); return save.call(repo, rec); };
+  const app = j;
+  j = null;
+  await app.close();
   const rec = live(id);
   assert.equal(rec.state, 'cancelled', JSON.stringify(rec.error));
-  assert.deepEqual({ ok: rec.putBack.ok, booted: rec.putBack.booted }, { ok: true, booted: false });
+  assert.deepEqual({ ok: rec.putBack.ok, booted: rec.putBack.booted, at: rec.putBack.at }, { ok: true, booted: false, at: 'rommon' });
   assert.equal(r4.state, 'rommon', 'not booted: the server is stopping');
   assert.equal(r4.nextConfReg, '0x2102');
-  const stored = await j.app.deps.repos.recoveries.get(id);
   assert.equal(stored.state, 'cancelled');
   assert.equal(stored.bypassed, null);
+  assert.deepEqual(stored.putBack, { ok: true, booted: false, at: 'rommon', code: null });
 });

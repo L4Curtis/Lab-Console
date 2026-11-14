@@ -11,7 +11,9 @@
  *                outcome (JSON), the code it ended with, and the bypass
  *                the device was left with ('register' | 'parked' |
  *                'ignore', or NULL: nothing left), which the next recovery
- *                of the device puts back
+ *                of the device puts back, and how the last put-back
+ *                ended (JSON { ok, booted, at, code }: a device put back
+ *                without booting, at shutdown, sits in ROMMON / at switch:)
  */
 export async function up(tx) {
   await tx.run(`CREATE TABLE recoveries (
@@ -26,6 +28,7 @@ export async function up(tx) {
     steps TEXT NOT NULL,
     code TEXT,
     bypassed TEXT,
+    put_back TEXT,
     created_at TEXT NOT NULL,
     ended_at TEXT
   )`);

@@ -135,7 +135,7 @@ const MESSAGES = {
   unexpected_screen: 'The console shows "{line}" where the assistant expected {expected}. Nothing more was typed.',
   monitor_no_answer: 'The device did not answer "{command}".',
   monitor_refused: 'The device refused "{command}": {detail}',
-  parked_exists: 'flash:{name} already exists next to flash:config.text: an earlier recovery left it. Nothing is overwritten: someone must look at the flash on site.',
+  parked_exists: 'flash:{name} already exists next to flash:config.text (an earlier recovery left it): nothing was renamed or overwritten, flash:config.text is untouched. Someone must look at the flash on site before a recovery can set config.text aside.',
   rename_failed: 'The startup-config file could not be renamed: {detail}',
   still_locked: 'The device still asks for a password: its startup-config was not bypassed.',
   not_bypassed: 'The device booted its own configuration (prompt {host}): the startup-config was not bypassed.',
@@ -145,7 +145,7 @@ const MESSAGES = {
   ignore_not_cleared: 'The switch refused to read its startup-config again: {detail}',
   not_locked: 'The device is at a privileged prompt ({host}#): it is not locked. Nothing was done; a power cycle would lose what it has not saved.',
   left_register: 'The configuration register is still 0x2142: the router ignores its startup-config at every boot until someone sets 0x2102 again (starting the assistant again does it). {detail}',
-  left_parked: 'flash:config.text is still renamed flash:config.text.recovery: the switch boots without its startup-config until someone renames it back (starting the assistant again does it). {detail}',
+  left_parked: 'The assistant could not make sure flash:config.text is back: if dir flash: lists config.text.recovery without config.text, the switch boots without its startup-config until someone renames it back (starting the assistant again does it). {detail}',
   left_ignore: 'SWITCH_IGNORE_STARTUP_CFG is still 1: the switch ignores its startup-config at every boot until someone clears it (starting the assistant again does it). {detail}',
 };
 
@@ -156,6 +156,11 @@ function fail(reason, params = {}, extra = {}) {
   const message = (MESSAGES[reason] || reason).replace(/\{(\w+)\}/g, (_, k) => (params[k] ?? `{${k}}`));
   return { ok: false, reason: `recovery.${reason}`, message, params, ...extra };
 }
+/**
+ * A bypass step that failed before its command was typed (the screen was not the expected
+ * one, `dir flash:` did not answer, both files on flash:): nothing was set aside
+ */
+const untouched = (r) => ({ ...r, untouched: true });
 const tailOf = (text, max = 1500) => String(text).slice(-max).replace(/^[^\n]*\n/, '');
 
 // What telnet itself prints when the application sends a BREAK ("telnet> send brk"), wherever the
@@ -386,7 +391,7 @@ export class CiscoRecovery {
   /** confreg 0x2142 in ROMMON: the next boot ignores the startup-config */
   async setConfreg() {
     const no = await this.#atMonitor('rommon');
-    if (no) return no;
+    if (no) return untouched(no);
     const r = await this.#monitorCommand('confreg 0x2142', ROMMON);
     if (!r.ok) return r;
     this.#progress('recovery.progress.confreg_set');
@@ -406,17 +411,18 @@ export class CiscoRecovery {
    * before and after. Nothing is deleted or overwritten: a parked file left by
    * an earlier recovery is taken as already parked when config.text is gone,
    * and stops the step when both exist. → { ok, parked, earlier? }
+   * Failures before the rename was typed are `untouched` (see untouched())
    */
   async parkConfig() {
     const no = await this.#atMonitor('bootLoader');
-    if (no) return no;
+    if (no) return untouched(no);
     const before = await this.#monitorCommand('dir flash:', LOADER);
-    if (!before.ok) return before;
-    if (!/Directory of flash:/i.test(before.output)) return fail('monitor_refused', { command: 'dir flash:', detail: lastMeaningful(before.output) }, { lastOutput: tailOf(before.output) });
+    if (!before.ok) return untouched(before);
+    if (!/Directory of flash:/i.test(before.output)) return untouched(fail('monitor_refused', { command: 'dir flash:', detail: lastMeaningful(before.output) }, { lastOutput: tailOf(before.output) }));
     const has = (out, name) => new RegExp(`\\s${escapeRe(name)}\\s*$`, 'm').test(out);
     const config = has(before.output, 'config.text');
     const parked = has(before.output, PARKED_NAME);
-    if (config && parked) return fail('parked_exists', { name: PARKED_NAME }, { lastOutput: tailOf(before.output) });
+    if (config && parked) return untouched(fail('parked_exists', { name: PARKED_NAME }, { lastOutput: tailOf(before.output) }));
     if (!config) {
       this.#progress(parked ? 'recovery.progress.parked_earlier' : 'recovery.progress.no_config_text');
       return { ok: true, parked, earlier: parked };
@@ -433,7 +439,7 @@ export class CiscoRecovery {
   /** SWITCH_IGNORE_STARTUP_CFG=1 at a 9300L's boot loader */
   async ignoreStartup() {
     const no = await this.#atMonitor('bootLoader');
-    if (no) return no;
+    if (no) return untouched(no);
     const r = await this.#monitorCommand('SWITCH_IGNORE_STARTUP_CFG=1', LOADER);
     if (!r.ok) return r;
     this.#progress('recovery.progress.ignore_set');
@@ -557,13 +563,7 @@ export class CiscoRecovery {
       const undo = await this.#undoAtMonitor(bypassed, s.state);
       if (!undo.ok) return left(undo);
       if (!boot) return { ok: true, booted: false, at: s.state };
-      this.#cli.reset();
-      await this.#cli.answer(s.state === 'rommon' ? 'reset' : 'boot');
-      this.#progress('recovery.progress.booting_back');
-      const r = await this.#ios.followBoot({ keepScreen: true });
-      // Its own startup-config is read again: a console password asked is the device as it was found
-      if (!r.ok && !isLockedPrompt(r)) return { ok: true, booted: false, at: 'boot', warning: r.reason };
-      return { ok: true, booted: true, at: r.host ?? 'password', host: r.host ?? null };
+      return this.#bootFromMonitor(s.state);
     }
     if (['user', 'privileged', 'config'].includes(s.state)) {
       const restore = { register: () => this.restoreRegister(), parked: () => this.restoreConfig({ parked: true }), ignore: () => this.restoreStartupUse() }[bypassed];
@@ -572,6 +572,28 @@ export class CiscoRecovery {
       return { ok: true, booted: true, at: r.host, host: r.host };
     }
     return left(fail('unexpected_screen', { line: s.line, expected: 'ROMMON / switch: / Router> / Switch>' }));
+  }
+
+  /**
+   * Nothing to undo (a bypass step refused before typing its command): a device left in
+   * ROMMON or at switch: by the power cycle is booted and followed to its own prompt.
+   * → { ok: true, booted, at }
+   */
+  async bootBack() {
+    const s = await this.#readScreen();
+    if (s.state !== 'rommon' && s.state !== 'bootLoader') return { ok: true, booted: false, at: s.state };
+    return this.#bootFromMonitor(s.state);
+  }
+
+  /** reset / boot, followed to the device's own prompt (its startup-config read again) */
+  async #bootFromMonitor(state) {
+    this.#cli.reset();
+    await this.#cli.answer(state === 'rommon' ? 'reset' : 'boot');
+    this.#progress('recovery.progress.booting_back');
+    const r = await this.#ios.followBoot({ keepScreen: true });
+    // Its own startup-config is read again: a console password asked is the device as it was found
+    if (!r.ok && !isLockedPrompt(r)) return { ok: true, booted: false, at: 'boot', warning: r.reason };
+    return { ok: true, booted: true, at: r.host ?? 'password', host: r.host ?? null };
   }
 
   /** ROMMON or switch:: the command that undoes `bypassed`, checked where the loader can tell */

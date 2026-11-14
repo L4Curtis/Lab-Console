@@ -485,8 +485,14 @@ left locked. It needs someone on site to power-cycle the device.
   variable cleared then `boot`, at an IOS prompt the restore step; the boot
   is followed to the device's own (locked) prompt. It runs in the same task
   while the person who started it may still type on the line, otherwise as a
-  system task (bench locked or taken mid-way, line hung up). At shutdown the
-  device is not booted (no time): the register, file or variable only. What
+  system task (bench locked or taken mid-way, line hung up). At shutdown
+  (before the consoles close: the module's `drain()`) the device is not
+  booted (no time): the register, file or variable only; the row keeps it
+  (`putBack.booted: false`, `at`) and the device's next view says it may
+  still sit in ROMMON or at `switch:`. A bypass step refused before its
+  command was typed (`parked_exists`: `config.text.recovery` already next
+  to `config.text`; the wrong screen) sets nothing aside: nothing is put
+  back, the device is only booted out of ROMMON / `switch:`. What
   cannot be put back ends the recovery `recovery.left_register` /
   `left_parked` / `left_ignore`, stays on the device's history, and the next
   recovery of that device starts with it (no new power cycle when the device

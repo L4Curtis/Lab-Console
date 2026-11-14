@@ -143,6 +143,7 @@ export function createRecoveryModule({ config, logger, events, repos, audit, inf
     const device = deviceOf(req.params.key);
     const no = refusal(req.user, device);
     const running = runner.running(device.key);
+    const last = running ? null : (await repos.recoveries.list({ device: device.key, limit: 1 }))[0];
     noStore(res).json({
       device: { key: device.key, name: device.name, bench: device.labName },
       families: familyList(),
@@ -151,7 +152,9 @@ export function createRecoveryModule({ config, logger, events, repos, audit, inf
       running: running ? (viewOf(req.user, running) ? view(running) : { id: running.id, state: running.state, actor: { name: running.actor.name } }) : null,
       history: await visible(req.user, { device: device.key, limit: 5 }),
       // What the last recovery of this device left in place (the next one puts it back)
-      left: running ? null : ((await repos.recoveries.list({ device: device.key, limit: 1 }))[0]?.bypassed ?? null),
+      left: running ? null : last?.bypassed ?? null,
+      // Put back without booting (the server was stopping): where it was left ('rommon' | 'bootLoader')
+      halted: !running && last?.putBack?.ok && !last.putBack.booted && ['rommon', 'bootLoader'].includes(last.putBack.at) ? last.putBack.at : null,
     });
   });
 
@@ -216,8 +219,12 @@ export function createRecoveryModule({ config, logger, events, repos, audit, inf
       }
       events.publish('recovery:running', runner.summary(), { sticky: true });
     },
-    shutdown() {
+    // At close, before the consoles module closes the rooms: each recovery puts its device back
+    drain() {
       return runner.shutdown();
+    },
+    shutdown() {
+      return runner.shutdown(); // nothing left once drain() ran (an app closed without it, a test)
     },
   };
 }

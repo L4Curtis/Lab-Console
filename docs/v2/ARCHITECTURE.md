@@ -593,8 +593,10 @@ mayOpen(device, benchNames), refusal(benchNames) }`. `decorate` uses the
 diagram's `decorate()` layer when the diagram has one and does nothing
 otherwise.
 
-`createApp().close()` calls every module's `shutdown()` (and waits for the
-promises they return), `auth.shutdown()`, ends the SSE streams, closes the
+`createApp().close()` first calls every module's `drain()` and waits for
+them all (what must still use the consoles to end cleanly: the recovery
+module puts its devices back there), then every module's `shutdown()` (and
+waits for the promises they return), `auth.shutdown()`, ends the SSE streams, closes the
 HTTP server, waits for `store.flush()`, then closes the database (after the
 statements the shutdowns queued).
 A module must release in `shutdown()` whatever would keep the process alive
@@ -700,10 +702,12 @@ createInfrastructure({ file, repos, audit })`) and wins.
 ## 7. Server modules
 
 The upstream contract is unchanged:
-`{ id, title, enabled, router?, upgrade?(req, socket, head) → boolean, start?(), shutdown?() }`,
+`{ id, title, enabled, router?, upgrade?(req, socket, head) → boolean, start?(), drain?(), shutdown?() }`,
 registered with one line in `src/modules/index.js`. `start()` (optional,
 may be async) runs once every module is created and before the server
-listens: the place to load state from a repository into memory. A module owns its folder,
+listens: the place to load state from a repository into memory. `drain()`
+(optional, may be async) runs at close, awaited, before any module's
+`shutdown()`: rooms and the SSH pool are still open there. A module owns its folder,
 its `/api/<id>` routes, its `data/<id>/` subtree, its locale namespace and its
 front-end section. It checks roles itself with `auth.requireRole` or
 `req.user.role`.
@@ -1400,7 +1404,12 @@ From the bypass step to its restore step, `bypassed` is saved with the row;
 any ending other than done first puts the device back (state `restoring`,
 audited `recovery.put_back`; a cancel meanwhile is `recovery.putting_back`),
 in the same task while its actor may type, else as a `system` task on the
-line; at shutdown (`shutdown()` waits `shutdownMs`, 8 s) without booting. Not
+line; at shutdown (the module's `drain()`, before the consoles close, waits
+`shutdownMs`, 8 s) without booting, kept in the row (`putBack { ok, booted,
+at, code }`; `GET /devices/:key` → `halted: 'rommon' | 'bootLoader'`). A
+bypass step that fails `untouched` (refused before its command was typed:
+`parked_exists`, the wrong screen) clears `bypassed`; the device is only
+booted out of its monitor (`CiscoRecovery.bootBack()`, `putBack.nothing`). Not
 put back: the recovery ends `failed` with `recovery.left_<bypass>`, the
 reason it stopped in `cause`. A stop from the console tile (task Stop,
 hang-up) is `stoppedFrom: 'console'`, audited `recovery.cancel` with `from:
