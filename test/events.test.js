@@ -78,6 +78,16 @@ test('toUser: every tab of that user, nobody else', () => {
   hub.close();
 });
 
+test('toAdmins: every tab of every administrator, no student', () => {
+  const hub = new EventHub();
+  const root = connect(hub, admin());
+  const pupil = connect(hub, student(1));
+  hub.toAdmins('admin:changed', { what: 'lab' });
+  assert.deepEqual(root.events(), [{ topic: 'admin:changed', data: { what: 'lab' } }]);
+  assert.deepEqual(pupil.events(), []);
+  hub.close();
+});
+
 test('sticky: the last payload is replayed to a tab that connects later', () => {
   const hub = new EventHub();
   hub.publish('consoles:busy', ['a'], { sticky: true });

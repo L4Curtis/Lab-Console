@@ -31,8 +31,10 @@
  */
 import crypto from 'node:crypto';
 import { httpError } from '../../lib/httpError.js';
+import { targetKey } from '../../lib/consoleTarget.js';
 import { createCachedDocument } from '../../lib/cachedDocument.js';
 import { personOf } from './teams.js';
+import { isAdmin } from '../auth/roles.js';
 
 export const WARNING_MINUTES = 10;
 const MAX_REQUESTS = 20;
@@ -42,9 +44,7 @@ const HOUR = 3_600_000;
 
 const CONTROL = /[\u0000-\u0008\u000b-\u001f\u007f]/;
 
-const targetKey = (t) => (t ? `${t.host}:${t.port}` : null);
 const iso = (ms) => new Date(ms).toISOString();
-const isAdmin = (user) => user?.role === 'admin';
 
 export class Benches {
   #occ;

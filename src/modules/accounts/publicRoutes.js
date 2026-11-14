@@ -31,6 +31,7 @@ import { stepBinding, stepBindingHolds } from './directory.js';
 import {
   registrationOptions, verifyRegistration, authenticationOptions, verifyAuthentication, credentialIdOf, PasskeyError,
 } from './passkeys.js';
+import { isAdmin } from '../auth/roles.js';
 
 const publicDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'public');
 const WINDOW = 15 * 60_000;
@@ -185,7 +186,7 @@ export function publicRoutes(ctx) {
     changed('users');
     if (created.state === 'pending') return res.json({ pending: true });
     // A single-use link: the account is active at once. An administrator still owes a passkey first
-    if (user.role === 'admin') {
+    if (isAdmin(user)) {
       auth.steps.start(req, res, user, ['passkey-enrol'], { method: 'signup', binding: stepBinding(created) });
       return res.json({ step: 'passkey-enrol' });
     }

@@ -42,6 +42,7 @@ import { MAX_DIAGRAM_BYTES } from '../../lib/diagrams.js';
 import { createConfirmations } from './confirm.js';
 import { createHealth, summary, platformSummary } from './health.js';
 import { createAnnouncements } from './announcements.js';
+import { isAdmin } from '../auth/roles.js';
 
 const AUDIT_LIMIT = 1000;
 // The administration tabs that ask for a confirmation: where an SSO administrator comes back after signing in again
@@ -58,17 +59,16 @@ export function createAdminModule({ config, logger, events, repos, audit, auth, 
   const router = express.Router();
   const small = jsonBody('32kb');
   const body = (req) => (req.body !== null && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {});
-  const isAdmin = (req) => req.user?.role === 'admin';
-  const tellAdmins = (what) => events?.publish('admin:changed', { what, at: now() }, { audience: (user) => user?.role === 'admin' });
+  const tellAdmins = (what) => events?.toAdmins('admin:changed', { what, at: now() });
 
   // ── Open to everyone signed in ─────────────────────────────────────────────
   router.get('/announcement', (_req, res) => res.set('Cache-Control', 'no-store').json({ announcement: announcements.current() }));
 
   router.get('/health', async (req, res) => {
-    const fresh = isAdmin(req) && req.query.fresh === '1';
+    const fresh = isAdmin(req.user) && req.query.fresh === '1';
     const [result, platform] = await Promise.all([health.check({ fresh }), health.platform()]);
     const seen = { ...summary(result), ...platformSummary(platform) };
-    res.set('Cache-Control', 'no-store').json(isAdmin(req) ? { ...seen, details: { ...result, ...platform } } : seen);
+    res.set('Cache-Control', 'no-store').json(isAdmin(req.user) ? { ...seen, details: { ...result, ...platform } } : seen);
   });
 
   // What is journaled: the consoles module's own journal settings, read when asked

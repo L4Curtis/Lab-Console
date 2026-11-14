@@ -21,8 +21,8 @@
 import { httpError } from '../../lib/httpError.js';
 import { initialsOf, colorOf } from '../auth/user.js';
 import { cleanText, createUserLimiter, rateLimited } from './rules.js';
+import { isAdmin } from '../auth/roles.js';
 
-const isAdmin = (user) => user?.role === 'admin';
 
 export function mountChat(router, { repos, events, audit, auth, services, json, limits, now }) {
   const limiter = createUserLimiter({ limit: limits.chatPerWindow, windowMs: limits.chatWindowMs, now });

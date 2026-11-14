@@ -48,6 +48,7 @@
  */
 import fs from 'node:fs';
 import path from 'node:path';
+import { isAdmin } from '../auth/roles.js';
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
 const SESSION = /^\d{6}(?:-\d{1,4})?$/;
@@ -124,7 +125,7 @@ export class ConsoleJournal {
   /** May `user` read this session (its sidecar alone)? Admins, the people who were on it, the teams that held the bench during it */
   canRead(user, meta, teamOfUser = () => null) {
     if (!user || !meta) return false;
-    if (user.role === 'admin') return true;
+    if (isAdmin(user)) return true;
     if (meta.attended?.[user.id] || meta.pilots?.[user.id]) return true;
     const team = teamOfUser(user);
     return Boolean(team && (meta.teams ?? []).includes(team));

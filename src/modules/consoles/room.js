@@ -40,6 +40,7 @@
  */
 import { EventEmitter } from 'node:events';
 import { DEFAULT_TYPING } from '../../lib/cliAutomation.js';
+import { isAdmin } from '../auth/roles.js';
 
 const DEFAULTS = {
   scrollbackBytes: 200 * 1024,
@@ -366,7 +367,7 @@ export class ConsoleRoom extends EventEmitter {
 
   /** An admin takes the keyboard at once */
   takeControl(user) {
-    if (user?.role !== 'admin') return refusal('consoles.control_admin_only');
+    if (!isAdmin(user)) return refusal('consoles.control_admin_only');
     if (this.#watchesOnly(user)) return refusal('consoles.wall_read_only');
     if (this.#task?.state === 'running') return refusal('consoles.task_running', { task: this.#task.label });
     if (this.#pending?.kind === 'human') this.#clearPending('cancelled');
@@ -563,7 +564,7 @@ export class ConsoleRoom extends EventEmitter {
 
   /** An admin, or the pilot while the bench rule still lets them drive */
   #isPilotOrAdmin(user) {
-    return Boolean(user) && (user.role === 'admin' || (this.#pilot === user.id && this.canPilot(user)));
+    return Boolean(user) && (isAdmin(user) || (this.#pilot === user.id && this.canPilot(user)));
   }
 
   /** Attached only through read-only clients (bench wall tiles) */

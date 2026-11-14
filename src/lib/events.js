@@ -4,6 +4,7 @@
  *
  *   events.publish(topic, data, { sticky, audience })   audience: (user) => boolean
  *   events.toUser(userId, topic, data)
+ *   events.toAdmins(topic, data)
  *
  * Each stream belongs to the user who opened it (`req.user`, set by the auth
  * gate). An event with an `audience` only reaches the streams whose user
@@ -53,6 +54,11 @@ export class EventHub {
   /** Send to every tab of one user (a control request, a personal notification) */
   toUser(userId, topic, data) {
     this.publish(topic, data, { audience: (user) => user.id === userId });
+  }
+
+  /** Send to every tab of every administrator (the administration pages follow a change) */
+  toAdmins(topic, data) {
+    this.publish(topic, data, { audience: (user) => user?.role === 'admin' });
   }
 
   /** Forget a sticky topic (its owner went away); nothing is sent */

@@ -40,6 +40,7 @@ import { hashPassword, verifyPassword, SCRYPT_DEFAULTS } from '../auth/password.
 import { httpError } from '../../lib/httpError.js';
 import { createCachedDocument } from '../../lib/cachedDocument.js';
 import { usernameKey } from './policy.js';
+import { isAdmin } from '../auth/roles.js';
 
 const FILE_VERSION = 1;
 export const MAX_PASSKEYS = 10;
@@ -181,7 +182,7 @@ export function createDirectory({ repos, envAdminName, now = Date.now, passwordC
       if (!account || account.passwordHash !== found.passwordHash || account.state !== 'active') return null;
       const user = toUser(account);
       // An administrator signs in with a passkey: the password alone is not enough
-      if (user.role === 'admin') return { user, requires: [(account.passkeys ?? []).length ? 'passkey' : 'passkey-enrol'], binding: stepBinding(account) };
+      if (isAdmin(user)) return { user, requires: [(account.passkeys ?? []).length ? 'passkey' : 'passkey-enrol'], binding: stepBinding(account) };
       return { user };
     },
   };

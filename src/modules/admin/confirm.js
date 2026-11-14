@@ -28,6 +28,7 @@
 import crypto from 'node:crypto';
 import { httpError } from '../../lib/httpError.js';
 import { createRateLimiter } from '../../lib/security.js';
+import { isAdmin } from '../auth/roles.js';
 
 export const TICKET_TTL_MS = 2 * 60_000;
 /** How long a fresh sign-in at the provider confirms the session's sensitive changes */
@@ -167,7 +168,7 @@ export function createConfirmations({ auth, services, audit, now = Date.now }) {
             if (!answer.ok) return keep({ ok: false, code: 'admin.sso_confirm_failed' });
             if (!answer.allowed || answer.userId !== userId || answer.role !== 'admin') return keep({ ok: false, code: 'admin.sso_confirm_mismatch' });
             // Signed out, or demoted, while at the provider: nothing is applied
-            if (!auth.sessions.list().some((s) => s.id === sessionId && s.user.id === userId && s.user.role === 'admin')) {
+            if (!auth.sessions.list().some((s) => s.id === sessionId && s.user.id === userId && isAdmin(s.user))) {
               return keep({ ok: false, code: 'admin.sso_confirm_expired' });
             }
             const until = now() + SSO_FRESH_MS;

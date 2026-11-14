@@ -18,6 +18,7 @@ import { httpError } from '../../lib/httpError.js';
 import { historyActions } from '../../lib/benchActivity.js';
 import { Teams, isInvitee, normalizeUsername } from './teams.js';
 import { Benches } from './benches.js';
+import { isAdmin } from '../auth/roles.js';
 
 const TICK_MS = 30_000;
 
@@ -37,7 +38,7 @@ export function createTeamsModules(deps, { now = () => Date.now(), tickMs = TICK
     const ids = new Set([...(before?.members ?? []), ...(after?.members ?? [])]);
     const invited = [...(before?.invitations ?? []), ...(after?.invitations ?? [])];
     events.publish('teams:changed', { teamId: team?.id ?? null }, {
-      audience: (u) => u.role === 'admin' || ids.has(u.id) || invited.some((inv) => isInvitee(inv, u)),
+      audience: (u) => isAdmin(u) || ids.has(u.id) || invited.some((inv) => isInvitee(inv, u)),
     });
   }
 
@@ -62,7 +63,6 @@ export function createTeamsModules(deps, { now = () => Date.now(), tickMs = TICK
   };
 
   const json = jsonBody('4kb');
-  const isAdmin = (req) => req.user.role === 'admin';
   const param = (req, name) => String(req.params[name] ?? '');
 
   // ── /api/teams ────────────────────────────────────────────────────────────
@@ -74,7 +74,7 @@ export function createTeamsModules(deps, { now = () => Date.now(), tickMs = TICK
     return team;
   };
   const memberOrAdmin = (req, team) => {
-    if (!isAdmin(req) && !team.members.includes(req.user.id)) throw httpError(403, 'teams.not_member', 'Only the members of this team may do that');
+    if (!isAdmin(req.user) && !team.members.includes(req.user.id)) throw httpError(403, 'teams.not_member', 'Only the members of this team may do that');
   };
   const nameOf = (body) => (body && typeof body === 'object' ? body.name : undefined);
 
@@ -85,8 +85,8 @@ export function createTeamsModules(deps, { now = () => Date.now(), tickMs = TICK
       mine,
       invitations: teams.invitationsFor(req.user),
       // Students see which teams exist (a holder's name is public); admins see everything
-      teams: isAdmin(req) ? all : all.map(({ id, name, members }) => ({ id, name, size: members.length })),
-      admin: isAdmin(req),
+      teams: isAdmin(req.user) ? all : all.map(({ id, name, members }) => ({ id, name, size: members.length })),
+      admin: isAdmin(req.user),
     });
   });
 
@@ -212,7 +212,7 @@ export function createTeamsModules(deps, { now = () => Date.now(), tickMs = TICK
 
   benchesRouter.post('/reservations', json, async (req, res) => {
     const { bench, start, end, teamId } = req.body ?? {};
-    const reservation = await benches.reserve(req.user, { bench, start, end, teamId: isAdmin(req) ? teamId : undefined });
+    const reservation = await benches.reserve(req.user, { bench, start, end, teamId: isAdmin(req.user) ? teamId : undefined });
     res.status(201).json({ reservation });
   });
 
@@ -227,9 +227,9 @@ export function createTeamsModules(deps, { now = () => Date.now(), tickMs = TICK
 
   benchesRouter.get('/:bench/history', async (req, res) => {
     const name = benchOf(req);
-    if (!isAdmin(req) && !benches.isOccupant(req.user, name)) throw httpError(403, 'benches.not_occupant', 'Only the occupants of this bench see its history');
+    if (!isAdmin(req.user) && !benches.isOccupant(req.user, name)) throw httpError(403, 'benches.not_occupant', 'Only the occupants of this bench see its history');
     // Occupants see what happened since their holder took the bench (a previous team's work is theirs), and no snapshot or folder download; an admin sees it all
-    const entries = await audit.query(isAdmin(req)
+    const entries = await audit.query(isAdmin(req.user)
       ? { bench: name, action: ['bench', 'job'], limit: 100 }
       : { bench: name, since: benches.holder(name)?.since, action: historyActions(services), limit: 100 });
     // Who did what and when; never the addresses

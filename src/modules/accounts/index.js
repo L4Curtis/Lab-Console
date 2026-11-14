@@ -79,7 +79,7 @@ export function createAccountsModule({ config, logger, events, repos, audit, aut
   };
 
   /** Tell the open administration pages that the directory or the links changed */
-  const changed = (what) => events?.publish('accounts:changed', { what, at: now() }, { audience: (user) => user?.role === 'admin' });
+  const changed = (what) => events?.toAdmins('accounts:changed', { what, at: now() });
 
   const ctx = {
     config, log, audit, auth, events, services, directory, links, sso, rp, ceremony, refusals, changed, now, passwordCost,

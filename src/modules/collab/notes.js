@@ -16,8 +16,8 @@
  */
 import { httpError } from '../../lib/httpError.js';
 import { cleanText, createUserLimiter, rateLimited } from './rules.js';
+import { isAdmin } from '../auth/roles.js';
 
-const isAdmin = (user) => user?.role === 'admin';
 
 export function mountNotes(router, { repos, events, audit, services, json, limits, now }) {
   const registry = () => services.consoles?.registry;
