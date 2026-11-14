@@ -256,7 +256,11 @@
     "export": "export",
     "inject": "injection",
     "paste": "collage",
-    "broadcast": "envoi à plusieurs consoles"
+    "broadcast": "envoi à plusieurs consoles",
+    "check:lines": "vérification des lignes",
+    "check:cabling": "vérification du câblage",
+    "check:ping": "matrice de ping",
+    "check:interfaces": "lecture des interfaces"
   },
   "paste": {
     "tooLarge": "Le texte collé dépasse 256 Ko : il n’a pas été envoyé.",

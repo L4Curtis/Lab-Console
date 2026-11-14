@@ -283,6 +283,7 @@
     "not_occupant": "Only the occupants of this bench (and admins) run jobs on it.",
     "locked": "Bench locked: {reason}",
     "bench_busy": "Another job is already running on this bench ({name}).",
+    "check_running": "A check is running on this bench ({name}): wait until it ends.",
     "bad_devices": "Invalid list of devices.",
     "unknown_device": "One of these devices is not on this bench.",
     "no_devices": "Tick at least one device.",

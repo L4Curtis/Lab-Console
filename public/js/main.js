@@ -53,6 +53,8 @@ async function init() {
   mountAnnouncement(document.querySelector('.views'));
   // Bench jobs drawn on the diagram, whichever section is on screen
   import('./modules/jobs/layer.js').then((m) => m.start()).catch(() => {});
+  // Bench checks (line status, cabling, addresses) drawn on the diagram
+  import('./modules/checks/layer.js').then((m) => m.start()).catch(() => {});
   await startCollab(); // notes on the diagram, notifications: needs the session and the language
 
   // The backend says which modules are live; disabled ones show a "soon" tag

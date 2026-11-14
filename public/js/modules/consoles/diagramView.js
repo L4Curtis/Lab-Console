@@ -25,11 +25,13 @@
  *
  * Other lots do not hold the view: they register their layer once with
  * `registerDiagramLayer(name, fn)` (shared/diagramLayers.js), which every
- * view uses after its own layers, and call `refreshDiagram()`.
+ * view uses after its own layers, and call `refreshDiagram()`. Links are
+ * decorated the same way with `registerLinkLayer(name, fn)`: a tone (a
+ * colour), tooltip lines and a short text near each end.
  */
 import { svg, h, icon } from '../../core/dom.js';
 import { t, tAttr, onLocaleChange } from '../../core/i18n.js';
-import { diagramLayers, onDiagramLayersChange } from '../../shared/diagramLayers.js';
+import { diagramLayers, linkLayersList, onDiagramLayersChange } from '../../shared/diagramLayers.js';
 
 // Device glyphs, drawn in a 24×24 box centred in the device tile
 const GLYPHS = {
@@ -50,6 +52,7 @@ export class DiagramView {
   #k = 1; #tx = 0; #ty = 0;
   #autoFit = true;
   #deviceEls = new Map();
+  #edgeEls = new Map(); // edge id → { el, edge, decoEl }
   #layers = new Map(); // name → (device) => decoration | null
   #stop = []; // what destroy() undoes: listeners on module-wide registries, the resize observer
 
@@ -85,6 +88,7 @@ export class DiagramView {
   render(lab) {
     this.#lab = lab;
     this.#deviceEls.clear();
+    this.#edgeEls.clear();
     this.viewport.replaceChildren(
       svg('g', { class: 'layer-shapes' }, lab.shapes.map((s) => this.#shape(s))),
       svg('g', { class: 'layer-edges' }, lab.edges.map((e) => this.#edge(e))),
@@ -111,6 +115,7 @@ export class DiagramView {
 
   /** Ask every layer again and redraw the decorations (not the diagram) */
   refresh() {
+    this.#refreshLinks();
     for (const entry of this.#deviceEls.values()) {
       const deco = this.#decorationOf(entry.device);
       entry.deco = deco;
@@ -135,6 +140,39 @@ export class DiagramView {
         const cx = d.x + r + 4 * (r * 1.6) - pad;
         g.append(svg('g', { class: 'deco-badge badge-more' }, svg('circle', { cx, cy: d.y - pad - 2, r }), svg('text', { x: cx, y: d.y - pad + 1.2, 'text-anchor': 'middle' }, `+${deco.badges.length - 4}`)));
       }
+      entry.el.append(g);
+      entry.decoEl = g;
+    }
+  }
+
+  /** The link layers: a tone on the edge, its tooltip, a short text near each end */
+  #refreshLinks() {
+    const layers = linkLayersList();
+    for (const entry of this.#edgeEls.values()) {
+      const out = { tone: null, title: [], ends: { source: [], target: [] } };
+      for (const [name, fn] of layers) {
+        let d = null;
+        try { d = fn(entry.edge, this.#lab); } catch (err) { console.warn(`[diagram] link layer ${name}: ${err.message}`); }
+        if (!d) continue;
+        if (d.tone) out.tone = d.tone;
+        if (d.title) out.title.push(...[].concat(d.title).filter(Boolean));
+        for (const side of ['source', 'target']) if (d.ends?.[side]) out.ends[side].push(String(d.ends[side]));
+      }
+      entry.decoEl?.remove();
+      entry.decoEl = null;
+      if (out.tone) entry.el.dataset.tone = out.tone;
+      else delete entry.el.dataset.tone;
+      const texts = ['source', 'target'].filter((side) => out.ends[side].length);
+      if (!out.title.length && !texts.length) continue;
+      const g = svg('g', { class: 'edge-deco' });
+      if (out.title.length) g.append(svg('title', {}, out.title.join('\n')));
+      for (const side of texts) {
+        const p = pointAlong(entry.edge.points, side === 'source' ? 0.2 : 0.8);
+        if (!p) continue;
+        g.append(svg('text', { class: 'edge-end', x: p.x + 4, y: p.y - 4 }, out.ends[side].join(' · ')));
+      }
+      // The tooltip covers the whole line: a wide transparent stroke takes the pointer
+      g.prepend(svg('polyline', { class: 'edge-hit', points: entry.edge.points.map((q) => `${q.x},${q.y}`).join(' ') }));
       entry.el.append(g);
       entry.decoEl = g;
     }
@@ -224,9 +262,11 @@ export class DiagramView {
 
   #edge(e) {
     const pts = e.points.map((p) => `${p.x},${p.y}`).join(' ');
-    return svg('g', { class: `edge${e.dashed ? ' dashed' : ''}` },
+    const g = svg('g', { class: `edge${e.dashed ? ' dashed' : ''}`, 'data-edge': e.id },
       svg('polyline', { points: pts }),
       e.labels.map((l) => svg('text', { class: 'edge-label', x: l.x, y: l.y }, l.text)));
+    if (e.id) this.#edgeEls.set(e.id, { el: g, edge: e, decoEl: null });
+    return g;
   }
 
   /** Places a label around (or inside) a node like draw.io's label position styles */
@@ -323,4 +363,25 @@ export class DiagramView {
       this.zoomBy(Math.exp(-e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top);
     }, { passive: false });
   }
+}
+
+/** The point at `f` (0 to 1) of a polyline's length */
+function pointAlong(points, f) {
+  if (!points?.length) return null;
+  const segs = [];
+  let total = 0;
+  for (let i = 1; i < points.length; i++) {
+    const len = Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+    segs.push(len);
+    total += len;
+  }
+  let left = total * f;
+  for (let i = 0; i < segs.length; i++) {
+    if (left <= segs[i] || i === segs.length - 1) {
+      const k = segs[i] ? Math.min(1, left / segs[i]) : 0;
+      return { x: points[i].x + (points[i + 1].x - points[i].x) * k, y: points[i].y + (points[i + 1].y - points[i].y) * k };
+    }
+    left -= segs[i];
+  }
+  return points[0];
 }

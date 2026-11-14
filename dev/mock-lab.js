@@ -33,6 +33,17 @@
  *   MOCK_ENABLE_SECRET=class    # enable secret of every device (default: none)
  *   MOCK_LINE_PASSWORD=cisco    # console-line password for the "linepass" devices
  *   MOCK_TIME_SCALE=0.02        # boot lengths × this factor (a 4331 boots in 8 s)
+ *   MOCK_CABLING=unplug:2016/Fa0/1;move:2016/Fa0/2>Fa0/9;plug:2016/Fa0/20=2017/Fa0/20
+ *                               # deliberate cabling faults (dev/mockCabling.js), on the
+ *                               # first console server's ports
+ *
+ * Cables: the devices are cabled as the diagram draws them (`links`, see
+ * dev/mockCabling.js). `show cdp neighbors detail` lists the neighbours at
+ * the other end of each cable whose two interfaces are not shut (a port the
+ * simulated model does not have counts as up), `show ip interface brief`
+ * says "down" for an interface with nothing alive at the other end, and a
+ * ping answers when an interface of another device that is up holds the
+ * address (in a connected subnet: there is no routing).
  *
  * Like OpenSSH's sshd, one SSH connection carries at most `maxSessions`
  * session channels at a time (MaxSessions, 10 by default): one more is refused
@@ -46,7 +57,7 @@
  *   MOCK_FORWARD=<PROXMOX_URL host:port>=127.0.0.1:8006   (default)
  *
  * Importable: startMockLab({ port: 0, ssh, telnet, … }) resolves
- * { port, close(), device(target), stats(), setBusy(port, on), setDown(port, on) } -
+ * { port, close(), device(target), stats(), setBusy(port, on), setDown(port, on), cabling } -
  * device('10.22.9.4:2001') is the FakeIos behind that console port (created on
  * first use); stats() → { connections, channels, peakChannels, refusedChannels }
  * (peakChannels is the most channels one connection ever had open at once).
@@ -57,6 +68,7 @@ import { pathToFileURL } from 'node:url';
 import ssh2 from 'ssh2';
 import { FakeIos, MODELS } from './fakeIos.js';
 import { FakeOther } from './fakeOther.js';
+import { MockCabling, cablesFromLabs } from './mockCabling.js';
 
 const TELNET_ESCAPE = '\x1d';
 const TARGET = /^([\w.-]{1,253}) (\d{1,5})$/;
@@ -72,6 +84,7 @@ const PROBE = /^nc -z -w ([1-9]|[12]\d|30) ([\w.-]{1,253}) (\d{1,5})$/;
  * @param downPorts / busyPorts / loginPorts   console ports (numbers)
  * @param slowConsole true for 9600-baud-like devices
  * @param maxSessions session channels per SSH connection (sshd MaxSessions, default 10)
+ * @param links       cables: [{ a: { target, port }, b: { target, port } }] (cablesFromLabs(labs) is the diagram's)
  * @param forwards    Map 'labHost:port' → 'localHost:port' for direct-tcpip
  * @param log         (message) => void
  */
@@ -90,7 +103,7 @@ function hostKeyPair() {
 export function startMockLab({
   port = 2222, host = '127.0.0.1', ssh = {}, telnet = null, names = new Map(), devices = {}, defaults = {},
   downPorts = [], busyPorts = [], loginPorts = [], slowConsole = false, forwards = new Map(), log = () => {},
-  maxSessions = 10,
+  maxSessions = 10, links = [],
 } = {}) {
   const down = new Set(downPorts.map(Number));
   const busy = new Set(busyPorts.map(Number));
@@ -103,6 +116,8 @@ export function startMockLab({
   const channelsOf = new Map(); // client → session channels open
 
   const keyOf = (target) => (typeof target === 'string' ? target : `${target.host}:${target.port}`);
+  const modelOf = (key) => devices[key]?.model ?? defaults.model ?? (/^R/i.test(names.get(key) || 'Router') ? '2811' : '2960');
+  const cabling = new MockCabling(links, { modelOf });
   function device(target) {
     const key = keyOf(target);
     if (!fleet.has(key)) {
@@ -117,8 +132,40 @@ export function startMockLab({
         : new FakeIos({ ...opts, slowConsole: slowConsole ? { bufferBytes: 64, commandMs: 40 } : null });
       dev.out = () => {};
       fleet.set(key, dev);
+      if (dev instanceof FakeIos) wire(key, dev);
     }
     return fleet.get(key);
+  }
+
+  /** What the cables mean for one device: its CDP neighbours, its interfaces' line protocol, who answers its pings */
+  function wire(key, dev) {
+    const speaks = (o) => o instanceof FakeIos && !o.cfg.global.includes('no cdp run');
+    dev.lineProtocol = (name) => {
+      const c = cabling.find(key, name);
+      if (!c) return false;
+      const other = device(c.other.key);
+      return !(other instanceof FakeIos) || other.interfaceUp(c.other.port) !== false;
+    };
+    dev.cdp = () => {
+      if (!speaks(dev)) return [];
+      return cabling.at(key).map((c) => {
+        if (dev.interfaceUp(c.port) === false) return null;
+        const other = device(c.other.key);
+        if (!speaks(other) || other.interfaceUp(c.other.port) === false) return null;
+        const p = other.profile;
+        return {
+          deviceId: other.cfg.hostname,
+          ip: other.addresses()[0]?.ip ?? null,
+          platform: p.pid,
+          capabilities: p.kind === 'router' || p.layer3 ? 'Router Switch IGMP' : 'Switch IGMP',
+          localInterface: c.port,
+          remoteInterface: c.other.port,
+          version: `Cisco IOS Software, ${p.iosLine}`,
+        };
+      }).filter(Boolean);
+    };
+    dev.reachable = (ip) => [...new Set([...fleet.keys(), ...cabling.keys()])]
+      .some((k) => k !== key && (() => { const o = device(k); return o instanceof FakeIos && o.addresses().some((a) => a.ip === ip); })());
   }
   const lineFree = (key, p) => !down.has(p) && !busy.has(p) && !inUse.has(key);
 
@@ -254,6 +301,8 @@ export function startMockLab({
         setBusy: (p, on = true) => { if (on) busy.add(Number(p)); else busy.delete(Number(p)); },
         /** A console port that refuses connections (unplugged, dead line), or works again */
         setDown: (p, on = true) => { if (on) down.add(Number(p)); else down.delete(Number(p)); },
+        /** The cables between the devices: unplug(), move(), plug(), list() (dev/mockCabling.js) */
+        cabling,
         close: () => new Promise((done) => {
           for (const dev of fleet.values()) dev.stop();
           for (const c of clients) c.end();
@@ -275,11 +324,14 @@ async function main() {
   const forwards = new Map((env.MOCK_FORWARD || `${pveTarget}=127.0.0.1:8006`).split(',').filter(Boolean).map((r) => r.split('=')));
 
   const names = new Map();
+  let links = [];
+  let consoleHost = null;
   try {
     const { parseDrawio } = await import('../src/modules/consoles/drawio.js');
     const { labs } = parseDrawio(fs.readFileSync(env.DIAGRAM_PATH || './diagrams/diagram.drawio', 'utf8'), { networkPrefix: env.CONSOLE_NETWORK_PREFIX || '10.22.9' });
-    for (const l of labs) for (const d of l.devices) names.set(`${d.target.host}:${d.target.port}`, d.name);
-  } catch { /* hostnames fall back to "Router" */ }
+    for (const l of labs) for (const d of l.devices) { names.set(`${d.target.host}:${d.target.port}`, d.name); consoleHost ??= d.target.host; }
+    links = cablesFromLabs(labs);
+  } catch { /* hostnames fall back to "Router", no cables */ }
   try {
     const infra = JSON.parse(fs.readFileSync(env.INFRA_CONFIG_PATH || './config/infrastructure.json', 'utf8'));
     for (const s of infra.adminSwitches || []) names.set(`${s.host}:${s.port}`, `SwitchAdmin-${s.id.toUpperCase()}`);
@@ -314,8 +366,10 @@ async function main() {
     slowConsole: Boolean(env.MOCK_SLOW_CONSOLE),
     ...(env.MOCK_MAX_SESSIONS ? { maxSessions: Number(env.MOCK_MAX_SESSIONS) } : {}),
     forwards,
+    links,
     log: (m) => console.log(m),
   });
+  if (env.MOCK_CABLING && consoleHost) lab.cabling.apply(env.MOCK_CABLING, consoleHost);
   console.log(`Mock jump server on ${env.MOCK_SSH_HOST || '127.0.0.1'}:${lab.port} (${names.size} devices from the diagram, forwarding ${[...forwards.keys()].join(', ')})`);
   const stop = () => lab.close().then(() => process.exit(0));
   process.on('SIGINT', stop);

@@ -26,6 +26,7 @@ import { openJournalDialog } from './journalDialog.js';
 import { openScriptLibrary } from '../../shared/scriptLibrary.js';
 import { mountBenchPanel } from '../collab/benchPanel.js';
 import { knowDevices } from '../collab/notes.js';
+import { openChecksDialog } from '../checks/dialog.js';
 
 export async function mount(el, { navigate }) {
   await Promise.all([loadNamespace('consoles', 'terminal'), loadCss('consoles')]);
@@ -62,7 +63,9 @@ export async function mount(el, { navigate }) {
   const heading = h('div.canvas-heading', labTitle, labHint, wallBtn);
   const diagramPane = h('div.diagram-pane', journalNotice, heading, canvas, notesBtn, notes, livePanel.el);
   const group = mountBenchPanel({ host: diagramPane });
-  heading.append(group.button);
+  heading.append(group.button,
+    // Line status, cabling, ping matrix, addresses of the bench on screen (lot checks)
+    h('button.btn.small.checks-btn', { type: 'button', dataset: { action: 'checks' }, onclick: () => current && openChecksDialog(current) }, icon('check'), tNode('consoles.checks')));
   livePanel.el.addEventListener('toggle', () => {
     liveBtn.setAttribute('aria-pressed', String(livePanel.open));
     if (livePanel.open && group.open) group.toggle(false);

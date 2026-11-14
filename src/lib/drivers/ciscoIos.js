@@ -440,7 +440,8 @@ export class CiscoIos {
     return this.#task('interfaces', async () => {
       const r = await this.#show('show ip interface brief');
       if (!r.ok) return r;
-      return { ok: true, interfaces: parseIpInterfaceBrief(r.output) };
+      const interfaces = parseIpInterfaceBrief(r.output);
+      return { ok: true, interfaces, unparsed: countRows(r.output) - interfaces.length };
     });
   }
 
@@ -923,11 +924,23 @@ export function parseCdpNeighbors(text) {
   }).filter(Boolean);
 }
 
+const IP_BRIEF_TAIL = String.raw`(YES|NO)\s+(\S+)\s+(up|down|administratively down|reset|deleted)\s+(up|down)\s*$`;
+const IP_BRIEF_ROW = new RegExp(String.raw`^(\S+)\s+(\S+)\s+${IP_BRIEF_TAIL}`);
+/** A name as long as its column is glued to the address: only readable when the address is "unassigned" */
+const IP_BRIEF_GLUED = new RegExp(String.raw`^(\S+?)(unassigned)\s+${IP_BRIEF_TAIL}`);
+/** The lines of `show ip interface brief` that look like an interface row (readable or not) */
+const IP_BRIEF_LOOKS = new RegExp(String.raw`\s${IP_BRIEF_TAIL}`);
+
+/** How many lines of `show ip interface brief` are interface rows, whether parseIpInterfaceBrief reads them or not */
+export function countRows(text) {
+  return String(text).split('\n').filter((line) => IP_BRIEF_LOOKS.test(line)).length;
+}
+
 /** show ip interface brief → [{ name, ip, ok, method, status, protocol }] */
 export function parseIpInterfaceBrief(text) {
   const out = [];
   for (const line of String(text).split('\n')) {
-    const m = line.match(/^(\S+)\s+(\S+)\s+(YES|NO)\s+(\S+)\s+(up|down|administratively down|reset|deleted)\s+(up|down)\s*$/);
+    const m = line.match(IP_BRIEF_ROW) ?? line.match(IP_BRIEF_GLUED);
     if (m) out.push({ name: m[1], ip: m[2] === 'unassigned' ? null : m[2], ok: m[3] === 'YES', method: m[4], status: m[5], protocol: m[6] });
   }
   return out;

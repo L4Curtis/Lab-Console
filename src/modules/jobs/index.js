@@ -23,7 +23,8 @@
  *
  * Who may run a job: services.benches.canOperate(user, bench) (the occupants
  * of an unlocked bench, and admins); after a release, the team that released
- * may still back the bench up for a while (the offer). One job per bench.
+ * may still back the bench up for a while (the offer). One job per bench, and
+ * none while a bench check runs (services.checks.running).
  * SSE: 'jobs:running' (sticky, everyone: which bench runs what, device by
  * device), 'jobs:job' (the job, to those who may see it), 'jobs:done' (once
  * per finished job, to the bench's occupants: { bench, jobId, kind, ok, state }).
@@ -202,6 +203,9 @@ export function createJobsModule({ config, logger, events, store, repos, audit, 
 
   /** Start a job, or the refusal as an HttpError */
   function start(req, res, spec) {
+    // A check reads the devices of the bench one after the other: nothing writes to them meanwhile
+    const check = services.checks?.running?.(spec.bench);
+    if (check) throw httpError(409, 'jobs.check_running', 'A check is running on this bench: wait until it ends.', { kind: check.kind, name: check.actor.name });
     const holder = benches()?.holder?.(spec.bench);
     const offer = !holder && spec.kind === 'backup' && !benches()?.canOperate?.(req.user, spec.bench) ? offerFor(req.user, spec.bench) : null;
     const { job, refused } = runner.start({

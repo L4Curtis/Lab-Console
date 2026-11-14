@@ -1,0 +1,38 @@
+-------------------------
+Device ID: S1
+Entry address(es): 
+  IP address: 192.168.1.2
+Platform: cisco WS-C2960-24TT-L,  Capabilities: Switch IGMP 
+Interface: FastEthernet0/0,  Port ID (outgoing port): FastEthernet0/24
+Holdtime : 171 sec
+
+Version :
+Cisco IOS Software, C2960 Software (C2960-LANBASEK9-M), Version 12.2(55)SE1, RELEASE SOFTWARE (fc1)
+Copyright (c) 1986-2010 by Cisco Systems, Inc.
+Compiled Thu 02-Dec-10 07:18 by prod_rel_team
+
+advertisement version: 2
+Protocol Hello:  OUI=0x00000C, Protocol ID=0x0112; payload len=27, value=00000000FFFFFFFF010221FF000000000000001A2B3C4D00FF0000
+VTP Management Domain: ''
+Native VLAN: 1
+Duplex: full
+Management address(es): 
+  IP address: 192.168.1.2
+
+-------------------------
+Device ID: R2-3014
+Entry address(es): 
+  IP address: 10.0.0.2
+Platform: Cisco 2811,  Capabilities: Router Switch IGMP 
+Interface: Serial0/0/0,  Port ID (outgoing port): Serial0/0/1
+Holdtime : 155 sec
+
+Version :
+Cisco IOS Software, 2800 Software (C2800NM-ADVENTERPRISEK9-M), Version 12.4(22)T, RELEASE SOFTWARE (fc1)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2008 by Cisco Systems, Inc.
+Compiled Fri 10-Oct-08 00:05 by prod_rel_team
+
+advertisement version: 2
+VTP Management Domain: ''
+

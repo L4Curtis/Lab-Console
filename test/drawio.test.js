@@ -30,7 +30,10 @@ test('edges use exit/entry constraints and place relative labels', () => {
     <mxCell id="l" value="g0/0" style="edgeLabel;" vertex="1" connectable="0" parent="e"><mxGeometry x="-1" y="10" relative="1" as="geometry"/></mxCell>`));
   const e = labs[0].edges[0];
   assert.deepEqual(e.points, [{ x: 40, y: 20 }, { x: 200, y: 20 }]);
-  assert.deepEqual(e.labels[0], { text: 'g0/0', x: 40, y: 10 }); // perpendicular offset like mxGraph
+  assert.deepEqual(e.labels[0], { text: 'g0/0', at: 0, x: 40, y: 10 }); // perpendicular offset like mxGraph
+  // The cells it joins, and where its label sits along it: what the cabling check reads
+  assert.equal(e.source, 'a');
+  assert.equal(e.target, 'b');
 });
 
 test('compressed pages are decoded', () => {
