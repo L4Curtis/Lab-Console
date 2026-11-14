@@ -15,8 +15,7 @@
  */
 import express from 'express';
 import { jsonBody } from '../../lib/bodies.js';
-import { httpError } from '../../lib/httpError.js';
-import { ScriptLibrary, LibraryError, LIMITS } from './library.js';
+import { ScriptLibrary, LIMITS } from './library.js';
 
 export function createScriptsModule({ repos, audit, services }) {
   const library = new ScriptLibrary({
@@ -36,37 +35,27 @@ export function createScriptsModule({ repos, audit, services }) {
   const body = (req) => (req.body && typeof req.body === 'object' ? req.body : {});
   const details = (s) => ({ id: s.id, title: s.title, scope: s.scope, ...(s.team ? { team: s.team.name, teamId: s.team.id } : {}) });
 
-  /** A refusal of the library is an API error */
-  const guard = (handler) => async (req, res) => {
-    try {
-      await handler(req, res);
-    } catch (err) {
-      if (err instanceof LibraryError) throw httpError(err.status, err.code, err.message, err.params);
-      throw err;
-    }
-  };
-
-  router.get('/', guard(async (req, res) => {
+  router.get('/', async (req, res) => {
     res.set('Cache-Control', 'no-store').json(await library.list(req.user));
-  }));
-  router.get('/:id', guard(async (req, res) => {
+  });
+  router.get('/:id', async (req, res) => {
     res.set('Cache-Control', 'no-store').json({ script: await library.get(req.user, req.params.id) });
-  }));
-  router.post('/', json, guard(async (req, res) => {
+  });
+  router.post('/', json, async (req, res) => {
     const script = await library.create(req.user, body(req));
     audit.log(req, 'script.create', details(script));
     res.status(201).json({ script });
-  }));
-  router.patch('/:id', json, guard(async (req, res) => {
+  });
+  router.patch('/:id', json, async (req, res) => {
     const script = await library.update(req.user, req.params.id, body(req));
     audit.log(req, 'script.update', details(script));
     res.json({ script });
-  }));
-  router.delete('/:id', guard(async (req, res) => {
+  });
+  router.delete('/:id', async (req, res) => {
     const script = await library.remove(req.user, req.params.id);
     audit.log(req, 'script.delete', { id: script.id, title: script.title, scope: script.scope });
     res.json({ ok: true });
-  }));
+  });
 
   return { id: 'scripts', title: 'Script library', enabled: true, router };
 }

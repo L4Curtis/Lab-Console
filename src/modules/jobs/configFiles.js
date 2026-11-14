@@ -22,6 +22,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 import { writeFileAtomic } from '../../lib/store.js';
+import { httpError } from '../../lib/httpError.js';
 import { parseVlanBrief } from '../../lib/drivers/ciscoIos.js';
 
 export const ANY_DEVICE = '*';
@@ -35,16 +36,6 @@ const VLAN_STATES = /^(active|suspended|act\/lshut|sus\/lshut|act\/ishut|sus\/is
 const SET_ID = /^\d{8}-\d{6}-[a-z]{2,12}-[0-9a-f]{6}$/;
 
 export const sha256 = (text) => crypto.createHash('sha256').update(text).digest('hex');
-
-/** An error with the code the browser translates (jobs.*) */
-export class ConfigError extends Error {
-  constructor(status, code, message, params = {}) {
-    super(message);
-    this.status = status;
-    this.code = code;
-    this.params = params;
-  }
-}
 
 /** A set id: when, what, and six random hex digits ('20261113-091502-backup-3fa0c1') */
 export function newSetId(origin, ms = Date.now()) {
@@ -266,7 +257,7 @@ export function makeZip(entries) {
 }
 
 /**
- * Read an uploaded ZIP without trusting it. Refused (ConfigError):
+ * Read an uploaded ZIP without trusting it. Refused (HttpError):
  *   - not a ZIP, or one that cannot be read                       jobs.zip_invalid
  *   - an entry whose name leaves the folder (../, /abs, C:\, \)   jobs.zip_unsafe
  *   - more than 200 entries, a file declared over its limit, or
@@ -278,7 +269,7 @@ export function makeZip(entries) {
  */
 export function readZip(buffer, { maxFileBytes = MAX_CONFIG_BYTES, maxEntries = ZIP_MAX_ENTRIES, maxTotal = ZIP_MAX_TOTAL } = {}) {
   const data = buffer instanceof Uint8Array ? buffer : new Uint8Array(buffer ?? []);
-  if (data.length < 22 || data[0] !== 0x50 || data[1] !== 0x4b) throw new ConfigError(400, 'jobs.zip_invalid', 'This file is not a ZIP archive.');
+  if (data.length < 22 || data[0] !== 0x50 || data[1] !== 0x4b) throw httpError(400, 'jobs.zip_invalid', 'This file is not a ZIP archive.');
   let count = 0;
   let total = 0;
   let unsafe = null;
@@ -298,10 +289,10 @@ export function readZip(buffer, { maxFileBytes = MAX_CONFIG_BYTES, maxEntries = 
       },
     });
   } catch {
-    throw new ConfigError(400, 'jobs.zip_invalid', 'This ZIP archive cannot be read.');
+    throw httpError(400, 'jobs.zip_invalid', 'This ZIP archive cannot be read.');
   }
-  if (unsafe !== null) throw new ConfigError(400, 'jobs.zip_unsafe', 'The archive holds a file whose name leaves its folder: nothing was imported.', { name: String(unsafe).slice(0, 120) });
-  if (tooLarge) throw new ConfigError(413, 'jobs.zip_too_large', 'The archive is too large once unpacked: nothing was imported.', { max: Math.round(maxTotal / 1024 / 1024) });
+  if (unsafe !== null) throw httpError(400, 'jobs.zip_unsafe', 'The archive holds a file whose name leaves its folder: nothing was imported.', { name: String(unsafe).slice(0, 120) });
+  if (tooLarge) throw httpError(413, 'jobs.zip_too_large', 'The archive is too large once unpacked: nothing was imported.', { max: Math.round(maxTotal / 1024 / 1024) });
   const names = Object.keys(files);
   const tops = new Set(names.map((n) => (n.includes('/') ? n.split('/')[0] : '')));
   const strip = tops.size === 1 && !tops.has('') ? (n) => n.slice(n.indexOf('/') + 1) : (n) => n;

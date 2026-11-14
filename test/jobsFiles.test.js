@@ -12,6 +12,7 @@ import { memoryDatabase } from './helpers/db.js';
 import { tempDataDir, silentLogger } from './helpers/app.js';
 import { createStore } from '../src/lib/store.js';
 import { parseVlanBrief, TIMEOUTS } from '../src/lib/drivers/ciscoIos.js';
+import { HttpError } from '../src/lib/httpError.js';
 import { ConfigFiles, readZip, vlanText, checkConfigText, newSetId, isSetId, cleanVlans, cleanVtp } from '../src/modules/jobs/configFiles.js';
 import { Library, compareConfigs, comparable } from '../src/modules/jobs/library.js';
 import { scaledTimeouts, planScript } from '../src/modules/jobs/runner.js';
@@ -103,7 +104,8 @@ test('what a configuration file must look like', () => {
 test('a ZIP: one top folder is dropped, deeper ones and hidden files skipped, unsafe names refused', () => {
   const files = readZip(zipSync({ 'B4M-x/R1.cfg': strToU8('hostname R1\n'), 'B4M-x/.DS_Store': strToU8('x'), 'B4M-x/sub/R2.cfg': strToU8('hostname R2\n') }));
   assert.deepEqual([...files.keys()], ['R1.cfg']);
-  assert.throws(() => readZip(zipSync({ '../R1.cfg': strToU8('x') })), { code: 'jobs.zip_unsafe' });
+  // An HttpError: whoever calls it, the browser gets the code and the status
+  assert.throws(() => readZip(zipSync({ '../R1.cfg': strToU8('x') })), (err) => err instanceof HttpError && err.status === 400 && err.code === 'jobs.zip_unsafe');
   assert.throws(() => readZip(zipSync({ 'a/../../R1.cfg': strToU8('x') })), { code: 'jobs.zip_unsafe' });
   assert.throws(() => readZip(Buffer.from('PK nothing')), { code: 'jobs.zip_invalid' });
   assert.throws(() => readZip(zipSync({ 'R1.cfg': new Uint8Array(2 * 1024 * 1024) })), { code: 'jobs.zip_too_large' });

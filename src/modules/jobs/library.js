@@ -26,18 +26,14 @@ import { createTwoFilesPatch, diffLines } from 'diff';
 import { comparableConfig } from '../../lib/drivers/ciscoIos.js';
 import { httpError } from '../../lib/httpError.js';
 import {
-  ConfigFiles, ConfigError, ANY_DEVICE, MANIFEST, newSetId, isSetId, readZip, checkConfigText, cleanVlans, cleanVtp, factsOf,
+  ConfigFiles, ANY_DEVICE, MANIFEST, newSetId, isSetId, readZip, checkConfigText, cleanVlans, cleanVtp, factsOf,
 } from './configFiles.js';
+import { isAdmin } from '../auth/roles.js';
 
 const SEARCH_HITS = 200;
 const DEVICE_NAME = /^(?!.*\.\.)\w[\w.\-/ ]{0,63}$/;
 
 const personOf = (u) => ({ id: u?.id ?? 'system', username: u?.username ?? '', name: u?.name || u?.username || u?.id || '' });
-const isAdmin = (u) => u?.role === 'admin';
-const rethrow = (err) => {
-  if (err instanceof ConfigError) throw httpError(err.status, err.code, err.message, err.params);
-  throw err;
-};
 
 /** What a browser gets of a snapshot: no paths */
 export function snapshotView(s, { teamName = null } = {}) {
@@ -191,8 +187,7 @@ export class Library {
   async importZip(user, bench, buffer, { label = '', devices, maxBytes }) {
     const team = this.#services.teams?.teamOf?.(user) ?? null;
     if (!team && !isAdmin(user)) throw httpError(409, 'jobs.no_team', 'You need a team to keep snapshots.');
-    let entries;
-    try { entries = readZip(buffer, { maxTotal: maxBytes * 8 }); } catch (err) { rethrow(err); }
+    const entries = readZip(buffer, { maxTotal: maxBytes * 8 });
     const { found, ignored } = this.#match(entries, devices, { strict: true });
     if (!found.length) throw httpError(400, 'jobs.zip_empty', 'No configuration of this bench\'s devices was found in the archive.', { ignored: ignored.slice(0, 20).join(', ') });
     const set = await this.open({ bench, teamId: team?.id ?? null, label: label || 'import', origin: 'import', author: user });
@@ -344,8 +339,7 @@ export class Library {
 
   /** A template's entries from a ZIP (any device name, '*' as _any.cfg) */
   zipEntries(buffer, maxBytes) {
-    let entries;
-    try { entries = readZip(buffer, { maxTotal: maxBytes * 8 }); } catch (err) { rethrow(err); }
+    const entries = readZip(buffer, { maxTotal: maxBytes * 8 });
     const { found, ignored } = this.#match(entries, null, { strict: false });
     if (!found.length) throw httpError(400, 'jobs.zip_empty', 'No configuration was found in the archive.', { ignored: ignored.slice(0, 20).join(', ') });
     return found;
