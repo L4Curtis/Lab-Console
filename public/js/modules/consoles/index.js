@@ -45,11 +45,11 @@ export async function mount(el, { navigate }) {
   const picker = new LabPicker(head, { onSelect: (lab) => selectLab(lab) });
   const quick = new QuickOpen({ onPick: (lab, device) => { selectLab(lab); openDevice(device); } });
   const liveBtn = h('button.find-btn.live-btn', { type: 'button', 'aria-pressed': 'false', onclick: () => livePanel.toggle() }, icon('network'), tNode('consoles.live.button'), h('span.live-badge', { hidden: true }));
-  head.append(
+  head.append(h('div.head-actions',
     liveBtn,
     h('button.find-btn', { type: 'button', onclick: () => openJournalDialog() }, icon('script'), tNode('consoles.journal.button')),
     h('button.find-btn.icon-only', { type: 'button', dataset: { action: 'scripts' }, ...tAttr('title', 'consoles.scripts.button'), ...tAttr('aria-label', 'consoles.scripts.button'), onclick: () => openScriptLibrary({ pick: false }) }, icon('library')),
-    h('button.find-btn', { type: 'button', onclick: () => quick.open() }, icon('search'), tNode('consoles.find'), h('kbd', 'Ctrl K')));
+    h('button.find-btn', { type: 'button', onclick: () => quick.open() }, icon('search'), tNode('consoles.find'), h('kbd', 'Ctrl K'))));
 
   const labTitle = h('h2.canvas-title');
   const labHint = h('p.canvas-hint');

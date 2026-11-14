@@ -38,7 +38,7 @@
   background: color-mix(in srgb, var(--led-red) 12%, var(--surface));
   color: var(--ink);
 }
-.bench-lock .icon { width: 17px; height: 17px; color: var(--led-red); }
+.bench-lock .icon { width: 17px; height: 17px; color: var(--danger-ink); }
 .bench-lock .btn { margin-left: auto; }
 .bench-requests { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
 .bench-requests li {

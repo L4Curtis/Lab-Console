@@ -35,7 +35,9 @@
     "admin": "Administration",
     "account": "Mon compte",
     "help": "Aide",
-    "status": "État du labo"
+    "status": "État du labo",
+    "skip": "Aller au contenu",
+    "adminShort": "Admin"
   },
   "errors": {
     "server": {
@@ -55,5 +57,14 @@
   },
   "announcement": {
     "hide": "Masquer l’annonce"
+  },
+  "columns": {
+    "actions": "Actions"
+  },
+  "notFound": {
+    "title": "Page introuvable",
+    "text": "L’adresse demandée n’existe pas sur cette plateforme.",
+    "home": "Retour à l’accueil",
+    "pageTitle": "Page introuvable · Lab Console"
   }
 }

@@ -19,7 +19,7 @@
 .recovery-step-title { font-weight: 600; }
 .recovery-steps li > p, .recovery-steps li > button, .recovery-steps li > details { margin-top: 6px; }
 .recovery-progress { color: var(--console-strong); }
-.recovery-problem { color: var(--led-red); }
+.recovery-problem { color: var(--danger-ink); }
 .recovery-end { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); display: grid; gap: 8px; justify-items: start; }
 .recovery-end[data-end="done"] { background: color-mix(in srgb, var(--led-green) 12%, var(--surface)); border-color: var(--led-green); }
 .recovery-end[data-end="failed"] { background: color-mix(in srgb, var(--led-red) 8%, var(--surface)); border-color: var(--led-red); }

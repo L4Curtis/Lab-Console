@@ -16,6 +16,7 @@
   <script type="module" src="/js/main.js"></script>
 </head>
 <body>
+  <a class="skip-link" href="#/home" id="skip-link" data-i18n="common.shell.skip">Aller au contenu</a>
   <div class="app">
     <nav class="rail" aria-label="Sections" data-i18n-aria-label="common.shell.sections">
       <a class="rail-brand" href="#/home" title="Lab Console" data-i18n-title="common.shell.appTitle">
@@ -31,7 +32,7 @@
         <span data-i18n="common.shell.theme.label">Thème</span>
       </button>
     </nav>
-    <main class="views" id="views"></main>
+    <main class="views" id="views" tabindex="-1"></main>
   </div>
   <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
 </body>

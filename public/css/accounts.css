@@ -4,7 +4,7 @@
 .view-admin, .view-account { background: var(--paper); }
 .admin-body { flex: 1; min-height: 0; overflow: auto; }
 .admin-body > .tab-panels, .admin-body .tab-panel { height: 100%; }
-.admin-tabs { margin-left: auto; }
+.admin-tabs { margin-left: auto; max-width: 100%; min-width: 0; }
 .account-scroll { flex: 1; min-height: 0; overflow: auto; }
 
 .panel-intro { margin: 0; font-size: 13px; max-width: 75ch; }
@@ -19,8 +19,8 @@
 .badge.warn { background: color-mix(in srgb, var(--led-amber) 18%, transparent); color: var(--ink); }
 .role-select { height: 30px; font-size: 13px; }
 .state-pill { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 12px; border: 1px solid var(--line); color: var(--ink-2); }
-.state-pill[data-state="active"] { border-color: var(--led-green); color: var(--led-green); }
-.state-pill[data-state="pending"] { border-color: var(--led-amber); color: var(--led-amber); }
+.state-pill[data-state="active"] { border-color: var(--led-green); color: var(--ok-ink); }
+.state-pill[data-state="pending"] { border-color: var(--led-amber); color: var(--warn-ink); }
 .state-pill[data-state="disabled"], .state-pill[data-state="revoked"], .state-pill[data-state="expired"], .state-pill[data-state="used"] { color: var(--ink-3); }
 tr[data-state="pending"] td { background: color-mix(in srgb, var(--led-amber) 7%, transparent); }
 
@@ -35,7 +35,7 @@ tr[data-state="pending"] td { background: color-mix(in srgb, var(--led-amber) 7%
 .sso-row { display: grid; gap: 4px; }
 .sso-row label, .sso-callback label { font-size: 13px; color: var(--ink-2); }
 .sso-row .hint, .sso-callback .hint { color: var(--ink-3); font-size: 12px; line-height: 1.4; }
-.field-problem { color: var(--led-red); font-size: 12.5px; }
+.field-problem { color: var(--danger-ink); font-size: 12.5px; }
 .field-problem:empty { display: none; }
 .sso-callback { display: grid; gap: 4px; }
 .sso-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }

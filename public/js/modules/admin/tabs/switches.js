@@ -8,6 +8,7 @@
 import { h, icon, toast } from '../../../core/dom.js';
 import { request, getJson } from '../../../core/api.js';
 import { t, onLocaleChange } from '../../../core/i18n.js';
+import { columnHeads, labelColumns } from '../common.js';
 import { fmtLong } from '../../../core/format.js';
 
 const COLUMNS = ['id', 'name', 'bay', 'host', 'port'];
@@ -21,7 +22,7 @@ export function mount(el) {
   const save = h('button.btn.primary', { type: 'button', dataset: { action: 'save' } });
   el.append(h('div.panel.switches-panel', intro, meta,
     h('div.table-wrap', h('table.vm-table.switches-table',
-      h('thead', h('tr', [...COLUMNS, 'actions'].map((c) => h('th', { dataset: { col: c } })))),
+      h('thead', h('tr', columnHeads('admin.switches', [...COLUMNS, 'actions']))),
       tbody)),
     notice,
     h('div.form-actions', add, save)));
@@ -72,7 +73,7 @@ export function mount(el) {
     intro.textContent = t('admin.switches.intro');
     add.querySelector('.lbl').textContent = t('admin.switches.add');
     save.textContent = t('admin.switches.save');
-    for (const th of el.querySelectorAll('th[data-col]')) th.textContent = th.dataset.col === 'actions' ? '' : t(`admin.switches.columns.${th.dataset.col}`);
+    labelColumns(el, 'admin.switches');
   }
 
   add.addEventListener('click', () => tbody.append(line()));

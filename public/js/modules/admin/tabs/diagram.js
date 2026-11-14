@@ -12,6 +12,7 @@
 import { h, icon, toast } from '../../../core/dom.js';
 import { request, getJson, live } from '../../../core/api.js';
 import { t, onLocaleChange } from '../../../core/i18n.js';
+import { columnHeads, labelColumns } from '../common.js';
 import { serverText } from '../../../shared/serverText.js';
 import { confirmDialog } from '../../../shared/dialog.js';
 import { DiagramView } from '../../consoles/diagramView.js';
@@ -36,7 +37,7 @@ export function mount(el) {
     notice,
     preview,
     h('div.table-wrap', h('table.vm-table.versions-table',
-      h('thead', h('tr', ['name', 'devices', 'by', 'at', 'state', 'actions'].map((c) => h('th', { dataset: { col: c } })))),
+      h('thead', h('tr', columnHeads('admin.diagram', ['name', 'devices', 'by', 'at', 'state', 'actions']))),
       tbody))));
 
   let state = { versions: [], canRollback: false };
@@ -74,7 +75,7 @@ export function mount(el) {
     pick.querySelector('.lbl').textContent = t('admin.diagram.import');
     rollback.querySelector('.lbl').textContent = t('admin.diagram.rollback');
     rollback.disabled = !state.canRollback;
-    for (const th of el.querySelectorAll('th[data-col]')) th.textContent = th.dataset.col === 'actions' ? '' : t(`admin.diagram.columns.${th.dataset.col}`);
+    labelColumns(el, 'admin.diagram');
     tbody.replaceChildren(...(state.versions.length ? state.versions.map(row) : [h('tr', h('td.empty-row', { colspan: 6 }, t('admin.diagram.none')))]));
   }
 

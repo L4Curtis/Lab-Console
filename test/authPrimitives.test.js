@@ -794,6 +794,19 @@ describe('account providers', () => {
 // ── Users, roles, claims ────────────────────────────────────────────────────
 
 describe('users and roles', () => {
+  test('a badge colour keeps white initials readable at every hue (WCAG AA)', () => {
+    const luminance = (h, sat, light) => {
+      const k = (n) => (n + h / 30) % 12;
+      const a = sat * Math.min(light, 1 - light);
+      const channel = (n) => { const v = light - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1)); return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+      return 0.2126 * channel(0) + 0.7152 * channel(8) + 0.0722 * channel(4);
+    };
+    for (let n = 0; n < 400; n++) {
+      const [, hue, sat, light] = colorOf(`user:${n}`).match(/^hsl\((\d+) (\d+)% (\d+)%\)$/).map(Number);
+      assert.ok(1.05 / (luminance(hue, sat / 100, light / 100) + 0.05) >= 4.5, `hue ${hue} is too light for white text`);
+    }
+  });
+
   test('createUser builds the frozen User of ARCHITECTURE §5', () => {
     const user = createUser({ id: 'oidc:abc', username: 'ada', name: 'Ada Lovelace', email: 'ada@example.test', role: 'admin', groups: ['g'], via: 'oidc' });
     assert.deepEqual(Object.keys(user).sort(), ['color', 'email', 'groups', 'id', 'initials', 'name', 'role', 'username', 'via']);

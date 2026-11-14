@@ -108,6 +108,10 @@
       "fingerprint": "Certificate fingerprint",
       "state": "State",
       "off": "not configured"
+    },
+    "range": {
+      "min": "Lowest port",
+      "max": "Highest port"
     }
   },
   "diagram": {

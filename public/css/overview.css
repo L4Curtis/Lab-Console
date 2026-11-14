@@ -45,7 +45,7 @@
 .ov-holder .icon, .ov-lines .icon, .ov-job .icon, .ov-lock .icon { width: 16px; height: 16px; margin-top: 2px; }
 .ov-lines .icon { margin-top: 0; }
 .ov-lock { padding: 6px 10px; border-radius: 6px; background: color-mix(in srgb, var(--led-red) 12%, var(--surface)); }
-.ov-lock .icon { color: var(--led-red); }
+.ov-lock .icon { color: var(--danger-ink); }
 .ov-job { padding: 6px 10px; border-radius: 6px; background: var(--console-soft); color: var(--ink); }
 .ov-job .icon { color: var(--console-strong); }
 .ov-holder > span:not(.icon), .ov-job > span:not(.icon), .ov-lock > span:not(.icon) { flex: 1 1 0; min-width: 0; overflow-wrap: anywhere; }

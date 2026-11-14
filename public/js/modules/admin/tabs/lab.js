@@ -14,7 +14,7 @@
  */
 import { h, toast } from '../../../core/dom.js';
 import { request, getJson } from '../../../core/api.js';
-import { t, tError, has, onLocaleChange } from '../../../core/i18n.js';
+import { t, tError, tAttr, has, onLocaleChange } from '../../../core/i18n.js';
 import { askConfirmation, keepDraft, takeDraft } from '../confirm.js';
 import { fmtLong } from '../../../core/format.js';
 
@@ -47,7 +47,7 @@ export function mount(el) {
       let control;
       if (kind === 'secretArea') control = h('textarea.field.mono', { id, rows: 3, spellcheck: 'false', autocomplete: 'off' });
       else if (kind === 'check') control = h('input', { id, type: 'checkbox' });
-      else if (kind === 'range') control = h('div.range-pair', h('input.field', { id, type: 'number', min: 1, max: 65535 }), h('span', '–'), h('input.field', { id: `${id}-max`, type: 'number', min: 1, max: 65535 }));
+      else if (kind === 'range') control = h('div.range-pair', h('input.field', { id, type: 'number', min: 1, max: 65535, ...tAttr('aria-label', 'admin.lab.range.min') }), h('span', { 'aria-hidden': 'true' }, '–'), h('input.field', { id: `${id}-max`, type: 'number', min: 1, max: 65535, ...tAttr('aria-label', 'admin.lab.range.max') }));
       else control = h('input.field', { id, type: kind === 'secret' ? 'password' : kind === 'number' ? 'number' : 'text', autocomplete: kind === 'secret' ? 'new-password' : 'off', spellcheck: 'false' });
       const origin = h('span.origin-pill');
       const reset = h('button.btn.small.subtle', { type: 'button', dataset: { action: 'reset', field: path }, hidden: true });

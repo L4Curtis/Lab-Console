@@ -137,6 +137,11 @@ export async function createApp({ config, logger = createLogger, createAuth: mak
 
   // ── 9. JSON 404 and error handler ──────────────────────────────────────────
   app.use('/api', (_req, res) => sendError(res, 404, 'server.not_found', 'Not found'));
+  // Any other address: a page for a browser, the JSON error for anything else
+  app.use((req, res) => {
+    if (req.method === 'GET' && req.accepts(['html', 'json']) === 'html') return res.status(404).sendFile(path.join(publicDir, '404.html'));
+    sendError(res, 404, 'server.not_found', 'Not found');
+  });
   app.use((err, _req, res, _next) => {
     if (res.headersSent) return res.end();
     if (err instanceof HttpError) return res.status(err.status).json(errorBody(err.code, err.message, err.params));

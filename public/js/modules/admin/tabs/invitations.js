@@ -12,7 +12,7 @@ import { h, icon, toast } from '../../../core/dom.js';
 import { request, getJson, live } from '../../../core/api.js';
 import { t, onLocaleChange } from '../../../core/i18n.js';
 import { confirmDialog, formDialog } from '../../../shared/dialog.js';
-import { showLink } from '../common.js';
+import { showLink, columnHeads, labelColumns } from '../common.js';
 import { withConfirmation } from '../confirm.js';
 import { fmtLong } from '../../../core/format.js';
 
@@ -26,7 +26,7 @@ export function mount(el) {
     h('p.muted.panel-intro'),
     notice,
     h('div.table-wrap', h('table.vm-table.invitations-table',
-      h('thead', h('tr', ['note', 'role', 'uses', 'expires', 'by', 'state', 'actions'].map((c) => h('th', { dataset: { col: c } })))),
+      h('thead', h('tr', columnHeads('accounts.invitations', ['note', 'role', 'uses', 'expires', 'by', 'state', 'actions']))),
       tbody))));
 
   let invitations = [];
@@ -99,7 +99,7 @@ export function mount(el) {
   }
 
   function render() {
-    for (const th of el.querySelectorAll('th[data-col]')) th.textContent = th.dataset.col === 'actions' ? '' : t(`accounts.invitations.columns.${th.dataset.col}`);
+    labelColumns(el, 'accounts.invitations');
     el.querySelector('.create-label').textContent = t('accounts.invitations.create');
     el.querySelector('.ended-label').textContent = t('accounts.invitations.showEnded');
     el.querySelector('.panel-intro').textContent = t('accounts.invitations.intro');

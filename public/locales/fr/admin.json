@@ -108,6 +108,10 @@
       "fingerprint": "Empreinte du certificat",
       "state": "État",
       "off": "non configuré"
+    },
+    "range": {
+      "min": "Port minimal",
+      "max": "Port maximal"
     }
   },
   "diagram": {

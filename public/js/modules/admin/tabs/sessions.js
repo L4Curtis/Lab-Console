@@ -7,6 +7,7 @@
 import { h, toast } from '../../../core/dom.js';
 import { request, getJson, live } from '../../../core/api.js';
 import { t, onLocaleChange } from '../../../core/i18n.js';
+import { columnHeads, labelColumns } from '../common.js';
 import { confirmDialog } from '../../../shared/dialog.js';
 import { fmtLong } from '../../../core/format.js';
 
@@ -24,7 +25,7 @@ export function mount(el) {
   const intro = h('p.muted.panel-intro');
   el.append(h('div.panel', intro, h('div.panel-toolbar', count), notice,
     h('div.table-wrap', h('table.vm-table.sessions-table',
-      h('thead', h('tr', ['user', 'browser', 'ip', 'since', 'lastSeen', 'actions'].map((c) => h('th', { dataset: { col: c } })))),
+      h('thead', h('tr', columnHeads('admin.sessions', ['user', 'browser', 'ip', 'since', 'lastSeen', 'actions']))),
       tbody))));
 
   let sessions = [];
@@ -86,7 +87,7 @@ export function mount(el) {
 
   function render() {
     intro.textContent = t('admin.sessions.intro');
-    for (const th of el.querySelectorAll('th[data-col]')) th.textContent = th.dataset.col === 'actions' ? '' : t(`admin.sessions.columns.${th.dataset.col}`);
+    labelColumns(el, 'admin.sessions');
     count.textContent = t('admin.sessions.count', { count: sessions.length });
     tbody.replaceChildren(...(sessions.length ? sessions.map(row) : [h('tr', h('td.empty-row', { colspan: 6 }, t('admin.sessions.none')))]));
   }

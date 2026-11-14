@@ -6,7 +6,7 @@
 
 /* ── The alerts bell, in the rail ─────────────────────────────────────── */
 #notify-toggle[data-state="on"] { color: #fff; }
-#notify-toggle[data-state="on"] .icon { color: var(--led-green); }
+#notify-toggle[data-state="on"] .icon { color: var(--ok-ink); }
 #notify-toggle:disabled { opacity: .5; cursor: not-allowed; }
 
 /* ── The panel (it reuses the live panel's frame) ─────────────────────── */
@@ -24,7 +24,7 @@
 .chat-hint { margin: 0 0 6px; font-size: 12.5px; }
 .chat-log { list-style: none; margin: 0 0 8px; padding: 0; flex: 1; min-height: 80px; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
 .chat-message { display: flex; gap: 8px; align-items: flex-start; }
-.chat-message .avatar { flex: none; width: 24px; height: 24px; font-size: 10px; }
+.chat-message .avatar { flex: none; width: 24px; height: 24px; font-size: 11px; }
 .chat-body { min-width: 0; flex: 1; }
 .chat-meta { display: flex; align-items: center; gap: 6px; font-size: 12px; }
 .chat-meta time { color: var(--ink-3); font: 11px var(--mono); }
@@ -38,7 +38,7 @@
 }
 .chat-input:focus { outline: 2px solid var(--console); border-color: transparent; }
 .chat-form-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
-.chat-problem, .note-problem { margin: 0; font-size: 12.5px; color: var(--led-red); }
+.chat-problem, .note-problem { margin: 0; font-size: 12.5px; color: var(--danger-ink); }
 
 /* ── The note dialog ──────────────────────────────────────────────────── */
 .note-meta { margin: 0; font-size: 12.5px; }

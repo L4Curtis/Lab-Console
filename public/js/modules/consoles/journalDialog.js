@@ -20,7 +20,7 @@ export async function openJournalDialog() {
       body.replaceChildren(intro, h('p.muted', tNode('consoles.journal.none')));
       return dlg;
     }
-    body.replaceChildren(intro, h('table.journal-table',
+    body.replaceChildren(intro, h('div.table-wrap', h('table.journal-table',
       h('thead', h('tr', ...['day', 'time', 'bench', 'device', 'people', 'size', 'file'].map((c) => h('th', { scope: 'col' }, t(`consoles.journal.columns.${c}`))))),
       h('tbody', ...days.map((d) => h('tr',
         h('td', d.day),
@@ -29,7 +29,7 @@ export async function openJournalDialog() {
         h('td', h('strong', d.device)),
         h('td', d.people.join(', ')),
         h('td', size(d.bytes), d.truncated ? h('em.journal-cut', { title: t('consoles.journal.truncatedHint') }, ` ${t('consoles.journal.truncated')}`) : null),
-        h('td', h('a.btn.small', { href: `/api/consoles/journal/${d.id.split('/').map(encodeURIComponent).join('/')}`, download: '' }, icon('download'), tNode('consoles.journal.download'))))))));
+        h('td', h('a.btn.small', { href: `/api/consoles/journal/${d.id.split('/').map(encodeURIComponent).join('/')}`, download: '' }, icon('download'), tNode('consoles.journal.download')))))))));
   } catch (err) {
     body.replaceChildren(h('p.form-error', errorText(err)));
   }

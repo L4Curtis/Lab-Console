@@ -35,7 +35,9 @@
     "admin": "Admin",
     "account": "My account",
     "help": "Help",
-    "status": "Lab status"
+    "status": "Lab status",
+    "skip": "Skip to content",
+    "adminShort": "Admin"
   },
   "errors": {
     "server": {
@@ -55,5 +57,14 @@
   },
   "announcement": {
     "hide": "Hide the announcement"
+  },
+  "columns": {
+    "actions": "Actions"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "text": "The requested address does not exist on this platform.",
+    "home": "Back to home",
+    "pageTitle": "Page not found · Lab Console"
   }
 }

@@ -48,8 +48,9 @@ export function mount(el) {
   }
 
   function render() {
-    const labels = [t('teams.all.team'), t('teams.all.members'), t('teams.all.bench'), ''];
-    [...head.children].forEach((th, i) => { th.textContent = labels[i]; });
+    const labels = [t('teams.all.team'), t('teams.all.members'), t('teams.all.bench')];
+    [...head.children].forEach((th, i) => { th.textContent = labels[i] ?? ''; });
+    head.lastElementChild.replaceChildren(h('span.sr-only', t('common.columns.actions')));
     if (!teams.length) {
       body.replaceChildren(h('tr', h('td.empty-row', { colspan: 4 }, t('teams.all.none'))));
       return;

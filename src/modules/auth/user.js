@@ -25,10 +25,10 @@ export function initialsOf(name) {
   return letters.join('').toUpperCase();
 }
 
-/** A hue picked from the id: the same person keeps the same badge colour everywhere */
+/** A hue picked from the id: the same person keeps the same badge colour everywhere. Dark enough for white initials at any hue (5:1 or more) */
 export function colorOf(id) {
   const hue = crypto.createHash('sha256').update(String(id)).digest().readUInt16BE(0) % 360;
-  return `hsl(${hue} 62% 42%)`;
+  return `hsl(${hue} 62% 28%)`;
 }
 
 export function createUser({ id, username, name, email = '', role = 'student', groups = [], via }) {

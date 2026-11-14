@@ -26,10 +26,10 @@
 .presence-answer { display: flex; gap: 6px; }
 
 .avatar {
-  --avatar: var(--console);
+  --avatar: var(--primary);
   position: relative; display: inline-grid; place-items: center;
   width: 24px; height: 24px; border-radius: 50%;
-  background: var(--avatar); color: #fff; font: 600 10.5px/1 var(--font); letter-spacing: .02em;
+  background: var(--avatar); color: #fff; font: 600 11px/1 var(--font); letter-spacing: .02em;
   border: 2px solid var(--term-head);
 }
 .avatar.pilot { box-shadow: 0 0 0 2px #7BD88F; }
@@ -39,7 +39,7 @@
 
 .pane-journal {
   align-self: center; margin-right: 4px; padding: 1px 6px; border: 1px solid #3A4A59; border-radius: 10px;
-  font-size: 10.5px; color: #8D9DAC; white-space: nowrap; cursor: help;
+  font-size: 11.5px; color: #A6B5C3; white-space: nowrap; cursor: help;
 }
 .pane-custom-actions { display: flex; }
 .pane[data-silent="true"] .pane-led { background: var(--led-amber); box-shadow: 0 0 6px rgba(212, 140, 18, .8); }
@@ -80,7 +80,7 @@
 .live-btn[aria-pressed="true"] { border-color: var(--console); color: var(--console-strong); }
 .live-badge {
   min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
-  background: var(--console); color: #fff; font: 600 11px/18px var(--font); text-align: center;
+  background: var(--primary); color: #fff; font: 600 11px/18px var(--font); text-align: center;
 }
 .live-panel {
   position: absolute; top: 10px; right: 10px; bottom: 10px; z-index: 5; width: min(360px, calc(100% - 20px));
@@ -104,10 +104,10 @@
 .live-name { display: flex; gap: 6px; align-items: baseline; }
 .live-name .muted { color: var(--ink-3); font-size: 12px; }
 .live-people { display: flex; gap: 1px; justify-self: end; }
-.live-people .avatar { width: 20px; height: 20px; font-size: 9px; border-color: var(--surface-2); }
+.live-people .avatar { width: 22px; height: 22px; font-size: 10px; border-color: var(--surface-2); }
 .live-people .avatar-key { width: 11px; height: 11px; right: -5px; bottom: -5px; }
 .live-detail { grid-column: 1 / -1; font-size: 12px; color: var(--ink-2); display: flex; gap: 8px; }
-.live-warn { color: var(--led-amber); font-style: normal; }
+.live-warn { color: var(--warn-ink); font-style: normal; }
 .live-command { grid-column: 1 / -1; font: 12px var(--mono); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .live-feed li { display: flex; gap: 8px; font-size: 12.5px; padding: 3px 0; color: var(--ink-2); }
 .live-feed time { flex: none; font: 11.5px var(--mono); color: var(--ink-3); padding-top: 1px; }
@@ -131,8 +131,14 @@
 .journal-table { width: 100%; border-collapse: collapse; font-size: 13px; }
 .journal-table th, .journal-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
 .journal-table th { font-size: 12px; font-weight: 600; color: var(--ink-3); }
-.journal-cut { color: var(--led-amber); font-style: normal; }
+.journal-cut { color: var(--warn-ink); font-style: normal; }
 .journal-table .btn .icon { width: 14px; height: 14px; margin-right: 4px; }
 
 /* The script library's button: an icon, so that the header keeps its room for the title */
-.find-btn.icon-only { margin-left: 0; min-width: 0; width: 34px; padding: 0; justify-content: center; }
+.find-btn.icon-only { flex: 0 0 34px; width: 34px; padding: 0; justify-content: center; }
+
+@media (max-width: 700px) {
+  /* In the flow, above the diagram, and short: the page's own controls stay reachable */
+  .journal-notice { position: static; margin: 8px 14px 0; }
+  .journal-notice p { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
+}

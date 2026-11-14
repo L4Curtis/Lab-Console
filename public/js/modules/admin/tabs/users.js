@@ -17,7 +17,7 @@ import { request, getJson, live } from '../../../core/api.js';
 import { t, onLocaleChange } from '../../../core/i18n.js';
 import { session } from '../../../core/session.js';
 import { confirmDialog, formDialog } from '../../../shared/dialog.js';
-import { showLink } from '../common.js';
+import { showLink, columnHeads, labelColumns } from '../common.js';
 import { withConfirmation } from '../confirm.js';
 import { fmtLong } from '../../../core/format.js';
 
@@ -27,8 +27,8 @@ export function mount(el) {
   const tbody = h('tbody');
   const notice = h('p.form-error', { role: 'alert' });
   const table = h('div.table-wrap', h('table.vm-table.accounts-table',
-    h('thead', h('tr', ['name', 'role', 'state', 'passkeys', 'lastSignIn', 'actions'].map((c) => h('th', { dataset: { col: c } }))),
-    tbody)));
+    h('thead', h('tr', columnHeads('accounts.users', ['name', 'role', 'state', 'passkeys', 'lastSignIn', 'actions']))),
+    tbody));
   el.append(h('div.panel', h('div.panel-toolbar', filter, count), notice, table));
 
   let users = [];
@@ -163,7 +163,7 @@ export function mount(el) {
   }
 
   function render() {
-    for (const th of el.querySelectorAll('th[data-col]')) th.textContent = th.dataset.col === 'actions' ? '' : t(`accounts.users.columns.${th.dataset.col}`);
+    labelColumns(el, 'accounts.users');
     filter.placeholder = t('accounts.users.filter');
     const needle = filter.value.trim().toLowerCase();
     const shown = users.filter((u) => !needle || `${u.name} ${u.username}`.toLowerCase().includes(needle));

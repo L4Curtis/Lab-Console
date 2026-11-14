@@ -29,7 +29,7 @@ const MODULES = [
   // Backend module "proxmox" serves this section (admin switches + Proxmox VMs)
   { id: 'proxmox', path: 'infra', titleKey: 'common.shell.infra', icon: 'rack', load: () => import('./modules/infra/index.js') },
   // Administration: the accounts lot's tabs (users, invitations, SSO); the admin lot adds its own
-  { id: 'accounts', path: 'admin', titleKey: 'common.shell.admin', icon: 'shield', when: () => session.isAdmin, load: () => import('./modules/admin/index.js') },
+  { id: 'accounts', path: 'admin', titleKey: 'common.shell.admin', icon: 'shield', railKey: 'common.shell.adminShort', when: () => session.isAdmin, load: () => import('./modules/admin/index.js') },
   { id: 'accounts', path: 'account', titleKey: 'common.shell.account', icon: 'user', rail: false, load: () => import('./modules/account/index.js') },
   // Backups, injection, reset of a bench; snapshots and TP templates
   { id: 'jobs', path: 'jobs', titleKey: 'common.shell.jobs', icon: 'archive', load: () => import('./modules/jobs/index.js') },
@@ -56,6 +56,7 @@ async function init() {
   // 'terminal' is needed as soon as the shared workspace is imported, by any section
   await initI18n({ defaultLocale: session.locale, namespaces: ['common', 'terminal'] });
   bindLanguageSwitch();
+  document.getElementById('skip-link').addEventListener('click', (e) => { e.preventDefault(); views.focus(); });
   mountUserMenu();
   mountAnnouncement(document.querySelector('.views'));
   // Bench jobs drawn on the diagram, whichever section is on screen
@@ -73,17 +74,19 @@ async function init() {
   for (const m of available()) m.enabled = status.find((s) => s.id === m.id)?.enabled ?? true;
   for (const m of inRail) {
     m.link = h(`a.rail-btn${m.enabled ? '' : '.soon'}`, { href: `#/${m.path}`, dataset: { module: m.id, path: m.path } },
-      icon(m.icon), tNode(m.titleKey), m.enabled ? null : tNode('common.shell.off', 'em'));
+      icon(m.icon), tNode(m.railKey ?? m.titleKey), m.enabled ? null : tNode('common.shell.off', 'em'));
     rail.append(m.link);
   }
   const labelRail = () => {
     for (const m of inRail) {
       const title = t(m.titleKey);
       m.link.title = m.enabled ? title : t('common.shell.turnedOff', { title });
+      if (m.railKey) m.link.setAttribute('aria-label', m.link.title); // the rail shows a short label
     }
   };
   labelRail();
   onLocaleChange(labelRail);
+  onLocaleChange(setPageTitle);
   addEventListener('hashchange', route);
   route();
   import('./modules/help/tour.js').then((m) => m.maybeStartTour()).catch(() => {});
@@ -91,7 +94,9 @@ async function init() {
 
 async function route() {
   const [path = 'home', ...params] = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
-  const mod = available().find((m) => m.path === path) || MODULES[0];
+  const known = available().find((m) => m.path === path);
+  if (!known) history.replaceState(null, '', '#/home'); // an address that leads nowhere: say so in the bar too
+  const mod = known || MODULES[0];
   for (const a of rail.querySelectorAll('.rail-btn')) a.classList.toggle('active', a.dataset.path === mod.path);
 
   // The promise is stored at once: an address change while a section is
@@ -109,8 +114,21 @@ async function route() {
     prev.api.hide?.();
   }
   view.el.hidden = false;
+  const arrived = current !== null && current !== mod.path;
   current = mod.path;
+  title = mod.titleKey;
+  setPageTitle();
   view.api.show?.(params);
+  // A screen reader hears the new section: focus goes to its heading (not on first load, nor when only the sub-address changed)
+  if (arrived) {
+    const heading = view.el.querySelector('h1');
+    if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); }
+  }
+}
+
+let title = null;
+function setPageTitle() {
+  if (title) document.title = `${t(title)} · ${t('common.shell.appTitle')}`;
 }
 
 async function mountSection(mod) {
