@@ -62,7 +62,7 @@ export function rig({ timeouts = {}, ...opts } = {}) {
   let cli;
   let written = '';
   const dev = new FakeIos({ hostname: 'R1', timeScale: 0.002, ...opts, out: (s) => setImmediate(() => cli.feed(s)) });
-  cli = new CliAutomation({ write: (s) => { written += s; setImmediate(() => dev.input(s)); } });
+  cli = new CliAutomation({ write: (s) => { written += s; setImmediate(() => dev.input(s)); }, sendBreak: () => { written += '<BREAK>'; setImmediate(() => dev.sendBreak()); } });
   const progress = [];
   const ios = new CiscoIos(cli, { timeouts: { ...FAST, ...timeouts }, progress: (m, p) => progress.push(p.code) });
   return { dev, cli, ios, progress, written: () => written, done: () => dev.stop() };

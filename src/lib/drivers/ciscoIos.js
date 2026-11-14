@@ -27,6 +27,7 @@
  *   vlans() / cdpNeighbors() / interfaces() / ping()
  *   eraseAndReload()  erase, delete vlan.dat, reload without saving, follow the
  *                     boot, answer the first-boot dialog, check the factory prompt
+ *   followBoot()      a boot under way → user EXEC (the password recovery, ciscoRecovery.js)
  *   toReplayScript()  a captured running-config → a script for a factory device
  */
 import { patterns, screenTail, isSyslogLine, escapeRe } from '../cliAutomation.js';
@@ -70,7 +71,7 @@ const SCREENS = [
   ['user', /(?:^|\n)[A-Za-z0-9][\w.-]{0,62}> ?$/],
   ['question', /(?:\? ?|\[[^\]\n]*\]:? ?|: ?)$/],
 ];
-const BOOT_MARKS = /System Bootstrap|Self decompressing the image|Restricted Rights Legend|Initializing Hardware|boot: attempting to boot|Loading "|program load complete|%IOSXEBOOT|Readonly ROMMON initialized|POST: |Waiting for Port download|uncompressed and installed|Xmodem file system/;
+export const BOOT_MARKS = /System Bootstrap|Self decompressing the image|Restricted Rights Legend|Initializing Hardware|boot: attempting to boot|Loading "|program load complete|%IOSXEBOOT|Readonly ROMMON initialized|POST: |Waiting for Port download|uncompressed and installed|Xmodem file system/;
 const PNP_STARTED = /PNP_DISCOVERY_STARTED|PnP Agent Discovery|PNP_SUDI_UPDATE/;
 const PNP_STOPPED = /PNP_DISCOVERY_STOPPED/;
 
@@ -631,11 +632,22 @@ export class CiscoIos {
   }
 
   /**
+   * Follow a boot already under way (a reload, `reset` in ROMMON, `boot` at a
+   * switch's boot loader) to a user EXEC prompt, answering the first-boot
+   * questions it knows (the password recovery reuses it). `keepScreen`: what
+   * the console already shows counts (an initial dialog on screen is answered)
+   * → { ok, host, answered, warnings, seconds } or a failure with its stage
+   */
+  followBoot({ keepScreen = false } = {}) {
+    return this.#task('boot', () => this.#followBoot({ keepScreen }));
+  }
+
+  /**
    * From "Proceed with reload" to a user EXEC prompt. Answers only the
    * questions it knows; any other question stops it with that question.
    * → { ok, host, answered, warnings, seconds } or a failure with its stage
    */
-  async #followBoot() {
+  async #followBoot({ keepScreen = false } = {}) {
     const cli = this.#cli;
     const t = this.#t;
     const started = Date.now();
@@ -651,7 +663,7 @@ export class CiscoIos {
     const noBoot = { bootMarks: false };
     const keep = () => { log = (log + cli.buffer).slice(-200_000); cli.reset(); };
     const failAt = (reason, params) => ({ ...fail(reason, params), stage, lastOutput: tailOf(log + cli.buffer) });
-    cli.reset();
+    if (!keepScreen) cli.reset();
     for (;;) {
       const remaining = deadline - Date.now();
       if (remaining <= 0) return failAt('boot_timeout', { minutes: Math.round(t.bootTotalMs / 60_000) });

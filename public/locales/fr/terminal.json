@@ -200,6 +200,7 @@
       },
       "timeout": "L’équipement n’a pas répondu à temps.",
       "no_task": "Une étape de console a été lancée hors d’une tâche : rien n’aurait été capturé.",
+      "no_break": "Cette ligne de console ne peut pas envoyer de BREAK.",
       "bad_pattern": "Un motif d’attente doit être une expression régulière ou une fonction.",
       "stopped_on_error": "Arrêt à la première erreur",
       "waiting_for": "L’équipement attend une réponse : « {question} »"

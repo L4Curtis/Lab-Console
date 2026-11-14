@@ -200,6 +200,7 @@
       },
       "timeout": "Timed out waiting for the device.",
       "no_task": "A console step ran outside a task: nothing would be captured.",
+      "no_break": "This console line cannot send a BREAK.",
       "bad_pattern": "A wait pattern must be a regular expression or a function.",
       "stopped_on_error": "Stopped at the first error",
       "waiting_for": "The device is waiting for an answer: \"{question}\""
