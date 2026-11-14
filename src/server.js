@@ -107,7 +107,13 @@ export async function createApp({ config, logger = createLogger, createAuth: mak
   app.use('/vendor/fonts/plex-sans', vendor('@fontsource/ibm-plex-sans'));
   app.use('/vendor/fonts/plex-mono', vendor('@fontsource/ibm-plex-mono'));
   // fallthrough off: a missing public asset is a 404, never a redirect to the login page
-  const publicAssets = (dir) => express.static(path.join(publicDir, dir), { index: false, fallthrough: false });
+  // The application's own files change with every release, and they import one another: a
+  // browser holding yesterday's dom.js with today's join.js breaks the page. `no-cache` makes
+  // it revalidate each file (a 304 when nothing changed). A CDN in front may rewrite a plain
+  // max-age=0 into hours of browser caching (Cloudflare's Browser Cache TTL), but it leaves
+  // no-cache alone
+  const revalidate = { cacheControl: false, setHeaders: (res) => res.setHeader('Cache-Control', 'no-cache') };
+  const publicAssets = (dir) => express.static(path.join(publicDir, dir), { index: false, fallthrough: false, ...revalidate });
   app.use('/css', publicAssets('css'));
   app.use('/locales', publicAssets('locales'));
   app.use('/js/core', publicAssets(path.join('js', 'core')));
@@ -127,7 +133,7 @@ export async function createApp({ config, logger = createLogger, createAuth: mak
   app.use(requireSameOrigin(config.server.allowedOrigins));
 
   // ── 7. App shell and the rest of the front end ─────────────────────────────
-  app.use(express.static(publicDir, { index: 'index.html' }));
+  app.use(express.static(publicDir, { index: 'index.html', ...revalidate }));
 
   // ── 8. API ─────────────────────────────────────────────────────────────────
   app.get('/api/events', events.handler);

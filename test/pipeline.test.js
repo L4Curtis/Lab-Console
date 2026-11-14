@@ -413,3 +413,18 @@ test('close(): open streams end, pending writes finish, the port is freed', asyn
   await assert.rejects(fetch(`${lab.url}/api/health`));
   assert.equal(fs.existsSync(lab.dataDir), false, 'the test helper removed its temporary directory');
 });
+
+test('the application\'s own files are revalidated on every load; vendor files are immutable', async () => {
+  const app = await startTestApp();
+  try {
+    for (const file of ['/js/core/dom.js', '/css/app.css', '/locales/fr/common.json']) {
+      const res = await fetch(app.url + file);
+      assert.equal(res.status, 200, file);
+      assert.equal(res.headers.get('cache-control'), 'no-cache', file);
+    }
+    const vendor = await fetch(app.url + '/vendor/xterm/css/xterm.css');
+    assert.match(vendor.headers.get('cache-control'), /immutable/);
+  } finally {
+    await app.close();
+  }
+});
