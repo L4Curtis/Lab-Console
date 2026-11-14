@@ -4,7 +4,7 @@
  *
  *   audit.log(req, 'console.open', { bench: 'B4M', device: 'R1' })
  *   audit.log(user, 'bench.take', { bench })      audit.log('system', 'bench.release.idle', { bench })
- *   audit.query({ since, until, actorId, action, bench, limit })
+ *   audit.query({ since, until, actor, action, bench, limit })
  *
  * Recording must never get in the way of the action being recorded: log()
  * does not throw and does not reject, even when the disk is full. It only
@@ -88,13 +88,13 @@ export function createAudit({ repo, logger, clientIp = () => undefined, now = ()
    * (inclusive) take a Date, milliseconds or a date string; one that is not a
    * date is ignored
    */
-  async function query({ since, until, actorId, action, bench, limit = 200 } = {}) {
+  async function query({ since, until, actor, action, bench, limit = 200 } = {}) {
     const max = Math.min(Math.max(0, Math.floor(Number(limit)) || 0), MAX_QUERY);
     if (max === 0) return [];
     return repo.query({
       since: toIso(since) ?? undefined,
       until: toIso(until) ?? undefined,
-      actorId: actorId || undefined,
+      actor: actor || undefined,
       actions: action ? [].concat(action).map(String) : undefined,
       bench: bench || undefined,
       limit: max,

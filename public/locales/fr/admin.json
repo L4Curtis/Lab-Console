@@ -222,7 +222,7 @@
     "intro": "Qui a fait quoi, et quand : connexions, consoles, actions d’administration. Le plus récent d’abord.",
     "filters": {
       "action": "Action",
-      "actor": "Personne (identifiant)",
+      "actor": "Personne (nom ou identifiant)",
       "bench": "Baie",
       "since": "Depuis",
       "until": "Jusqu’à",

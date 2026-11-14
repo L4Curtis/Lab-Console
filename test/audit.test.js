@@ -148,14 +148,14 @@ test('query: filters by time, actor, action and bench', async () => {
   await seed();
   assert.deepEqual(actions(await audit.query({ since: '2026-11-03T00:00:00Z' })), ['bench.release.idle', 'console.open', 'job.reset.start']);
   assert.deepEqual(actions(await audit.query({ since: '2026-10-31T00:00:00Z', until: '2026-11-01T23:59:59Z' })), ['console.open', 'bench.take']);
-  assert.deepEqual(actions(await audit.query({ actorId: 'oidc:student2' })), ['console.open', 'bench.take']);
+  assert.deepEqual(actions(await audit.query({ actor: 'oidc:student2' })), ['console.open', 'bench.take']);
   assert.deepEqual(actions(await audit.query({ action: 'console' })), ['console.open', 'console.control.grant', 'console.open'], 'a prefix selects the whole module');
   assert.deepEqual(actions(await audit.query({ action: 'console.open' })), ['console.open', 'console.open']);
   assert.deepEqual(actions(await audit.query({ action: ['bench.take', 'job'] })), ['job.reset.start', 'bench.take', 'bench.take']);
   assert.deepEqual(actions(await audit.query({ action: 'con' })), [], 'a prefix stops at a dot');
   assert.deepEqual(actions(await audit.query({ bench: 'B2M' })), ['console.open', 'bench.take']);
-  assert.deepEqual(actions(await audit.query({ bench: 'B4M', actorId: 'oidc:student1', action: 'console', limit: 1 })), ['console.control.grant']);
-  assert.deepEqual(await audit.query({ actorId: 'oidc:nobody' }), []);
+  assert.deepEqual(actions(await audit.query({ bench: 'B4M', actor: 'oidc:student1', action: 'console', limit: 1 })), ['console.control.grant']);
+  assert.deepEqual(await audit.query({ actor: 'oidc:nobody' }), []);
 });
 
 test('query: an empty trail is an empty list', async () => {

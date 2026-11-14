@@ -2,7 +2,7 @@
  * Repository of the audit trail (table audit_entries, migration 003)
  *
  *   insert(entry)       entry = { ts, action, actor: { id, username, name, role, via }, ip?, details }
- *   query({ since, until, actorId, actions, bench, limit })   → entries, newest first
+ *   query({ since, until, actor, actions, bench, limit })   → entries, newest first
  *   countSame(entry)    → number of entries with the same time, action, actor id and details (imports)
  *   count()             → number of entries
  *
@@ -39,12 +39,17 @@ export function createAuditRepository(db) {
       ]);
     },
 
-    async query({ since, until, actorId, actions, bench, limit = 200 } = {}) {
+    async query({ since, until, actor, actions, bench, limit = 200 } = {}) {
       const where = [];
       const params = [];
       if (since) { where.push('ts >= ?'); params.push(since); }
       if (until) { where.push('ts <= ?'); params.push(until); }
-      if (actorId) { where.push('actor_id = ?'); params.push(String(actorId)); }
+      if (actor) {
+        // The exact id, or a part of the user name or of the display name: an administrator knows people, not 'oidc:<sub>'
+        const like = `%${String(actor).replace(/[\\%_]/g, '\\$&')}%`;
+        where.push("(actor_id = ? OR lower(actor_username) LIKE lower(?) ESCAPE '\\' OR lower(actor_name) LIKE lower(?) ESCAPE '\\')");
+        params.push(String(actor), like, like);
+      }
       if (bench) { where.push('bench = ?'); params.push(String(bench)); }
       if (actions) {
         if (!actions.length) return [];

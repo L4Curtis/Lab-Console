@@ -162,7 +162,7 @@ describe('importLegacyFiles', () => {
       { path: 'auth/sessions.json', records: 0, skipped: 4 },
       { path: 'audit/2026-10.jsonl', records: 1, skipped: 2 },
     ]);
-    assert.deepEqual((await repos.audit.query({ actorId: 'oidc:carol' })).map((e) => e.ts), ['2026-10-31T09:00:00.000Z']);
+    assert.deepEqual((await repos.audit.query({ actor: 'oidc:carol' })).map((e) => e.ts), ['2026-10-31T09:00:00.000Z']);
     assert.equal(await repos.audit.count(), 4, 'the entries imported before are not duplicated');
     assert.deepEqual(await repos.sessions.all(), sessionsBefore);
     assert.ok(log.lines.some((l) => l.level === 'warn' && /audit\/2026-10\.jsonl was imported before and has come back with different content/.test(l.message)));

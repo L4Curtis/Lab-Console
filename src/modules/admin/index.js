@@ -226,7 +226,7 @@ export function createAdminModule({ config, logger, events, repos, audit, auth, 
     const entries = await audit.query({
       since: date(q.since, 'since'),
       until: date(q.until, 'until'),
-      actorId: text(q.actor, 300),
+      actor: text(q.actor, 300),
       action,
       bench: text(q.bench, 80),
       limit,

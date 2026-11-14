@@ -222,7 +222,7 @@
     "intro": "Who did what, and when: sign-ins, consoles, administration actions. Newest first.",
     "filters": {
       "action": "Action",
-      "actor": "Person (id)",
+      "actor": "Person (name or id)",
       "bench": "Bench",
       "since": "Since",
       "until": "Until",

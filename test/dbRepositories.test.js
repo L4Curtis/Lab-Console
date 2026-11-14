@@ -158,13 +158,13 @@ describe('audit repository', () => {
     assert.deepEqual(await acts(), ['bench.take', 'consolex.thing', 'console.control.grant', 'console.open']);
     assert.deepEqual(await acts({ since: '2026-11-13T10:00:00.000Z' }), ['bench.take', 'consolex.thing']);
     assert.deepEqual(await acts({ until: '2026-11-13T10:00:00.000Z' }), ['consolex.thing', 'console.control.grant', 'console.open']);
-    assert.deepEqual(await acts({ actorId: 'oidc:s1' }), ['consolex.thing', 'console.open']);
+    assert.deepEqual(await acts({ actor: 'oidc:s1' }), ['consolex.thing', 'console.open']);
     assert.deepEqual(await acts({ bench: 'B5' }), ['bench.take', 'consolex.thing']);
     assert.deepEqual(await acts({ actions: ['console'] }), ['console.control.grant', 'console.open'], 'never consolex');
     assert.deepEqual(await acts({ actions: ['console.control', 'bench.take'] }), ['bench.take', 'console.control.grant']);
     assert.deepEqual(await acts({ actions: [] }), []);
     assert.deepEqual(await acts({ limit: 2 }), ['bench.take', 'consolex.thing']);
-    assert.deepEqual(await acts({ actorId: 'oidc:s2', bench: 'B4M', actions: ['console'] }), ['console.control.grant']);
+    assert.deepEqual(await acts({ actor: 'oidc:s2', bench: 'B4M', actions: ['console'] }), ['console.control.grant']);
   });
 
   test('the filters have their indexes', async (t) => {

@@ -695,6 +695,10 @@ describe('admin switches, sessions, audit viewer, announcement, journaling', () 
     const byActor = await call(lab, 'admin', 'GET', '/api/admin/audit?actor=oidc%3Astudent1&limit=1');
     assert.equal(byActor.body.entries.length, 1);
     assert.equal(byActor.body.entries[0].details.bench, 'B5H', 'newest first');
+    for (const typed of ['student1', 'STUDENT1', 'udent']) {
+      assert.equal((await call(lab, 'admin', 'GET', `/api/admin/audit?actor=${typed}`)).body.entries.length >= 2, true, `found by ${typed}`);
+    }
+    assert.equal((await call(lab, 'admin', 'GET', '/api/admin/audit?actor=%25')).body.entries.length, 0, 'a wildcard is only a character');
     const future = await call(lab, 'admin', 'GET', `/api/admin/audit?since=${encodeURIComponent(new Date(Date.now() + 86_400_000).toISOString())}`);
     assert.deepEqual(future.body.entries, []);
     for (const q of ['since=yesterday', 'limit=0', 'limit=5000', 'action=DROP%20TABLE']) {
