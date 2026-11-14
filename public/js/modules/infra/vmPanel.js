@@ -21,8 +21,9 @@ export class VmPanel {
   #reloadSoon = null;
   #jobs = [];
 
-  constructor({ proxmox, host, via }) {
-    this.proxmox = proxmox;
+  /** status: GET /api/proxmox/status ({ proxmox, admin, host?, via? }): only administrators get the list */
+  constructor({ proxmox, admin = false, host, via }) {
+    this.proxmox = proxmox && admin;
     this.filter = h('input.field.filter', { type: 'search', ...tAttr('placeholder', 'infra.vm.filter'), ...tAttr('aria-label', 'infra.vm.filterLabel'), oninput: () => this.#renderRows() });
     this.jobsEl = h('ul.jobs', { 'aria-live': 'polite' });
     this.tbody = h('tbody');
@@ -46,10 +47,9 @@ export class VmPanel {
         this.tbody)),
       this.foot);
 
-    if (!proxmox) {
-      this.el.replaceChildren(h('div.placeholder', icon('rack', 'placeholder-icon'),
-        h('h2', tNode('infra.vm.notConfigured')),
-        h('p', tNode('infra.vm.notConfiguredHint'))));
+    if (!this.proxmox) {
+      const [title, hint] = proxmox ? ['infra.vm.adminOnly', 'infra.vm.adminOnlyHint'] : ['infra.vm.notConfigured', 'infra.vm.notConfiguredHint'];
+      this.el.replaceChildren(h('div.placeholder', icon('rack', 'placeholder-icon'), h('h2', tNode(title)), h('p', tNode(hint))));
       return;
     }
     live.on('proxmox:jobs', (jobs) => { this.#jobs = jobs; this.#renderJobs(jobs); });

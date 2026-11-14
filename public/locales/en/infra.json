@@ -42,6 +42,8 @@
     "colPower": "Power",
     "notConfigured": "Proxmox is not configured",
     "notConfiguredHint": "Set PROXMOX_URL, PROXMOX_USERNAME and PROXMOX_PASSWORD in .env and restart the platform.",
+    "adminOnly": "Virtual machines are for administrators",
+    "adminOnlyHint": "Ask an administrator to start, stop or clone a VM.",
     "loading": "Asking Proxmox through the jump server…",
     "reloaded": "VM list reloaded",
     "unreachable": "Could not reach Proxmox: {error}",
@@ -121,5 +123,8 @@
     "untagged": "Untagged",
     "submit": "Clone",
     "started": "Cloning {name}. Progress shows above the VM list."
+  },
+  "errors": {
+    "unreachable": "Proxmox cannot be reached right now. Try again in a moment; the administrators find the cause in the log."
   }
 }

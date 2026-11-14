@@ -35,7 +35,11 @@ Feature decisions live in [SPEC.md](SPEC.md). Base: upstream v1.1.1.
    authentication and i18n strictly require: upstream is reworking it. One
    exception (admin lot): its SSH tunnel follows the lab settings and
    reconnects on their `'change'` event; its Proxmox URL and credentials
-   still come from the environment only.
+   still come from the environment only. Another (security audit): its
+   routes and VM consoles are for administrators only, `/status` tells
+   anyone else `{ proxmox, admin: false }` and nothing of the hosts, and a
+   failure on the way to Proxmox is answered `infra.unreachable` without
+   detail (the log keeps it).
 
 ## 2. Repository layout
 
@@ -188,7 +192,8 @@ answers. Any other thrown error is logged and answered as a 500
 `server.internal` without detail. Codes used by the platform itself:
 `server.not_found`, `server.bad_request` (malformed body), `server.too_large`,
 `server.cross_origin`, `server.internal`, `auth.required`, `auth.forbidden`.
-The Proxmox module is unchanged and still answers `{ error }` without a code:
+The Proxmox module still answers its own refusals `{ error }` without a code
+(a failure on the way to Proxmox is `infra.unreachable`, see §1):
 its job labels and messages, its serial and status frames and its API error
 bodies reach the UI in English (known gap, to translate when the module is
 opened). Diagram `warnings` and `error` (`/api/consoles/labs`, `labs:version`)

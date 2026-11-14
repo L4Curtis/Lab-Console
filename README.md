@@ -296,7 +296,8 @@ In **Infra › Virtual machines**:
 
 The **Infra** entry in the sidebar is open to everyone, like the lab consoles.
 
-- **Virtual machines**: every Proxmox VM, with:
+- **Virtual machines** (administrators only: everybody else sees that the tab
+  is reserved, and the API and both VM consoles answer them 403): every Proxmox VM, with:
   - **Start / Stop / Force stop** (Stop asks the guest to shut down; Force stop cuts the power);
   - **Serial** (text console in xterm.js, for VMs with a serial port) and **VNC** (graphical console);
   - the **VLAN tag of net0**: type a number and press Enter, or leave empty for untagged.

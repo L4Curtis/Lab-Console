@@ -216,8 +216,9 @@ test('the tunnel follows the lab parameters: a new jump server password applies 
     proxmox: { enabled: true, url: 'https://10.22.9.71:8006', username: 'labportal', realm: 'pam', password: 'pw', fingerprint: pve.fingerprint },
   };
   const settings = await createSettings({ config, repo: memory.repos.settings });
-  const mod = createProxmoxModule({ config, events, logger: log, settings });
-  const app = express().use('/api/proxmox', mod.router);
+  const { requireRole } = await import('../src/modules/auth/index.js');
+  const mod = createProxmoxModule({ config, events, logger: log, settings, auth: { requireRole } });
+  const app = express().use((req, _res, next) => { req.user = { id: 'local:admin', role: 'admin' }; next(); }).use('/api/proxmox', mod.router);
   const server = await new Promise((r) => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
   const url = `http://127.0.0.1:${server.address().port}/api/proxmox/nodes`;
   try {
