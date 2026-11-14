@@ -170,6 +170,7 @@ describe('teams: lifecycle', () => {
     assert.deepEqual(t.services.teams.get(id).members, ['oidc:student1']);
     const missing = await t.api('admin', 'DELETE', `/api/teams/${id}/members/nobody`);
     assert.equal(missing.status, 404);
+    assert.equal(missing.body.code, 'teams.not_in_team', 'not the code of "you are not a member"');
     const studentDissolve = await t.api('student1', 'DELETE', `/api/teams/${id}`);
     assert.equal(studentDissolve.status, 403);
     const dissolved = await t.api('admin', 'DELETE', `/api/teams/${id}`);

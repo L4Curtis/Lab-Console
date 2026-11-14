@@ -106,6 +106,7 @@
     "name_taken": "Another team is already called {name}.",
     "unknown": "This team does not exist (any more).",
     "not_member": "Only the members of this team may do that.",
+    "not_in_team": "This person is not in the team.",
     "already_in_team": "{username} is already in the team.",
     "full": "A team has at most {max} members.",
     "no_invitation": "This invitation does not exist (any more).",

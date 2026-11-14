@@ -96,7 +96,7 @@ export function createConfirmations({ auth, services, audit, now = Date.now }) {
 
     /** Options for navigator.credentials.get(), for a passkey confirmation */
     async options(req, res) {
-      if (methodOf(req.user) !== 'passkey') throw httpError(409, 'admin.confirm_unavailable', 'This account cannot confirm with a passkey');
+      if (methodOf(req.user) !== 'passkey') throw httpError(403, 'admin.confirm_method', 'This account does not confirm with a passkey');
       return services.accounts.confirmation.options(req, res);
     },
 
@@ -111,7 +111,7 @@ export function createConfirmations({ auth, services, audit, now = Date.now }) {
         if (!freshUntil(req)) throw httpError(403, 'admin.confirm_sso_required', 'Sign in again at the identity provider first');
         return issue(req);
       }
-      if (method !== 'totp' && method !== 'passkey') throw httpError(403, 'admin.confirm_unavailable', 'This account cannot confirm a sensitive change here: sign in with the environment administrator or an administrator account with a passkey');
+      if (method !== 'totp' && method !== 'passkey') throw httpError(403, 'admin.confirm_method', 'This account cannot confirm a sensitive change here: sign in with the environment administrator or an administrator account with a passkey');
       if (!attempts(req.user.id)) throw httpError(429, 'admin.confirm_throttled', 'Too many confirmation attempts: wait a few minutes');
       const ok = method === 'totp'
         ? await auth.reauthenticate(req.user, { password: input.password, code: input.code })
@@ -147,10 +147,11 @@ export function createConfirmations({ auth, services, audit, now = Date.now }) {
      * authorization request: prompt=login, max_age=0). When it comes back as
      * the same person, still an administrator, with a fresh sign-in, its
      * session counts as confirmed for SSO_FRESH_MS; the outcome is kept for
-     * takeSsoOutcome(). → { url } for the browser. 403 admin.confirm_unavailable for any other account
+     * takeSsoOutcome(). → { url } for the browser. 403 admin.confirm_method for any other account,
+     * 409 admin.confirm_unavailable while the provider is disabled
      */
     async beginSso(req, res, { returnTo = '/#/admin/lab' } = {}) {
-      if (methodOf(req.user) !== 'sso') throw httpError(403, 'admin.confirm_unavailable', 'This account does not confirm with the identity provider');
+      if (methodOf(req.user) !== 'sso') throw httpError(403, 'admin.confirm_method', 'This account does not confirm with the identity provider');
       if (!attempts(req.user.id)) throw httpError(429, 'admin.confirm_throttled', 'Too many confirmation attempts: wait a few minutes');
       const { id: userId } = req.user;
       const user = req.user;

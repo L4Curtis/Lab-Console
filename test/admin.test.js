@@ -140,7 +140,7 @@ describe('lab parameters and their confirmation', () => {
     assert.equal(replay.status, 401, 'the same code twice');
     const sso = await call(lab, 'admin', 'POST', '/api/admin/confirm', { password: 'x', code: '123456' });
     assert.equal(sso.status, 403);
-    assert.equal(sso.body.code, 'admin.confirm_unavailable');
+    assert.equal(sso.body.code, 'admin.confirm_method', 'this account confirms another way');
     const audit = await lab.deps.audit.query({ action: 'admin.confirm.fail' });
     assert.ok(audit.length >= 1, 'failed confirmations are audited');
   });
@@ -355,7 +355,7 @@ describe('confirmation by an SSO administrator: signing in again at the identity
     const options = await call(lab, ada, 'POST', '/api/admin/confirm', { password: 'x', code: '123456' });
     assert.equal(options.status, 403, 'no ticket before a fresh sign-in at the provider');
     assert.equal(options.body.code, 'admin.confirm_sso_required');
-    assert.equal((await call(lab, envAdmin, 'POST', '/api/admin/confirm/sso', {})).body.code, 'admin.confirm_unavailable', 'nor is the trip for the environment administrator');
+    assert.equal((await call(lab, envAdmin, 'POST', '/api/admin/confirm/sso', {})).body.code, 'admin.confirm_method', 'nor is the trip for the environment administrator');
   });
 
   test('a fresh sign-in at the provider confirms the session for 5 minutes: the change is then saved with a ticket', async () => {

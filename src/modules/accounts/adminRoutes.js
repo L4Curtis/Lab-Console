@@ -63,7 +63,7 @@ export function adminRoutes(ctx) {
    */
   function confirmed(req, check = () => {}) {
     const confirmations = services?.admin?.confirmations;
-    if (!confirmations) throw httpError(403, 'admin.confirm_unavailable', 'Sensitive changes cannot be confirmed on this platform');
+    if (!confirmations) throw httpError(409, 'admin.confirm_unavailable', 'Sensitive changes cannot be confirmed on this platform');
     return confirmations.redeem(req, body(req).confirmation, check);
   }
   const guarded = (sensitive, req, check) => (sensitive ? confirmed(req, check) : check());

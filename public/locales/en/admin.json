@@ -354,7 +354,8 @@
     }
   },
   "errors": {
-    "confirm_unavailable": "This account cannot confirm here: sign in with the local administrator, an administrator account with a passkey, or through the identity provider.",
+    "confirm_method": "This account confirms another way: sign in with the local administrator, an administrator account with a passkey, or through the identity provider.",
+    "confirm_unavailable": "Confirmation is not possible right now: this account's way of confirming is switched off.",
     "confirm_throttled": "Too many confirmation attempts: wait a few minutes.",
     "confirm_failed": "Confirmation refused.",
     "confirm_required": "Confirm the change first (passkey, or password and code).",

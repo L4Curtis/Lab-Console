@@ -354,7 +354,8 @@
     }
   },
   "errors": {
-    "confirm_unavailable": "Ce compte ne peut pas confirmer ici : connectez-vous avec l’administrateur du serveur, un compte administrateur qui a une clé d’accès, ou par le fournisseur d’identité.",
+    "confirm_method": "Ce compte confirme autrement : connectez-vous avec l’administrateur du serveur, un compte administrateur qui a une clé d’accès, ou par le fournisseur d’identité.",
+    "confirm_unavailable": "La confirmation n’est pas possible pour le moment : le moyen de confirmer de ce compte est désactivé.",
     "confirm_throttled": "Trop d’essais de confirmation : attendez quelques minutes.",
     "confirm_failed": "Confirmation refusée.",
     "confirm_required": "Confirmez d’abord la modification (clé d’accès, ou mot de passe et code).",

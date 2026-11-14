@@ -106,6 +106,7 @@
     "name_taken": "Une autre équipe s’appelle déjà {name}.",
     "unknown": "Cette équipe n’existe pas (ou plus).",
     "not_member": "Réservé aux membres de cette équipe.",
+    "not_in_team": "Cette personne ne fait pas partie de l’équipe.",
     "already_in_team": "{username} fait déjà partie de l’équipe.",
     "full": "Une équipe compte au plus {max} membres.",
     "no_invitation": "Cette invitation n’existe pas (ou plus).",

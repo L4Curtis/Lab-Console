@@ -232,7 +232,7 @@ export class Teams extends EventEmitter {
   async removeMember(teamId, userId) {
     const { result, team, before } = await this.#change(teamId, (t, doc) => {
       const i = t.members.findIndex((m) => m.id === String(userId));
-      if (i < 0) throw httpError(404, 'teams.not_member', 'This person is not in the team');
+      if (i < 0) throw httpError(404, 'teams.not_in_team', 'This person is not in the team');
       t.members.splice(i, 1);
       if (t.members.length === 0) {
         doc.teams = doc.teams.filter((x) => x !== t);
