@@ -36,19 +36,19 @@
  *   GET  /login           the sign-in page (redirects to ?next when already signed in)
  *   GET  /js/login.js     its script
  *   GET  /auth/me         { user, locale, providerName }; user is null when signed out
- *   GET  /auth/login      start an OpenID Connect sign-in        ?next=/path
- *   GET  /auth/callback   the provider sends the browser back here
- *   POST /auth/local      { username, password, code, next } → { redirect }, or { step } when the
- *                         account must still prove itself with a passkey (the step cookie is set)
+ *   GET  /auth/login, /auth/callback   the identity provider (oidcRoutes.js)
+ *   POST /auth/local      a local account (localRoutes.js)
  *   POST /auth/logout     → { redirect } (the provider's sign-out page when it has one)
+ * The gate itself (requireAuth, requireRole) is gate.js
  */
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
-import { jsonBody } from '../../lib/bodies.js';
 import { sendError } from '../../lib/httpError.js';
-import { requireSameOrigin, createRateLimiter, clientIp } from '../../lib/security.js';
-import { hasRole } from './user.js';
+import { requireSameOrigin, clientIp } from '../../lib/security.js';
+import { requireAuth, requireRole } from './gate.js';
+import { oidcRoutes } from './oidcRoutes.js';
+import { localRoutes } from './localRoutes.js';
 import { cookieSettings, readCookie, serializeCookie, clearCookie, appendCookie } from './cookies.js';
 import { createSessionStore } from './sessions.js';
 import { createPendingLogins, safeReturnPath } from './pendingLogins.js';
@@ -57,33 +57,13 @@ import { createAccountProviders } from './accounts.js';
 import { createEnvAdminProvider } from './envAdmin.js';
 import { createDeviceCookies, loadDeviceKey } from './devices.js';
 import { createRefusalAudit } from './refusals.js';
-import { createOidc, OidcError } from './oidc.js';
+import { createOidc } from './oidc.js';
 import { normalizeOidcSettings, isInsecureIssuer } from './oidcSettings.js';
-import { userFromClaims, needsUserinfo, subjectOf, groupsFrom } from './claims.js';
 
 export { createUser, hasRole, ROLES } from './user.js';
+export { requireAuth, requireRole };
 
 const publicDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'public');
-const isApiRequest = (req) => (req.originalUrl || req.url || '').startsWith('/api/');
-
-/** Refuse a request that carries no user */
-export function requireAuth(req, res, next) {
-  if (req.user) return next();
-  if (isApiRequest(req) || (req.method !== 'GET' && req.method !== 'HEAD')) {
-    return sendError(res, 401, 'auth.required', 'Sign in to continue');
-  }
-  const back = safeReturnPath(req.originalUrl);
-  res.redirect(302, back === '/' ? '/login' : `/login?next=${encodeURIComponent(back)}`);
-}
-
-/** Refuse a user whose role is too low */
-export function requireRole(role) {
-  return (req, res, next) => {
-    if (!req.user) return sendError(res, 401, 'auth.required', 'Sign in to continue');
-    if (!hasRole(req.user, role)) return sendError(res, 403, 'auth.forbidden', 'You are not allowed to do this', { role });
-    next();
-  };
-}
 
 /** The OIDC settings an administrator may see: everything but the secret */
 const visibleSettings = ({ clientSecret, ...rest }) => ({ ...rest, hasClientSecret: Boolean(clientSecret) });
@@ -126,9 +106,6 @@ export async function createAuth({ config, logger, events, repos, audit, service
   const devices = createDeviceCookies({ key: await loadDeviceKey({ state: repos.authState, logger: log }), now });
   const refusals = createRefusalAudit({ audit, now });
   const accounts = createAccountProviders([envAdmin]);
-  const startsPerMinute = createRateLimiter({ limit: 30, windowMs: 60_000 });
-  // Each start leads to one callback at most; the margin covers a fixed window cut in two
-  const callbacksPerMinute = createRateLimiter({ limit: 60, windowMs: 60_000 });
   const housekeeping = setInterval(() => {
     throttle.sweep();
     refusals.flush();
@@ -189,8 +166,6 @@ export async function createAuth({ config, logger, events, repos, audit, service
   const extensions = express.Router(); // routes other modules add with auth.extend(), mounted before the /auth 404
   const describers = [];               // their fields of /auth/me
   const sameOrigin = requireSameOrigin(config.server.allowedOrigins);
-  const json = jsonBody('4kb');
-  const backToLogin = (res, error) => res.redirect(302, `/login?error=${error}`);
 
   // Nothing about signing in is cached or indexed
   router.use(['/login', '/auth'], (_req, res, next) => {
@@ -215,122 +190,10 @@ export async function createAuth({ config, logger, events, repos, audit, service
     res.json({ ...extra, user: session?.user ?? null, locale: config.defaultLocale, providerName: oidc.providerName });
   });
 
-  router.get('/auth/login', async (req, res) => {
-    const client = oidc;
-    if (!client.enabled) return backToLogin(res, 'sso_disabled');
-    const address = clientIp(req, serverTrust);
-    if (!startsPerMinute(address)) return backToLogin(res, 'throttled');
-    let started;
-    try {
-      started = await client.begin();
-    } catch (err) {
-      if (!(err instanceof OidcError)) log.error(`sign-in could not start: ${err.stack || err}`);
-      return backToLogin(res, 'provider_unavailable');
-    }
-    pending.discard(readCookie(req, cookies.login)); // a second click replaces the first attempt
-    const id = pending.put({ ...started.pending, client, returnTo: safeReturnPath(req.query.next) }, { owner: address });
-    appendCookie(res, serializeCookie(cookies.login, id, { secure: cookies.secure, maxAgeSeconds: pending.ttlMs / 1000 }));
-    res.redirect(302, started.url);
-  });
-
-  router.get('/auth/callback', async (req, res) => {
-    const refuse = (reason, error, details = {}) => {
-      audit?.log(req, 'auth.login.failed', { method: 'oidc', reason, ...details });
-      return backToLogin(res, error);
-    };
-    // Refusals anyone can produce for free are audited once per client and window (refusals.js)
-    const address = clientIp(req, serverTrust);
-    const refuseCheaply = (reason, error) => {
-      refusals.record(req, address, reason, { method: 'oidc', reason });
-      return backToLogin(res, error);
-    };
-    if (!callbacksPerMinute(address)) return refuseCheaply('throttled', 'throttled');
-
-    // Single use: the attempt is forgotten before anything is checked, so a
-    // replayed or forged callback has nothing to be compared with
-    const attempt = pending.take(readCookie(req, cookies.login));
-    appendCookie(res, clearCookie(cookies.login, { secure: cookies.secure }));
-    if (!attempt) return refuseCheaply('no_pending_login', 'login_expired');
-    // The settings changed while this person was at the provider: start again
-    if (attempt.client !== oidc) return refuse('provider_changed', 'login_expired');
-    if (attempt.trial) return finishTrial(req, res, attempt);
-
-    let result;
-    let userinfo = null;
-    try {
-      // Rebuilt on PUBLIC_URL: what the provider was given, whatever Host header this request carries
-      result = await attempt.client.complete(new URL(publicUrl + req.originalUrl), attempt);
-      if (needsUserinfo(result.idClaims, oidcSettings.groupsClaim)) userinfo = await attempt.client.userinfo(result.accessToken, result.idClaims.sub);
-    } catch (err) {
-      if (!(err instanceof OidcError)) log.error(`sign-in failed unexpectedly: ${err.stack || err}`);
-      else log.warn(`sign-in refused: ${err.message}`);
-      return err?.kind === 'unavailable' ? refuse('provider_unavailable', 'provider_unavailable') : refuse('rejected', 'sso_failed');
-    }
-
-    let decision;
-    try {
-      decision = decide(result.idClaims, userinfo);
-    } catch (err) {
-      log.warn(`sign-in refused: ${err.message}`);
-      return refuse('rejected', 'sso_failed');
-    }
-    if (!decision.allowed) {
-      log.warn(`sign-in refused: ${decision.username} is in none of the allowed groups`);
-      return refuse('not_allowed', 'not_allowed', { username: decision.username, groups: decision.groups });
-    }
-    // The directory has the last word: a disabled account stays out, whatever the provider says
-    let admitted;
-    try {
-      admitted = (await services.accounts?.admit?.(decision.user, { groupRole: decision.groupRole })) !== false;
-    } catch (err) {
-      log.error(`the directory could not record ${decision.user.id}: ${err.message}`);
-      return refuse('directory_unavailable', 'sso_failed');
-    }
-    if (!admitted) return refuse('disabled', 'account_disabled', { username: decision.user.username });
-
-    const session = signIn(req, res, decision.user, { idToken: result.idToken });
-    audit?.log(req, 'auth.login', { method: 'oidc', session: session.id, role: decision.user.role });
-    res.redirect(302, attempt.returnTo);
-  });
-
-  router.post('/auth/local', sameOrigin, json, async (req, res) => {
-    const body = req.body !== null && typeof req.body === 'object' ? req.body : {};
-    const username = typeof body.username === 'string' ? body.username.slice(0, 128) : '';
-    const client = clientIp(req, serverTrust);
-    // A browser that already signed in with this name is limited on its own (throttle.js, devices.js)
-    const device = devices.check(readCookie(req, cookies.device), username) ?? undefined;
-    const slot = throttle.take({ client, username, device });
-    if (!slot.allowed) {
-      refusals.record(req, client, `throttled:${slot.scope}`, { method: 'local', reason: 'throttled', scope: slot.scope });
-      res.set('Retry-After', String(slot.retryAfterSeconds));
-      return sendError(res, 429, 'auth.throttled', 'Too many sign-in attempts. Try again later', { seconds: slot.retryAfterSeconds });
-    }
-
-    let answer = null;
-    try {
-      answer = await accounts.verify({ username, password: body.password, code: body.code }, { logger: log });
-    } finally {
-      if (answer) throttle.succeeded({ client, username, device });
-      else throttle.failed({ username, device });
-    }
-    const user = answer?.user;
-    if (!user) {
-      audit?.log(req, 'auth.login.failed', { method: 'local', reason: 'invalid' });
-      // One message for every cause: nothing says which field was wrong, or whether the account exists
-      return sendError(res, 401, 'auth.invalid_credentials', 'Sign-in failed. Check the user name, the password and the code');
-    }
-    // The password was right but this account owes a passkey: no session until it is given
-    if (answer.requires.length) {
-      startStep(req, res, user, answer.requires, { returnTo: safeReturnPath(body.next), deviceName: username, method: 'local', binding: answer.binding });
-      audit?.log(req, 'auth.login.step', { method: 'local', step: answer.requires[0], username: user.username });
-      return res.json({ step: answer.requires[0] });
-    }
-
-    const session = signIn(req, res, user);
-    rememberBrowser(res, username);
-    audit?.log(req, 'auth.login', { method: 'local', session: session.id, role: user.role, knownBrowser: Boolean(device) });
-    res.json({ redirect: safeReturnPath(body.next) });
-  });
+  const provider = { get client() { return oidc; }, get settings() { return oidcSettings; } };
+  const viaProvider = oidcRoutes({ provider, pending, cookies, serverTrust, publicUrl, refusals, signIn, services, audit, log });
+  router.use(viaProvider.router);
+  router.use(localRoutes({ accounts, throttle, devices, refusals, cookies, serverTrust, sameOrigin, signIn, rememberBrowser, startStep, audit, log }));
 
   router.post('/auth/logout', sameOrigin, async (req, res) => {
     const token = tokenOf(req);
@@ -363,46 +226,6 @@ export async function createAuth({ config, logger, events, repos, audit, service
     const step = steps.take(readCookie(req, cookies.step));
     appendCookie(res, clearCookie(cookies.step, { secure: cookies.secure }));
     return step;
-  }
-
-  // ── A sign-in at the provider that opens no session (the SSO settings page) ─
-  /** Who would this be, with which role? Groups decide, a role stored in the directory wins */
-  function decide(idClaims, userinfo) {
-    const id = `oidc:${subjectOf(idClaims)}`;
-    const storedRole = services.accounts?.roleOverride?.(id) ?? null;
-    const decision = userFromClaims({ idClaims, userinfo, settings: oidcSettings, storedRole });
-    const groupRole = userFromClaims({ idClaims, userinfo, settings: { ...oidcSettings, allowedGroups: [] } }).user.role;
-    return { ...decision, groupRole, storedRole };
-  }
-
-  async function finishTrial(req, res, attempt) {
-    let outcome;
-    try {
-      const result = await attempt.client.complete(new URL(publicUrl + req.originalUrl), attempt);
-      const userinfo = await attempt.client.userinfo(result.accessToken, result.idClaims.sub).catch(() => null);
-      const decision = decide(result.idClaims, userinfo);
-      outcome = {
-        ok: true,
-        idClaims: result.idClaims,
-        userinfo,
-        groups: groupsFrom(result.idClaims, userinfo, oidcSettings.groupsClaim),
-        allowed: decision.allowed,
-        userId: decision.user?.id ?? null,
-        username: decision.user?.username ?? decision.username,
-        role: decision.allowed ? decision.user.role : null,
-        groupRole: decision.groupRole,
-        storedRole: decision.storedRole,
-      };
-    } catch (err) {
-      log.warn(`trial sign-in failed: ${err.message}`);
-      outcome = { ok: false, error: err?.kind === 'unavailable' ? 'provider_unavailable' : 'sso_failed', message: err.message };
-    }
-    try {
-      await attempt.trial.onResult(outcome);
-    } catch (err) {
-      log.error(`trial sign-in result was lost: ${err.message}`);
-    }
-    res.redirect(302, attempt.returnTo);
   }
 
   return {
@@ -530,15 +353,7 @@ export async function createAuth({ config, logger, events, repos, audit, service
        * sign-in and refuses an answer that is not one (a person proving
        * themselves again). → { url } to send the browser to
        */
-      async trial(req, res, { returnTo = '/', onResult, reauth = false }) {
-        const client = oidc;
-        if (!client.enabled) throw Object.assign(new Error('No identity provider is enabled'), { code: 'sso_disabled' });
-        const started = await client.begin({ reauth });
-        pending.discard(readCookie(req, cookies.login));
-        const id = pending.put({ ...started.pending, client, returnTo: safeReturnPath(returnTo), trial: { onResult } }, { owner: clientIp(req, serverTrust) });
-        appendCookie(res, serializeCookie(cookies.login, id, { secure: cookies.secure, maxAgeSeconds: pending.ttlMs / 1000 }));
-        return { url: started.url };
-      },
+      trial: (req, res, options) => viaProvider.trial(req, res, options),
     },
     router,
     cookieName: cookies.session,

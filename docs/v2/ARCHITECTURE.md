@@ -267,8 +267,11 @@ auth.shutdown()                // stops the timers, writes the sessions; called 
 
 `src/modules/auth/index.js` exports `createAuth(deps)` (deps: `{ config,
 logger, events, store, audit }`) and, for every module and for tests,
-`requireAuth`, `requireRole`, `hasRole(user, role)`, `createUser` and
-`ROLES`. Roles are ordered: `student` < `admin`, so `requireRole('student')`
+`requireAuth`, `requireRole` (the gate, `gate.js`), `hasRole(user, role)`,
+`createUser` and `ROLES`. The sign-in routes are `oidcRoutes.js` (the
+identity provider, and the trial sign-in that opens no session) and
+`localRoutes.js` (local accounts); index.js wires them with the sessions,
+the steps and the public API. Roles are ordered: `student` < `admin`, so `requireRole('student')`
 lets an admin through. `requireAuth` answers 401 JSON (`auth.required`) under
 `/api/` and for any non-GET request, 302 `/login` otherwise (with
 `?next=<path>` so the user comes back); `requireRole` answers 403
