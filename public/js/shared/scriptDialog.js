@@ -7,7 +7,7 @@
  */
 import { h, icon, prefs, toast } from '../core/dom.js';
 import { t, tAttr, tNode, onLocaleChange, loadNamespace } from '../core/i18n.js';
-import { confirmDialog } from './dialog.js';
+import { confirmDialog, openDialog } from './dialog.js';
 import { openScriptLibrary, saveToLibrary } from './scriptLibrary.js';
 
 const MAX_BYTES = 256 * 1024;
@@ -119,22 +119,8 @@ export async function openScriptDialog({ session, onSend }) {
   error,
   h('div.form-actions', h('button.btn', { type: 'button', onclick: () => dlg.close() }, tNode('common.actions.cancel')), send));
 
-  const heading = h('h2');
-  const dlg = h('dialog.modal.wide', {},
-    h('header.modal-head', heading,
-      h('button.icon-btn', { type: 'button', ...tAttr('title', 'common.actions.close'), onclick: () => dlg.close() }, icon('close'))),
-    form);
+  const dlg = openDialog(form, { title: () => t('terminal.script.title', { title: session.title }), wide: true, initialFocus: textarea });
   // Texts with a parameter are written again when the language changes while the dialog is open
-  const words = () => {
-    const title = t('terminal.script.title', { title: session.title });
-    heading.textContent = title;
-    dlg.setAttribute('aria-label', title);
-    refresh();
-  };
-  const offLocale = onLocaleChange(words);
-  dlg.addEventListener('close', () => { offLocale(); dlg.remove(); });
-  document.body.append(dlg);
-  dlg.showModal();
-  words();
-  requestAnimationFrame(() => textarea.focus());
+  dlg.closed.then(onLocaleChange(refresh));
+  refresh();
 }

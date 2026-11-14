@@ -234,3 +234,25 @@ test('the inject dialog takes a script from the library and keeps one in it; som
   await bilal.context().close();
   await alice.context().close();
 });
+
+test('the inject dialog is a dialog like the others: named, the keyboard kept inside, its title in the current language, the focus given back', async () => {
+  const page = await signedIn('chloe', 'B4M');
+  const pane = await openConsole(page, 'B4M', 'R4');
+  const button = action(pane, 'inject');
+  await button.click();
+  const dlg = page.locator('dialog.modal[open]');
+  const title = dlg.locator('header.modal-head h2');
+  await title.filter({ hasText: /^Injecter un script dans .*R4/ }).waitFor();
+  assert.equal(await dlg.getAttribute('aria-labelledby'), await title.getAttribute('id'), 'named by its title');
+  assert.equal(await page.evaluate(() => document.activeElement?.tagName), 'TEXTAREA', 'the script is where the keyboard starts');
+  for (let i = 0; i < 12; i += 1) await page.keyboard.press('Tab');
+  assert.equal(await dlg.evaluate((d) => d.contains(document.activeElement)), true, 'Tab goes round inside the dialog');
+  // The language changes while it is open: the title follows
+  await page.evaluate(() => import('/js/core/i18n.js').then((m) => m.setLocale('en', { persist: false })));
+  await title.filter({ hasText: /^Inject a script into .*R4/ }).waitFor();
+  await page.keyboard.press('Escape');
+  await dlg.waitFor({ state: 'detached' });
+  assert.equal(await button.evaluate((b) => b === document.activeElement), true, 'the focus is back on the button that opened it');
+  assert.deepEqual(page.errors, []);
+  await page.context().close();
+});

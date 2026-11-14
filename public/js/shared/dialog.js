@@ -13,7 +13,7 @@
  * aria-describedby; a dangerous confirmation is an alertdialog)
  */
 import { h, icon, loadCss } from '../core/dom.js';
-import { t } from '../core/i18n.js';
+import { t, onLocaleChange } from '../core/i18n.js';
 
 let serial = 0;
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -24,7 +24,8 @@ const asNodes = (content) => [content].flat().filter((c) => c !== null && c !== 
 
 /**
  * Show `node` in a modal. `node` is the dialog's content, or a ready-made
- * <dialog> element. Options: title (adds the header and its close button),
+ * <dialog> element. Options: title (adds the header and its close button; a
+ * function is asked again when the language changes while the dialog is open),
  * label (accessible name when there is no title), wide, role, describedBy,
  * dismissible (false: Escape and the close button do nothing), initialFocus
  * (element or selector). Returns { el, close(value), closed: Promise<value> }
@@ -44,7 +45,9 @@ export function openDialog(node, { title, label, wide = false, role, describedBy
   };
 
   if (title !== undefined && !(node instanceof HTMLDialogElement)) {
-    dlg.prepend(h('header.modal-head', h('h2', { id: `${id}-title` }, title),
+    const heading = h('h2', { id: `${id}-title` }, typeof title === 'function' ? title() : title);
+    if (typeof title === 'function') closed.then(onLocaleChange(() => { heading.textContent = title(); }));
+    dlg.prepend(h('header.modal-head', heading,
       dismissible ? h('button.icon-btn', { type: 'button', title: t('common.actions.close'), 'aria-label': t('common.actions.close'), onclick: () => close() }, icon('close')) : null));
     dlg.setAttribute('aria-labelledby', `${id}-title`);
   } else if (label) {
