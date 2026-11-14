@@ -24,6 +24,8 @@ import { LivePanel } from './livePanel.js';
 import { openBenchWall } from './benchWall.js';
 import { openJournalDialog } from './journalDialog.js';
 import { openScriptLibrary } from '../../shared/scriptLibrary.js';
+import { mountBenchPanel } from '../collab/benchPanel.js';
+import { knowDevices } from '../collab/notes.js';
 
 export async function mount(el, { navigate }) {
   await Promise.all([loadNamespace('consoles', 'terminal'), loadCss('consoles')]);
@@ -56,8 +58,16 @@ export async function mount(el, { navigate }) {
   const canvas = h('div.diagram-canvas');
   const journalNotice = h('div.journal-notice', { hidden: true, role: 'note' });
   const livePanel = new LivePanel({ onOpen: (r) => openSummary(r) });
-  livePanel.el.addEventListener('toggle', () => liveBtn.setAttribute('aria-pressed', String(livePanel.open)));
-  const diagramPane = h('div.diagram-pane', journalNotice, h('div.canvas-heading', labTitle, labHint, wallBtn), canvas, notesBtn, notes, livePanel.el);
+  // The notes and the chat of the bench (lot collab) share the side of the diagram with the live panel: one at a time
+  const heading = h('div.canvas-heading', labTitle, labHint, wallBtn);
+  const diagramPane = h('div.diagram-pane', journalNotice, heading, canvas, notesBtn, notes, livePanel.el);
+  const group = mountBenchPanel({ host: diagramPane });
+  heading.append(group.button);
+  livePanel.el.addEventListener('toggle', () => {
+    liveBtn.setAttribute('aria-pressed', String(livePanel.open));
+    if (livePanel.open && group.open) group.toggle(false);
+  });
+  group.el.addEventListener('toggle', () => { if (group.open && livePanel.open) livePanel.toggle(false); });
   el.append(head);
   const benchBar = mountBenchBar(el); // who holds the bench on screen (lot teams)
   const split = new SplitView(el, diagramPane, { labelKey: 'consoles.topology', onResize: () => diagram.fit() });
@@ -112,6 +122,7 @@ export async function mount(el, { navigate }) {
       version = data.version;
       loadError = null;
       labs = data.labs;
+      knowDevices(labs);
       retentionDays = data.journal?.retentionDays ?? null;
       renderNotice();
       picker.render(labs);
@@ -140,6 +151,7 @@ export async function mount(el, { navigate }) {
     picker.setActive(lab.id);
     labTitle.textContent = lab.name;
     benchBar.setBench(lab.name);
+    group.setBench(lab);
     writeHint();
     diagram.render(lab);
     refreshStates();

@@ -16,6 +16,7 @@ import { loadSession, session } from './core/session.js';
 import { initI18n, setLocale, getLocale, onLocaleChange, t, tNode } from './core/i18n.js';
 import { mountUserMenu } from './core/userMenu.js';
 import { mountAnnouncement } from './shared/announcement.js';
+import { startCollab } from './modules/collab/index.js';
 
 const MODULES = [
   { id: 'consoles', path: 'consoles', titleKey: 'common.shell.consoles', icon: 'topology', load: () => import('./modules/consoles/index.js') },
@@ -52,6 +53,7 @@ async function init() {
   mountAnnouncement(document.querySelector('.views'));
   // Bench jobs drawn on the diagram, whichever section is on screen
   import('./modules/jobs/layer.js').then((m) => m.start()).catch(() => {});
+  await startCollab(); // notes on the diagram, notifications: needs the session and the language
 
   // The backend says which modules are live; disabled ones show a "soon" tag
   let status = [];

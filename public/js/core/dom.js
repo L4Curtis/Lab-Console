@@ -89,6 +89,10 @@ const ICONS = {
   history: '<path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4.5V8h3.5M12 8v4.2l3 1.8"/>',
   library: '<path d="M5 4h4v16H5zM11 4h4v16h-4z"/><path d="M17.2 5.6l3.4 1-3.6 13.2-3.4-1"/>',
   edit: '<path d="M5 19l1-4L16.5 4.5a1.8 1.8 0 0 1 2.5 0l.5.5a1.8 1.8 0 0 1 0 2.5L9 18z"/><path d="M14.5 6.5l3 3"/>',
+  note: '<path d="M5 4h14v11l-5 5H5z"/><path d="M14 20v-5h5M8.5 9h7M8.5 12.5h4"/>',
+  chat: '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/>',
+  bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>',
+  send: '<path d="M4 12l16-8-6 16-2.5-6.5z"/>',
 };
 export function icon(name, cls = '') {
   const span = document.createElement('span');
