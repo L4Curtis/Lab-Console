@@ -24,7 +24,7 @@ const TICK_MS = 30_000;
 export function createTeamsModules(deps, { now = () => Date.now(), tickMs = TICK_MS } = {}) {
   const { config, logger, events, repos, audit, auth, services } = deps;
   const log = logger.child('teams');
-  const teams = new Teams({ repos, now });
+  const teams = new Teams({ repos, now, maxMembers: config.benches.teamMaxMembers });
   const benches = new Benches({ repos, teams, services, events, audit, logger: log, config: config.benches, now });
 
   teams.on('change', (change) => {

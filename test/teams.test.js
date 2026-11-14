@@ -197,6 +197,17 @@ describe('teams: size', () => {
   before(async () => { t = await startTeamsApp(); });
   after(async () => { await t.close(); });
 
+  test('TEAM_MAX_MEMBERS sets the size of a team', async () => {
+    const small = await startTeamsApp({ env: { TEAM_MAX_MEMBERS: '2' } });
+    try {
+      const id = (await small.api('student1', 'POST', '/api/teams', { name: 'Duo' })).body.team.id;
+      assert.equal((await small.api('student1', 'POST', `/api/teams/${id}/invitations`, { username: 'guest10' })).status, 201);
+      const full = await small.api('student1', 'POST', `/api/teams/${id}/invitations`, { username: 'guest11' });
+      assert.equal(full.body.code, 'teams.full');
+      assert.equal(full.body.params.max, 2);
+    } finally { await small.close(); }
+  });
+
   test('a team has at most 8 seats; an invitation holds one until it is answered', async () => {
     const created = await t.api('student1', 'POST', '/api/teams', { name: 'Grande équipe' });
     const id = created.body.team.id;
@@ -233,9 +244,9 @@ describe('teams: size', () => {
 describe('teams: configuration', () => {
   test('defaults and bounds of the bench settings', async () => {
     const config = await loadTestConfig();
-    assert.deepEqual(config.benches, { idleHours: 3, reservations: { maxFuture: 2, maxHours: 4, maxDaysAhead: 14 } });
+    assert.deepEqual(config.benches, { idleHours: 3, teamMaxMembers: 8, reservations: { maxFuture: 2, maxHours: 4, maxDaysAhead: 14 } });
     const custom = await loadTestConfig({ BENCH_IDLE_HOURS: '5', RESERVATION_MAX_FUTURE: '3', RESERVATION_MAX_HOURS: '2', RESERVATION_MAX_DAYS_AHEAD: '7' });
-    assert.deepEqual(custom.benches, { idleHours: 5, reservations: { maxFuture: 3, maxHours: 2, maxDaysAhead: 7 } });
+    assert.deepEqual(custom.benches, { idleHours: 5, teamMaxMembers: 8, reservations: { maxFuture: 3, maxHours: 2, maxDaysAhead: 7 } });
     await assert.rejects(loadTestConfig({ BENCH_IDLE_HOURS: '0' }), (err) => err.problems.some((p) => p.startsWith('BENCH_IDLE_HOURS')));
     await assert.rejects(loadTestConfig({ RESERVATION_MAX_HOURS: 'four' }), (err) => err.problems.some((p) => p.startsWith('RESERVATION_MAX_HOURS')));
   });

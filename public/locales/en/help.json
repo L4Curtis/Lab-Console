@@ -223,5 +223,8 @@
         "body": "In Backups, \"Back up\" reads the configuration of every device of the bench. The server is not a backup: download the ZIP afterwards. The Help section covers the rest; your account menu lets you replay this tour."
       }
     }
+  },
+  "errors": {
+    "bad_state": "The tour ends as done or skipped."
   }
 }

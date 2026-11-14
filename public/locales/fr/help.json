@@ -223,5 +223,8 @@
         "body": "Dans Sauvegardes, « Sauvegarder » lit la configuration de tous les équipements de la baie. Le serveur n’est pas une sauvegarde : téléchargez ensuite le ZIP. La section Aide détaille le reste ; le menu de votre compte permet de revoir cette visite."
       }
     }
+  },
+  "errors": {
+    "bad_state": "La visite se termine par « terminée » ou « passée »."
   }
 }

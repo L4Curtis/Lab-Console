@@ -24,7 +24,7 @@ import { EventEmitter } from 'node:events';
 import { httpError } from '../../lib/httpError.js';
 import { createCachedDocument } from '../../lib/cachedDocument.js';
 
-export const MAX_MEMBERS = 8;
+export const DEFAULT_MAX_MEMBERS = 8;
 
 /** A user, reduced to what other people may see of them */
 export const personOf = (user) => ({ id: String(user.id), username: String(user.username ?? ''), name: String(user.name || user.username || user.id) });
@@ -67,9 +67,11 @@ const view = (team) => team && ({
 export class Teams extends EventEmitter {
   #doc;
   #now;
+  #maxMembers;
 
-  constructor({ repos, now = () => Date.now() }) {
+  constructor({ repos, now = () => Date.now(), maxMembers = DEFAULT_MAX_MEMBERS }) {
     super();
+    this.#maxMembers = maxMembers;
     this.#doc = createCachedDocument({
       name: 'teams',
       fallback: { teams: [] },
@@ -186,7 +188,7 @@ export class Teams extends EventEmitter {
       }
       if (t.invitations.some((i) => fold(i.username) === fold(username) || (userId && i.userId === userId))) return false; // already invited: nothing new
       // An invitation holds a seat until it is answered, so a team never has more invitations than free seats
-      if (t.members.length + t.invitations.length >= MAX_MEMBERS) throw httpError(409, 'teams.full', `A team has at most ${MAX_MEMBERS} members`, { max: MAX_MEMBERS });
+      if (t.members.length + t.invitations.length >= this.#maxMembers) throw httpError(409, 'teams.full', `A team has at most ${this.#maxMembers} members`, { max: this.#maxMembers });
       t.invitations.push({ username, userId, by: personOf(by), at: new Date(this.#now()).toISOString() });
       return true;
     });
@@ -220,7 +222,7 @@ export class Teams extends EventEmitter {
       if (i < 0) throw httpError(404, 'teams.no_invitation', 'There is no such invitation');
       this.#ensureFree(doc, user);
       // Safety net: an invitation holds a seat, so this only triggers for a document written by hand or a lowered limit
-      if (t.members.length >= MAX_MEMBERS) throw httpError(409, 'teams.full', `A team has at most ${MAX_MEMBERS} members`, { max: MAX_MEMBERS });
+      if (t.members.length >= this.#maxMembers) throw httpError(409, 'teams.full', `A team has at most ${this.#maxMembers} members`, { max: this.#maxMembers });
       t.invitations.splice(i, 1);
       t.members.push({ ...personOf(user), since: new Date(this.#now()).toISOString() });
     })).team;

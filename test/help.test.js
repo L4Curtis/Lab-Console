@@ -66,6 +66,10 @@ describe('/api/help/tour', () => {
     const bad = await call('student3', 'PUT', { state: 'maybe' });
     assert.equal(bad.status, 400);
     assert.equal(bad.body.code, 'help.bad_state');
+    for (const lang of ['fr', 'en']) {
+      const messages = JSON.parse(fs.readFileSync(new URL(`../public/locales/${lang}/help.json`, import.meta.url), 'utf8'));
+      assert.ok(messages.errors.bad_state, `${lang}: the refusal is translated`);
+    }
     assert.equal((await call('student3', 'PUT', {})).status, 400);
     assert.equal((await call('student3', 'PUT', { state: ['done'] })).status, 400);
     assert.deepEqual((await call('student3', 'GET')).body, { state: null }, 'a refused call stores nothing');

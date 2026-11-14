@@ -272,3 +272,23 @@ test('nothing but the configuration layer reads process.env', () => {
   walk(path.join(repoRoot, 'src'));
   assert.deepEqual(offenders.filter((f) => !allowed.has(f)), []);
 });
+
+test('.env.example documents every variable the application reads', () => {
+  const read = new Set();
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      const file = path.join(dir, entry.name);
+      if (entry.isDirectory()) walk(file);
+      else if (entry.name.endsWith('.js')) {
+        const source = fs.readFileSync(file, 'utf8');
+        for (const m of source.matchAll(/\b(?:str|required|int|bool|list|portRange|oneOf|origin)\(\s*'([A-Z][A-Z0-9_]+)'/g)) read.add(m[1]);
+      }
+    }
+  };
+  walk(path.join(repoRoot, 'src'));
+  const example = fs.readFileSync(path.join(repoRoot, '.env.example'), 'utf8');
+  // TRUST_PROXY is read only to be refused; NODE_ENV belongs to Node
+  const missing = [...read].filter((name) => !['TRUST_PROXY', 'NODE_ENV'].includes(name) && !new RegExp(`^#?\\s*${name}=`, 'm').test(example));
+  assert.deepEqual(missing, []);
+  assert.ok(read.size > 40);
+});
