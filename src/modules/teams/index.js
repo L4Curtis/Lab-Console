@@ -43,6 +43,7 @@ export function createTeamsModules(deps, { now = () => Date.now(), tickMs = TICK
     teamOf: (userOrId) => teams.teamOf(userOrId),
     get: (teamId) => teams.get(teamId),
     list: () => teams.list(),
+    invitationsFor: (user) => teams.invitationsFor(user),
   };
   services.benches = {
     holder: (labName) => benches.holder(labName),
@@ -53,6 +54,8 @@ export function createTeamsModules(deps, { now = () => Date.now(), tickMs = TICK
     lock: (labName) => benches.lock(labName),
     touch: (labName) => benches.touch(labName),
     onRelease: (fn) => benches.onRelease(fn),
+    detail: (labName, user) => benches.detail(labName, user),
+    reservations: (options) => benches.listReservations(options),
   };
 
   const json = express.json({ limit: '4kb' });

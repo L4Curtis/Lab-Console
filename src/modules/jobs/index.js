@@ -550,6 +550,9 @@ export function createJobsModule({ config, logger, events, store, repos, audit, 
     /** Recent jobs (in memory), newest first, without a line of configuration (redactedJob) */
     list: ({ bench } = {}) => runner.recent(bench).map(redactedJob),
     kinds: KINDS,
+    /** A team's snapshots as `user` may see them (its members and admins), newest first: the home page's "latest backups" */
+    snapshots: async (user, { teamId, limit = 5 } = {}) => (await library.listSnapshots(user))
+      .filter((s) => s.teamId === teamId).slice(0, limit).map((s) => library.view(s)),
   };
 
   let offRelease = null;
