@@ -8,6 +8,12 @@
  *   nc -z -w <seconds> <host> <port>
  *                                 line probe: exit 0 when the console port accepts
  *                                 a connection (free), 1 when it refuses (busy, down)
+ *   mock-power <host> <port> [mode]
+ *                                 the simulator's stand-in for the person on site: switches
+ *                                 the device off and on again (`mode`: with the Mode button
+ *                                 held, for a switch). The application never sends it; a
+ *                                 person trying the password recovery on a pre-production
+ *                                 does, from a shell: ssh -p 2222 <user>@<host> mock-power 10.22.9.211 2001
  *
  * Devices are simulated by dev/fakeIos.js (four IOS / IOS XE families, boot,
  * erase, VLANs…) and live as long as the mock lab: a configuration survives
@@ -73,6 +79,7 @@ import { MockCabling, cablesFromLabs } from './mockCabling.js';
 const TELNET_ESCAPE = '\x1d';
 const TARGET = /^([\w.-]{1,253}) (\d{1,5})$/;
 const PROBE = /^nc -z -w ([1-9]|[12]\d|30) ([\w.-]{1,253}) (\d{1,5})$/;
+const POWER = /^mock-power ([\w.-]{1,253}) (\d{1,5})( mode)?$/;
 
 /**
  * @param port        TCP port (0: any free one)
@@ -209,6 +216,15 @@ export function startMockLab({
           if (probe) {
             const p = Number(probe[3]);
             stream.exit(lineFree(`${probe[2]}:${p}`, p) ? 0 : 1);
+            return stream.end();
+          }
+          const power = info.command.match(POWER);
+          if (power) {
+            const dev = device(`${power[1]}:${power[2]}`);
+            if (typeof dev.powerCycle !== 'function') { stream.stderr.write('mock: this device cannot be power-cycled\r\n'); stream.exit(1); return stream.end(); }
+            dev.powerCycle({ modeButton: Boolean(power[3]) });
+            stream.write(`power-cycled ${power[1]}:${power[2]}${power[3] ? ' with the Mode button held' : ''}\r\n`);
+            stream.exit(0);
             return stream.end();
           }
           const m = info.command.match(/^telnet (.+)$/);

@@ -59,6 +59,7 @@ export class ConsoleSession extends EventEmitter {
   #bannerTail = '';
   #silentTimer = null;
   #silent = false;
+  #breaking = false;    // a BREAK is on its way (telnet escape sent, its command not yet)
   #answered = true;
 
   /**
@@ -95,6 +96,7 @@ export class ConsoleSession extends EventEmitter {
     this.cli = new CliAutomation({
       write: (text) => { this.lastActivity = Date.now(); this.#send(text); },
       onStart: () => { this.#nudge?.cancel(); },
+      sendBreak: () => this.sendBreak(),
     });
     this.decoder = new StringDecoder('utf8'); // multi-byte characters split across chunks stay intact
   }
@@ -170,11 +172,13 @@ export class ConsoleSession extends EventEmitter {
 
   /** Serial BREAK through telnet's command mode, then straight back to the session */
   sendBreak() {
-    if (!this.#stream) return;
+    // One at a time: a second escape while telnet waits for its command would end up in that command
+    if (!this.#stream || this.#breaking) return;
+    this.#breaking = true;
     this.lastActivity = Date.now();
     this.#nudge?.cancel();
     this.#stream.write(TELNET_ESCAPE);
-    setTimeout(() => this.#stream?.write('send brk\r'), 150);
+    setTimeout(() => { this.#breaking = false; this.#stream?.write('send brk\r'); }, 150);
   }
 
   close(reason = 'Session closed', code = null, info = { code: 'consoles.session_closed' }) {

@@ -188,6 +188,10 @@ export async function createApp({ config, logger = createLogger, createAuth: mak
   let closing = null;
   function close() {
     closing ??= (async () => {
+      // First what still needs the consoles to finish cleanly (a recovery putting its device
+      // back): every module's drain(), awaited, before any shutdown() closes a room or the pool
+      const drained = await Promise.allSettled(modules.map((m) => m.drain?.()));
+      for (const { status, reason } of drained) if (status === 'rejected') log.error(`drain: ${reason?.message ?? reason}`);
       const stopped = await Promise.allSettled([...modules.map((m) => m.shutdown?.()), auth.shutdown?.()]);
       for (const { status, reason } of stopped) if (status === 'rejected') log.error(`shutdown: ${reason?.message ?? reason}`);
       events.close();

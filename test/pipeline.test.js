@@ -139,6 +139,7 @@ describe('signed in: the application behaves as upstream', () => {
       { id: 'scripts', title: 'Script library', enabled: true },
       { id: 'collab', title: 'Group work', enabled: true },
       { id: 'checks', title: 'Bench checks', enabled: true },
+      { id: 'recovery', title: 'Password recovery', enabled: true },
       { id: 'overview', title: 'Overview', enabled: true },
     ]);
     const labs = await (await get(lab, '/api/consoles/labs')).json();
@@ -203,9 +204,10 @@ describe('signed in: the application behaves as upstream', () => {
     const res = await get(lab, '/api/events');
     assert.equal(res.status, 200);
     assert.ok(res.headers.get('content-type').startsWith('text/event-stream'));
-    const events = await readEvents(res, 6);
-    assert.deepEqual(events.map((e) => e.topic).sort(), ['admin:announcement', 'benches:state', 'checks:running', 'consoles:busy', 'consoles:rooms', 'jobs:running', 'labs:version']);
+    const events = await readEvents(res, 8);
+    assert.deepEqual(events.map((e) => e.topic).sort(), ['admin:announcement', 'benches:state', 'checks:running', 'consoles:busy', 'consoles:rooms', 'jobs:running', 'labs:version', 'recovery:running']);
     assert.deepEqual(events.find((e) => e.topic === 'checks:running').data, { checks: [] });
+    assert.deepEqual(events.find((e) => e.topic === 'recovery:running').data, [], 'no recovery under way');
     assert.deepEqual(events.find((e) => e.topic === 'jobs:running').data, { jobs: [] });
     assert.equal(events.find((e) => e.topic === 'admin:announcement').data, null, 'no announcement yet');
     assert.deepEqual(events.find((e) => e.topic === 'consoles:busy').data, []);

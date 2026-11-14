@@ -28,6 +28,14 @@
  *     --More-- marker), stamped with a date or with the uptime (`stamps`),
  *     the multi-line %SYS-5-RESTART message after "Press RETURN", ROMMON
  *     (`rommon 1 >`), the boot loader (`switch:`), a boot that stalls, a silent line
+ *   - password recovery (lot recovery): power off and on (`powerCycle()`, with
+ *     the Mode button held on a switch), BREAK during the boot into ROMMON,
+ *     `confreg`, the classic switches' boot loader (`flash_init`, `dir flash:`,
+ *     `rename flash:config.text …`, `boot`) where the startup-config is the file
+ *     flash:config.text, the Catalyst 9300L's `SWITCH_IGNORE_STARTUP_CFG=1` and
+ *     `no system ignore startupconfig switch all` (read back with `show romvar`),
+ *     IOS `rename`; a switch whose
+ *     password recovery is disabled asks to reset itself to factory defaults
  *   - VTP as classic IOS keeps it: version, domain, password and mode live in
  *     flash:vlan.dat with the VLANs (`show vtp status`, `show vtp password`), and
  *     show running-config lists them only in transparent mode
@@ -186,14 +194,14 @@ function genericProfile(hostname) {
 const W = null;
 const SHOW = {
   'running-config': { interface: W }, 'startup-config': {}, version: {}, vlan: { brief: {} }, vtp: { status: {}, password: {}, counters: {} }, cdp: { neighbors: { detail: {} } },
-  ip: { interface: { brief: {} }, route: W }, interfaces: W, flash: W, clock: {}, history: {}, users: {}, inventory: {}, boot: {}, license: W,
+  ip: { interface: { brief: {} }, route: W }, interfaces: W, flash: W, clock: {}, history: {}, users: {}, inventory: {}, boot: {}, license: W, romvar: {},
 };
 const EXEC = {
   show: SHOW, enable: W, disable: {}, configure: { terminal: {} }, copy: W, write: { memory: {}, erase: {}, terminal: {} }, erase: W, delete: W,
   reload: W, ping: W, traceroute: W, terminal: { length: W, no: { length: {} }, monitor: {} }, exit: {}, logout: {}, dir: W, clear: W, debug: W, undebug: W,
-  ssh: W, send: W, setup: {}, systat: W, telnet: W, more: W, quit: {},
+  ssh: W, send: W, setup: {}, systat: W, telnet: W, more: W, quit: {}, rename: W,
 };
-const PRIVILEGED_ONLY = new Set(['configure', 'copy', 'write', 'erase', 'delete', 'reload', 'debug', 'undebug', 'clear', 'more', 'setup']);
+const PRIVILEGED_ONLY = new Set(['configure', 'copy', 'write', 'erase', 'delete', 'reload', 'debug', 'undebug', 'clear', 'more', 'setup', 'rename']);
 const IF_WORDS = {
   description: W, shutdown: {}, duplex: { auto: {}, full: {}, half: {} }, speed: W, negotiation: { auto: {} }, bandwidth: W, mtu: W, 'load-interval': W, keepalive: W,
   ip: { address: W, 'helper-address': W, nat: { inside: {}, outside: {} }, ospf: W, 'access-group': W, 'route-cache': W, 'proxy-arp': {}, redirects: {}, unreachables: {}, mtu: W, dhcp: W, 'virtual-reassembly': W, pim: W },
@@ -363,16 +371,21 @@ export class FakeIos {
    * @param stamps        'datetime' (default: "*Mar  1 00:01:02.345: %…") or 'uptime' ("00:01:02: %…",
    *                      `service timestamps log uptime`, as on many classic switches)
    * @param deleteError   `delete flash:vlan.dat` fails with this reason, e.g. 'Permission denied'
+   * @param passwordRecovery  false: `no service password-recovery` (switches: the Mode button
+   *                      only offers a reset to factory defaults)
+   * @param ignoreFlagSticks  9300L: `no system ignore startupconfig switch all` is accepted but
+   *                      SWITCH_IGNORE_STARTUP_CFG stays at 1 (what `show romvar` then shows)
    */
   constructor({
     hostname, out = () => {}, username, password, model = null, start = 'exec',
     termLengthSupported = true, slowConsole = null, enableSecret = null, linePassword = null,
     bootFailure = null, firstBootExtra = null, chatterMs = null, timeScale = 0.001, syslogOnMore = null,
     cdp = [], serial = null, confReg = null, pnpEveryMs = 5000, stamps = 'datetime', deleteError = null,
+    passwordRecovery = true, ignoreFlagSticks = false,
   } = {}) {
     this.profile = model ? MODELS[model] : genericProfile(hostname || 'Router');
     if (!this.profile) throw new Error(`Unknown fake model "${model}"`);
-    Object.assign(this, { out, username, password, termLengthSupported, slowConsole, bootFailure, firstBootExtra, timeScale, cdp, pnpEveryMs, stamps, deleteError });
+    Object.assign(this, { out, username, password, termLengthSupported, slowConsole, bootFailure, firstBootExtra, timeScale, cdp, pnpEveryMs, stamps, deleteError, passwordRecovery, ignoreFlagSticks });
     this.model = model || 'generic';
     const prefix = this.profile.kind === 'switch' ? 'FOC' : this.profile.family === 'iosxe' ? 'FDO' : 'FTX';
     this.serial = serial || `${prefix}${crypto.createHash('md5').update(`${model}-${hostname}`).digest('hex').slice(0, 8).toUpperCase()}`;
@@ -388,7 +401,13 @@ export class FakeIos {
     this.commandLog = [];
     this.bootedAt = Date.now();
     this.vlanFile = null;   // contents of flash:vlan.dat (null: no file)
-    this.startup = null;    // saved configuration (structured), null: nvram erased
+    this.startup = null;    // saved configuration (structured), null: nvram erased (a classic switch: flash:config.text)
+    this.parked = null;     // a classic switch's config.text renamed in the boot loader: { name, cfg }
+    this.romvars = {};      // boot loader variables (SWITCH_IGNORE_STARTUP_CFG on the 9300L)
+    this.flashReady = true; // the boot loader's flash_init was run (or not needed)
+    this.powerCycles = 0;
+    this.breaks = 0;        // BREAKs received while booting
+    this.intervals = new Set();
 
     const factoryName = this.profile.kind === 'router' ? 'Router' : 'Switch';
     this.cfg = this.#factoryConfig(start === 'dialog' ? factoryName : hostname || factoryName);
@@ -440,9 +459,62 @@ export class FakeIos {
 
   /** BREAK on the serial line: drops a booting device into ROMMON, ignored otherwise (register 0x2102) */
   sendBreak() {
-    if (this.state !== 'booting') return;
+    if (this.state !== 'booting' || !this.inBoot) return;
+    this.breaks++;
     this.#clearBoot();
     this.#toRommon('\r\n\r\nmonitor: command "boot" aborted due to user interrupt');
+  }
+
+  /**
+   * The person on site switches the device off, then on again (what nobody can
+   * do from the application). With `modeButton` held, a switch stops at its
+   * boot loader (`switch:`): a classic one before its flash is initialised, a
+   * 9300L at once. Routers have no such button: they boot, and a BREAK sent
+   * during the boot drops them into ROMMON. What was not saved is lost.
+   */
+  powerCycle({ modeButton = false } = {}) {
+    for (const t of this.timers) { if (!this.intervals.has(t)) { clearTimeout(t); this.timers.delete(t); } }
+    this.bootTimers = [];
+    this.inBoot = false;
+    Object.assign(this, { state: 'off', line: '', mode: '>', pnpRunning: false, extraAsked: false, enterPending: false, onAnswer: null, onConfirm: null });
+    if (this.queue) this.queue = [];
+    this.powerCycles++;
+    this.#later(2 * SECOND, () => this.#powerOn(modeButton));
+  }
+
+  #powerOn(modeButton) {
+    const p = this.profile;
+    this.bootedAt = Date.now();
+    if (!modeButton || p.kind !== 'switch') return this.#boot();
+    this.state = 'blbusy';
+    if (p.family === 'iosxe') {
+      // Catalyst 9300L: its ROMMON is the boot loader, nothing to initialise
+      const lines = ['Initializing Hardware ...', '', 'System Bootstrap, Version 17.8.1r[FC2], RELEASE SOFTWARE (P)', 'Copyright (c) 1994-2022  by cisco Systems, Inc.', '',
+        'Current image running: Boot ROM1', 'Last reset cause: PowerOn', `${p.pid} platform with 8388608 Kbytes of main memory`, ''];
+      return this.#later(20 * SECOND, () => { this.flashReady = true; this.out(lines.map((l) => `\r\n${l}`).join('')); this.state = 'bootloader'; this.out('\r\nswitch: '); });
+    }
+    const head = ['Using driver version 1 for media type 1', 'Base ethernet MAC Address: 00:1a:2b:3c:4d:00', 'Xmodem file system is available.'];
+    if (!this.passwordRecovery) {
+      return this.#later(15 * SECOND, () => {
+        this.out([...head, 'The password-recovery mechanism has been triggered, but', 'is currently disabled.  Access to the boot loader prompt',
+          'through the password-recovery mechanism is disallowed at', 'this point.  However, if you agree to let the system be',
+          'reset back to the default system configuration, access', 'to the boot loader prompt can still be allowed.', '',
+          'Would you like to reset the system back to the default configuration (y/n)?'].map((l) => `\r\n${l}`).join(''));
+        this.state = 'question';
+        this.onAnswer = (a) => {
+          if (/^y/i.test(a)) { this.startup = null; this.parked = null; this.vlanFile = null; this.vtpFile = null; this.flashReady = false; this.state = 'bootloader'; this.out('\r\n\r\nswitch: '); return; }
+          this.#boot();
+        };
+      });
+    }
+    return this.#later(15 * SECOND, () => {
+      this.flashReady = false;
+      this.out([...head, 'The password-recovery mechanism is enabled.', '', 'The system has been interrupted prior to initializing the',
+        'flash filesystem.  The following commands will initialize', 'the flash filesystem, and finish loading the operating', 'system software:', '',
+        '    flash_init', '    load_helper', '    boot', ''].map((l) => `\r\n${l}`).join(''));
+      this.state = 'bootloader';
+      this.out('\r\nswitch: ');
+    });
   }
 
   /** Bytes from the terminal server (the student's keystrokes) */
@@ -467,7 +539,7 @@ export class FakeIos {
     this.timers.add(t);
     return t;
   }
-  #every(ms, fn) { const t = setInterval(fn, ms); t.unref?.(); this.timers.add(t); }
+  #every(ms, fn) { const t = setInterval(fn, ms); t.unref?.(); this.timers.add(t); this.intervals.add(t); }
 
   // ── starting states ───────────────────────────────────────────────────────
   #begin(start) {
@@ -489,7 +561,7 @@ export class FakeIos {
   // ── keystrokes ────────────────────────────────────────────────────────────
   #char(ch) {
     switch (this.state) {
-      case 'silent': case 'booting': return;                     // a dead line; input during boot is ignored
+      case 'silent': case 'booting': case 'off': case 'blbusy': return; // a dead line; input during boot is ignored
       case 'rommon': case 'bootloader': return this.#monitorKey(ch);
       case 'more': return this.#moreKey(ch);
       case 'confirm': return this.#confirmKey(ch);
@@ -716,6 +788,7 @@ export class FakeIos {
     if (c === 'reload') return this.#reload();
     if (c === 'ping') return this.#ping(w.slice(1), raw);
     if (c === 'dir') return this.#dir();
+    if (c === 'rename') return this.#rename(w.slice(1));
     if (c === 'setup') { this.state = 'dialog'; this.firstBoot = []; return this.#askDialog(); }
     this.#say('% Incomplete command.\r\n');
     return this.#prompt();
@@ -834,6 +907,10 @@ export class FakeIos {
       this.cfg.global.push(`username ${m[1]}${m[2] ? ` privilege ${m[2]}` : ''} ${m[3]} ${value}`);
       return this.#prompt();
     }
+    if (c === 'system' && w.slice(1).join(' ') === 'ignore startupconfig switch all') {
+      if (p.family !== 'iosxe' || p.kind !== 'switch') return this.#invalid(raw, 1);
+      this.romvars.SWITCH_IGNORE_STARTUP_CFG = '1'; return this.#prompt();
+    }
     if (c === 'config-register') {
       if (p.kind !== 'router' || !/^0x[0-9a-f]{1,4}$/i.test(w[1] || '')) return this.#invalid(raw, 1);
       this.nextConfReg = `0x${w[1].slice(2).toUpperCase().replace(/^0+(?=.)/, '')}`.replace('0X', '0x');
@@ -902,6 +979,10 @@ export class FakeIos {
     if (w[0] === 'enable') { this.cfg.global = this.cfg.global.filter((l) => !l.startsWith(`enable ${w[1]} `)); return this.#prompt(); }
     if (w[0] === 'username') { this.cfg.global = this.cfg.global.filter((l) => !l.startsWith(`username ${w[1]} `)); return this.#prompt(); }
     if (w[0] === 'router' || (w[0] === 'ip' && /^(dhcp|access-list)$/.test(w[1]))) { this.cfg.blocks = this.cfg.blocks.filter((b) => !b.head.startsWith(text)); return this.#prompt(); }
+    if (w[0] === 'system' && w.slice(1).join(' ') === 'ignore startupconfig switch all' && this.profile.family === 'iosxe' && this.profile.kind === 'switch') {
+      if (!this.ignoreFlagSticks) this.romvars.SWITCH_IGNORE_STARTUP_CFG = '0';
+      return this.#prompt();
+    }
     if (w[0] === 'hostname') { this.cfg.hostname = this.profile.kind === 'router' ? 'Router' : 'Switch'; return this.#prompt(); }
     if (this.cfg.global.includes(text)) { this.cfg.global = this.cfg.global.filter((l) => l !== text); return this.#prompt(); }
     if (!this.cfg.global.includes(`no ${text}`)) this.cfg.global.push(`no ${text}`);
@@ -1181,6 +1262,12 @@ export class FakeIos {
       return this.#page([`Using ${lines.join('\n').length} out of ${p.family === 'iosxe' ? 33554432 : 245752} bytes`, ...lines]);
     }
     if (what === 'version') return this.#page(this.#showVersion());
+    if (what === 'romvar') {
+      // IOS XE switches only (the 9300L): the ROMMON variables
+      if (p.family !== 'iosxe' || p.kind !== 'switch') return this.#invalid(raw, 1);
+      return this.#page(['ROMMON variables:', ' MAC_ADDR="00:1A:2B:3C:4D:00"', ' MODEL_NUM="C9300L-24T-4G"', ` BOOT="${p.image}"`,
+        ...Object.entries(this.romvars).map(([k, v]) => ` ${k}="${v}"`)]);
+    }
     if (what.startsWith('vlan')) {
       if (p.kind !== 'switch') return this.#invalid(raw, 1);
       return this.#page(this.#showVlanBrief());
@@ -1342,8 +1429,38 @@ export class FakeIos {
     const rows = [`Directory of ${p.family === 'iosxe' && p.kind === 'router' ? 'bootflash' : 'flash'}:/`, ''];
     rows.push(`    1  -rwx    33591768   Mar 1 1993 00:02:11 +00:00  ${p.image.split(/[:/]/).at(-1)}`);
     if (this.vlanFile) rows.push('    2  -rwx         736   Mar 1 1993 00:05:42 +00:00  vlan.dat');
+    for (const name of this.#configFiles()) rows.push(`    3  -rwx        1919   Mar 1 1993 00:07:12 +00:00  ${name}`);
     rows.push('', '32514048 bytes total (11552256 bytes free)');
     this.#page(rows);
+  }
+
+  /** The startup-config of a classic switch is the file flash:config.text: its name, and a renamed one */
+  #configFiles() {
+    if (!this.#configInFlash()) return [];
+    return [...(this.startup ? ['config.text'] : []), ...(this.parked ? [this.parked.name] : [])];
+  }
+  #configInFlash() { return this.profile.kind === 'switch' && this.profile.family === 'ios' && !this.profile.generic; }
+
+  /** rename flash:<from> flash:<to>, of the configuration files only (in IOS and in the boot loader) → an error text or null */
+  #renameFile(from, to) {
+    const name = (s) => (s || '').replace(/^flash:\/?/i, '');
+    const [a, b] = [name(from), name(to)];
+    if (!a || !b || !/^[\w.-]+$/.test(a) || !/^[\w.-]+$/.test(b) || !this.#configInFlash()) return 'No such file or directory';
+    if (this.#configFiles().includes(b) || b === 'vlan.dat') return 'File exists';
+    if (a === 'config.text' && this.startup) { this.parked = { name: b, cfg: this.startup }; this.startup = null; return null; }
+    if (this.parked && a === this.parked.name && b === 'config.text') { this.startup = this.parked.cfg; this.parked = null; return null; }
+    return 'No such file or directory';
+  }
+  #rename(args) {
+    if (args.length < 2) { this.#say('% Incomplete command.\r\n'); return this.#prompt(); }
+    const to = args[1].replace(/^flash:\/?/i, '');
+    this.state = 'question';
+    this.onAnswer = (answer) => {
+      const err = this.#renameFile(args[0], answer || to);
+      if (err) this.#say(`%Error renaming ${args[0]} (${err})`);
+      this.#prompt();
+    };
+    this.out(`\r\nDestination filename [${to}]? `);
   }
 
   #ping(args, raw) {
@@ -1544,10 +1661,11 @@ export class FakeIos {
     ask();
   }
 
-  #clearBoot() { for (const t of this.bootTimers || []) { clearTimeout(t); this.timers.delete(t); } this.bootTimers = []; }
+  #clearBoot() { for (const t of this.bootTimers || []) { clearTimeout(t); this.timers.delete(t); } this.bootTimers = []; this.inBoot = false; }
 
   #boot() {
     this.#clearBoot();
+    this.inBoot = true;
     this.state = 'booting';
     this.mode = '>';
     this.line = '';
@@ -1564,13 +1682,14 @@ export class FakeIos {
   }
 
   #booted() {
+    this.inBoot = false;
     this.bootedAt = Date.now();
     if (this.nextConfReg) { this.confReg = this.nextConfReg; this.nextConfReg = null; }
     if (this.bootFailure === 'rommon') return this.#toRommon('\r\n\r\nboot: cannot determine first file name on device "flash:"');
     const p = this.profile;
     this.vlans = this.vlanFile ? new Map(structuredClone(this.vlanFile)) : this.#defaultVlans();
     this.vtp = this.vtpFile ? { ...this.vtpFile } : defaultVtp();
-    const ignoreStartup = this.confReg === '0x2141' || this.confReg === '0x2142';
+    const ignoreStartup = this.confReg === '0x2141' || this.confReg === '0x2142' || this.romvars.SWITCH_IGNORE_STARTUP_CFG === '1';
     if (this.startup && !ignoreStartup) {
       this.cfg = structuredClone(this.startup);
       this.dirty = false; this.changedAt = null;
@@ -1604,12 +1723,53 @@ export class FakeIos {
   #monitorKey(ch) {
     if (ch !== '\r') { if (ch >= ' ') { this.line += ch; this.out(ch); } return; }
     const cmd = this.line.trim(); this.line = '';
+    if (this.state === 'bootloader') return this.#bootLoaderCommand(cmd);
     if (/^(boot|reset)$/.test(cmd)) return this.#boot();
     const m = cmd.match(/^confreg (0x[0-9a-f]+)$/i);
-    if (m && this.state === 'rommon') { this.nextConfReg = m[1]; this.out('\r\n\r\nYou must reset or power cycle for new config to take effect'); }
-    else if (cmd && this.state === 'rommon') this.out(`\r\nmonitor: command "${cmd.split(' ')[0]}" not found`);
-    else if (cmd) this.out(`\r\nunknown cmd: ${cmd.split(' ')[0]}`);
-    if (this.state === 'rommon') { this.rommonN++; this.out(`\r\nrommon ${this.rommonN} > `); } else this.out('\r\nswitch: ');
+    if (m) { this.nextConfReg = m[1]; this.out('\r\n\r\nYou must reset or power cycle for new config to take effect'); }
+    else if (cmd) this.out(`\r\nmonitor: command "${cmd.split(' ')[0]}" not found`);
+    this.rommonN++; this.out(`\r\nrommon ${this.rommonN} > `);
+  }
+
+  /** switch: — the boot loader of a Catalyst */
+  #bootLoaderCommand(cmd) {
+    const prompt = () => { this.state = 'bootloader'; this.out('\r\nswitch: '); };
+    const classic = this.profile.family === 'ios';
+    if (/^(boot|reset)(\s|$)/.test(cmd)) { this.flashReady = true; return this.#boot(); }
+    if (cmd === 'flash_init') {
+      if (!classic) { this.out(`\r\nunknown cmd: ${cmd}`); return prompt(); }
+      if (this.flashReady) { this.out('\r\nflash is already initialized'); return prompt(); }
+      this.state = 'blbusy';
+      this.out('\r\nInitializing Flash...');
+      return this.#later(10 * SECOND, () => {
+        this.flashReady = true;
+        this.out('\r\nflashfs[0]: 600 files, 19 directories\r\nflashfs[0]: 0 orphaned files, 0 orphaned directories\r\nflashfs[0]: Total bytes: 32514048\r\nflashfs[0]: Bytes used: 20961792\r\nflashfs[0]: Bytes available: 11552256\r\nflashfs[0]: flashfs fsck took 10 seconds.\r\n...done Initializing Flash.');
+        prompt();
+      });
+    }
+    if (cmd === 'load_helper') return prompt();
+    const dir = cmd.match(/^dir\s+flash:\/?$/i);
+    if (dir) {
+      if (!this.flashReady) { this.out('\r\nThe flash filesystem is not initialized: run flash_init first'); return prompt(); }
+      const rows = ['Directory of flash:/', '', `    2  -rwx  33591768  <date>               ${this.profile.image.split(/[:/]/).at(-1)}`];
+      if (this.vlanFile) rows.push('    3  -rwx  736       <date>               vlan.dat');
+      for (const name of this.#configFiles()) rows.push(`    4  -rwx  1919      <date>               ${name}`);
+      rows.push('', '11552256 bytes available (20961792 bytes used)');
+      this.out(rows.map((l) => `\r\n${l}`).join(''));
+      return prompt();
+    }
+    const ren = cmd.match(/^rename\s+(\S+)\s+(\S+)$/i);
+    if (ren) {
+      if (!this.flashReady) { this.out('\r\nThe flash filesystem is not initialized: run flash_init first'); return prompt(); }
+      const err = this.#renameFile(ren[1], ren[2]);
+      if (err) this.out(`\r\nUnable to rename ${ren[1]} to ${ren[2]}: ${err}`);
+      return prompt();
+    }
+    const v = cmd.match(/^(?:set\s+)?(SWITCH_IGNORE_STARTUP_CFG)(?:=|\s+)([01])$/);
+    if (v && !classic) { this.romvars[v[1]] = v[2]; return prompt(); }
+    if (cmd === 'set') { this.out(Object.entries({ BOOT: this.profile.image, ...this.romvars }).map(([k, x]) => `\r\n${k}=${x}`).join('')); return prompt(); }
+    if (cmd) this.out(`\r\nunknown cmd: ${cmd.split(' ')[0]}`);
+    return prompt();
   }
 
   // ── first boot: initial configuration dialog, autoinstall, PnP ───────────

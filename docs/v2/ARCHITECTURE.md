@@ -594,8 +594,10 @@ mayOpen(device, benchNames), refusal(benchNames) }`. `decorate` uses the
 diagram's `decorate()` layer when the diagram has one and does nothing
 otherwise.
 
-`createApp().close()` calls every module's `shutdown()` (and waits for the
-promises they return), `auth.shutdown()`, ends the SSE streams, closes the
+`createApp().close()` first calls every module's `drain()` and waits for
+them all (what must still use the consoles to end cleanly: the recovery
+module puts its devices back there), then every module's `shutdown()` (and
+waits for the promises they return), `auth.shutdown()`, ends the SSE streams, closes the
 HTTP server, waits for `store.flush()`, then closes the database (after the
 statements the shutdowns queued).
 A module must release in `shutdown()` whatever would keep the process alive
@@ -701,10 +703,12 @@ createInfrastructure({ file, repos, audit })`) and wins.
 ## 7. Server modules
 
 The upstream contract is unchanged:
-`{ id, title, enabled, router?, upgrade?(req, socket, head) → boolean, start?(), shutdown?() }`,
+`{ id, title, enabled, router?, upgrade?(req, socket, head) → boolean, start?(), drain?(), shutdown?() }`,
 registered with one line in `src/modules/index.js`. `start()` (optional,
 may be async) runs once every module is created and before the server
-listens: the place to load state from a repository into memory. A module owns its folder,
+listens: the place to load state from a repository into memory. `drain()`
+(optional, may be async) runs at close, awaited, before any module's
+`shutdown()`: rooms and the SSH pool are still open there. A module owns its folder,
 its `/api/<id>` routes, its `data/<id>/` subtree, its locale namespace and its
 front-end section. It checks roles itself with `auth.requireRole` or
 `req.user.role`.
@@ -1189,6 +1193,8 @@ cli.answer(text) / cli.type(text) / cli.send(text) / cli.sendLine(text) / cli.pa
 cli.findPrompt({ nudge }) → { host, configMode, mark }
 cli.readRunningConfig(progress) / cli.sendScript(script, options, progress)   // the features, as steps
 cli.exportRunningConfig() / cli.injectScript()  // the same as standalone tasks (console tile)
+cli.sendBreak()                                 // a serial BREAK (telnet "send brk"), under the task's right to type;
+                                                //   automation.no_break on a line that has none
 cli.cancel()                                    // steps reject with err.cancelled
 ```
 
@@ -1517,6 +1523,90 @@ the bench bar. The announcement banner is hidden on the home page, which shows
 the announcement in a card. `teams/data.js` exports `historyText(entry)`, the
 sentence of a bench history entry, shared with the bench bar.
 
+## 9e. Password recovery (lot: recovery)
+
+`src/lib/drivers/ciscoRecovery.js` (the procedures), `src/modules/recovery/`
+(`index.js`: routes, permissions; `assistant.js`: `RecoveryRunner`), repository
+`repos.recoveries` (migration 016), front end `public/js/modules/recovery/`
+(a `recovery` pane action on lab console tiles, order 70, and a diagram layer
+`recovery`). Contract of SPEC "Lot recovery".
+
+**Families** (`FAMILIES`): `isr_g1` (1841, 2801, 2811) and `isr4300` (ISR 4331)
+by `confreg`; `catalyst` (2960, 3560, 3560V2) and `c1000` by `config_text`;
+`c9300l` by `ignore_startup`. Steps (`STEPS`): `look` first, always (what the
+console shows decides where to begin, `planFrom()`: a router already in
+ROMMON, a switch at `switch:`, a router at the initial dialog skip what is
+done), then
+
+    confreg         power_cycle, confreg (0x2142), boot, restore_register (0x2102, checked)
+    config_text     power_cycle (Mode held), flash_init, park_config (config.text →
+                    config.text.recovery, never over an existing file), boot, restore_config
+    ignore_startup  power_cycle (Mode held), ignore_startup (SWITCH_IGNORE_STARTUP_CFG=1),
+                    boot, restore_startup (no system ignore startupconfig switch all)
+
+The driver never erases flash or the startup-config: it only makes the next
+boot ignore it, then makes the boot after that read it again. Every screen is
+recognised by its text; anything else is `recovery.unexpected_screen` /
+`recovery.unknown_question` and nothing more is typed. `look` stops at a
+privileged prompt (`recovery.not_locked`). `BYPASS` names what each method
+puts in place (`register`, `parked`, `ignore`); `putBack(bypassed, { boot })`
+undoes it from ROMMON, `switch:`, a boot under way or an IOS prompt, and
+fails with `recovery.left_<bypass>` when it cannot; `planFrom(family, look, {
+bypassed })` resumes at the restore step when the last recovery left a
+bypass and the device sits at its factory prompt. A switch with password
+recovery disabled gets `n` (never `y`) and is followed back to its prompt.
+`restore_startup` reads the flag back with `show romvar`. Every family is
+`triedOnLab: false` until someone runs it on the real lab. A step result is
+`{ ok, … }` or `{ ok: false, reason: 'recovery.<code>', params, retry?,
+lastOutput? }`; `retry` (BREAK too late, Mode released too early, nobody
+power-cycled) puts the same step back to the person.
+
+**A recovery** holds the device's room with `room.runExclusive(actor,
+'recovery', fn, { signal })` from `look` to the end. Before each step after
+`look` it waits (state `awaiting`, `awaiting: <step>`) for `POST
+/runs/:id/confirm { step }` by the person who started it, then asks again
+whether that person may still operate the bench (`recovery.not_allowed`).
+Nobody confirming for `confirmMs` (30 min) ends it (`recovery.abandoned`).
+From the bypass step to its restore step, `bypassed` is saved with the row;
+any ending other than done first puts the device back (state `restoring`,
+audited `recovery.put_back`; a cancel meanwhile is `recovery.putting_back`),
+in the same task while its actor may type, else as a `system` task on the
+line; at shutdown (the module's `drain()`, before the consoles close, waits
+`shutdownMs`, 8 s) without booting, kept in the row (`putBack { ok, booted,
+at, code }`; `GET /devices/:key` → `halted: 'rommon' | 'bootLoader'`). A
+bypass step that fails `untouched` (refused before its command was typed:
+`parked_exists`, the wrong screen) clears `bypassed`; the device is only
+booted out of its monitor (`CiscoRecovery.bootBack()`, `putBack.nothing`). Not
+put back: the recovery ends `failed` with `recovery.left_<bypass>`, the
+reason it stopped in `cause`. A stop from the console tile (task Stop,
+hang-up) is `stoppedFrom: 'console'`, audited `recovery.cancel` with `from:
+'console'`. The automation engine's `cli.resume()` lets a stopped task go on
+to put back what it changed.
+One recovery per device; none while a job runs on the bench. Who starts one:
+`benches.canOperate` (occupants of an unlocked bench, admins), never on an
+admin switch, a shared console line only while the other benches are free or
+held by the same team. Who follows one: its actor, the occupants, the team
+that held the bench, admins. Budgets: `RECOVERY_TIMEOUTS`, multiplied by
+`JOB_TIME_SCALE`.
+
+HTTP (`/api/recovery`): `GET /families`, `GET /devices/:key` (`canStart`,
+`refusal`, the recovery under way, the last five, `left`: the bypass the
+last one left), `POST /devices/:key/start
+{ family }` → 202, `GET /runs?bench=`, `GET /runs/:id`, `POST
+/runs/:id/confirm`, `POST /runs/:id/cancel`. SSE: `recovery:run` (the
+recovery, to those who follow it), `recovery:running` (sticky, everyone: the
+devices being recovered, by whom, at which step). Audit: `recovery.start`,
+`recovery.confirm`, `recovery.step`, `recovery.cancel`, `recovery.end`. A
+recovery left open by a stopped server is closed as failed at start-up
+(`recovery.interrupted`), keeping its `bypassed`.
+
+Simulator (`dev/fakeIos.js`): `powerCycle({ modeButton })`, BREAK into
+ROMMON only while booting, `confreg`, `reset`, the classic switches' boot
+loader (`flash_init`, `dir flash:`, `rename`, `boot`, the password-recovery
+disabled question), the 9300L's `SWITCH_IGNORE_STARTUP_CFG` and `show romvar`
+(`ignoreFlagSticks`: the flag stays at 1); the mock lab's
+`mock-power <host> <port> [mode]` command stands in for the person on site.
+
 ## 10. Data directory
 
 ```
@@ -1529,7 +1619,7 @@ data/
   <dir>/<name>.json.imported   audit/*.jsonl.imported   files of before the database, kept after their import
 ```
 
-In the database today (migrations 001-015): `schema_migrations`,
+In the database today (migrations 001-016): `schema_migrations`,
 `legacy_imports`, `auth_sessions`, `auth_state` (the local administrator's
 last TOTP step, the known-browser key), `audit_entries`, `settings` (the
 run-time settings per namespace, the SSO page's provider as `sso`, the edited
@@ -1541,7 +1631,8 @@ admin switches as `switches`), `teams`, `team_members`, `team_invitations`
 `scripts` (013: the script library, one row per script with its text; `shelf`
 is `p:<user id>`, `t:<team id>` or `pub`, a title is unique on its shelf),
 `device_notes`, `bench_chat_messages` (014), `bench_checks` (015: the last
-result of each kind of bench check, §9c).
+result of each kind of bench check, §9c), `recoveries` (016: one row per
+password recovery, its steps as JSON, `bypassed`: what it left on the device).
 Passkey ceremonies' challenges are not stored: they live in memory, five
 minutes, single use.
 

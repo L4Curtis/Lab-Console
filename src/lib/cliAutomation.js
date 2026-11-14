@@ -10,7 +10,10 @@
  *        wait / expect        wait for a pattern (timeout, idle, settle)
  *        waitQuiet(ms)        wait until the device stops printing
  *        answer / type / send / sendLine / pause / reset / findPrompt
+ *        sendBreak()          a serial BREAK (through the line's own mechanism: telnet's
+ *                             "send brk"), what interrupts a booting device into ROMMON
  *        cancel()             stop the running task (steps throw `cancelled`)
+ *        resume()             go on after cancel(), in the same task (to put back what it changed)
  *      Every step runs inside perform(): output is only captured while a
  *      task runs, so a step outside one would wait for nothing.
  *   2. Two features expressed on those steps, each in two forms: a step that
@@ -83,10 +86,12 @@ export class CliAutomation {
   /**
    * @param write   (text) => void - raw bytes to the device, bypassing the student lock
    * @param onStart called when a task starts (e.g. to switch off auto-login / wake-up)
+   * @param sendBreak  () => void - a serial BREAK on the line (null: the line has none)
    */
-  constructor({ write, onStart = () => {} }) {
+  constructor({ write, onStart = () => {}, sendBreak = null }) {
     this.write = write;
     this.onStart = onStart;
+    this.breakSignal = sendBreak;
   }
 
   get running() { return this.#task; }
@@ -95,6 +100,16 @@ export class CliAutomation {
     if (!this.#task) return;
     this.#cancelled = true;
     this.#waiter?.fail(new Cancelled());
+  }
+
+  /**
+   * Go on after cancel(), inside the same task: a task that was stopped may
+   * still have to put back what it changed on the device (the password
+   * recovery's bypass). Its right to type is still asked before every byte,
+   * and a later cancel() stops it again.
+   */
+  resume() {
+    if (this.#task) this.#cancelled = false;
   }
 
   /** Every chunk of device output (decoded text) */
@@ -152,6 +167,18 @@ export class CliAutomation {
 
   /** Send `text` + Enter at once. */
   sendLine(text = '') { this.#needTask(); this.#out(`${text}\r`); }
+
+  /** A serial BREAK, under the same rule as every byte the task sends (its right to type) */
+  sendBreak() {
+    this.#needTask();
+    this.#checkCancelled();
+    if (!this.breakSignal) throw new AutomationError('This console line cannot send a BREAK.', 'automation.no_break');
+    if (this.#allowed && !this.#allowed()) {
+      this.cancel();
+      throw new Cancelled();
+    }
+    this.breakSignal();
+  }
 
   /** Type `text` in small chunks so a slow console's input buffer never overflows. */
   async type(text, opts = {}) {

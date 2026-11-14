@@ -17,6 +17,7 @@ import { initI18n, setLocale, getLocale, onLocaleChange, t, tNode } from './core
 import { mountUserMenu } from './core/userMenu.js';
 import { mountAnnouncement } from './shared/announcement.js';
 import { startCollab } from './modules/collab/index.js';
+import { startRecovery } from './modules/recovery/index.js';
 
 const MODULES = [
   // The page shown after sign-in: my team, our bench, our backups, recent activity (also the address no section answers)
@@ -60,6 +61,8 @@ async function init() {
   // Bench checks (line status, cabling, addresses) drawn on the diagram
   import('./modules/checks/layer.js').then((m) => m.start()).catch(() => {});
   await startCollab(); // notes on the diagram, notifications: needs the session and the language
+  // The password recovery assistant on console tiles, and its badge on the diagram
+  await startRecovery().catch((err) => console.warn(`[recovery] ${err.message}`));
 
   // The backend says which modules are live; disabled ones show a "soon" tag
   let status = [];
