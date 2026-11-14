@@ -27,6 +27,7 @@
  *   MOCK_BUSY_PORTS=2004        # console port held by someone outside the app
  *   MOCK_LOGIN_PORTS=2001       # console server that prompts "login:" at once and
  *                               # hangs up on an empty login
+ *   MOCK_HOST_KEY_FILE=key.pem  # fixed OpenSSH host key, so SSH_HOST_FINGERPRINT can be pinned
  *   MOCK_SSH_HOST=0.0.0.0        # listen on every interface (a pre-production container);
  *                               # default 127.0.0.1, this machine only
  *   MOCK_SLOW_CONSOLE=1         # old devices: ~1 char/ms, 64-byte input buffer,
@@ -110,7 +111,7 @@ function hostKeyPair() {
 export function startMockLab({
   port = 2222, host = '127.0.0.1', ssh = {}, telnet = null, names = new Map(), devices = {}, defaults = {},
   downPorts = [], busyPorts = [], loginPorts = [], slowConsole = false, forwards = new Map(), log = () => {},
-  maxSessions = 10, links = [],
+  maxSessions = 10, links = [], hostKeyPem = null,
 } = {}) {
   const down = new Set(downPorts.map(Number));
   const busy = new Set(busyPorts.map(Number));
@@ -118,7 +119,8 @@ export function startMockLab({
   const fleet = new Map();      // 'host:port' → FakeIos
   const inUse = new Set();      // console ports with a session
   const clients = new Set();
-  const hostKey = hostKeyPair();
+  // A fixed key (pre-production) keeps the pinned fingerprint valid across restarts
+  const hostKey = hostKeyPem || hostKeyPair();
   const counters = { peakChannels: 0, refusedChannels: 0, passwordsReceived: 0 };
   const channelsOf = new Map(); // client → session channels open
 
@@ -368,6 +370,7 @@ async function main() {
   }
   const lab = await startMockLab({
     port: Number(env.MOCK_SSH_PORT ?? 2222),
+    hostKeyPem: env.MOCK_HOST_KEY_FILE ? fs.readFileSync(env.MOCK_HOST_KEY_FILE, 'utf8') : null,
     host: env.MOCK_SSH_HOST || '127.0.0.1',
     ssh: { username: env.SSH_USERNAME, password: env.SSH_PASSWORD },
     telnet: env.TELNET_PASSWORD ? { username: env.TELNET_USERNAME, password: env.TELNET_PASSWORD } : null,
