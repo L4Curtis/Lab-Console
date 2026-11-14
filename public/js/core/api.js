@@ -20,8 +20,9 @@ export async function getJson(url) {
  * A Blob or File body is sent as it is, with `type` as its Content-Type
  * (an upload: `request('POST', url, file, { type: 'application/zip' })`).
  * A server that cannot be reached throws an error with code 'network'.
+ * `as: 'file'` answers { blob, filename } instead of JSON.
  */
-export async function request(method, url, body, { type } = {}) {
+export async function request(method, url, body, { type, as } = {}) {
   const raw = body instanceof Blob;
   const contentType = raw ? (type ?? (body.type || 'application/octet-stream')) : 'application/json';
   let res;
@@ -40,6 +41,11 @@ export async function request(method, url, body, { type } = {}) {
     err.params = {};
     err.serverMessage = err.message;
     throw err;
+  }
+  // A file: its bytes and the name the server gave it (`as: 'file'`, see core/downloads.js)
+  if (as === 'file' && res.ok) {
+    const name = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(res.headers.get('Content-Disposition') ?? '')?.[1];
+    return { blob: await res.blob(), filename: name ? decodeURIComponent(name) : decodeURIComponent(new URL(res.url).pathname.split('/').pop()) };
   }
   let data = null;
   try { data = await res.json(); } catch { /* empty or non-JSON body */ }

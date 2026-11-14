@@ -12,6 +12,7 @@
  */
 import { h, icon, prefs } from './core/dom.js';
 import { getJson } from './core/api.js';
+import { interceptDownloads } from './core/downloads.js';
 import { loadSession, session } from './core/session.js';
 import { initI18n, setLocale, getLocale, onLocaleChange, t, tNode } from './core/i18n.js';
 import { mountUserMenu } from './core/userMenu.js';
@@ -56,6 +57,7 @@ async function init() {
   // 'terminal' is needed as soon as the shared workspace is imported, by any section
   await initI18n({ defaultLocale: session.locale, namespaces: ['common', 'terminal'] });
   bindLanguageSwitch();
+  interceptDownloads();
   document.getElementById('skip-link').addEventListener('click', (e) => { e.preventDefault(); views.focus(); });
   mountUserMenu();
   mountAnnouncement(document.querySelector('.views'));

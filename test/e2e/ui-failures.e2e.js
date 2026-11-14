@@ -60,3 +60,24 @@ test('while a section loads it says "Chargement…"', async () => {
   assert.equal(await page.locator('section.view-account .load-state').count(), 0);
   await page.context().close();
 });
+
+test('a download that is refused says why in French; one that works still downloads', async () => {
+  const page = await h.newPage({ locale: 'fr' });
+  await h.session(page, 'admin');
+  await page.goto(h.url);
+  await waitForApp(page);
+  const link = (href) => page.evaluate((url) => {
+    const a = document.createElement('a');
+    a.href = url; a.download = ''; a.id = 'probe'; a.textContent = 'probe';
+    document.querySelector('.views').append(a);
+  }, href);
+  await link('/api/accounts/nothing-here');
+  await page.click('#probe');
+  await page.locator('.toast', { hasText: 'Introuvable.' }).waitFor();
+  assert.equal(await page.locator('.toast', { hasText: /"code"|not_found/ }).count(), 0, 'no raw JSON');
+  await page.evaluate(() => document.getElementById('probe').remove());
+  await link('/api/health');
+  const [file] = await Promise.all([page.waitForEvent('download'), page.click('#probe')]);
+  assert.match(file.suggestedFilename(), /^health/);
+  await page.context().close();
+});
