@@ -23,6 +23,7 @@ import { mountBenchBar } from '../teams/benchBar.js';
 import { LivePanel } from './livePanel.js';
 import { openBenchWall } from './benchWall.js';
 import { openJournalDialog } from './journalDialog.js';
+import { openScriptLibrary } from '../../shared/scriptLibrary.js';
 
 export async function mount(el, { navigate }) {
   await Promise.all([loadNamespace('consoles', 'terminal'), loadCss('consoles')]);
@@ -44,6 +45,7 @@ export async function mount(el, { navigate }) {
   head.append(
     liveBtn,
     h('button.find-btn', { type: 'button', onclick: () => openJournalDialog() }, icon('script'), tNode('consoles.journal.button')),
+    h('button.find-btn.icon-only', { type: 'button', dataset: { action: 'scripts' }, ...tAttr('title', 'consoles.scripts.button'), ...tAttr('aria-label', 'consoles.scripts.button'), onclick: () => openScriptLibrary({ pick: false }) }, icon('library')),
     h('button.find-btn', { type: 'button', onclick: () => quick.open() }, icon('search'), tNode('consoles.find'), h('kbd', 'Ctrl K')));
 
   const labTitle = h('h2.canvas-title');

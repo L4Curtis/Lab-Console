@@ -1,0 +1,64 @@
+{
+  "scope": {
+    "personal": "Mes scripts",
+    "team": "Mon équipe : {team}",
+    "teamAdmin": "Scripts des équipes",
+    "published": "Publiés par les administrateurs"
+  },
+  "library": {
+    "title": "Bibliothèque de scripts",
+    "titlePick": "Choisir un script",
+    "search": "Chercher un script",
+    "new": "Nouveau script",
+    "use": "Utiliser",
+    "edit": "Modifier",
+    "delete": "Supprimer",
+    "meta": {
+      "one": "{count} ligne · {name} · {date}",
+      "other": "{count} lignes · {name} · {date}"
+    },
+    "otherTeam": "équipe {team}",
+    "noTeam": "équipe dissoute",
+    "empty": "La bibliothèque est vide. Gardez-y un script depuis la fenêtre d’injection, ou créez-en un ici.",
+    "noMatch": "Aucun script ne correspond."
+  },
+  "fields": {
+    "title": "Titre",
+    "description": "Description (facultative)",
+    "descriptionHint": "Pour retrouver le script : à quoi il sert, sur quel équipement.",
+    "shelf": "Où le ranger",
+    "body": "Commandes",
+    "bodyHint": "Une commande par ligne, {kb} Ko au plus."
+  },
+  "save": {
+    "title": "Garder dans la bibliothèque",
+    "submit": "Enregistrer",
+    "done": "« {title} » est dans la bibliothèque."
+  },
+  "edit": {
+    "title": "Modifier le script",
+    "titleNew": "Nouveau script",
+    "submit": "Enregistrer",
+    "done": "Script enregistré."
+  },
+  "delete": {
+    "title": "Supprimer « {title} » ?",
+    "personal": "Ce script disparaît de votre bibliothèque.",
+    "shared": "Ce script disparaît pour tous ceux qui le voient.",
+    "done": "« {title} » est supprimé."
+  },
+  "errors": {
+    "unknown": "Ce script n’existe pas (ou plus).",
+    "forbidden": "Vous pouvez lire ce script, pas le modifier.",
+    "bad_scope": "Étagère inconnue.",
+    "bad_title": "Le titre est obligatoire, {max} caractères au plus.",
+    "bad_description": "La description tient en {max} caractères au plus.",
+    "bad_body": "Le script est vide ou contient des caractères de commande.",
+    "body_too_large": "Le script dépasse {max} Ko.",
+    "admin_only": "Seuls les administrateurs publient des scripts pour tout le monde.",
+    "no_team": "Vous n’êtes dans aucune équipe : rangez ce script dans vos scripts.",
+    "duplicate_title": "Un script « {title} » existe déjà sur cette étagère.",
+    "shelf_full": "Cette étagère contient déjà {max} scripts.",
+    "conflict": "{by} a modifié ce script entre-temps : rouvrez-le avant d’enregistrer."
+  }
+}

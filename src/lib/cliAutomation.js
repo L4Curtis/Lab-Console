@@ -54,7 +54,7 @@ const RESTART_HEAD = /%SYS-5-RESTART:/;
 const RESTART_MORE = /^(?:Cisco IOS Software|Cisco IOS XE Software|Technical Support: |Copyright \(c\) |Compiled \S+ \S+ \S+ by )/;
 const MORE_MARK = /--More--/g;
 
-const DEFAULT_TYPING = { chunkBytes: 32, chunkDelayMs: 40 };
+export const DEFAULT_TYPING = { chunkBytes: 32, chunkDelayMs: 40 };
 
 /** `code` and `params` let the browser show the message in the user's language (the sentence stays English) */
 export class AutomationError extends Error {

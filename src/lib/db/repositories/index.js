@@ -24,6 +24,7 @@ import { createDiagramsRepository } from './diagrams.js';
 import { createJournalDaysRepository } from './journalDays.js';
 import { createJobsRepository } from './jobs.js';
 import { createSnapshotsRepository, createTemplatesRepository } from './configSets.js';
+import { createScriptsRepository } from './scripts.js';
 
 export function createRepositories(db, { now = () => new Date() } = {}) {
   const options = { now };
@@ -43,6 +44,7 @@ export function createRepositories(db, { now = () => new Date() } = {}) {
     jobs: createJobsRepository(db, options),
     snapshots: createSnapshotsRepository(db, options),
     templates: createTemplatesRepository(db, options),
+    scripts: createScriptsRepository(db, options),
     /** Run fn(repos) in one transaction: every repository inside works on it */
     transaction: (fn) => db.transaction((tx) => fn(createRepositories(tx, options))),
   };

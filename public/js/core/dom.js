@@ -85,6 +85,10 @@ const ICONS = {
   pulse: '<path d="M3 12h4l2.5-6 4 12 2.5-6H21"/>',
   trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
   archive: '<rect x="3.5" y="4" width="17" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/>',
+  broadcast: '<circle cx="5.5" cy="12" r="2"/><path d="M8 12h4l5-6M12 12h5M12 12l5 6"/><circle cx="19" cy="6" r="1.6"/><circle cx="19" cy="12" r="1.6"/><circle cx="19" cy="18" r="1.6"/>',
+  history: '<path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4.5V8h3.5M12 8v4.2l3 1.8"/>',
+  library: '<path d="M5 4h4v16H5zM11 4h4v16h-4z"/><path d="M17.2 5.6l3.4 1-3.6 13.2-3.4-1"/>',
+  edit: '<path d="M5 19l1-4L16.5 4.5a1.8 1.8 0 0 1 2.5 0l.5.5a1.8 1.8 0 0 1 0 2.5L9 18z"/><path d="M14.5 6.5l3 3"/>',
 };
 export function icon(name, cls = '') {
   const span = document.createElement('span');

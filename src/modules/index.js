@@ -15,7 +15,8 @@ import { createTeamsModules } from './teams/index.js';
 import { createAccountsModule } from './accounts/index.js';
 import { createAdminModule } from './admin/index.js';
 import { createJobsModule } from './jobs/index.js';
+import { createScriptsModule } from './scripts/index.js';
 
 export function createModules(deps) {
-  return [createConsolesModule(deps), ...createTeamsModules(deps), createProxmoxModule(deps), createAccountsModule(deps), createAdminModule(deps), createJobsModule(deps)];
+  return [createConsolesModule(deps), ...createTeamsModules(deps), createProxmoxModule(deps), createAccountsModule(deps), createAdminModule(deps), createJobsModule(deps), createScriptsModule(deps)];
 }

@@ -4,8 +4,15 @@
  *
  *   browser → server   {"type":"export-config"}
  *                      {"type":"inject","script":"…","options":{waitForPrompt,delayMs,stopOnError,skipComments}}
+ *                      {"type":"paste","script":"…","options":{…}}       a multi-line paste, paced like an injection;
+ *                                                                        every line is sent as typed (comments included)
+ *                                                                        (`paste` and `broadcast` always wait for the prompt, 50 ms
+ *                                                                        between lines: only `stopOnError` is read from their options)
+ *                      {"type":"broadcast","batch":"…","script":"…","options":{…}}   the same lines sent to several
+ *                                                                        consoles: the browser sends this frame on each of
+ *                                                                        its console sockets, each room decides for itself
  *                      {"type":"automation-cancel"}
- *   server → browser   {"type":"automation","task","state":"running|done|error|cancelled","message","code","params","parts","done","total","result"}
+ *   server → browser   {"type":"automation","task","state":"running|done|warning|error|cancelled","message","code","params","parts","done","total","result","batch"?}
  *                      `message` is the English sentence; `code` and `params` (and, for a summary made of
  *                      several sentences, `parts`: a list of { code, params }) let the browser translate it
  *                      {"type":"export-result","filename","content"}
@@ -16,9 +23,17 @@
  * `report` to show the progress to everyone on the console; the exported
  * file only goes back to the person who asked (`send`). An error carrying a
  * `code` (a refusal of the room) is reported with that code
+ *
+ * `paste` and `broadcast` exist only where the caller passes `permit.paste` /
+ * `permit.broadcast`: a function that answers null when the person may, or
+ * { message, code, params } when they may not (a refusal is sent to that
+ * person alone, before anything is typed). A frame of a task the console does
+ * not offer is not handled (the Proxmox serial console has neither)
  */
-const MAX_SCRIPT_BYTES = 256 * 1024;
+export const MAX_SCRIPT_BYTES = 256 * 1024;
 const MAX_SCRIPT_LINES = 5000;
+const MAX_BROADCAST_LINES = 50;
+const TASKS = { 'export-config': 'export', inject: 'inject', paste: 'paste', broadcast: 'broadcast' };
 
 export function createAutomationHandler({
   cli, send, canExport, log, label,
@@ -26,15 +41,20 @@ export function createAutomationHandler({
   cancel = () => cli.cancel(),
   busy = () => cli.running,
   report: broadcast = send,
+  permit = {},
 }) {
   return function handle(msg) {
     if (msg.type === 'automation-cancel') { cancel(); return true; }
-    if (msg.type !== 'export-config' && msg.type !== 'inject') return false;
+    const task = Object.hasOwn(TASKS, msg.type) ? TASKS[msg.type] : null;
+    if (!task || (permit[task] === undefined && (task === 'paste' || task === 'broadcast'))) return false;
 
-    const task = msg.type === 'export-config' ? 'export' : 'inject';
-    const report = (state, message, extra = {}) => broadcast({ type: 'automation', task, state, message, ...extra });
-    const refuse = (message, code, params = {}) => (send({ type: 'automation', task, state: 'error', message, code, params }), true);
+    // A broadcast tags its frames, so that the browser tells its own batch from another person's on the same console
+    const batch = typeof msg.batch === 'string' && /^[\w-]{1,40}$/.test(msg.batch) ? { batch: msg.batch } : {};
+    const report = (state, message, extra = {}) => broadcast({ type: 'automation', task, state, message, ...extra, ...batch });
+    const refuse = (message, code, params = {}) => (send({ type: 'automation', task, state: 'error', message, code, params, ...batch }), true);
     if (busy()) return refuse('Another task is still running on this console.', 'automation.busy');
+    const verdict = permit[task]?.();
+    if (verdict) return refuse(verdict.message, verdict.code, verdict.params);
     if (task === 'export' && !canExport) return refuse('Config export is available on Cisco console devices only.', 'automation.export_unsupported');
 
     let done;
@@ -50,15 +70,20 @@ export function createAutomationHandler({
       const script = typeof msg.script === 'string' ? msg.script : '';
       if (!script.trim()) return refuse('The script is empty.', 'automation.script_empty');
       if (Buffer.byteLength(script) > MAX_SCRIPT_BYTES) return refuse('The script is larger than 256 KB.', 'automation.script_too_large');
-      if (script.split('\n').length > MAX_SCRIPT_LINES) return refuse(`The script has more than ${MAX_SCRIPT_LINES} lines.`, 'automation.script_too_long', { max: MAX_SCRIPT_LINES });
+      const maxLines = task === 'broadcast' ? MAX_BROADCAST_LINES : MAX_SCRIPT_LINES;
+      if (script.split('\n').length > maxLines) return refuse(`The script has more than ${maxLines} lines.`, 'automation.script_too_long', { max: maxLines });
       const o = msg.options || {};
+      // A paste and a broadcast show no pacing options: whatever the person chose for an injection once
+      // (no wait for the prompt, no delay) must not make them drop characters on a slow console
+      const careful = task === 'paste' || task === 'broadcast';
       const options = {
-        waitForPrompt: o.waitForPrompt !== false,
-        delayMs: clamp(o.delayMs, 0, 5000, 50),
+        waitForPrompt: careful || o.waitForPrompt !== false,
+        delayMs: careful ? 50 : clamp(o.delayMs, 0, 5000, 50),
         stopOnError: Boolean(o.stopOnError),
-        skipComments: o.skipComments !== false,
+        // A paste is what the person copied, "!" lines included (a banner's text may start with one)
+        skipComments: task === 'paste' ? false : o.skipComments !== false,
       };
-      done = run('inject', (c) => c.sendScript(script, options, (message, p = {}) => report('running', message, p))).then((result) => {
+      done = run(task, (c) => c.sendScript(script, options, (message, p = {}) => report('running', message, p))).then((result) => {
         const { sent, total, errors, slow } = result;
         const parts = [`Sent ${sent} of ${total} lines`];
         const coded = [{ code: 'automation.sent', params: { sent, total, count: total } }];
@@ -86,7 +111,7 @@ export function createAutomationHandler({
     done.catch((err) => {
       const coded = err.code ? { code: err.code, params: err.params ?? {} } : {};
       // The console said no before anything ran (control refused, a spectator): only the asker hears it
-      if (!err.cancelled && String(err.code).startsWith('consoles.')) return send({ type: 'automation', task, state: 'error', message: err.message, ...coded });
+      if (!err.cancelled && String(err.code).startsWith('consoles.')) return send({ type: 'automation', task, state: 'error', message: err.message, ...coded, ...batch });
       report(err.cancelled ? 'cancelled' : 'error', err.cancelled ? 'Stopped' : err.message, coded);
     });
     return true;

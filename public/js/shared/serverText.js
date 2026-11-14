@@ -29,3 +29,13 @@ export function serverText(msg) {
 export function errorText(err) {
   return serverText({ code: err?.code, params: err?.params ?? {}, message: err?.serverMessage ?? err?.message ?? '' });
 }
+
+/**
+ * A task's name as people read it: 'inject' → "injection". The server names its
+ * tasks with a short identifier (export, inject, paste, broadcast, a job's); one
+ * without an entry in terminal.taskNames is shown as it is
+ */
+export function taskName(label) {
+  const key = `terminal.taskNames.${label}`;
+  return has(key) ? t(key) : String(label ?? '');
+}

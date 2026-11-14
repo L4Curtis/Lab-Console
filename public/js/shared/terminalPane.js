@@ -7,7 +7,12 @@
  * line and who holds the keyboard (PresenceBar), replays the recent output
  * when it joins, and only lets the keys through when the server says this
  * user may type. The buttons of the header come from the pane action
- * registry (paneActions.js); the three below are registered here
+ * registry (paneActions.js); those below are registered here (break, export,
+ * inject, send to several consoles, history)
+ *
+ * A multi-line paste is not typed: it is sent as one `paste` request, and the
+ * server types it line by line, like an injection, through the room (so a
+ * spectator's paste is refused there too)
  */
 import { Terminal } from '/vendor/xterm/lib/xterm.mjs';
 import { FitAddon } from '/vendor/xterm-addon-fit/lib/addon-fit.mjs';
@@ -38,6 +43,8 @@ export const THEME = {
 // What the status line says for each phase the server reports (terminal.phase.<phase>)
 const PHASES = new Set(['ssh', 'telnet', 'proxmox', 'connected', 'login', 'silent']);
 const LIVE = new Set(['connected', 'login', 'silent']);
+// What the server accepts for a paste (src/lib/automationProtocol.js)
+const MAX_PASTE_BYTES = 256 * 1024;
 // The console server refused the line: someone outside the application holds it (a code, not a dictionary key)
 const LINE_REFUSED = `consoles.${'line_refused'}`;
 
@@ -61,6 +68,18 @@ registerPaneAction({
   run: (pane) => pane.openInject(),
 });
 
+registerPaneAction({
+  id: 'broadcast', icon: 'broadcast', title: 'terminal.actions.broadcast', order: 40,
+  when: (s) => s.kind === 'console',
+  enabled: (pane) => pane.isPilot && !pane.task.running,
+  run: async (pane) => (await import('./broadcastDialog.js')).openBroadcastDialog({ from: pane }),
+});
+registerPaneAction({
+  id: 'history', icon: 'history', title: 'terminal.actions.history', order: 50,
+  when: (s) => s.kind === 'console' && Boolean(s.device),
+  run: async (pane) => (await import('./historyDialog.js')).openHistoryDialog({ pane }),
+});
+
 const enabledFor = (action, pane) => {
   try { return action.enabled(pane) !== false; } catch { return false; }
 };
@@ -68,6 +87,7 @@ const enabledFor = (action, pane) => {
 export class TerminalPane extends BasePane {
   #actionsEl;
   #releaseActions;
+  #automationListeners = new Set();
 
   constructor(session, opts) {
     const actionsEl = h('span.pane-custom-actions');
@@ -113,6 +133,12 @@ export class TerminalPane extends BasePane {
     return this.state === 'connected' && Boolean(this.presenceBar.presence?.mayType);
   }
 
+  /** Does this user hold the keyboard of this console now (not just type on a shared one)? */
+  get isPilot() {
+    const p = this.presenceBar?.presence;
+    return this.state === 'connected' && Boolean(p) && p.pilot === p.you && Boolean(p.mayType);
+  }
+
   /** May this user start an export or a script? Not a spectator who may not pilot, not during a task */
   get canAutomate() {
     if (this.state !== 'connected' || this.task.running) return false;
@@ -124,6 +150,8 @@ export class TerminalPane extends BasePane {
   /** Called once the element is in the DOM (xterm needs real dimensions) */
   attach() {
     this.term.open(this.body);
+    // Before xterm's own listener (capture phase): a paste of several lines is ours to pace
+    if (this.shared) this.term.element.addEventListener('paste', (e) => this.#onPaste(e), true);
     this.fit();
     new ResizeObserver(() => this.fit()).observe(this.body);
     this.connect();
@@ -161,6 +189,7 @@ export class TerminalPane extends BasePane {
       } else if (msg.type === 'automation') {
         this.task.update(msg);
         this.#renderActions();
+        for (const fn of this.#automationListeners) fn(msg);
       } else if (msg.type === 'export-result') {
         downloadText(msg.filename, msg.content);
       } else if (msg.type === 'error' || msg.type === 'exit') {
@@ -208,6 +237,46 @@ export class TerminalPane extends BasePane {
 
   sendBreak() {
     if (this.mayType) this.#send({ type: 'break' });
+  }
+
+  /**
+   * A paste of several lines: not typed key by key (a console takes a few
+   * hundred characters a second, and drops the rest) but handed to the server,
+   * which sends the lines one at a time. One line, or a console that is only
+   * watched, is left to the terminal, which does what a keystroke does (the
+   * room cuts a long line into small chunks, see room.write)
+   */
+  #onPaste(event) {
+    const text = event.clipboardData?.getData('text/plain') ?? '';
+    if (text.replace(/\r\n?/g, '\n').replace(/\n$/, '').split('\n').length < 2) return;
+    event.preventDefault();
+    event.stopImmediatePropagation();
+    if (!this.mayType) {
+      // Nothing is lost silently: a console that is only watched, or busy with a task, says why the paste was not sent
+      if (this.state === 'connected') toast(t(this.task.running || this.presenceBar?.presence?.task ? 'terminal.paste.taskRunning' : 'terminal.presence.typingHint'), 'info', 4000);
+      return;
+    }
+    if (new Blob([text]).size > MAX_PASTE_BYTES) { toast(t('terminal.paste.tooLarge'), 'warn', 6000); return; }
+    // The pacing is the server's (it waits for each prompt): the injection dialog's choices do not apply to a paste
+    if (!this.#send({ type: 'paste', script: text })) return;
+    this.task.update({ state: 'running', key: 'terminal.task.startingPaste' });
+    this.#renderActions();
+  }
+
+  /** The same lines for several consoles (broadcastDialog.js): this console's share of it. → false when the line is not open */
+  sendBroadcast({ batch, script, options }) {
+    return this.#send({ type: 'broadcast', batch, script, options });
+  }
+
+  /** Stop the task running on this console (the server decides who may) */
+  stopTask() {
+    this.#send({ type: 'automation-cancel' });
+  }
+
+  /** Follow the server's automation messages of this console; → the function that stops */
+  onAutomation(fn) {
+    this.#automationListeners.add(fn);
+    return () => this.#automationListeners.delete(fn);
   }
 
   #canStart() {
@@ -266,7 +335,9 @@ export class TerminalPane extends BasePane {
   }
 
   #send(msg) {
-    if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(msg));
+    if (this.ws?.readyState !== WebSocket.OPEN) return false;
+    this.ws.send(JSON.stringify(msg));
+    return true;
   }
 
   fit() {

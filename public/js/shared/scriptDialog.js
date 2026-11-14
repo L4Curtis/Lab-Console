@@ -1,16 +1,20 @@
 /**
  * "Inject script" dialog: paste or type commands, or load a text file
- * (button or drag-and-drop), choose the pacing, send; The pacing itself
- * happens on the server (see src/lib/cliAutomation.js), so it stays exact
- * even if this tab goes to the background
+ * (button or drag-and-drop) or a script of the library, choose the pacing,
+ * send; The pacing itself happens on the server (see src/lib/cliAutomation.js),
+ * so it stays exact even if this tab goes to the background. What is typed
+ * here can be kept in the library (scriptLibrary.js)
  */
-import { h, icon, prefs } from '../core/dom.js';
-import { t, tAttr, tNode, onLocaleChange } from '../core/i18n.js';
+import { h, icon, prefs, toast } from '../core/dom.js';
+import { t, tAttr, tNode, onLocaleChange, loadNamespace } from '../core/i18n.js';
+import { confirmDialog } from './dialog.js';
+import { openScriptLibrary, saveToLibrary } from './scriptLibrary.js';
 
 const MAX_BYTES = 256 * 1024;
 const lastScripts = new Map(); // per console, for this page session
 
-export function openScriptDialog({ session, onSend }) {
+export async function openScriptDialog({ session, onSend }) {
+  await loadNamespace('scripts');
   const saved = prefs.get('injectOptions', {});
   const textarea = h('textarea.field.script-input', {
     spellcheck: 'false', autocomplete: 'off', wrap: 'off', rows: 16, ...tAttr('aria-label', 'terminal.script.commands'),
@@ -28,6 +32,8 @@ export function openScriptDialog({ session, onSend }) {
   const skipComments = h('input', { type: 'checkbox', checked: saved.skipComments !== false });
   const stopOnError = h('input', { type: 'checkbox', checked: Boolean(saved.stopOnError) });
   const send = h('button.btn.primary', { type: 'submit' }, icon('script'), tNode('terminal.script.send'));
+  const library = h('button.btn.small', { type: 'button', dataset: { action: 'library' }, onclick: () => fromLibrary() }, icon('library'), tNode('terminal.script.library'));
+  const keep = h('button.btn.small', { type: 'button', dataset: { action: 'keep' }, onclick: () => keepInLibrary() }, icon('download'), tNode('terminal.script.keep'));
 
   // Same rule as the server (parseScript): blank lines count, the final newline doesn't
   const lineCount = () => {
@@ -41,6 +47,30 @@ export function openScriptDialog({ session, onSend }) {
     const n = lineCount();
     count.textContent = t('terminal.script.count', { count: n });
     send.disabled = n === 0;
+    keep.disabled = !textarea.value.trim();
+  };
+
+  /** A script of the library replaces the text (after asking, when there is some) */
+  const fromLibrary = async () => {
+    const script = await openScriptLibrary();
+    if (!script) return;
+    if (textarea.value.trim() && textarea.value !== script.body) {
+      const replace = await confirmDialog({ title: t('terminal.script.replaceTitle'), body: t('terminal.script.replaceBody', { title: script.title }), confirmLabel: t('terminal.script.replace') });
+      if (!replace) return;
+    }
+    error.textContent = '';
+    textarea.value = script.body;
+    fileName.textContent = t('terminal.script.fromLibrary', { title: script.title });
+    refresh();
+    textarea.focus();
+  };
+
+  const keepInLibrary = async () => {
+    try {
+      await saveToLibrary({ body: textarea.value });
+    } catch (err) {
+      toast(err.message, 'error');
+    }
   };
 
   const load = async (file) => {
@@ -77,7 +107,7 @@ export function openScriptDialog({ session, onSend }) {
   },
   h('div.script-bar',
     h('button.btn.small', { type: 'button', onclick: () => fileInput.click() }, icon('upload'), tNode('terminal.script.upload')),
-    fileName, fileInput, count),
+    library, keep, fileName, fileInput, count),
   textarea,
   h('p.muted.script-hint', tNode('terminal.script.hint', 'span')),
   h('fieldset.script-options',

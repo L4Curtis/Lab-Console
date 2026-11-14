@@ -9,6 +9,7 @@ import { h, icon } from '../../core/dom.js';
 import { getJson, live } from '../../core/api.js';
 import { t, tNode, tAttr, onLocaleChange } from '../../core/i18n.js';
 import { avatar } from '../../shared/presenceBar.js';
+import { taskName } from '../../shared/serverText.js';
 
 const FEED_SIZE = 50;
 const CONTROL_EVENTS = new Set(['granted', 'timeout', 'idle', 'takeover', 'released', 'left', 'request', 'shared', 'unshared', 'free', 'task', 'denied', 'returned']);
@@ -68,7 +69,7 @@ export class LivePanel {
         h('span.live-name', h('strong', r.device), h('span.muted', r.bench)),
         h('span.live-people', ...r.users.map((u) => avatar(u, u.pilot))),
         h('span.live-detail',
-          r.task ? t('consoles.live.task', { task: r.task.label, name: r.task.by.name })
+          r.task ? t('consoles.live.task', { task: taskName(r.task.label), name: r.task.by.name })
             : r.pilot ? t('consoles.live.pilot', { name: r.pilot.name }) : t('consoles.live.noPilot'),
           r.state === 'silent' ? h('em.live-warn', t('terminal.phase.silent')) : null),
         r.lastCommand ? h('code.live-command', { title: t('consoles.live.lastCommand') }, r.lastCommand) : null))));
@@ -87,7 +88,7 @@ const clock = (ts) => new Date(ts).toLocaleTimeString(document.documentElement.l
 
 /** One activity entry as a sentence */
 export function describe(e) {
-  const params = { name: e.user?.name ?? t('consoles.live.someone'), device: e.device, bench: e.bench, task: e.label ?? '' };
+  const params = { name: e.user?.name ?? t('consoles.live.someone'), device: e.device, bench: e.bench, task: taskName(e.label ?? '') };
   if (e.kind === 'control') return t(`consoles.activity.control.${CONTROL_EVENTS.has(e.event) ? e.event : 'granted'}`, params);
   if (e.kind === 'task') return t(`consoles.activity.task.${['start', 'done', 'cancelled', 'failed'].includes(e.state) ? e.state : 'start'}`, params);
   if (['open', 'join', 'leave', 'freed', 'close'].includes(e.kind)) return t(`consoles.activity.${e.kind}`, params);

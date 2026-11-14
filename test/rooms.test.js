@@ -375,3 +375,40 @@ test('rooms: under a running task only its actor, the pilot or an admin frees th
   await assert.rejects(second, (err) => err.code === 'consoles.room_closed' && !err.cancelled && err.params.reason === 'consoles.freed');
   assert.equal((await a.frame((f) => f.type === 'exit', 'freed')).code, 'consoles.freed');
 });
+
+test('rooms: a long input reaches the device in small chunks, in order; the rest is dropped when the person may not type any more', async () => {
+  const m = manager({ options: { typeChunkDelayMs: 30 } });
+  const { room, b: a } = await openReady(m, device('R6', 2006), alice);
+  const writes = [];
+  const put = room.session.write.bind(room.session);
+  room.session.write = (data) => { writes.push(data); return put(data); };
+
+  const long = `show${' '.repeat(100)}clock\r`;
+  assert.equal(room.write(alice, long), true);
+  assert.equal(room.write(alice, ' '), true, 'what is typed behind a long input waits its turn');
+  await until(() => writes.length >= 5, 'every chunk sent');
+  assert.equal(writes.join(''), `${long} `, 'in order, nothing lost');
+  assert.ok(writes.slice(0, -1).every((w) => w.length <= 32), 'chunks no longer than the typing chunk of an injection');
+  assert.ok(writes.length >= 5);
+
+  // A short keystroke goes at once; the keyboard changing hands stops what was still waiting
+  await new Promise((r) => setTimeout(r, 100));
+  writes.length = 0;
+  room.write(alice, 'a');
+  assert.deepEqual(writes, ['a']);
+  writes.length = 0;
+  room.write(alice, 'b'.repeat(100));
+  assert.equal(writes.length, 1, 'the first chunk goes at once');
+  room.releaseControl(alice);
+  await new Promise((r) => setTimeout(r, 150));
+  assert.equal(writes.length, 1, 'the rest was not sent: alice no longer holds the keyboard');
+
+  // Too much waiting: refused rather than held in memory
+  const big = manager({ options: { typeQueueBytes: 200, typeChunkDelayMs: 30 } });
+  const second = await openReady(big, device('R7', 2007), alice);
+  assert.equal(second.room.write(alice, 'x'.repeat(150)), true);
+  assert.equal(second.room.write(alice, 'y'.repeat(150)), false);
+  second.room.close();
+  room.close();
+  assert.ok(a);
+});

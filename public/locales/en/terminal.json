@@ -27,7 +27,9 @@
     "break": "Send BREAK (password recovery, ROMMON)",
     "export": "Export config: download show running-config as a .txt file",
     "inject": "Inject script: send a list of commands, line by line",
-    "ctrlAltDel": "Send Ctrl+Alt+Del"
+    "ctrlAltDel": "Send Ctrl+Alt+Del",
+    "broadcast": "Send to several consoles: the same commands on every console where you hold the keyboard",
+    "history": "History: search what the console showed, and download it"
   },
   "vnc": {
     "opening": "Opening screen",
@@ -71,7 +73,8 @@
     "line": "line {line}",
     "startingExport": "Starting the export",
     "startingScript": "Starting the script",
-    "connectFirst": "Connect to the device first."
+    "connectFirst": "Connect to the device first.",
+    "startingPaste": "Pasting"
   },
   "script": {
     "title": "Inject a script into {title}",
@@ -92,7 +95,13 @@
     "ms": "ms",
     "skipComments": "Skip comment lines starting with \"!\"",
     "stopOnError": "Stop at the first device error (\"% Invalid input…\")",
-    "send": "Send commands"
+    "send": "Send commands",
+    "library": "Library",
+    "keep": "Keep in the library",
+    "replaceTitle": "Replace the text?",
+    "replaceBody": "The text in the window will be replaced by the script \"{title}\".",
+    "replace": "Replace",
+    "fromLibrary": "Library: {title}"
   },
   "server": {
     "consoles": {
@@ -145,7 +154,12 @@
       "no_watch": "You were not waiting for this line.",
       "bad_journal": "Unknown journal.",
       "no_journal": "This console journal does not exist (any more).",
-      "journal_forbidden": "Only the people who were on this console that day, their team and the admins may read this journal."
+      "journal_forbidden": "Only the people who were on this console that day, their team and the admins may read this journal.",
+      "paste_not_allowed": "You cannot type on {name} right now: ask for the keyboard first. Nothing was pasted.",
+      "broadcast_not_pilot": "You do not hold the keyboard of {name}: nothing was sent there.",
+      "history_forbidden": "Only the people on this console can read what it shows.",
+      "too_many_searches": "Too many searches in the last minute. Wait a moment.",
+      "bad_query": "A search is 1 to {max} characters."
     },
     "automation": {
       "busy": "Another task is still running on this console.",
@@ -237,5 +251,72 @@
       "superseded": "Your request was replaced by an automatic task.",
       "takenOver": "{name} (admin) took the keyboard."
     }
+  },
+  "taskNames": {
+    "export": "export",
+    "inject": "injection",
+    "paste": "paste",
+    "broadcast": "send to several consoles"
+  },
+  "paste": {
+    "tooLarge": "The pasted text is larger than 256 KB: it was not sent.",
+    "taskRunning": "A task is running on this console: wait until it ends to paste."
+  },
+  "broadcast": {
+    "title": "Send to several consoles",
+    "intro": "The same lines go one by one to every ticked console, paced like an injection. Only the consoles where you hold the keyboard can be ticked.",
+    "consoles": "Consoles",
+    "commands": "Commands to send to the ticked consoles",
+    "hint": "At most {max} lines. A blank line is an Enter.",
+    "tooMany": "No more than {max} lines at a time.",
+    "send": {
+      "one": "Send to {count} console",
+      "other": "Send to {count} consoles"
+    },
+    "reasonOffline": "not connected",
+    "reasonNotPilot": "you do not hold the keyboard",
+    "reasonBusy": "a task is running on it",
+    "waiting": "Sent, waiting for the console…",
+    "lost": "The connection to this console dropped.",
+    "running": "Sending. Each console goes at its own pace.",
+    "summary": {
+      "one": "{count} console: {ok} without an error.",
+      "other": "{count} consoles: {ok} without an error."
+    },
+    "stopAll": "Stop all",
+    "goesOn": "The sending goes on on the consoles: follow it in their bars."
+  },
+  "history": {
+    "title": "History of {title}",
+    "intro": "Searches what the console showed: first what the platform keeps in memory, then the journal of the days you may read. The text is searched as is, ignoring case.",
+    "placeholder": "Text to search for",
+    "search": "Search",
+    "matchCase": "Match case",
+    "screen": "On the console",
+    "downloadScreen": "Download",
+    "notOnIt": "Only the people on this console can read what it shows: reopen it or join it.",
+    "closed": "Nobody has this console open any more: only the journal keeps its trace.",
+    "screenLines": {
+      "one": "{count} line in memory (about the last 200 KB). Type a text to search it.",
+      "other": "{count} lines in memory (about the last 200 KB). Type a text to search it."
+    },
+    "journal": "Journal",
+    "noJournal": "No journal for this console yet.",
+    "journalDenied": "This journal exists, but only the people who were on this console that day, their team and the administrators can read it.",
+    "found": {
+      "one": "{count} line found",
+      "other": "{count} lines found"
+    },
+    "nothing": "Nothing found.",
+    "truncated": {
+      "one": "Only the first line is shown.",
+      "other": "Only the first {count} lines are shown: narrow the search."
+    },
+    "line": "line {line}",
+    "sessions": {
+      "one": "{count} session",
+      "other": "{count} sessions"
+    },
+    "downloadDay": "Download this day"
   }
 }
