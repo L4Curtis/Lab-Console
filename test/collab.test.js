@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import { startTeamsApp, waitFor, T0 } from './helpers/teams.js';
 import { memoryDatabase } from './helpers/db.js';
 import { student, admin } from './helpers/fakes.js';
+import { toIso } from '../src/lib/db/values.js';
 import { createCollabModule } from '../src/modules/collab/index.js';
 
 const S = (n) => student(n);
@@ -73,8 +74,28 @@ describe('repository: notes and chat in the database', () => {
     assert.deepEqual((await repos.collab.messages('T1', 'B4M', 2)).map((m) => m.text), ['m6', 'm7'], 'the newest, oldest first');
     assert.deepEqual((await repos.collab.messages('T2', 'B4M', 100)).map((m) => m.text), ['other team']);
     assert.deepEqual(await repos.collab.threadTeams(), ['T1', 'T2']);
-    await repos.collab.removeTeam('T1');
-    assert.deepEqual(await repos.collab.threadTeams(), ['T2']);
+  });
+
+  test('the sweep is judged on the teams table: threads of existing teams stay, the others go', async (c) => {
+    const { repos, close } = await memoryDatabase();
+    c.after(close);
+    const author = { id: 'oidc:a', name: 'Ada' };
+    const team = (id) => ({ id, name: id, createdAt: toIso(T0), createdBy: author, members: [{ ...author, username: 'ada', since: toIso(T0) }], invitations: [] });
+    await repos.teams.insertIfAbsent(team('T1'));
+    for (const id of ['T1', 'T2', 'T3']) await repos.collab.addMessage({ teamId: id, bench: 'B4M', author, text: id, at: T0 }, 5);
+    assert.equal(await repos.collab.removeOrphanThreads(), 2);
+    assert.deepEqual(await repos.collab.threadTeams(), ['T1']);
+    assert.equal(await repos.collab.removeOrphanThreads(), 0);
+  });
+
+  test('a message is removed by bench and id, whoever the thread belongs to', async (c) => {
+    const { repos, close } = await memoryDatabase();
+    c.after(close);
+    const author = { id: 'oidc:a', name: 'Ada' };
+    const { id } = await repos.collab.addMessage({ teamId: 'T1', bench: 'B4M', author, text: 'x', at: T0 }, 5);
+    assert.equal(await repos.collab.removeMessage('B4H', id), false, 'another bench');
+    assert.equal(await repos.collab.removeMessage('B4M', id), true);
+    assert.equal(await repos.collab.removeMessage('B4M', id), false);
   });
 });
 
@@ -397,6 +418,19 @@ describe('chat: the occupants of a bench, and the team that keeps it', () => {
     assert.equal(teamA !== teamB, true);
   });
 
+  test('the sweep does nothing when the teams service is missing: no module order wipes the threads', async () => {
+    const { teams } = t.lab.deps.services;
+    const before = await t.lab.deps.repos.collab.threadTeams();
+    assert.ok(before.length > 0);
+    t.lab.deps.services.teams = undefined;
+    try {
+      assert.equal(await t.collab.chat.sweep(), 0);
+    } finally {
+      t.lab.deps.services.teams = teams;
+    }
+    assert.deepEqual(await t.lab.deps.repos.collab.threadTeams(), before);
+  });
+
   test('a dissolved team loses its threads', async () => {
     assert.deepEqual((await t.lab.deps.repos.collab.threadTeams()).sort(), [teamA, teamB].sort());
     assert.equal((await t.api(S(2), 'POST', '/api/benches/B4M/release')).status, 200);
@@ -463,5 +497,16 @@ describe('chat: who hears about a message, and moderation', () => {
     const audited = await waitFor(async () => (await t.lab.deps.audit.query({ action: 'collab.chat.delete' })).length);
     assert.equal(audited, 1);
     assert.equal((await t.api(ADMIN, 'DELETE', `/api/collab/chat/B9Z/${id}`)).status, 404);
+  });
+
+  test('an admin takes a message down even when the team has left the bench', async () => {
+    const thread = (await t.api(S(1), 'GET', '/api/collab/chat/B4M')).body.messages;
+    const id = thread.at(-1).id;
+    assert.equal((await t.api(S(1), 'POST', '/api/benches/B4M/release')).status, 200);
+    assert.equal((await t.api(ADMIN, 'DELETE', `/api/collab/chat/B4H/${id}`)).status, 404, 'the id belongs to another bench');
+    assert.equal((await t.api(ADMIN, 'DELETE', `/api/collab/chat/B4M/${id}`)).status, 200);
+    assert.equal((await t.api(ADMIN, 'DELETE', `/api/collab/chat/B4M/${id}`)).status, 404);
+    assert.equal((await t.api(S(1), 'POST', '/api/benches/B4M/take')).status, 200);
+    assert.equal((await t.api(S(1), 'GET', '/api/collab/chat/B4M')).body.messages.some((m) => m.id === id), false);
   });
 });

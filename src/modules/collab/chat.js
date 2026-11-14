@@ -11,7 +11,7 @@
  *
  *   GET    /api/collab/chat/:bench        the thread (occupants; admins read it)
  *   POST   /api/collab/chat/:bench        { text } - occupants only, 10 messages per 20 s per person
- *   DELETE /api/collab/chat/:bench/:id    admins: take a message down
+ *   DELETE /api/collab/chat/:bench/:id    admins: take a message down (whoever holds the bench, or nobody)
  *
  * Plain text, 500 characters and 6 lines at most: no markup, no files.
  * SSE `collab:chat` reaches the bench's occupants and the admins, nobody
@@ -72,24 +72,15 @@ export function mountChat(router, { repos, events, audit, auth, services, json, 
 
   router.delete('/chat/:bench/:id', auth.requireRole('admin'), async (req, res) => {
     const bench = benchOf(req);
-    const teamId = holderTeam(bench);
     const id = String(req.params.id);
-    if (!teamId || !(await repos.collab.removeMessage(teamId, bench, id))) throw httpError(404, 'collab.unknown_message', 'This message does not exist (any more)');
+    if (!(await repos.collab.removeMessage(bench, id))) throw httpError(404, 'collab.unknown_message', 'This message does not exist (any more)');
     audit.log(req, 'collab.chat.delete', { bench, messageId: id });
     events.publish('collab:chat', { bench, removed: id }, { audience: (u) => isAdmin(u) || isOccupant(u, bench) });
     res.json({ ok: true });
   });
 
   return {
-    /** Forget the threads of teams that no longer exist; → the number of teams cleaned */
-    async sweep() {
-      let cleaned = 0;
-      for (const teamId of await repos.collab.threadTeams()) {
-        if (services.teams?.get?.(teamId)) continue;
-        await repos.collab.removeTeam(teamId);
-        cleaned += 1;
-      }
-      return cleaned;
-    },
+    /** Forget the threads of teams that no longer exist (judged on the teams table: independent of module order); → the number of teams cleaned */
+    sweep: () => repos.collab.removeOrphanThreads(),
   };
 }

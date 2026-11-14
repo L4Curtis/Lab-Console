@@ -14,9 +14,11 @@
  *   messages(teamId, bench, limit)      → the last `limit` messages, oldest first:
  *                                         [{ id, bench, text, at, author: { id, name } }]
  *   addMessage(message, keep)           stores it and drops the thread's older messages beyond `keep`
- *   removeMessage(teamId, bench, id)    → true when it existed
+ *   removeMessage(bench, id)            → true when it existed, whichever team's thread it is in
  *   threadTeams()                       → ids of the teams that have a thread
- *   removeTeam(teamId)                  drops every thread of a team (the team was dissolved)
+ *   removeOrphanThreads()               drops the threads of teams that no longer exist in the `teams`
+ *                                       table → the number of teams cleaned. It reads the table, not
+ *                                       any module's memory, so it cannot wipe live threads
  */
 import { toIso, newId } from '../values.js';
 
@@ -90,8 +92,8 @@ export function createCollabRepository(db, { now = () => new Date() } = {}) {
       return messageView({ id, bench, author_id: author.id, author_name: author.name, body: text, at: toIso(at) });
     },
 
-    async removeMessage(teamId, bench, id) {
-      const { changes } = await db.run('DELETE FROM bench_chat_messages WHERE team_id = ? AND bench = ? AND id = ?', [String(teamId), String(bench), String(id)]);
+    async removeMessage(bench, id) {
+      const { changes } = await db.run('DELETE FROM bench_chat_messages WHERE bench = ? AND id = ?', [String(bench), String(id)]);
       return changes > 0;
     },
 
@@ -100,8 +102,12 @@ export function createCollabRepository(db, { now = () => new Date() } = {}) {
       return rows.map((r) => r.team_id);
     },
 
-    async removeTeam(teamId) {
-      return db.run('DELETE FROM bench_chat_messages WHERE team_id = ?', [String(teamId)]);
+    async removeOrphanThreads() {
+      return db.transaction(async (tx) => {
+        const rows = await tx.query('SELECT DISTINCT team_id FROM bench_chat_messages WHERE team_id NOT IN (SELECT id FROM teams)');
+        if (rows.length) await tx.run('DELETE FROM bench_chat_messages WHERE team_id NOT IN (SELECT id FROM teams)');
+        return rows.length;
+      });
     },
   };
 }
