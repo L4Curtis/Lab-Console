@@ -13,12 +13,17 @@ const pages = [];
 const failedRequests = []; // status and URL of every refused request, checked at the end
 
 /** Sign out from the rail; requests the page still had in flight may meet the ended session (401), which is expected */
+/** Forget the 401 answers of the API that came after `from` (the gate turning a signed-out page away); any other refusal stays on record */
+function forgetGateRefusals(from) {
+  const during = failedRequests.splice(from);
+  failedRequests.push(...during.filter((r) => !/^401 .*\/api\//.test(r)));
+}
+
 async function signOutFrom(page) {
   const from = failedRequests.length;
   await page.click('.user-menu-out');
   await page.waitForURL(/\/login$/);
-  const during = failedRequests.splice(from);
-  failedRequests.push(...during.filter((r) => !/^401 .*\/api\//.test(r)));
+  forgetGateRefusals(from);
 }
 
 async function freshPage(locale = 'fr-FR') {
@@ -108,7 +113,7 @@ test('a session revoked by an administrator sends the page back to the login pag
   // The next API call meets the gate
   page.evaluate(() => import('/js/core/api.js').then(({ getJson }) => getJson('/api/modules')).catch(() => {})).catch(() => {}); // the page leaves while this runs
   await page.waitForURL(/\/login#\/consoles/); // the screen keeps its own route (#/consoles/<bench>)
-  failedRequests.splice(from); // the refused calls that led here
+  forgetGateRefusals(from); // the 401 answers that led here
   await page.waitForSelector('#sso-button:visible');
   await page.context().close();
 });
