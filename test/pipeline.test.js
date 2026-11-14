@@ -417,7 +417,7 @@ test('close(): open streams end, pending writes finish, the port is freed', asyn
 test('the application\'s own files are revalidated on every load; vendor files are immutable', async () => {
   const app = await startTestApp();
   try {
-    for (const file of ['/js/core/dom.js', '/css/app.css', '/locales/fr/common.json']) {
+    for (const file of ['/js/core/dom.js', '/css/app.css', '/locales/fr/common.json', '/js/login.js', '/js/join.js']) {
       const res = await fetch(app.url + file);
       assert.equal(res.status, 200, file);
       assert.equal(res.headers.get('cache-control'), 'private, no-cache', file);

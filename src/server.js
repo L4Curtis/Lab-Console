@@ -95,6 +95,12 @@ export async function createApp({ config, logger = createLogger, createAuth: mak
 
   // ── 1. Security headers on every response ──────────────────────────────────
   app.use(securityHeaders({ https: config.server.publicUrl?.startsWith('https://') ?? false }));
+  // Every file of the application itself, whoever serves it (static folders, the login and
+  // sign-up scripts): see `revalidate` below. Express's sendFile keeps a header set before it
+  app.use((req, res, next) => {
+    if (!req.path.startsWith('/vendor/') && /\.(?:m?js|css|json|html)$/.test(req.path)) res.setHeader('Cache-Control', 'private, no-cache');
+    next();
+  });
 
   // ── 2. Public static assets: what the login page needs, nothing more ───────
   // Self-hosted front-end dependencies (works on isolated lab networks)

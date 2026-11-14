@@ -1,6 +1,6 @@
 {
   "name": "lab-console",
-  "version": "2.0.3",
+  "version": "2.0.4",
   "private": true,
   "description": "Web platform giving students console access to physical lab equipment (SSH jump host -> Telnet console server)",
   "type": "module",
