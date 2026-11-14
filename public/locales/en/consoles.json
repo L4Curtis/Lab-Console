@@ -141,5 +141,8 @@
     "free": "The console of {name} ({bench}) is free: you can open it.",
     "open": "The console of {name} ({bench}) is now open in Lab Console: you can join it.",
     "expired": "The console of {name} ({bench}) is still busy after 30 minutes: we stopped watching."
+  },
+  "scripts": {
+    "button": "Scripts"
   }
 }

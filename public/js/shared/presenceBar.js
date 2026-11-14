@@ -14,7 +14,7 @@ import { h, icon, toast } from '../core/dom.js';
 import { t, tNode } from '../core/i18n.js';
 import { session } from '../core/session.js';
 import { confirmDialog } from './dialog.js';
-import { serverText } from './serverText.js';
+import { serverText, taskName } from './serverText.js';
 
 // Control events that tell the person who receives the keyboard, and the one who loses it
 const RECEIVED = new Set(['granted', 'timeout', 'idle', 'takeover', 'released', 'left']);
@@ -81,7 +81,7 @@ export class PresenceBar {
     this.people.replaceChildren(...p.users.map((u) => avatar(u, u.id === p.pilot, u.id === p.you)));
 
     let text;
-    if (p.task?.state === 'running') text = t('terminal.presence.task', { task: p.task.label, name: p.task.by.name });
+    if (p.task?.state === 'running') text = t('terminal.presence.task', { task: taskName(p.task.label), name: p.task.by.name });
     else if (p.pilot === p.you) text = t(p.shared ? 'terminal.presence.youShared' : 'terminal.presence.you');
     else if (pilot) text = t(p.shared ? 'terminal.presence.pilotShared' : 'terminal.presence.pilot', { name: pilot.name });
     else text = t('terminal.presence.nobody');
@@ -121,7 +121,7 @@ export class PresenceBar {
     tick();
     this.#countdown = setInterval(tick, 1000);
     const question = p.pending.kind === 'task'
-      ? t('terminal.presence.askTask', { name: p.pending.from.name, task: p.pending.label ?? '' })
+      ? t('terminal.presence.askTask', { name: p.pending.from.name, task: taskName(p.pending.label ?? '') })
       : t('terminal.presence.ask', { name: p.pending.from.name });
     this.prompt.replaceChildren(
       h('span.presence-question', icon('keyboard'), h('strong', question), left),

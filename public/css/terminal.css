@@ -1,0 +1,61 @@
+/* ==========================================================================
+   Terminal tools: the script library, "send to several consoles", the
+   history of a console. The inject dialog and the console tiles are in app.css
+   ========================================================================== */
+
+/* ── Script library ────────────────────────────────────────────────────── */
+.lib { display: grid; gap: 14px; min-width: min(640px, 90vw); }
+.lib-bar { display: flex; gap: 10px; align-items: center; }
+.lib-bar .field { flex: 1; }
+.lib-list { display: grid; gap: 16px; max-height: 60vh; overflow: auto; }
+.lib-shelf h3 { margin: 0 0 6px; font-size: 13px; font-weight: 600; color: var(--ink-2); }
+.lib-shelf ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.lib-item { display: flex; align-items: center; gap: 12px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--surface); }
+.lib-main { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.lib-title { font-size: 14px; }
+.lib-description { font-size: 12.5px; color: var(--ink-2); overflow-wrap: anywhere; }
+.lib-meta { font-size: 12px; color: var(--ink-3); }
+.lib-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+
+/* ── Send to several consoles ──────────────────────────────────────────── */
+.bc-targets { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.bc-target { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; padding: 4px 2px; font-size: 13px; }
+.bc-target[data-allowed="false"] { color: var(--ink-3); }
+.bc-target[data-allowed="false"] small { color: var(--led-amber); }
+.bc-name { display: flex; gap: 8px; align-items: baseline; }
+.bc-option { font-size: 13px; }
+.bc-results { display: grid; gap: 14px; min-width: min(560px, 90vw); }
+.bc-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.bc-result { display: flex; gap: 12px; align-items: flex-start; padding: 9px 12px; border: 1px solid var(--line); border-radius: 9px; }
+.bc-state { display: inline-grid; place-items: center; width: 18px; flex: none; padding-top: 2px; }
+.bc-state .icon { width: 18px; height: 18px; }
+.bc-result[data-state="done"] .bc-state { color: var(--led-green); }
+.bc-result[data-state="warning"] .bc-state, .bc-result[data-state="cancelled"] .bc-state { color: var(--led-amber); }
+.bc-result[data-state="error"] .bc-state, .bc-result[data-state="lost"] .bc-state { color: var(--led-red); }
+.bc-main { flex: 1; min-width: 0; display: grid; gap: 3px; font-size: 13px; }
+.bc-message { color: var(--ink-2); overflow-wrap: anywhere; }
+.bc-main .task-progress { background: var(--line); }
+.bc-errors { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 3px; font-size: 12px; }
+.bc-errors li { display: flex; gap: 10px; }
+.bc-errors code { color: var(--led-amber); flex: none; }
+.bc-errors span { font-family: var(--mono); }
+.bc-errors em { font-style: normal; color: var(--led-red); }
+.bc-summary { margin: 0; font-size: 13px; color: var(--ink-2); }
+
+/* ── History of a console ──────────────────────────────────────────────── */
+.hist { display: grid; gap: 14px; min-width: min(680px, 90vw); }
+.hist-form { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.hist-form .field { flex: 1; min-width: 200px; }
+.hist-section { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.hist-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.hist-head h3 { margin: 0; font-size: 14px; }
+.hist-count { margin: 0; font-size: 13px; font-weight: 600; }
+.hist-matches { list-style: none; margin: 0; padding: 0; display: grid; max-height: 34vh; overflow: auto; border: 1px solid var(--line); border-radius: 9px; }
+.hist-matches li { display: flex; gap: 12px; padding: 4px 10px; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+.hist-matches li:last-child { border-bottom: 0; }
+.hist-where { flex: none; min-width: 5.5em; color: var(--ink-3); font-size: 12px; }
+.hist-matches code { font-family: var(--mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.hist-matches mark { background: var(--console-soft); color: inherit; border-bottom: 2px solid var(--console); }
+.hist-days { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.hist-days li { display: flex; align-items: center; justify-content: space-between; gap: 10px; font-size: 13px; }
+.hist a.btn { text-decoration: none; }

@@ -1,0 +1,64 @@
+{
+  "scope": {
+    "personal": "My scripts",
+    "team": "My team: {team}",
+    "teamAdmin": "Teams' scripts",
+    "published": "Published by the administrators"
+  },
+  "library": {
+    "title": "Script library",
+    "titlePick": "Pick a script",
+    "search": "Search scripts",
+    "new": "New script",
+    "use": "Use",
+    "edit": "Edit",
+    "delete": "Delete",
+    "meta": {
+      "one": "{count} line · {name} · {date}",
+      "other": "{count} lines · {name} · {date}"
+    },
+    "otherTeam": "team {team}",
+    "noTeam": "dissolved team",
+    "empty": "The library is empty. Keep a script from the inject window, or create one here.",
+    "noMatch": "No script matches."
+  },
+  "fields": {
+    "title": "Title",
+    "description": "Description (optional)",
+    "descriptionHint": "To find the script again: what it is for, on which device.",
+    "shelf": "Where to put it",
+    "body": "Commands",
+    "bodyHint": "One command per line, {kb} KB at most."
+  },
+  "save": {
+    "title": "Keep in the library",
+    "submit": "Save",
+    "done": "\"{title}\" is in the library."
+  },
+  "edit": {
+    "title": "Edit the script",
+    "titleNew": "New script",
+    "submit": "Save",
+    "done": "Script saved."
+  },
+  "delete": {
+    "title": "Delete \"{title}\"?",
+    "personal": "This script disappears from your library.",
+    "shared": "This script disappears for everyone who sees it.",
+    "done": "\"{title}\" is deleted."
+  },
+  "errors": {
+    "unknown": "This script does not exist (any more).",
+    "forbidden": "You may read this script, not change it.",
+    "bad_scope": "Unknown shelf.",
+    "bad_title": "A title is required, {max} characters at most.",
+    "bad_description": "The description is {max} characters at most.",
+    "bad_body": "The script is empty or holds control characters.",
+    "body_too_large": "The script is larger than {max} KB.",
+    "admin_only": "Only administrators publish scripts for everybody.",
+    "no_team": "You are not in a team: keep this script among your own.",
+    "duplicate_title": "A script called \"{title}\" is already on this shelf.",
+    "shelf_full": "This shelf already holds {max} scripts.",
+    "conflict": "{by} changed this script meanwhile: reopen it before saving."
+  }
+}

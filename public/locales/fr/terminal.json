@@ -27,7 +27,9 @@
     "break": "Envoyer un BREAK (récupération de mot de passe, ROMMON)",
     "export": "Exporter la config : télécharge le show running-config dans un fichier .txt",
     "inject": "Injecter un script : envoie une liste de commandes, ligne par ligne",
-    "ctrlAltDel": "Envoyer Ctrl+Alt+Suppr"
+    "ctrlAltDel": "Envoyer Ctrl+Alt+Suppr",
+    "broadcast": "Envoyer à plusieurs consoles : les mêmes commandes sur toutes celles où vous avez la main",
+    "history": "Historique : chercher dans ce que la console a affiché, et le télécharger"
   },
   "vnc": {
     "opening": "Ouverture de l’écran",
@@ -71,7 +73,8 @@
     "line": "ligne {line}",
     "startingExport": "Démarrage de l’export",
     "startingScript": "Démarrage du script",
-    "connectFirst": "Connectez-vous d’abord à l’équipement."
+    "connectFirst": "Connectez-vous d’abord à l’équipement.",
+    "startingPaste": "Collage en cours"
   },
   "script": {
     "title": "Injecter un script dans {title}",
@@ -92,7 +95,13 @@
     "ms": "ms",
     "skipComments": "Ignorer les lignes de commentaire qui commencent par « ! »",
     "stopOnError": "S’arrêter à la première erreur de l’équipement (« % Invalid input… »)",
-    "send": "Envoyer les commandes"
+    "send": "Envoyer les commandes",
+    "library": "Bibliothèque",
+    "keep": "Garder dans la bibliothèque",
+    "replaceTitle": "Remplacer le texte ?",
+    "replaceBody": "Le texte de la fenêtre sera remplacé par le script « {title} ».",
+    "replace": "Remplacer",
+    "fromLibrary": "Bibliothèque : {title}"
   },
   "server": {
     "consoles": {
@@ -145,7 +154,12 @@
       "no_watch": "Vous n’attendiez pas cette ligne.",
       "bad_journal": "Journal inconnu.",
       "no_journal": "Ce journal de console n’existe pas (ou plus).",
-      "journal_forbidden": "Seuls ceux qui étaient sur cette console ce jour-là, leur équipe et les administrateurs peuvent lire ce journal."
+      "journal_forbidden": "Seuls ceux qui étaient sur cette console ce jour-là, leur équipe et les administrateurs peuvent lire ce journal.",
+      "paste_not_allowed": "Vous ne pouvez pas taper sur {name} pour l’instant : demandez la main d’abord. Rien n’a été collé.",
+      "broadcast_not_pilot": "Vous n’avez pas la main sur {name} : rien n’y a été envoyé.",
+      "history_forbidden": "Seules les personnes présentes sur cette console peuvent lire ce qu’elle affiche.",
+      "too_many_searches": "Trop de recherches en une minute. Patientez un instant.",
+      "bad_query": "Une recherche fait de 1 à {max} caractères."
     },
     "automation": {
       "busy": "Une autre tâche tourne encore sur cette console.",
@@ -237,5 +251,72 @@
       "superseded": "Votre demande est remplacée par une tâche automatique.",
       "takenOver": "{name} (administrateur) a pris la main."
     }
+  },
+  "taskNames": {
+    "export": "export",
+    "inject": "injection",
+    "paste": "collage",
+    "broadcast": "envoi à plusieurs consoles"
+  },
+  "paste": {
+    "tooLarge": "Le texte collé dépasse 256 Ko : il n’a pas été envoyé.",
+    "taskRunning": "Une tâche tourne sur cette console : attendez qu’elle se termine pour coller."
+  },
+  "broadcast": {
+    "title": "Envoyer à plusieurs consoles",
+    "intro": "Les mêmes lignes partent une par une sur chaque console cochée, au rythme d’une injection. Seules les consoles où vous avez la main peuvent être cochées.",
+    "consoles": "Consoles",
+    "commands": "Commandes à envoyer aux consoles cochées",
+    "hint": "{max} lignes au plus. Une ligne vide est un appui sur Entrée.",
+    "tooMany": "Pas plus de {max} lignes à la fois.",
+    "send": {
+      "one": "Envoyer à {count} console",
+      "other": "Envoyer à {count} consoles"
+    },
+    "reasonOffline": "pas connectée",
+    "reasonNotPilot": "vous n’avez pas la main",
+    "reasonBusy": "une tâche tourne dessus",
+    "waiting": "Envoyé, en attente de la console…",
+    "lost": "La connexion à cette console s’est coupée.",
+    "running": "Envoi en cours. Chaque console va à son rythme.",
+    "summary": {
+      "one": "{count} console : {ok} sans erreur.",
+      "other": "{count} consoles : {ok} sans erreur."
+    },
+    "stopAll": "Tout arrêter",
+    "goesOn": "L’envoi continue sur les consoles : suivez-le dans leur bandeau."
+  },
+  "history": {
+    "title": "Historique de {title}",
+    "intro": "Cherche dans ce que la console a affiché : d’abord ce que la plateforme en garde en mémoire, puis le journal des jours que vous avez le droit de lire. Le texte est cherché tel quel, sans tenir compte des majuscules.",
+    "placeholder": "Texte à chercher",
+    "search": "Chercher",
+    "matchCase": "Respecter les majuscules",
+    "screen": "Sur la console",
+    "downloadScreen": "Télécharger",
+    "notOnIt": "Seules les personnes présentes sur cette console peuvent lire ce qu’elle affiche : rouvrez-la ou rejoignez-la.",
+    "closed": "Plus personne n’a cette console ouverte : seul le journal garde sa trace.",
+    "screenLines": {
+      "one": "{count} ligne en mémoire (environ les 200 derniers Ko). Tapez un texte pour chercher dedans.",
+      "other": "{count} lignes en mémoire (environ les 200 derniers Ko). Tapez un texte pour chercher dedans."
+    },
+    "journal": "Journal",
+    "noJournal": "Aucun journal pour cette console pour l’instant.",
+    "journalDenied": "Ce journal existe, mais seules les personnes qui étaient sur cette console ce jour-là, leur équipe et les administrateurs peuvent le lire.",
+    "found": {
+      "one": "{count} ligne trouvée",
+      "other": "{count} lignes trouvées"
+    },
+    "nothing": "Rien de trouvé.",
+    "truncated": {
+      "one": "Seule la première ligne est affichée.",
+      "other": "Seules les {count} premières lignes sont affichées : précisez la recherche."
+    },
+    "line": "ligne {line}",
+    "sessions": {
+      "one": "{count} session",
+      "other": "{count} sessions"
+    },
+    "downloadDay": "Télécharger ce jour"
   }
 }

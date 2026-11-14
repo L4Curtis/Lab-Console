@@ -141,5 +141,8 @@
     "free": "La console de {name} ({bench}) est libre : vous pouvez l’ouvrir.",
     "open": "La console de {name} ({bench}) est maintenant ouverte dans Lab Console : vous pouvez la rejoindre.",
     "expired": "La console de {name} ({bench}) est toujours occupée au bout de 30 minutes : on arrête de surveiller."
+  },
+  "scripts": {
+    "button": "Scripts"
   }
 }
