@@ -482,12 +482,15 @@ backups, recent activity. A guided tour at first sign-in and a help page.
 - **Home** (rail: "Accueil", `#/home`, the page after sign-in): my team and its
   members, the invitations waiting for me, our bench (the same card), our five
   latest backups (the team's; none for a guest, another team or an admin), the
-  recent activity of our bench since our team took it (occupants only), our
+  recent activity of our bench since our team took it (occupants only: who
+  took, joined or left, the job runs, the console lines; never the downloads
+  or deletions of a snapshot or of the lab folder), our
   next slots, the lab in numbers, the announcement. A person with no team, or
   whose team has no bench, is told what to do next and led to the section for
   it. Admins have no team and see the totals and the announcement.
 - Both are read-only views computed from the existing services at each request
-  and kept live by the SSE topics those services already publish; no new
+  and kept live by the SSE topics those services publish (the jobs module
+  adds `jobs:snapshots`, told to a team when its backups change); no new
   state. The on-demand line check of the checks lot is not read yet (the
   overview shows the lines the application itself knows: open, refused, silent).
 - Not done on purpose: no action on the cards (taking, joining, releasing and

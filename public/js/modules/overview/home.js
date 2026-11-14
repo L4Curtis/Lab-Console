@@ -145,7 +145,7 @@ export async function mount(el) {
 
   const feed = followApi('/api/overview/home', {
     // Everything the page shows moves with one of these: the benches and teams, the jobs (a finished backup), the announcement
-    topics: ['benches:state', 'benches:reservations', 'consoles:rooms', 'jobs:running', 'jobs:done', 'teams:changed', 'teams:invitation', 'admin:announcement'],
+    topics: ['benches:state', 'benches:reservations', 'consoles:rooms', 'jobs:running', 'jobs:done', 'jobs:snapshots', 'teams:changed', 'teams:invitation', 'admin:announcement'],
     changed: { 'consoles:rooms': roomsSignature },
     onData: (next) => {
       // Most events move nothing the page shows: draw again only when the answer differs

@@ -1345,7 +1345,10 @@ SSE: `jobs:running` (sticky, everyone: per bench, the job and each device's
 state and step: the diagram layer `jobs` draws it), `jobs:job` (the whole
 job, audience above), `jobs:done` (once per finished job, to the bench's
 occupants of that moment: `{ bench, jobId, kind, ok, state }`, what the
-collab notifications read, §9 "Group work"). Audit: `job.<kind>` (start, `details.device` = the
+collab notifications read, §9 "Group work"), `jobs:snapshots` (a team's list
+of snapshots moved: a set finished, a ZIP imported, a snapshot deleted;
+`{ teamId }` to the team's members and the admins, what the home page's
+"latest backups" read). Audit: `job.<kind>` (start, `details.device` = the
 device names), `job.<kind>.cancel`, `job.<kind>.end` (each device's state,
 code, stage), `job.snapshot.import | download | delete`,
 `job.folder.download`, `job.template.publish | update | delete`. A job left
@@ -1393,8 +1396,10 @@ source of truth.
   team's** five latest snapshots, `jobs.snapshots(user, { teamId })`: a guest,
   another team, an admin or someone with no team gets none), `activity` (the
   bench's audit trail **since the current holder took it**, for its occupants
-  only: `bench.*`, `job.*`, `console.open|join|freed`; names of people and
-  devices, never an address), `lab` (the totals of the cards) and
+  only: `bench.*`, the job runs `job.<kind>[.cancel|.end]` and
+  `console.open|join|freed`; never `job.snapshot.*` or `job.folder.*`, which
+  the jobs module logs on the bench whichever team owns the snapshot; names of
+  people and devices, never an address), `lab` (the totals of the cards) and
   `announcement`. An admin has no team: team, bench, backups and activity are
   empty, the totals and the announcement are there.
 - Errors: `overview.unavailable` (503) when the consoles, teams and benches
@@ -1407,7 +1412,7 @@ filter: all, free, mine, kept in `prefs`). `live.js` keeps them live with the
 topics the services already publish, each under its own audience: it reads the
 API again, once for a burst (250 ms), when `benches:state`,
 `benches:reservations`, `consoles:rooms`, `consoles:busy`, `jobs:running`,
-`teams:changed` (home also `jobs:done`, `teams:invitation`,
+`teams:changed` (home also `jobs:done`, `jobs:snapshots`, `teams:invitation`,
 `admin:announcement`) moves. `consoles:rooms` moves at every command typed in
 the lab, so it is compared on what the screen shows (`roomsSignature`: line,
 state, pilot, people, task) and ignored otherwise. Sections stay mounted when

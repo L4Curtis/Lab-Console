@@ -352,6 +352,12 @@ describe('home: the personal page', () => {
   });
 
   test('a bench changes hands: the new team reads nothing of the old one\'s work', async () => {
+    // Bravo keeps a backup of B4H, then lets the bench go
+    const device = j.services.consoles.registry.model.labs.find((l) => l.name === 'B4H').devices[0].name;
+    const backup = await api(S5, 'POST', '/api/jobs/benches/B4H/backup', { devices: [j.key(device, 'B4H')], label: 'Bravo avant départ' });
+    assert.equal(backup.status, 202, JSON.stringify(backup.body));
+    assert.equal((await j.until(backup.body.job.id)).state, 'done');
+    const snapshot = (await home(S5)).backups[0].id;
     const released = await api(S5, 'POST', '/api/benches/B4H/release');
     assert.equal(released.status, 200, JSON.stringify(released.body));
     await sleep(20);
@@ -361,6 +367,19 @@ describe('home: the personal page', () => {
     assert.equal(h.bench.bench, 'B4H');
     const actions = h.activity.map((e) => [e.action, e.details.team]);
     assert.deepEqual(actions, [['bench.take', 'Charlie']], 'only what happened since Charlie took it');
+
+    // Bravo goes on using its own backup of B4H: the downloads and the deletion are logged on the bench, and are not Charlie's to read
+    const zip = await j.api(S5, 'GET', `/api/jobs/snapshots/${snapshot}/zip`, undefined, { raw: true });
+    assert.equal(zip.status, 200);
+    const folder = await j.api(S5, 'GET', `/api/jobs/benches/B4H/folder?snapshot=${snapshot}`, undefined, { raw: true });
+    assert.equal(folder.status, 200);
+    assert.equal((await j.api('student2', 'GET', `/api/jobs/snapshots/${snapshot}/zip`)).status, 403, 'Charlie cannot read it');
+    const logged = (await api('admin', 'GET', '/api/admin/audit?bench=B4H&action=job')).body;
+    assert.ok(JSON.stringify(logged).includes('job.snapshot.download') && JSON.stringify(logged).includes('job.folder.download'), 'the audit trail does know');
+    assert.equal((await api(S5, 'DELETE', `/api/jobs/snapshots/${snapshot}`)).status, 200);
+    const after = (await home('student2')).activity;
+    assert.deepEqual(after.map((e) => [e.action, e.details.team]), [['bench.take', 'Charlie']], 'Bravo\'s backup and folder are not in Charlie\'s activity');
+    assert.doesNotMatch(JSON.stringify(after), /snapshot|folder/);
     // …and Bravo, which gave the bench back, no longer has a bench page
     const bravo = await home(S5);
     assert.equal(bravo.bench, null);

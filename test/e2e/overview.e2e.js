@@ -12,6 +12,7 @@
  */
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { zipSync, strToU8 } from 'fflate';
 import { useHarness, signInAs, openConsole, typeInConsole, waitForTerminal, setLanguage } from './harness.js';
 
 const h = useHarness({ env: { JOB_TIME_SCALE: '0.05' } });
@@ -20,6 +21,11 @@ const api = (page, method, path, body) => page.evaluate(async ({ method, path, b
   const res = await fetch(path, { method, headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
   return { status: res.status, body: await res.json().catch(() => null) };
 }, { method, path, body });
+
+const importZip = (page, query, bytes) => page.evaluate(async ({ query, bytes }) => {
+  const res = await fetch(`/api/jobs/snapshots/import?${query}`, { method: 'POST', headers: { 'content-type': 'application/zip' }, body: new Uint8Array(bytes) });
+  return { status: res.status, body: await res.json().catch(() => null) };
+}, { query, bytes: [...bytes] });
 
 const home = (page) => page.locator('section.view-home');
 const overview = (page) => page.locator('section.view-overview');
@@ -122,6 +128,15 @@ test('the overview shows both teams\' benches to both, moves when one of them fr
   await backup.waitFor({ timeout: 90_000 });
   assert.match(await backup.textContent(), /B4M · 1 appareil · Alice Martin/);
   await home(alice).locator('[data-panel="activity"] li', { hasText: 'Alice Martin a ouvert la console de R1' }).waitFor();
+
+  // A ZIP imported, then deleted: the list follows, nothing else moves on the page
+  const imported = await importZip(alice, 'bench=B4M&label=Import%20du%20soir', zipSync({ 'R1.cfg': strToU8('hostname R1\ninterface FastEthernet0/0\n ip address 10.0.0.1 255.255.255.0\n') }));
+  assert.equal(imported.status, 201, JSON.stringify(imported.body));
+  const extra = home(alice).locator('[data-panel="backups"] li', { hasText: 'Import du soir' });
+  await extra.waitFor();
+  assert.equal((await api(alice, 'DELETE', `/api/jobs/snapshots/${imported.body.snapshot.id}`)).status, 200);
+  await extra.waitFor({ state: 'detached' });
+  await backup.waitFor();
 
   await showHome(chloe);
   await home(chloe).locator('[data-panel="backups"]', { hasText: 'Aucune sauvegarde pour l’instant.' }).waitFor();

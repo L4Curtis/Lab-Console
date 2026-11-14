@@ -13,16 +13,24 @@
  *     never gets one. An admin has no team: no backups here (the Backups
  *     section lists them all);
  *   - the activity: the bench's audit trail since my team took it, for its
- *     occupants only (the rule of the bench history). Names of people, device
- *     names, never an address;
+ *     occupants only (the rule of the bench history): occupancy, job runs,
+ *     console lines; never the downloads and deletions of a snapshot or of the
+ *     lab folder. Names of people, device names, never an address;
  *   - the announcement: everyone.
  */
 import { benchCards, labTotals } from './benches.js';
 
 const ACTIVITY_LIMIT = 15;
 const BACKUPS_SHOWN = 5;
-// Dotted prefixes of the audit trail that tell the story of a bench
-const ACTIVITY_ACTIONS = ['bench', 'job', 'console.open', 'console.join', 'console.freed'];
+// Dotted prefixes of the audit trail that tell the story of a bench: its
+// occupancy, the job runs, the console lines. Not `job` as a whole: the
+// snapshots and the lab folder are logged on the bench too, whoever owns them
+// (a previous team downloading its old backup), and they stay that team's
+const JOB_KINDS = ['backup', 'reset', 'inject', 'compare'];
+const activityActions = (services) => [
+  'bench', 'console.open', 'console.join', 'console.freed',
+  ...(services.jobs?.kinds ?? JOB_KINDS).map((kind) => `job.${kind}`),
+];
 
 const nameOf = (person) => person?.name || person?.username || '';
 
@@ -50,7 +58,7 @@ export async function describeHome({ services, audit, user, now }) {
   // Since the current holder took the bench: an earlier team's work is not ours to read
   let activity = [];
   if (bench?.you.occupant && bench.holder) {
-    const entries = await audit.query({ bench: bench.bench, since: bench.holder.since, action: ACTIVITY_ACTIONS, limit: ACTIVITY_LIMIT });
+    const entries = await audit.query({ bench: bench.bench, since: bench.holder.since, action: activityActions(services), limit: ACTIVITY_LIMIT });
     activity = entries.map((e) => ({
       ts: e.ts,
       action: e.action,
