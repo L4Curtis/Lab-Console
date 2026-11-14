@@ -65,6 +65,7 @@ src/
     httpError.js            API error shape: HttpError, sendError (lot: skeleton)
     security.js             headers, origin check, rate limiter, client IP, trusted proxies
     cliAutomation.js        expect-like engine on a console line
+    terminalText.js         terminal output as plain text (history search and download)   (lot: terminal)
     drivers/ciscoIos.js     device procedures built on the engine (lot: ios)
   modules/
     auth/                   sessions, OIDC, local accounts + TOTP, roles   (lot: auth)
@@ -75,7 +76,7 @@ src/
                             audit viewer, announcements, health, journaling   (lot: admin)
     jobs/                   bench jobs, snapshots                (lot: jobs)
     collab/                 device notes, bench chat, notifications
-    scripts/                shared script library
+    scripts/                shared script library: personal, team, published scripts   (lot: terminal)
     checks/                 line status, cabling, ping matrix, interface overlay
     proxmox/                unchanged
 public/
@@ -754,6 +755,7 @@ services.accounts = {                          // lot accounts
   }
 }
 services.admin = { announcement() → { text, level, at, expiresAt, by } | null }   // lot admin
+services.scripts = { list(user), get(user, id) }   // lot terminal: the library as that person may see it, the rules of the API
 services.jobs = { running(labName) → Job | null, list({ bench }) }
 ```
 
@@ -867,8 +869,11 @@ services.jobs = { running(labName) → Job | null, list({ bench }) }
   adds a button to console tiles → `unregister()`. `title` is a dictionary
   key or a function; `enabled(pane)` is asked again whenever the tile's state,
   the keyboard or a task changes (`pane.mayType`, `pane.canAutomate`,
-  `pane.presenceBar.presence`). Break, export and inject are registered this
-  way (order 10, 20, 30). A session descriptor of a lab console carries
+  `pane.isPilot`, `pane.presenceBar.presence`). Break, export, inject, send to
+  several consoles and history are registered this way (order 10, 20, 30, 40,
+  50). `pane.onAutomation(fn)` follows the server's `automation` frames of
+  that console; `pane.sendBroadcast({ batch, script, options })` sends a
+  broadcast frame on its socket. A session descriptor of a lab console carries
   `device` (the device key).
 
 ## 9. Consoles and rooms
@@ -964,9 +969,21 @@ action:'request'|'grant'|'deny'|'release'|'take'|'share'|'unshare'|'hangup', to?
 counted in the per-user limit): the server drops its input, break and resize
 frames and refuses its control frames (`consoles.wall_read_only`), and a
 person attached only through wall tiles can be neither pilot nor typist on a
-shared keyboard. Automation (`export-config`, `inject`) goes
-through `runExclusive`; its progress is sent to everyone on the line, the
+shared keyboard. Automation (`export-config`, `inject`, `paste`, `broadcast`)
+goes through `runExclusive`; its progress is sent to everyone on the line, the
 exported file and the refusals only to the person who asked.
+`{type:'paste', script, options}` is a multi-line paste: the browser hands the
+text over instead of typing it key by key, and the room sends it line by line
+like an injection (comments and blank lines included, since it is what was
+copied); it needs the keyboard (`consoles.paste_not_allowed` otherwise, for a
+spectator too). `{type:'broadcast', batch, script, options}` is the same
+lines for several consoles: the browser sends it on the socket of each
+console the person ticked, and each room decides for itself; it needs to be
+the pilot of that very console (`consoles.broadcast_not_pilot`: typing on a
+shared keyboard is not enough), at most 50 lines, and every `automation`
+frame it provokes carries the `batch` tag so that the browser tells its own
+request from another person's. The socket accepts frames up to 256 KB plus
+their envelope (the automation's own limit).
 
 SSE topics: `consoles:rooms` (sticky, all room summaries), `consoles:activity`
 (`{ ts, kind: open|join|leave|control|task|freed|close|command, user, bench,
@@ -982,6 +999,35 @@ retentionDays }`, the console sessions this user may read (`{ id, bench,
 device, day, from, to, bytes, truncated, people, pilots }`): every session of
 each console day they may read; `GET /journal/:bench/:device/:day/:session` →
 one session as a text file.
+
+History of a console (`src/modules/consoles/history.js`, 30 requests a minute
+per user): `GET /history?device=<key>[&q=<text>][&case=1]` → `{ device, live:
+{ open, attached, lines, matches?, total?, truncated? }, journal: { exists,
+allowed, days, matches?, total?, truncated?, searched? } }`. `live` is the
+room's recent output (what a newcomer is replayed), searched by the people
+attached to it only; `journal` is searched for the days the journal's rule
+lets this person read (`canReadDay`), and says `allowed: false` otherwise.
+A search is plain text (no pattern, no case unless asked), over what the
+screen showed (`src/lib/terminalText.js` replays the stream: escape codes
+dropped, a carriage return rewrites the line). `GET /history/download?device=<key>`
+is the room's output as a text file (people attached only,
+`console.history.download` audited), `&day=<yyyy-mm-dd>` a whole day of that
+console's journal as one text file (`console.journal.download`).
+
+**Script library** (`src/modules/scripts/`, table `scripts`; `GET/POST
+/api/scripts`, `GET/PATCH/DELETE /api/scripts/:id`): three shelves. A
+*personal* script is seen by its owner alone (administrators too: it may hold
+a password); a *team* script by the members of that team, who all change it
+(an administrator sees and tidies every team's, a dissolved team's included);
+a *published* script by everybody, changed by administrators only. A script
+that is not visible answers `scripts.unknown`, like one that does not exist.
+A title is unique on its shelf (`scripts.duplicate_title`), a shelf is capped
+(`scripts.shelf_full`), a text is at most 64 KB without control characters, and
+a PATCH naming `updatedAt` is refused (`scripts.conflict`) when someone saved
+meanwhile. The listing carries no text. Changes are audited (`script.create`,
+`script.update`, `script.delete`: title and shelf, never the text). The inject
+dialog and the "send to several consoles" dialog pick from it
+(`shared/scriptLibrary.js`).
 
 **Console journal** (`src/modules/consoles/journal.js`): the device output
 per console **session** (one line opened, used, closed; a new file after
@@ -1085,19 +1131,21 @@ data/
   <dir>/<name>.json.imported   audit/*.jsonl.imported   files of before the database, kept after their import
 ```
 
-In the database today (migrations 001-011): `schema_migrations`,
+In the database today (migrations 001-012): `schema_migrations`,
 `legacy_imports`, `auth_sessions`, `auth_state` (the local administrator's
 last TOTP step, the known-browser key), `audit_entries`, `settings` (the
 run-time settings per namespace, the SSO page's provider as `sso`, the edited
 admin switches as `switches`), `teams`, `team_members`, `team_invitations`
 (006; `invitee_id`, the account invited, 011), `bench_occupancy`, `bench_locks`, `bench_reservations` (007),
 `accounts`, `account_passkeys`, `account_links` (008), `announcements`,
-`diagram_versions`, `diagram_activations` (009), `journal_days` (010).
+`diagram_versions`, `diagram_activations` (009), `journal_days` (010),
+`scripts` (012: the script library, one row per script with its text; `shelf`
+is `p:<user id>`, `t:<team id>` or `pub`, a title is unique on its shelf).
 Passkey ceremonies' challenges are not stored: they live in memory, five
 minutes, single use.
 
-Planned for wave 3, a repository each (§14): device notes, the script
-library, the jobs and the snapshot index. Bench chat
+Planned for wave 3, a repository each (§14): device notes, the jobs and the
+snapshot index. Bench chat
 (`collab/chat/<bench>.jsonl`) is a log people may read as a file: decide
 with the owner.
 
