@@ -22,7 +22,7 @@ export function mount(el) {
   const save = h('button.btn.primary', { type: 'button', dataset: { action: 'save' } });
   el.append(h('div.panel.switches-panel', intro, meta,
     h('div.table-wrap', h('table.vm-table.switches-table',
-      h('thead', h('tr', columnHeads('admin.switches', [...COLUMNS, 'actions']))),
+      h('thead', h('tr', columnHeads((c) => t(`admin.switches.columns.${c}`), [...COLUMNS, 'actions']))),
       tbody)),
     notice,
     h('div.form-actions', add, save)));
@@ -73,7 +73,7 @@ export function mount(el) {
     intro.textContent = t('admin.switches.intro');
     add.querySelector('.lbl').textContent = t('admin.switches.add');
     save.textContent = t('admin.switches.save');
-    labelColumns(el, 'admin.switches');
+    labelColumns(el, (c) => t(`admin.switches.columns.${c}`));
   }
 
   add.addEventListener('click', () => tbody.append(line()));

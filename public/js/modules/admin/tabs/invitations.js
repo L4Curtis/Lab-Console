@@ -26,7 +26,7 @@ export function mount(el) {
     h('p.muted.panel-intro'),
     notice,
     h('div.table-wrap', h('table.vm-table.invitations-table',
-      h('thead', h('tr', columnHeads('accounts.invitations', ['note', 'role', 'uses', 'expires', 'by', 'state', 'actions']))),
+      h('thead', h('tr', columnHeads((c) => t(`accounts.invitations.columns.${c}`), ['note', 'role', 'uses', 'expires', 'by', 'state', 'actions']))),
       tbody))));
 
   let invitations = [];
@@ -99,7 +99,7 @@ export function mount(el) {
   }
 
   function render() {
-    labelColumns(el, 'accounts.invitations');
+    labelColumns(el, (c) => t(`accounts.invitations.columns.${c}`));
     el.querySelector('.create-label').textContent = t('accounts.invitations.create');
     el.querySelector('.ended-label').textContent = t('accounts.invitations.showEnded');
     el.querySelector('.panel-intro').textContent = t('accounts.invitations.intro');

@@ -37,7 +37,7 @@ export function mount(el) {
     notice,
     preview,
     h('div.table-wrap', h('table.vm-table.versions-table',
-      h('thead', h('tr', columnHeads('admin.diagram', ['name', 'devices', 'by', 'at', 'state', 'actions']))),
+      h('thead', h('tr', columnHeads((c) => t(`admin.diagram.columns.${c}`), ['name', 'devices', 'by', 'at', 'state', 'actions']))),
       tbody))));
 
   let state = { versions: [], canRollback: false };
@@ -75,7 +75,7 @@ export function mount(el) {
     pick.querySelector('.lbl').textContent = t('admin.diagram.import');
     rollback.querySelector('.lbl').textContent = t('admin.diagram.rollback');
     rollback.disabled = !state.canRollback;
-    labelColumns(el, 'admin.diagram');
+    labelColumns(el, (c) => t(`admin.diagram.columns.${c}`));
     tbody.replaceChildren(...(state.versions.length ? state.versions.map(row) : [h('tr', h('td.empty-row', { colspan: 6 }, t('admin.diagram.none')))]));
   }
 

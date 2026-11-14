@@ -27,7 +27,7 @@ export function mount(el) {
   const tbody = h('tbody');
   const notice = h('p.form-error', { role: 'alert' });
   const table = h('div.table-wrap', h('table.vm-table.accounts-table',
-    h('thead', h('tr', columnHeads('accounts.users', ['name', 'role', 'state', 'passkeys', 'lastSignIn', 'actions']))),
+    h('thead', h('tr', columnHeads((c) => t(`accounts.users.columns.${c}`), ['name', 'role', 'state', 'passkeys', 'lastSignIn', 'actions']))),
     tbody));
   el.append(h('div.panel', h('div.panel-toolbar', filter, count), notice, table));
 
@@ -163,7 +163,7 @@ export function mount(el) {
   }
 
   function render() {
-    labelColumns(el, 'accounts.users');
+    labelColumns(el, (c) => t(`accounts.users.columns.${c}`));
     filter.placeholder = t('accounts.users.filter');
     const needle = filter.value.trim().toLowerCase();
     const shown = users.filter((u) => !needle || `${u.name} ${u.username}`.toLowerCase().includes(needle));

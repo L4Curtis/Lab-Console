@@ -25,7 +25,7 @@ export function mount(el) {
   const intro = h('p.muted.panel-intro');
   el.append(h('div.panel', intro, h('div.panel-toolbar', count), notice,
     h('div.table-wrap', h('table.vm-table.sessions-table',
-      h('thead', h('tr', columnHeads('admin.sessions', ['user', 'browser', 'ip', 'since', 'lastSeen', 'actions']))),
+      h('thead', h('tr', columnHeads((c) => t(`admin.sessions.columns.${c}`), ['user', 'browser', 'ip', 'since', 'lastSeen', 'actions']))),
       tbody))));
 
   let sessions = [];
@@ -87,7 +87,7 @@ export function mount(el) {
 
   function render() {
     intro.textContent = t('admin.sessions.intro');
-    labelColumns(el, 'admin.sessions');
+    labelColumns(el, (c) => t(`admin.sessions.columns.${c}`));
     count.textContent = t('admin.sessions.count', { count: sessions.length });
     tbody.replaceChildren(...(sessions.length ? sessions.map(row) : [h('tr', h('td.empty-row', { colspan: 6 }, t('admin.sessions.none')))]));
   }

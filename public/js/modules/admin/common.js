@@ -2,8 +2,8 @@
  * Small pieces shared by the accounts screens (administration tabs and My account)
  *
  *   showLink({ title, intro, url, expiresAt })   the one time a link's token is shown, with a copy button
- *   columnHeads(key, cols)                        the th of a table, named from `<key>.columns.<col>` (the actions column gets a hidden name)
- *   labelColumns(el, key)                         the same names again, after a language change
+ *   columnHeads(name, cols)                       the th of a table, named by name(col) (the actions column gets a hidden name)
+ *   labelColumns(el, name)                        the same names again, after a language change
  */
 import { h, icon, toast } from '../../core/dom.js';
 import { t } from '../../core/i18n.js';
@@ -11,17 +11,17 @@ import { fmtLong } from '../../core/format.js';
 import { openDialog } from '../../shared/dialog.js';
 
 
-function labelColumn(th, key) {
+function labelColumn(th, name) {
   if (th.dataset.col === 'actions') th.replaceChildren(h('span.sr-only', t('common.columns.actions')));
-  else th.textContent = t(`${key}.columns.${th.dataset.col}`);
+  else th.textContent = name(th.dataset.col);
 }
 
-export function columnHeads(key, cols) {
-  return cols.map((col) => { const th = h('th', { dataset: { col } }); labelColumn(th, key); return th; });
+export function columnHeads(name, cols) {
+  return cols.map((col) => { const th = h('th', { dataset: { col } }); labelColumn(th, name); return th; });
 }
 
-export function labelColumns(el, key) {
-  for (const th of el.querySelectorAll('th[data-col]')) labelColumn(th, key);
+export function labelColumns(el, name) {
+  for (const th of el.querySelectorAll('th[data-col]')) labelColumn(th, name);
 }
 
 /**
