@@ -18,20 +18,11 @@
  *     lab folder. Names of people, device names, never an address;
  *   - the announcement: everyone.
  */
+import { activityActions } from '../../lib/benchActivity.js';
 import { benchCards, labTotals } from './benches.js';
 
 const ACTIVITY_LIMIT = 15;
 const BACKUPS_SHOWN = 5;
-// Dotted prefixes of the audit trail that tell the story of a bench: its
-// occupancy, the job runs, the console lines. Not `job` as a whole: the
-// snapshots and the lab folder are logged on the bench too, whoever owns them
-// (a previous team downloading its old backup), and they stay that team's
-const JOB_KINDS = ['backup', 'reset', 'inject', 'compare'];
-const activityActions = (services) => [
-  'bench', 'console.open', 'console.join', 'console.freed',
-  ...(services.jobs?.kinds ?? JOB_KINDS).map((kind) => `job.${kind}`),
-];
-
 const nameOf = (person) => person?.name || person?.username || '';
 
 /** The bench `user` works on: their team's first, else one they are a guest of */

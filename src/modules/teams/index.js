@@ -15,6 +15,7 @@
 import express from 'express';
 import { jsonBody } from '../../lib/bodies.js';
 import { httpError } from '../../lib/httpError.js';
+import { historyActions } from '../../lib/benchActivity.js';
 import { Teams, isInvitee, normalizeUsername } from './teams.js';
 import { Benches } from './benches.js';
 
@@ -226,7 +227,10 @@ export function createTeamsModules(deps, { now = () => Date.now(), tickMs = TICK
   benchesRouter.get('/:bench/history', async (req, res) => {
     const name = benchOf(req);
     if (!isAdmin(req) && !benches.isOccupant(req.user, name)) throw httpError(403, 'benches.not_occupant', 'Only the occupants of this bench see its history');
-    const entries = await audit.query({ bench: name, action: ['bench', 'job'], limit: 100 });
+    // Occupants see what happened since their holder took the bench (a previous team's work is theirs), and no snapshot or folder download; an admin sees it all
+    const entries = await audit.query(isAdmin(req)
+      ? { bench: name, action: ['bench', 'job'], limit: 100 }
+      : { bench: name, since: benches.holder(name)?.since, action: historyActions(services), limit: 100 });
     // Who did what and when; never the addresses
     res.set('Cache-Control', 'no-store').json({
       history: entries.map((e) => ({ ts: e.ts, action: e.action, actor: { name: e.actor?.name ?? e.actor?.username ?? '', username: e.actor?.username ?? '' }, details: { team: e.details?.team, guest: e.details?.guestName ?? e.details?.guest, reason: e.details?.reason, device: e.details?.device } })),

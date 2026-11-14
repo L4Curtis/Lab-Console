@@ -385,6 +385,41 @@ describe('benches: taking, joining and the permission matrix', () => {
   });
 });
 
+describe('benches: the history shows the current holder only its own story', () => {
+  let t;
+  before(async () => {
+    t = await startTeamsApp();
+    await makeTeam(t, 'Première', S(1));
+    await makeTeam(t, 'Seconde', S(5));
+  });
+  after(async () => { await t.close(); });
+
+  test('a new holder sees nothing of the previous one, nor any snapshot download', async () => {
+    const { audit } = t.lab.deps;
+    await t.api(S(1), 'POST', '/api/benches/B4M/take');
+    audit.log(S(1), 'job.backup', { bench: 'B4M', devices: 'R1, S4' });
+    audit.log(S(1), 'job.snapshot.download', { bench: 'B4M' });
+    await t.api(S(1), 'POST', '/api/benches/B4M/release');
+    // The audit trail runs on the real clock, the benches on the fake one: let the second team come after the first
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    t.clock.ms = Date.now();
+    assert.equal((await t.api(S(5), 'POST', '/api/benches/B4M/take')).status, 200);
+    audit.log(S(5), 'job.backup', { bench: 'B4M', devices: 'R2' });
+    audit.log(S(5), 'job.snapshot.download', { bench: 'B4M' });
+    await waitFor(async () => (await audit.query({ bench: 'B4M', action: 'bench.take' })).length === 2);
+
+    const mine = (await t.api(S(5), 'GET', '/api/benches/B4M/history')).body.history;
+    assert.ok(mine.every((e) => e.actor.username === S(5).username), 'only its own people');
+    assert.equal(mine.filter((e) => e.action === 'bench.take').length, 1);
+    assert.equal(mine.filter((e) => e.action === 'job.backup').length, 1);
+    assert.ok(!mine.some((e) => e.action.startsWith('job.snapshot')), 'no snapshot download');
+
+    const all = (await t.api(ADMIN, 'GET', '/api/benches/B4M/history')).body.history.map((e) => e.action);
+    assert.equal(all.filter((a) => a === 'bench.take').length, 2, 'an admin keeps the whole list');
+    assert.ok(all.includes('job.snapshot.download'));
+  });
+});
+
 describe('benches: automatic release after BENCH_IDLE_HOURS without activity', () => {
   let t;
   let team;
