@@ -22,10 +22,10 @@
 import { EventEmitter } from 'node:events';
 import { ConsoleSession } from './consoleSession.js';
 import { ConsoleRoom, RoomError } from './room.js';
+import { targetKey } from '../../lib/consoleTarget.js';
 
 const BUSY_MEMORY_MS = 15 * 60_000; // a refused line is shown "busy outside the app" this long, unless seen free
 
-export const targetKey = (t) => `${t.host}:${t.port}`;
 
 /** Is `target` inside the allowed console hosts and ports of these settings? */
 export function targetAllowed(consoles, t) {

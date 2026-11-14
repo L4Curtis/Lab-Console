@@ -13,7 +13,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { startJobsApp, reportOf, waitFor } from './helpers/jobs.js';
-import { student } from './helpers/fakes.js';
+import { admin, student } from './helpers/fakes.js';
 import { connectConsole } from './helpers/consoleClient.js';
 
 let j;
@@ -186,6 +186,31 @@ test('a shared line taken by another team during the countdown: the device is no
   } finally {
     j.jobs.runner.countdownMs = 300;
     await j.release('student2', 'B4H');
+  }
+});
+
+/** Until `restore()`, the directory holds `user` as a student (still signed in with an admin session) */
+function demoteInDirectory(services, user) {
+  const before = services.accounts;
+  services.accounts = { get: (id) => (id === user.id ? { id, role: 'student', state: 'active' } : before?.get?.(id) ?? null) };
+  return () => { if (before === undefined) delete services.accounts; else services.accounts = before; };
+}
+
+test('an admin demoted in the directory, still holding an admin session: the reset they start touches no device', { timeout: 30_000 }, async () => {
+  const user = admin({ id: 'oidc:demoted-jobs', username: 'demotedjobs', name: 'Demoted Jobs' });
+  const session = j.app.signIn(user);
+  const typed = j.dev('R1').commandLog.length;
+  const restore = demoteInDirectory(j.services, user);
+  try {
+    // The session still says admin, and student1 holds the bench: only an admin starts this, with a forced erase
+    const r = await j.api(null, 'POST', `${B}/reset`, { devices: [j.key('R1')], confirm: 'B4M', forceErase: [j.key('R1')] }, { headers: session.headers });
+    assert.equal(r.status, 202, JSON.stringify(r.body));
+    const done = await j.until(r.body.job.id);
+    assert.equal(reportOf(done, 'R1').state, 'failed');
+    assert.equal(reportOf(done, 'R1').code, 'jobs.not_allowed', 'decided on the directory\'s role, not the one the job started with');
+    assert.deepEqual(j.dev('R1').commandLog.slice(typed), [], 'nothing typed on R1');
+  } finally {
+    restore();
   }
 });
 

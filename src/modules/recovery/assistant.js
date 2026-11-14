@@ -47,13 +47,13 @@
  * recovery.step, recovery.cancel, recovery.end.
  */
 import { newId } from '../../lib/db/values.js';
+import { personOf } from '../teams/teams.js';
 import { CiscoRecovery, FAMILIES, STEPS, BYPASS, BYPASS_STEP, RESTORE_STEP, planFrom, scaledRecoveryTimeouts } from '../../lib/drivers/ciscoRecovery.js';
 
 const FINAL = new Set(['done', 'failed', 'cancelled']);
 const KEPT = 50;
 const SHUTDOWN_MS = 8000; // what a stopping server gives the recoveries to put their device back
 
-const personOf = (u) => ({ id: u.id, username: u.username ?? '', name: u.name || u.username || u.id });
 
 /** A recovery stops here, with this code */
 class Stop extends Error {

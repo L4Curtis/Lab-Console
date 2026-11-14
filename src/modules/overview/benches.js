@@ -17,11 +17,11 @@
  * bench, and which slots are their team's
  */
 import { httpError } from '../../lib/httpError.js';
+import { targetKey } from '../../lib/consoleTarget.js';
 
 const SLOTS_SHOWN = 3;
 const FINISHED = new Set(['done', 'failed', 'skipped', 'cancelled']);
 
-const targetKey = (t) => `${t.host}:${t.port}`;
 
 /** The services the overview reads; a platform without them cannot answer */
 export function requireServices(services) {

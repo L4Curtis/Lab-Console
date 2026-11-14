@@ -1,5 +1,6 @@
 /** HTTP hardening helpers shared by every module */
 import net from 'node:net';
+import { sendError } from './httpError.js';
 
 /**
  * Strict security headers on every response; the UI is fully self-hosted, so
@@ -76,7 +77,7 @@ export function createRateLimiter({ limit, windowMs, now: clock = Date.now }) {
 export function requireSameOrigin(allowedOrigins = []) {
   return (req, res, next) => {
     if (req.method === 'GET' || req.method === 'HEAD' || isOriginAllowed(req, allowedOrigins)) return next();
-    res.status(403).json({ error: 'Cross-origin request refused', code: 'server.cross_origin', params: {} });
+    sendError(res, 403, 'server.cross_origin', 'Cross-origin request refused');
   };
 }
 
@@ -158,4 +159,13 @@ export function proxyTrust(trust) {
 /** The address a request really comes from; see proxyTrust for `trust` */
 export function clientIp(req, trust) {
   return proxyTrust(trust).clientIp(req);
+}
+
+/**
+ * Middleware: the answers of this router are private to the person who asked
+ * (their team's configurations, their rights) and are never kept by a cache
+ */
+export function noStore(_req, res, next) {
+  res.set('Cache-Control', 'no-store');
+  next();
 }

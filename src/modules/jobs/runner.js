@@ -44,25 +44,15 @@ import { CiscoIos, TIMEOUTS, toReplayScript, comparableConfig } from '../../lib/
 import { patterns, screenTail, escapeRe } from '../../lib/cliAutomation.js';
 import { comparable, compareConfigs } from './library.js';
 import { sha256 } from './configFiles.js';
+import { DeviceStop, FINAL } from './deviceStop.js';
+import { personOf } from '../teams/teams.js';
+import { isAdmin } from '../auth/roles.js';
 
-const FINAL = new Set(['done', 'failed', 'cancelled', 'partial']);
 const KEPT_PER_BENCH = 20;
 const PACING = { delayMs: 50, chunkBytes: 32, chunkDelayMs: 40, lineTimeoutMs: 8000 };
 /** Jobs that erase or write a device: they need its startup-config backed up too */
 const MUTATING = new Set(['reset', 'inject']);
 
-/** A device stops here; `outcome` is 'failed' or 'skipped' */
-class DeviceStop extends Error {
-  constructor(outcome, r, extra = {}) {
-    super(r?.message ?? 'stopped');
-    this.outcome = outcome;
-    this.code = r?.reason ?? r?.code ?? 'jobs.device_failed';
-    this.params = r?.params ?? {};
-    this.stage = r?.stage ?? extra.stage ?? null;
-    this.lastOutput = r?.lastOutput ?? null;
-    this.result = extra.result ?? null; // what the device did before it stopped (the report keeps it)
-  }
-}
 const failed = (r, extra) => new DeviceStop('failed', r, extra);
 
 /** The driver's budgets scaled (1 on the real lab); counts are not durations */
@@ -71,8 +61,6 @@ export function scaledTimeouts(scale = 1, overrides = {}) {
   for (const [k, v] of Object.entries(TIMEOUTS)) out[k] = k === 'wakes' ? v : Math.max(k === 'settleMs' ? 30 : 100, Math.round(v * scale));
   return { ...out, ...overrides };
 }
-
-const personOf = (u) => ({ id: u.id, username: u.username ?? '', name: u.name || u.username || u.id });
 
 export class JobRunner {
   #jobs = new Map();       // id → Job (running ones, and the last ones per bench)
@@ -83,13 +71,12 @@ export class JobRunner {
    * @param services  the module services (consoles, benches, teams)
    * @param library   the snapshots and templates (library.js)
    * @param mayGoOn   (job, device) => boolean: may this job's actor still run it on this device (asked before each device)
-   * @param options   { devicesAtOnce, countdownMs, timeouts, pacing, now }
-   */
-  /**
    * @param viewOf    (user, job, { live }) => 'full' | 'summary' | null: what this user may see of the job
    *                  (live: the job's own publications, which reach whoever follows it until its end)
+   * @param currentUser  (user) => the user with the role the directory gives them now (null: disabled)
+   * @param options   { devicesAtOnce, countdownMs, timeouts, pacing, now }
    */
-  constructor({ services, events, audit, repos, library, logger, viewOf, mayGoOn = () => true, options = {} }) {
+  constructor({ services, events, audit, repos, library, logger, viewOf, mayGoOn = () => true, currentUser = (u) => u, options = {} }) {
     this.services = services;
     this.events = events;
     this.audit = audit;
@@ -98,6 +85,7 @@ export class JobRunner {
     this.log = logger;
     this.viewOf = viewOf;
     this.mayGoOn = mayGoOn;
+    this.currentUser = currentUser;
     this.devicesAtOnce = options.devicesAtOnce ?? 5;
     this.countdownMs = options.countdownMs ?? 10_000;
     this.timeouts = options.timeouts ?? scaledTimeouts(1);
@@ -297,7 +285,7 @@ export class JobRunner {
     } catch (err) {
       if (err instanceof DeviceStop) {
         const result = err.result ? { ...err.result, seconds: Math.round((this.now() - started) / 1000) } : d.result;
-        this.#set(job, d, { state: err.outcome, code: err.code, params: err.params, message: err.message, stage: err.stage ?? d.stage, lastOutput: err.lastOutput, result });
+        this.#set(job, d, { state: err.outcome, code: err.code ?? 'jobs.device_failed', params: err.params, message: err.message, stage: err.stage ?? d.stage, lastOutput: err.lastOutput, result });
       } else if (err.cancelled || (signal.aborted && err.code === 'automation.stopped')) {
         this.#set(job, d, { state: 'cancelled', code: 'jobs.cancelled', stage: err.stage ?? d.stage });
       } else {
@@ -429,9 +417,9 @@ export class JobRunner {
       proof = { kind: 'snapshot', snapshotId: backup.set.id, config: backup.data.config, hostname: backup.data.hostname };
       verifyBackup = () => this.library.verify(backup.set, backup.row, backup.data.config, { startup: backup.data.startup });
     } else {
-      const forced = job.hidden.options.forceErase?.includes(d.key) && job.hidden.actorUser?.role === 'admin';
+      const forced = job.hidden.options.forceErase?.includes(d.key) && isAdmin(this.currentUser(job.hidden.actorUser));
       if (!forced || backupError.outcome === 'skipped' || !ctx.facts) {
-        throw failed({ reason: 'jobs.backup_failed', message: `The backup failed, so the device was not erased: ${backupError.message}`, params: { cause: backupError.code } }, { stage: backupError.stage ?? 'backup' });
+        throw failed({ reason: 'jobs.backup_failed', message: `The backup failed, so the device was not erased: ${backupError.message}`, params: { cause: backupError.code ?? 'jobs.device_failed' } }, { stage: backupError.stage ?? 'backup' });
       }
       proof = { kind: 'override', by: job.actor.username || job.actor.id, reason: `backup failed (${backupError.code})` };
       this.#set(job, d, { warnings: [...(d.warnings ?? []), 'erased_without_backup'] });
@@ -509,7 +497,7 @@ export class JobRunner {
     }
     let reset = null;
     if (mode === 'reset') reset = await this.#erase(ctx, backup, backupError);
-    else if (!backup) throw failed({ reason: 'jobs.backup_failed', message: `The backup failed, so nothing was sent: ${backupError.message}`, params: { cause: backupError.code } }, { stage: backupError.stage });
+    else if (!backup) throw failed({ reason: 'jobs.backup_failed', message: `The backup failed, so nothing was sent: ${backupError.message}`, params: { cause: backupError.code ?? 'jobs.device_failed' } }, { stage: backupError.stage });
 
     this.#set(job, d, { step: 'jobs.steps.inject', stage: 'inject' });
     const sent = await this.#send(ctx, plan.script, plan.lineTimeouts);

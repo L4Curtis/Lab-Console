@@ -8,7 +8,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { startChecksApp, waitFor } from './helpers/checks.js';
 import { openReady } from './helpers/consoleClient.js';
-import { student } from './helpers/fakes.js';
+import { admin, student } from './helpers/fakes.js';
 
 let c;
 const B = '/api/checks/benches/B4M';
@@ -91,6 +91,23 @@ test('a check stops where it is once its actor lost the bench: the devices left 
     assert.ok(stopped.every((d) => d.state === 'failed'));
   } finally {
     assert.equal((await c.api('admin', 'DELETE', '/api/benches/B4M/lock')).status, 200);
+  }
+});
+
+test('an admin demoted in the directory, still holding an admin session: their check reads no device', { timeout: 60_000 }, async () => {
+  const user = admin({ id: 'oidc:demoted-checks', username: 'demotedchecks', name: 'Demoted Checks' });
+  const session = c.app.signIn(user);
+  const before = c.services.accounts;
+  c.services.accounts = { get: (id) => (id === user.id ? { id, role: 'student', state: 'active' } : before?.get?.(id) ?? null) };
+  try {
+    const res = await fetch(`${c.app.url}${B}/interfaces`, { method: 'POST', headers: { ...session.headers, accept: 'application/json', origin: c.app.url } });
+    assert.equal(res.status, 202, 'the session still says admin');
+    const check = await c.until('B4M', 'interfaces');
+    assert.ok(check.devices.length > 0);
+    assert.deepEqual(check.devices.filter((d) => d.code !== 'checks.not_allowed').map((d) => [d.name, d.state, d.code]), [], 'decided on the directory\'s role');
+  } finally {
+    if (before === undefined) delete c.services.accounts;
+    else c.services.accounts = before;
   }
 });
 

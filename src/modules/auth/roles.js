@@ -28,3 +28,6 @@ export function isAllowed({ groups = [], allowedGroups = [], adminGroups = [] } 
   if (!allowedGroups.length) return true;
   return groups.some((g) => allowedGroups.includes(g) || adminGroups.includes(g));
 }
+
+/** Is this user an administrator (by the role they carry)? Null-safe */
+export const isAdmin = (user) => user?.role === 'admin';

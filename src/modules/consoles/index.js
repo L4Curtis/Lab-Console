@@ -38,7 +38,9 @@ import express from 'express';
 import { jsonBody } from '../../lib/bodies.js';
 import { WebSocketServer } from 'ws';
 import { LabRegistry } from './labRegistry.js';
-import { RoomManager, targetKey, targetAllowed } from './roomManager.js';
+import { RoomManager, targetAllowed } from './roomManager.js';
+import { targetKey } from '../../lib/consoleTarget.js';
+import { currentUser } from '../teams/access.js';
 import { ConsoleJournal } from './journal.js';
 import { LineWatch, sshProbe } from './lineWatch.js';
 import { SshPool } from '../../lib/sshPool.js';
@@ -76,12 +78,11 @@ export function createConsolesModule({ config, events, logger, infra, services =
    * holds as disabled (a running task of theirs stops at its next byte).
    * The role is the directory's when it knows the account, not the one
    * captured when the session or the task began: a demoted administrator's
-   * running task stops at its next byte too. The only place this is decided
+   * running task stops at its next byte too (currentUser, which the jobs,
+   * checks and recoveries also ask before each device or step)
    */
   const mayPilot = (user, device) => {
-    const account = user?.id ? services.accounts?.get?.(user.id) : null;
-    if (account && account.state !== 'active') return false;
-    const who = account?.role && user ? { ...user, role: account.role } : user;
+    const who = currentUser(services, user);
     const benches = services.benches;
     return typeof benches?.canPilot === 'function' ? Boolean(benches.canPilot(who, device)) : Boolean(who);
   };

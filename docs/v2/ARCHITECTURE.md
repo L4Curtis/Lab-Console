@@ -67,7 +67,8 @@ src/
     infrastructure.js       the admin switches list (shipped file, then the database)    (lot: admin)
     events.js               SSE hub, with per-user audiences     (lot: skeleton)
     httpError.js            API error shape: HttpError, sendError (lot: skeleton)
-    security.js             headers, origin check, rate limiter, client IP, trusted proxies
+    security.js             headers, origin check, rate limiter, client IP, trusted proxies, noStore
+    consoleTarget.js        targetKey(): a console line's `host:port`
     ssh.js, sshPool.js      the SSH client to the jump server, and the shared connections console lines use
     sshTunnel.js            the tunnel to the Proxmox API through the jump server
     safeFetch.js            outgoing requests to an address an administrator typed (the SSO identity provider), guarded against server-side request forgery
@@ -340,7 +341,11 @@ every provider sign-in the callback asks `services.accounts.roleOverride(id)`
 (set by an administrator on the Users tab), then `services.accounts.admit(user,
 { groupRole })`, which records the account in the directory and answers
 `false` for a disabled one (`/login?error=account_disabled`). Local accounts
-carry their role in the directory. `isAllowed()` applies `OIDC_ALLOWED_GROUPS`
+carry their role in the directory. `isAdmin(user)` in `roles.js` is the one
+test of the admin role. A task that runs for a while (a job, a check, a
+recovery, a console task) asks again before each device or step with
+`currentUser()` (`teams/access.js`): the role the directory gives the account
+now, and nobody for a disabled account. `isAllowed()` applies `OIDC_ALLOWED_GROUPS`
 (an admin group always counts); a refused user lands on
 `/login?error=not_allowed`.
 
@@ -1281,10 +1286,18 @@ device per console port for its whole life and answers `nc -z -w <s> <host>
 
 ## 9b. Bench jobs (lot: jobs)
 
-`src/modules/jobs/`: `index.js` (routes, permissions, `services.jobs`, the
-release offer), `runner.js` (the jobs themselves), `library.js` (snapshots
-and templates: who sees what, import, diff, search), `configFiles.js` (the
-files, their SHA-256, ZIP in and out). Contract of SPEC "Lot jobs".
+`src/modules/jobs/`: `index.js` (wiring, `services.jobs`, the release
+offer), `permissions.js` (who runs, follows, cancels and sees a job; the
+offer), `input.js` (devices, passwords, RSA modulus of a request; ZIP
+answers), `routes/benches.js` (benches, runs) and `routes/library.js`
+(snapshots, templates), `runner.js` (the jobs themselves), `deviceStop.js`
+(a device's stop and the final states, shared with the checks),
+`library.js` (snapshots and templates: who sees what, import, diff,
+search), `configFiles.js` (the files, their SHA-256, ZIP in and out).
+The bench rules the jobs, checks and recoveries share (the bench and its
+task devices, who may act on it, a shared console line another team holds,
+the actor as the directory knows them now) are in `teams/access.js`.
+Contract of SPEC "Lot jobs".
 
 **A job** covers chosen devices of one bench: `backup`, `reset`, `inject`,
 `compare` (a snapshot against the live devices). One job per bench at a time

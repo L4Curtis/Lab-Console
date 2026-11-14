@@ -28,11 +28,11 @@
 import express from 'express';
 import { jsonBody } from '../../lib/bodies.js';
 import { httpError } from '../../lib/httpError.js';
+import { noStore } from '../../lib/security.js';
+import { createBenchAccess } from '../teams/access.js';
 import { FAMILIES, STEPS, HANDS_ON, scaledRecoveryTimeouts } from '../../lib/drivers/ciscoRecovery.js';
 import { RecoveryRunner, publicRecovery } from './assistant.js';
 
-const isAdmin = (u) => u?.role === 'admin';
-const targetKey = (t) => `${t.host}:${t.port}`;
 const ID = /^[0-9a-f-]{36}$/;
 
 /**
@@ -41,19 +41,13 @@ const ID = /^[0-9a-f-]{36}$/;
 export function createRecoveryModule({ config, logger, events, repos, audit, infra, services }, options = {}) {
   const log = logger.child('recovery');
   const benches = () => services.benches;
-  const teamOf = (user) => services.teams?.teamOf?.(user) ?? null;
-  const isMember = (user, teamId) => Boolean(teamId && services.teams?.get?.(teamId)?.members?.includes(user?.id));
+  const access = createBenchAccess({ services, infra, prefix: 'recovery' });
+  const { isAdmin, isMember } = access;
 
   /** May `user` follow `rec`: its actor, the bench's occupants, the team that held it, admins */
   function viewOf(user, rec) {
     if (!user?.id) return false;
     return isAdmin(user) || rec.actor?.id === user.id || Boolean(benches()?.isOccupant?.(user, rec.bench)) || isMember(user, rec.teamId);
-  }
-
-  /** `user` with the role the directory gives the account now, when it knows it */
-  function asNow(user) {
-    const role = user?.id ? services.accounts?.get?.(user.id)?.role : null;
-    return role ? { ...user, role } : user;
   }
 
   /**
@@ -62,9 +56,8 @@ export function createRecoveryModule({ config, logger, events, repos, audit, inf
    * a demoted administrator does not keep the rights they started with
    */
   function mayGoOn(rec) {
-    const user = asNow(rec.hidden.actorUser);
-    if (isAdmin(user)) return true;
-    return Boolean(benches()?.canOperate?.(user, rec.bench)) && !sharedConflict(user, rec.hidden.device);
+    const user = access.currentUser(rec.hidden.actorUser);
+    return access.mayStillOperate(user, rec.bench) && !sharedConflict(user, rec.hidden.device);
   }
 
   const runner = new RecoveryRunner({
@@ -82,40 +75,18 @@ export function createRecoveryModule({ config, logger, events, repos, audit, inf
   /** The registry's device behind `key`, never an admin switch */
   function deviceOf(key) {
     const d = typeof key === 'string' && key.length <= 200 ? services.consoles?.registry?.getDevice?.(key) : null;
-    const admin = new Set((infra?.adminSwitches ?? []).map((s) => targetKey(s.target)));
-    if (!d || !d.target || admin.has(targetKey(d.target))) throw httpError(404, 'recovery.unknown_device', 'There is no such device.');
+    if (!access.isTaskDevice(d)) throw httpError(404, 'recovery.unknown_device', 'There is no such device.');
     return d;
   }
 
-  /**
-   * A device whose console line another bench uses, while that bench is not
-   * free, or locked, or held by another team: the refusal, or null. Admins are never refused
-   */
-  function sharedConflict(user, device) {
-    if (isAdmin(user)) return null;
-    const key = targetKey(device.target);
-    if (!services.consoles?.sharedTargets?.()?.has(key)) return null;
-    const mine = teamOf(user)?.id ?? null;
-    for (const other of services.consoles?.registry?.model?.labs ?? []) {
-      if (other.name === device.labName || !other.devices?.some((x) => x.target && targetKey(x.target) === key)) continue;
-      const holder = benches()?.holder?.(other.name);
-      if (benches()?.lock?.(other.name) || (holder && holder.teamId !== mine)) {
-        return httpError(409, 'recovery.shared_in_use', 'This device shares its console line with a bench another team holds: it is left alone.', { device: device.name, bench: other.name });
-      }
-    }
-    return null;
-  }
+  /** A device whose console line another bench uses, while that bench is locked or held by another team: the refusal, or null */
+  const sharedConflict = (user, device) => access.sharedConflict(user, device.labName, [device]);
 
   /** Why `user` may not recover `device` (an HttpError), or null */
   function refusal(user, device) {
     const bench = device.labName;
-    if (!benches()?.canOperate?.(user, bench)) {
-      const lock = benches()?.lock?.(bench);
-      if (lock) return httpError(423, 'recovery.locked', 'This bench is locked: nobody but admins works on it.', { reason: lock.reason });
-      return httpError(403, 'recovery.not_occupant', 'Only the occupants of this bench (and admins) recover its devices.', { bench });
-    }
-    const shared = sharedConflict(user, device);
-    if (shared) return shared;
+    const no = access.operateRefusal(user, bench) ?? sharedConflict(user, device);
+    if (no) return no;
     const job = services.jobs?.running?.(bench);
     if (job) return httpError(409, 'recovery.job_running', 'A job is running on this bench: wait for it to end.', { kind: job.kind });
     // A check types on the bench's free lines one after the other: a recovery would race it for a device
@@ -146,11 +117,11 @@ export function createRecoveryModule({ config, logger, events, repos, audit, inf
   // ── HTTP ──────────────────────────────────────────────────────────────────
 
   const router = express.Router();
+  router.use(noStore);
   const json = jsonBody('2kb');
-  const noStore = (res) => res.set('Cache-Control', 'no-store');
 
   router.get('/families', (_req, res) => {
-    noStore(res).json({ families: familyList() });
+    res.json({ families: familyList() });
   });
 
   router.get('/devices/:key', async (req, res) => {
@@ -158,7 +129,7 @@ export function createRecoveryModule({ config, logger, events, repos, audit, inf
     const no = refusal(req.user, device);
     const running = runner.running(device.key);
     const last = running ? null : (await repos.recoveries.list({ device: device.key, limit: 1 }))[0];
-    noStore(res).json({
+    res.json({
       device: { key: device.key, name: device.name, bench: device.labName },
       families: familyList(),
       canStart: !no,
@@ -184,11 +155,11 @@ export function createRecoveryModule({ config, logger, events, repos, audit, inf
 
   router.get('/runs', async (req, res) => {
     const bench = typeof req.query.bench === 'string' && req.query.bench.length <= 60 ? req.query.bench : undefined;
-    noStore(res).json({ recoveries: await visible(req.user, { bench, limit: 50 }) });
+    res.json({ recoveries: await visible(req.user, { bench, limit: 50 }) });
   });
 
   router.get('/runs/:id', async (req, res) => {
-    noStore(res).json({ recovery: view(await recoveryOf(req.user, req.params.id)) });
+    res.json({ recovery: view(await recoveryOf(req.user, req.params.id)) });
   });
 
   router.post('/runs/:id/confirm', json, async (req, res) => {

@@ -37,28 +37,18 @@
 import { newId } from '../../lib/db/values.js';
 import { CiscoIos, classifyScreen } from '../../lib/drivers/ciscoIos.js';
 import { scaledTimeouts } from '../jobs/runner.js';
+import { DeviceStop, FINAL } from '../jobs/deviceStop.js';
+import { personOf } from '../teams/teams.js';
+import { targetKey } from '../../lib/consoleTarget.js';
 import { diagramLinks } from './links.js';
 import { compareCabling } from './cabling.js';
 import { canonicalPort } from './ports.js';
 
 export const KINDS = Object.freeze(['lines', 'cabling', 'ping', 'interfaces']);
-const FINAL = new Set(['done', 'failed', 'partial', 'cancelled']);
 /** Screens an Enter would answer for someone: a check never types there */
 const UNSAFE = new Set(['confirm', 'save', 'dialog', 'setup', 'autoinstall', 'question', 'rommon', 'bootLoader', 'booting']);
 const PING_CELLS_MAX = 400;
 
-/** A device stops here; `outcome` is 'failed' or 'skipped' */
-class DeviceStop extends Error {
-  constructor(outcome, r) {
-    super(r?.message ?? 'stopped');
-    this.outcome = outcome;
-    this.code = r?.reason ?? r?.code ?? 'checks.device_failed';
-    this.params = r?.params ?? {};
-  }
-}
-
-const personOf = (u) => ({ id: u.id, username: u.username ?? '', name: u.name || u.username || u.id });
-const targetKey = (t) => `${t.host}:${t.port}`;
 const refusedLine = (err) => err?.code === 'consoles.room_closed' && err.params?.reason === 'consoles.line_refused';
 /** Wait `ms`, or less when the check is cancelled */
 const pause = (ms, signal) => new Promise((resolve) => {
@@ -199,7 +189,7 @@ export class CheckRunner {
         try {
           await fn(d, device);
         } catch (err) {
-          if (err instanceof DeviceStop) this.#set(check, d, { state: err.outcome, code: err.code, params: err.params });
+          if (err instanceof DeviceStop) this.#set(check, d, { state: err.outcome, code: err.code ?? 'checks.device_failed', params: err.params });
           else if (err.cancelled || (check.hidden.abort.signal.aborted && err.code === 'automation.stopped')) this.#set(check, d, { state: 'cancelled', code: 'checks.cancelled' });
           else {
             this.#set(check, d, { state: 'failed', code: err.code ?? 'checks.device_failed', params: err.params ?? {} });

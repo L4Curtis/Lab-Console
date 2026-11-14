@@ -27,14 +27,13 @@
 import express from 'express';
 import { jsonBody } from '../../lib/bodies.js';
 import { httpError } from '../../lib/httpError.js';
-import { createRateLimiter } from '../../lib/security.js';
+import { createRateLimiter, noStore } from '../../lib/security.js';
+import { createBenchAccess } from '../teams/access.js';
 import { scaledTimeouts } from '../jobs/runner.js';
 import { CheckRunner, KINDS, publicCheck } from './runner.js';
 
-const isAdmin = (u) => u?.role === 'admin';
 /** How long a line status stays worth showing: the diagram's badges and the overview's cards (the lines move) */
 export const LINES_FRESH_MS = 30 * 60_000;
-const targetKey = (t) => `${t.host}:${t.port}`;
 
 /**
  * @param options  test seam: { timeouts, wakeMs, retryMs, probeSeconds, pingRepeat, pingCellsMax, devicesAtOnce, linesCooldownMs, linesFreshMs, perMinute, now }
@@ -49,7 +48,8 @@ export function createChecksModule({ config, logger, events, repos, audit, infra
   const lastLines = new Map(); // bench → when its line status last started
 
   const benches = () => services.benches;
-  const isMember = (user, teamId) => Boolean(teamId && services.teams?.get?.(teamId)?.members?.includes(user?.id));
+  const access = createBenchAccess({ services, infra, prefix: 'checks' });
+  const { isAdmin, isMember } = access;
 
   /** May `user` read this check's result? */
   function readable(user, check) {
@@ -58,11 +58,8 @@ export function createChecksModule({ config, logger, events, repos, audit, infra
     return isAdmin(user) || check.actor?.id === user.id || isMember(user, check.teamId);
   }
 
-  /** A check goes on device after device only while its actor may still run it */
-  function mayGoOn(check) {
-    const user = check.hidden.actorUser;
-    return isAdmin(user) || Boolean(benches()?.canOperate?.(user, check.bench));
-  }
+  /** A check goes on device after device only while its actor (as the directory knows them now) may still run it */
+  const mayGoOn = (check) => access.mayStillOperate(check.hidden.actorUser, check.bench);
 
   const runner = new CheckRunner({
     services, events, audit, repos, logger: log, readable, mayGoOn,
@@ -80,30 +77,15 @@ export function createChecksModule({ config, logger, events, repos, audit, infra
 
   // ── Benches and devices ───────────────────────────────────────────────────
 
-  function lab(name) {
-    const found = services.consoles?.registry?.model?.labs?.find((l) => l.name === name);
-    if (!found) throw httpError(404, 'checks.unknown_bench', 'This bench does not exist.', { bench: String(name ?? '').slice(0, 40) });
-    return found;
-  }
-
   /** The bench's console devices a check may reach: on the allow-list, never an admin switch */
   function devicesOf(page, { routersOnly = false } = {}) {
-    const admin = new Set((infra?.adminSwitches ?? []).map((s) => targetKey(s.target)));
-    const registry = services.consoles?.registry;
-    return page.devices
-      .filter((d) => d.target && !admin.has(targetKey(d.target)))
-      .map((d) => ({ ...(registry?.getDevice?.(d.key) ?? d), labName: page.name }))
+    return access.taskDevices(page)
       .filter((d) => d.allowed !== false)
       .filter((d) => !routersOnly || d.kind === 'router');
   }
 
   /** Why `user` may not run a check on `bench` (an HttpError), or null */
-  function refusal(user, bench) {
-    if (benches()?.canOperate?.(user, bench)) return null;
-    const lock = benches()?.lock?.(bench);
-    if (lock) return httpError(423, 'checks.locked', 'This bench is locked: only admins check it.', { reason: lock.reason });
-    return httpError(403, 'checks.not_occupant', 'Only the occupants of this bench (and admins) run checks on it.', { bench });
-  }
+  const refusal = (user, bench) => access.operateRefusal(user, bench);
 
   /** The checks of `bench` this user may read, newest of each kind */
   const resultsFor = (user, bench) => Object.fromEntries(runner.lastOf(bench).filter((c) => readable(user, c)).map((c) => [c.kind, c]));
@@ -111,17 +93,17 @@ export function createChecksModule({ config, logger, events, repos, audit, infra
   // ── HTTP ──────────────────────────────────────────────────────────────────
 
   const router = express.Router();
+  router.use(noStore);
   const json = jsonBody('4kb');
-  const noStore = (res) => res.set('Cache-Control', 'no-store');
 
   router.get('/latest', (req, res) => {
-    noStore(res).json({ checks: runner.lastAll().filter((c) => readable(req.user, c)) });
+    res.json({ checks: runner.lastAll().filter((c) => readable(req.user, c)) });
   });
 
   router.get('/benches/:bench', (req, res) => {
-    const page = lab(req.params.bench);
+    const page = access.benchOf(req.params.bench);
     const running = runner.running(page.name);
-    noStore(res).json({
+    res.json({
       bench: page.name,
       canRun: !refusal(req.user, page.name),
       running: running ? (readable(req.user, running) ? publicCheck(running) : summaryOf(running)) : null,
@@ -132,7 +114,7 @@ export function createChecksModule({ config, logger, events, repos, audit, infra
   });
 
   router.post('/benches/:bench/cancel', (req, res) => {
-    const bench = lab(req.params.bench).name;
+    const bench = access.benchOf(req.params.bench).name;
     const check = runner.running(bench);
     if (!check) throw httpError(404, 'checks.not_running', 'No check is running on this bench.');
     const may = isAdmin(req.user) || check.actor.id === req.user.id || benches()?.isOccupant?.(req.user, bench);
@@ -144,7 +126,7 @@ export function createChecksModule({ config, logger, events, repos, audit, infra
   router.post('/benches/:bench/:kind', json, (req, res) => {
     const kind = req.params.kind;
     if (!KINDS.includes(kind)) throw httpError(404, 'checks.unknown_kind', 'There is no such check.', { kind: String(kind).slice(0, 20) });
-    const page = lab(req.params.bench);
+    const page = access.benchOf(req.params.bench);
     const bench = page.name;
     const no = refusal(req.user, bench);
     if (no) throw no;
