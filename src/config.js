@@ -14,6 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { loadEnvFile, takeErrors, fail, str, required, int, bool, list, portRange, oneOf, origin } from './lib/env.js';
 import { parseTrustedProxies } from './lib/security.js';
+import { SSH_FINGERPRINT } from './lib/ssh.js';
 import { readConfig as readAuthConfig } from './modules/auth/config.js';
 import { readConfig as readBenchesConfig } from './modules/teams/config.js';
 import { readConfig as readRoomsConfig } from './modules/consoles/config.js';
@@ -93,9 +94,11 @@ function readSshConfig() {
     password: sshPassword || undefined,
     privateKey,
     passphrase: str('SSH_KEY_PASSPHRASE') || undefined,
-    // "SHA256:…" as printed by `ssh-keygen -lf`; Strongly recommended: pins the
-    // jump server's identity and defeats man-in-the-middle attacks
-    hostFingerprint: str('SSH_HOST_FINGERPRINT'),
+    // "SHA256:…" as printed by `ssh-keygen -lf`: pins the jump server's identity
+    // and defeats man-in-the-middle attacks. Required in production (NODE_ENV=production):
+    // without it, or the one saved on the lab parameters page, no connection is made
+    hostFingerprint: hostFingerprint(),
+    hostKeyRequired: str('NODE_ENV') === 'production',
     readyTimeoutMs: 15_000,
     keepaliveIntervalMs: 15_000,
     // How the Proxmox tunnel reaches the lab network through the jump server:
@@ -108,6 +111,12 @@ function readSshConfig() {
     // placeholders, e.g. "socat - TCP:{host}:{port}". Empty = auto-detect.
     tunnelRelay: str('PROXMOX_TUNNEL_RELAY') || undefined,
   };
+}
+
+function hostFingerprint() {
+  const value = str('SSH_HOST_FINGERPRINT');
+  if (value && !SSH_FINGERPRINT.test(value)) fail('SSH_HOST_FINGERPRINT must look like SHA256:… (ssh-keyscan -t ed25519 <host> | ssh-keygen -lf -)');
+  return value;
 }
 
 // ── Telnet console login (credential set #2) ────────────────────────────────

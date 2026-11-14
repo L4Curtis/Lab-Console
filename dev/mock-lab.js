@@ -65,7 +65,7 @@
  * Importable: startMockLab({ port: 0, ssh, telnet, … }) resolves
  * { port, close(), device(target), stats(), setBusy(port, on), setDown(port, on), cabling } -
  * device('10.22.9.4:2001') is the FakeIos behind that console port (created on
- * first use); stats() → { connections, channels, peakChannels, refusedChannels }
+ * first use); stats() → { connections, channels, peakChannels, refusedChannels, passwordsReceived }
  * (peakChannels is the most channels one connection ever had open at once).
  */
 import fs from 'node:fs';
@@ -119,7 +119,7 @@ export function startMockLab({
   const inUse = new Set();      // console ports with a session
   const clients = new Set();
   const hostKey = hostKeyPair();
-  const counters = { peakChannels: 0, refusedChannels: 0 };
+  const counters = { peakChannels: 0, refusedChannels: 0, passwordsReceived: 0 };
   const channelsOf = new Map(); // client → session channels open
 
   const keyOf = (target) => (typeof target === 'string' ? target : `${target.host}:${target.port}`);
@@ -181,6 +181,7 @@ export function startMockLab({
     channelsOf.set(client, 0);
     client.on('close', () => { clients.delete(client); channelsOf.delete(client); });
     client.on('authentication', (ctx) => {
+      if (ctx.method === 'password') counters.passwordsReceived++;
       if (ctx.method === 'password' && ssh.username && ctx.username === ssh.username && ctx.password === ssh.password) return ctx.accept();
       ctx.reject(['password']);
     });

@@ -127,6 +127,7 @@
       "ssh_timeout": "Le serveur de rebond {host} n’a pas répondu à temps",
       "ssh_unreachable": "Le serveur de rebond {host} est injoignable depuis la plateforme",
       "ssh_identity": "La vérification de l’identité du serveur de rebond a échoué (SSH_HOST_FINGERPRINT ne correspond pas)",
+      "ssh_unpinned": "L’identité du serveur de rebond n’est pas épinglée (SSH_HOST_FINGERPRINT) : aucune connexion sans elle. Un administrateur la renseigne dans les paramètres du labo.",
       "ssh_error": "Erreur SSH : {detail}",
       "ssh_closed": "La connexion au serveur de rebond s’est fermée",
       "diagram_load_failed": "Le schéma n’a pas pu être chargé : {detail}",

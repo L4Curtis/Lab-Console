@@ -96,6 +96,7 @@
       "unknown": "Unknown field.",
       "credentials_required": "A password or a private key is needed.",
       "key_format": "Unreadable private key (PEM or OpenSSH format expected).",
+      "fingerprint_required": "Required in production: the jump server's fingerprint (ssh-keyscan -t ed25519 <host> | ssh-keygen -lf -).",
       "key_passphrase": "The passphrase does not open this key."
     },
     "proxmox": {

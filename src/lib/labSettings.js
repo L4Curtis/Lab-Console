@@ -12,10 +12,10 @@
  */
 import net from 'node:net';
 import ssh2 from 'ssh2';
+import { SSH_FINGERPRINT } from './ssh.js';
 
 const HOST = /^(?=.{1,253}$)[A-Za-z0-9]([A-Za-z0-9-]{0,62})(\.[A-Za-z0-9]([A-Za-z0-9-]{0,62}))*$/;
 const USER = /^[^\s:@/\\]{1,64}$/;
-const FINGERPRINT = /^SHA256:[A-Za-z0-9+/]{43}=?$/;
 const isHost = (v) => HOST.test(v) || net.isIP(v) !== 0;
 const hostPattern = { test: isHost };
 
@@ -46,7 +46,7 @@ export function labSettings(config) {
       'ssh.password': { type: 'secret', max: 256 },
       'ssh.privateKey': { type: 'secret', max: 16 * 1024, multiline: true },
       'ssh.passphrase': { type: 'secret', max: 256 },
-      'ssh.hostFingerprint': { type: 'string', pattern: FINGERPRINT },
+      'ssh.hostFingerprint': { type: 'string', pattern: SSH_FINGERPRINT },
       'telnet.username': { type: 'string', pattern: USER },
       'telnet.password': { type: 'secret', max: 256 },
       'telnet.autoLogin': { type: 'bool' },
@@ -60,6 +60,8 @@ export function labSettings(config) {
       if (!values.ssh.password && !values.ssh.privateKey) problems.push({ field: 'ssh.password', code: 'credentials_required' });
       const key = keyProblem(values.ssh.privateKey, values.ssh.passphrase);
       if (key) problems.push({ field: key === 'key_passphrase' ? 'ssh.passphrase' : 'ssh.privateKey', code: key });
+      // In production the jump server's identity is pinned (src/lib/ssh.js): emptying it would stop every console
+      if (values.ssh.hostKeyRequired && !values.ssh.hostFingerprint) problems.push({ field: 'ssh.hostFingerprint', code: 'fingerprint_required' });
       return problems;
     },
   };

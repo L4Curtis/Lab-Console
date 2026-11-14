@@ -137,8 +137,10 @@ top/middle/bottom). Any other naming falls back to plain tabs.
   `MaxSessions`).
 - WebSockets accept only the platform's own origin (`ALLOWED_ORIGINS` adds
   more). The UI is fully self-hosted under a strict Content-Security-Policy.
-- Set `SSH_HOST_FINGERPRINT` to pin the jump server's identity. Until you do,
-  the server logs the fingerprint it sees.
+- Set `SSH_HOST_FINGERPRINT` to pin the jump server's identity (or set it on
+  the lab parameters page). Under `NODE_ENV=production` (the Docker image) it is
+  required: without it no console connects (`consoles.ssh_unpinned`) and the
+  log shows the fingerprint the server sees; elsewhere it is only logged.
 
 Recommended on the jump server: a dedicated account that may only run telnet,
 for example `ForceCommand` in `sshd_config` or a restricted shell.

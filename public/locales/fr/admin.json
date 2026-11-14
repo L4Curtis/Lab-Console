@@ -96,6 +96,7 @@
       "unknown": "Champ inconnu.",
       "credentials_required": "Il faut un mot de passe ou une clé privée.",
       "key_format": "Clé privée illisible (format PEM ou OpenSSH attendu).",
+      "fingerprint_required": "Obligatoire en production : l’empreinte du serveur de rebond (ssh-keyscan -t ed25519 <hôte> | ssh-keygen -lf -).",
       "key_passphrase": "La phrase de passe n’ouvre pas cette clé."
     },
     "proxmox": {

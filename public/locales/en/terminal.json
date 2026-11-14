@@ -127,6 +127,7 @@
       "ssh_timeout": "Jump server {host} did not answer in time",
       "ssh_unreachable": "Jump server {host} is unreachable from the platform",
       "ssh_identity": "Jump server identity check failed (SSH_HOST_FINGERPRINT mismatch)",
+      "ssh_unpinned": "The jump server's identity is not pinned (SSH_HOST_FINGERPRINT): no connection is made without it. An administrator sets it on the lab parameters page.",
       "ssh_error": "SSH error: {detail}",
       "ssh_closed": "Connection to the jump server closed",
       "diagram_load_failed": "Diagram could not be loaded: {detail}",
