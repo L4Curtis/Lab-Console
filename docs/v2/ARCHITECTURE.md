@@ -717,6 +717,8 @@ services.consoles = {
   sharedTargets(),               // Set of 'host:port' used by several labs
   journal,                       // ConsoleJournal: list(), meta(), canRead(), canReadDay(), dayMetas(), usage(), paths() (§9)
   pool(),                        // the shared SSH connections: { connections, channels, channelsPerConnection, lines: [{ key, channels, capacity, state }] }
+  probe(device, seconds) → 'free' | 'busy' | 'unknown'   // `nc -z` through the jump server, on the shared connections:
+                                 //   asks the console server, opens no console session
 }
 services.teams = {                           // lot teams (src/modules/teams/)
   teamOf(userOrId) → Team | null               // { id, name, members: userId[], people: [{ id, username, name, since }], invitations }
@@ -763,6 +765,7 @@ services.jobs = {                              // lot jobs (§9b)
   list({ bench }) → Job[]                      // recent jobs kept in memory, newest first
 }
 services.scripts = { list(user), get(user, id) }   // lot terminal: the library as that person may see it, the rules of the API
+services.checks = { running(bench) → { id, bench, kind, state, actor: { name }, startedAt, devices } | null }   // lot checks (§9c)
 services.collab = {                            // lot collab
   notes() → Promise<Note[]>                    // every note of a device still in the diagram
   noteOf(deviceKey) → Promise<Note | null>     // { key, bench, device, text, rev, updatedAt, by: { id, name } }
@@ -879,6 +882,12 @@ services.collab = {                            // lot collab
   `registerDiagramLayer(layer, fn)` → `unregister()` and `refreshDiagram()`
   from `shared/diagramLayers.js`; every diagram view on the page, drawn
   before or after, uses those layers after its own (presence).
+  Links have layers too: `registerLinkLayer(layer, fn)` where `fn(edge, lab)
+  → { tone?, title?, ends?: { source?, target? } } | null` (`edge` as the
+  server parsed it: `id`, `source` / `target` cell ids, a device's `id`;
+  `tone` sets `.edge[data-tone]`, the last layer's wins; `title` lines add
+  up in the link's tooltip; `ends` are short texts written near each end).
+  The checks lot draws the cabling verdict and the addresses this way.
   `destroy()` stops a thrown-away view listening to that registry and to
   the language; the consoles section's `destroy()` calls it.
   Device states (`setStates`): `idle`, `open` (in my workspace), `live` (open
@@ -1350,6 +1359,78 @@ the driver's budgets multiplied by it; only the simulator boots fast enough
 to lower it). The mock lab's model `aruba` (`dev/fakeOther.js`) is a switch
 that does not run Cisco IOS.
 
+## 9c. Bench checks (lot: checks)
+
+`src/modules/checks/`: `index.js` (routes, permissions, `services.checks`),
+`runner.js` (the checks), `cabling.js` (the verdict, pure), `links.js` (the
+diagram's links and the ports written at their ends, pure), `ports.js`
+(interface names as people write them and as IOS prints them). Repository
+`repos.checks`, table `bench_checks` (migration 015): the last finished
+check of each kind per bench (`PRIMARY KEY (bench, kind)`), loaded at start,
+so a result survives a reload and a restart. Contract of SPEC "Lot checks".
+
+**Kinds.** `lines`: per device `free`, `busy` (outside the application),
+`silent` (device mute), `in_app` or `unknown`. A line with a room is never
+touched (`in_app`); otherwise `services.consoles.probe()` asks the console
+server; a busy line is left alone (and marked busy for the diagram); a free
+one is opened as a task, one Enter is sent and the answer awaited: nothing
+visible is `silent`, else the screen's state (`classifyScreen`) is noted;
+the line is hung up at once unless someone joined. One probe per console
+line. `cabling`: `show cdp neighbors detail` and `show ip interface brief` on
+every device, compared with `diagramLinks(lab)` by `compareCabling()`: per
+link `ok`, `wrong_port`, `missing` (with the interface that explains it:
+`shutdown`, `down`, `no_such_port`), `unverified` (`not_cisco`, `cdp_off`,
+`not_read`), plus the cables nobody drew (`unexpected`). Neighbours are
+matched by the hostnames read during the same run, never by the diagram's
+name alone (a device read nowhere is matched by name and marked `guessed`).
+A port label near an end of a link belongs to that end; a single label in
+the middle is taken for both ends (`assumed`). `ping`: the routers'
+addresses (interfaces up/up with IPv4) read first, then from each router a
+`ping <ip> repeat <n>` to every address of the others; cells `ok`,
+`partial`, `fail`, `error`, `skipped` (400 at most). `interfaces`: `show ip
+interface brief` per device, and per diagram link the state and address of
+each labelled end.
+
+**On the devices.** Like a bench job (§9b): `rooms.open(device, actor, {
+task: true })`, `room.runExclusive(actor, 'check:<kind>', fn, { signal,
+privateOutput })` (the pilot is asked, the bench rule before every byte;
+what the device prints goes only to the people who may read the result and
+stays out of the journal), five devices at once. Before anything, a screen
+waiting for an answer an Enter would give (`[confirm]`, the initial dialog,
+ROMMON, a boot loader, a boot) is not touched (`checks.console_waiting`),
+then `identify()`: not Cisco IOS / IOS XE → `skipped` (`ios.not_ios`),
+nothing more typed. Only `show …` and `ping` are typed. A line the check
+opened and nobody joined is hung up when its task ends.
+
+**Who.** Running: `services.benches.canOperate` (`checks.locked` 423,
+`checks.not_occupant` 403), no job on the bench (`checks.job_running`), one
+check per bench (`checks.bench_busy`), 10 a minute per person
+(`checks.rate_limited`), the line status once every 20 s per bench
+(`checks.too_soon`). The actor's right is asked again before each device
+(`checks.not_allowed`). Reading: the line status is for every signed-in
+user; the other kinds for the team that held the bench when it ran, its
+actor and admins. Cancelling: its actor, the bench's occupants, admins
+(`checks.cancel_forbidden`); devices stop where they are (`cancelled`).
+
+HTTP (`/api/checks`): `GET /latest` (every last result this user may read),
+`GET /benches/:bench` (`canRun`, `running`, `results`, `routers`, `limits`),
+`POST /benches/:bench/lines | cabling | ping | interfaces` (202 `{ check }`),
+`POST /benches/:bench/cancel`. SSE: `checks:running` (sticky, everyone:
+bench, kind, actor's name, each device's state), `checks:check` (the whole
+check, to its readers). Audit: `check.<kind>`, `check.<kind>.cancel`,
+`check.<kind>.end`. In the browser, the consoles section's "Vérifications"
+button opens `modules/checks/dialog.js`; `modules/checks/layer.js` (started
+by `main.js`) draws the line badges (for 30 minutes), the cabling verdict
+on the links, a ring on a device with a cabling problem or a check working
+on it, and the addresses near the link ends.
+
+The mock lab is cabled as the diagram draws it (`dev/mockCabling.js`,
+`cablesFromLabs(labs)`): CDP lists the neighbour at the other end of each
+cable whose two interfaces are not shut, an interface with nothing alive at
+the other end is `down`, a ping answers when another device holds the
+address on an interface that is up. `lab.cabling.unplug() / move() /
+plug()` (or `MOCK_CABLING`) make deliberate mismatches.
+
 ## 10. Data directory
 
 ```
@@ -1362,7 +1443,7 @@ data/
   <dir>/<name>.json.imported   audit/*.jsonl.imported   files of before the database, kept after their import
 ```
 
-In the database today (migrations 001-014): `schema_migrations`,
+In the database today (migrations 001-015): `schema_migrations`,
 `legacy_imports`, `auth_sessions`, `auth_state` (the local administrator's
 last TOTP step, the known-browser key), `audit_entries`, `settings` (the
 run-time settings per namespace, the SSO page's provider as `sso`, the edited
@@ -1373,7 +1454,8 @@ admin switches as `switches`), `teams`, `team_members`, `team_invitations`
 `jobs`, `snapshots`, `snapshot_devices`, `templates`, `template_devices` (012),
 `scripts` (013: the script library, one row per script with its text; `shelf`
 is `p:<user id>`, `t:<team id>` or `pub`, a title is unique on its shelf),
-`device_notes`, `bench_chat_messages` (014).
+`device_notes`, `bench_chat_messages` (014), `bench_checks` (015: the last
+result of each kind of bench check, §9c).
 Passkey ceremonies' challenges are not stored: they live in memory, five
 minutes, single use.
 

@@ -453,10 +453,20 @@ note per device; a small chat per bench for its occupants (kept with the team).
 ## Wave 4
 
 ### Lot checks
-Line status on demand (free / busy outside the app) shown on the diagram;
-cabling check (CDP on the whole bench against the diagram's links); ping
-matrix; IP addresses and interface state read from the devices and shown on
-the diagram.
+Line status on demand (free / busy outside the app / device silent) shown on
+the diagram; cabling check (CDP on the whole bench against the diagram's
+links: missing, unexpected, wrong port), as a report and on the diagram;
+ping matrix between the routers of a bench (addresses read from the devices,
+a green / red table); IP addresses and interface state read from the devices
+and shown on the diagram's links and devices.
+
+They run on real equipment: read-only commands only (`show`, `ping`),
+through the rooms and `runExclusive` like the jobs, only for the bench's
+occupants and admins, cancellable, one at a time per bench, never on a
+device whose system is unknown, never on a console line someone uses (in the
+application or outside it). The line status asks the console server first
+and is limited to once every 20 s per bench. The last result of each kind is
+kept per bench and survives a reload. Contract: ARCHITECTURE §9c.
 
 ### Lot recovery
 Guided password recovery (BREAK, ROMMON, configuration register) for a device

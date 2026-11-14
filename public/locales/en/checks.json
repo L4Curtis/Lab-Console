@@ -1,6 +1,5 @@
 {
   "title": "Checks of bench {bench}",
-  "button": "Checks",
   "intro": "These checks only read: show commands and pings, on the bench's consoles, one bench at a time. People watching a console see the task go by.",
   "none": "No check has been run on this bench yet.",
   "cancel": "Stop",

@@ -1,6 +1,5 @@
 {
   "title": "Vérifications de la baie {bench}",
-  "button": "Vérifications",
   "intro": "Ces vérifications ne font que lire : des commandes show et des ping, sur les consoles de la baie, une baie à la fois. Ceux qui regardent une console voient la tâche passer.",
   "none": "Aucune vérification lancée sur cette baie pour l’instant.",
   "cancel": "Arrêter",

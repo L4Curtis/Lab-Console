@@ -12,10 +12,11 @@ export const stateText = (state) => (has(`checks.state.${state}`) ? t(`checks.st
 export const lineText = (line) => (has(`checks.line.${line}`) ? t(`checks.line.${line}`) : line);
 export const screenText = (screen) => (screen && has(`checks.screen.${screen}`) ? t(`checks.screen.${screen}`) : screen ?? '');
 
-/** A progress step: checks.steps.<name> */
+/** A progress step: the server says 'checks.steps.<name>' */
 export function stepText(step, params = {}) {
   if (!step) return '';
-  return has(step) ? t(step, params) : step;
+  const name = String(step).split('.').pop();
+  return has(`checks.steps.${name}`) ? t(`checks.steps.${name}`, params) : step;
 }
 
 /** "Fa0/5" for "FastEthernet0/5" (what fits on a diagram) */
