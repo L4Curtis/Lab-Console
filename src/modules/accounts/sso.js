@@ -118,13 +118,13 @@ export function createSso({ config, repos, auth, logger, now = Date.now, fetchOp
   }
 
   /**
-   * Save and apply. `body` is what the page sent: every field, plus
-   * `clientSecret` (a new secret; absent or empty = keep the current one,
-   * refused when the issuer or the client id changes: secret_required)
-   * and `clearClientSecret: true` (a public client from now on).
-   * → { changed: [field names], secretChanged }. Throws { status, code, problems } on refusal
+   * What saving `body` would apply, or the refusal. `body` is what the page
+   * sent: every field, plus `clientSecret` (a new secret; absent or empty =
+   * keep the current one, refused when the issuer or the client id changes:
+   * secret_required) and `clearClientSecret: true` (a public client from now on).
+   * → { values, raw, newSecret, secretChanged }. Throws { status, code, problems } on refusal
    */
-  async function save(body, actor) {
+  function check(body) {
     if (locked) throw Object.assign(new Error('The identity provider is set in the environment'), { status: 409, code: 'accounts.sso_locked' });
     const { values, problems } = checkSsoInput(body);
     if (problems.length) throw Object.assign(new Error('Invalid settings'), { status: 400, code: 'accounts.sso_invalid', problems });
@@ -142,9 +142,15 @@ export function createSso({ config, repos, auth, logger, now = Date.now, fetchOp
     }
     const secretChanged = Boolean(newSecret) || (body.clearClientSecret === true && current.hasClientSecret);
     const raw = { ...values, ...(newSecret ? { clientSecret: newSecret } : body.clearClientSecret === true ? { clientSecret: '' } : {}) };
-    const check = normalizeOidcSettings({ ...raw, clientSecret: raw.clientSecret ?? '' });
-    if (check.problems.length) throw Object.assign(new Error(check.problems.join('; ')), { status: 400, code: 'accounts.sso_invalid', problems: [] });
+    const normalized = normalizeOidcSettings({ ...raw, clientSecret: raw.clientSecret ?? '' });
+    if (normalized.problems.length) throw Object.assign(new Error(normalized.problems.join('; ')), { status: 400, code: 'accounts.sso_invalid', problems: [] });
+    return { values, raw, newSecret, secretChanged };
+  }
 
+  /** Save and apply (check() first). → { changed: [field names], secretChanged } */
+  async function save(body, actor) {
+    const { values, raw, newSecret, secretChanged } = check(body);
+    const current = auth.oidc.settings;
     const applied = auth.oidc.configure(raw);
     // The secret kept on disk: the new one, none, or the one saved before (the
     // environment cannot hold one here: without OIDC_ISSUER it refuses a secret)
@@ -206,6 +212,7 @@ export function createSso({ config, repos, auth, logger, now = Date.now, fetchOp
     locked,
     load,
     describe,
+    check,
     save,
     test,
     /** Keep a trial's outcome for the administrator's session */

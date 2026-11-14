@@ -11,12 +11,12 @@ import { test, describe, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { TestBrowser } from './helpers/browser.js';
 import { SoftAuthenticator } from './helpers/webauthn.js';
-import { startAccountsApp, call, invite, signUp, localSignIn, createLocalAccount, PASSWORD } from './helpers/accounts.js';
+import { startAccountsApp, call, confirmed, invite, signUp, localSignIn, createLocalAccount, PASSWORD } from './helpers/accounts.js';
 import { relyingParty } from '../src/modules/accounts/passkeys.js';
 import { PASSKEY_LIMITS } from '../src/modules/accounts/publicRoutes.js';
 
 const sessionCookie = (lab, browser) => browser.cookie(lab.url, lab.deps.auth.cookieName);
-const promote = (lab, id) => call(lab, 'admin', 'PATCH', `/api/accounts/users/${encodeURIComponent(id)}`, { role: 'admin' });
+const promote = (lab, id) => confirmed(lab, 'PATCH', `/api/accounts/users/${encodeURIComponent(id)}`, { role: 'admin' });
 
 describe('relying party: passkeys need https on a name, or localhost', () => {
   test('which PUBLIC_URL offers passkeys', () => {
@@ -160,7 +160,9 @@ describe('a local account promoted to administrator', () => {
   });
 
   test('an administrator clears a lost passkey: the next sign-in asks to register one again', async () => {
-    const cleared = await call(lab, 'admin', 'DELETE', `/api/accounts/users/${encodeURIComponent(id)}/passkeys`);
+    const unconfirmed = await call(lab, 'admin', 'DELETE', `/api/accounts/users/${encodeURIComponent(id)}/passkeys`);
+    assert.deepEqual([unconfirmed.status, unconfirmed.body.code], [403, 'admin.confirm_required'], "an administrator's passkeys: confirmed first");
+    const cleared = await confirmed(lab, 'DELETE', `/api/accounts/users/${encodeURIComponent(id)}/passkeys`);
     assert.equal(cleared.body.removed, 1);
     assert.deepEqual((await localSignIn(lab, new TestBrowser(), 'nora')).body, { step: 'passkey-enrol' });
   });
@@ -249,7 +251,7 @@ describe('passkeys in My account', () => {
     const browser = new TestBrowser();
     assert.deepEqual((await localSignIn(lab, browser, 'rita')).body, { step: 'passkey' });
     const options = await call(lab, browser, 'POST', '/auth/passkey/step/options', {});
-    assert.equal((await call(lab, 'admin', 'PATCH', `/api/accounts/users/${encodeURIComponent('local:rita')}`, { role: 'student' })).status, 200);
+    assert.equal((await confirmed(lab, 'PATCH', `/api/accounts/users/${encodeURIComponent('local:rita')}`, { role: 'student' })).status, 200);
     const rita = lab.deps.services.accounts.get('local:rita');
     assert.equal(rita.role, 'student');
     const done = await call(lab, browser, 'POST', '/auth/passkey/step/verify', { response: ritaKey.authenticate(options.body.options) });
@@ -330,7 +332,7 @@ describe('a sign-in step does not outlive the credentials it was started with', 
     const { id } = await adminWithPasskey('vera');
     const attacker = new TestBrowser();
     assert.deepEqual((await localSignIn(lab, attacker, 'vera')).body, { step: 'passkey' });
-    assert.equal((await call(lab, 'admin', 'DELETE', `/api/accounts/users/${encodeURIComponent(id)}/passkeys`)).body.removed, 1);
+    assert.equal((await confirmed(lab, 'DELETE', `/api/accounts/users/${encodeURIComponent(id)}/passkeys`)).body.removed, 1);
     const options = await call(lab, attacker, 'POST', '/auth/passkey/step/options', {});
     assert.equal(options.status, 401, 'not an enrolment for whoever held the step');
     assert.equal(options.body.code, 'accounts.step_expired');

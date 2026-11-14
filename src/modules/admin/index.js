@@ -10,9 +10,10 @@
  * Administrators only:
  *   GET    /lab                        { settings (secrets as { set }), proxmox, confirm: { method }, ssoOutcome }
  *   PUT    /lab                        { values, confirmation } → applied to the consoles opened next
- *   POST   /confirm/sso                { values? } → { url }: an SSO administrator signs in again at the provider
- *                                      (prompt=login, max_age=0); on return its session is confirmed for 5 minutes,
- *                                      the outcome comes with the next GET /lab; `values` are only checked
+ *   POST   /confirm/sso                { values?, returnTo? } → { url }: an SSO administrator signs in again at the
+ *                                      provider (prompt=login, max_age=0); on return (to the tab `returnTo`: lab,
+ *                                      users, invitations or sso) its session is confirmed for 5 minutes, the
+ *                                      outcome comes with the next GET /lab; `values` (lab) are only checked
  *   GET    /confirm                    { method: 'totp' | 'passkey' | 'sso' | null, confirmedUntil }
  *   POST   /confirm/options            passkey options (navigator.credentials.get)
  *   POST   /confirm                    { password, code } | { response } | {} (SSO, confirmed) → { ticket, expiresAt }
@@ -43,6 +44,8 @@ import { createHealth, summary, platformSummary } from './health.js';
 import { createAnnouncements } from './announcements.js';
 
 const AUDIT_LIMIT = 1000;
+// The administration tabs that ask for a confirmation: where an SSO administrator comes back after signing in again
+const CONFIRMING_TABS = ['lab', 'users', 'invitations', 'sso'];
 const ACTION = /^[a-z][a-z0-9_.-]{0,60}$/;
 
 export function createAdminModule({ config, logger, events, repos, audit, auth, settings, diagrams, infra, services }, { now = Date.now } = {}) {
@@ -94,16 +97,7 @@ export function createAdminModule({ config, logger, events, repos, audit, auth, 
   admin.get('/lab', (req, res) => res.set('Cache-Control', 'no-store').json({ ...labPage(req), ssoOutcome: confirmations.takeSsoOutcome(req) }));
   admin.put('/lab', small, async (req, res) => {
     const input = body(req);
-    // Order matters: the ticket is checked first, the values next, and the ticket is spent only
-    // when both are good, so a typo in a port does not cost the administrator a new confirmation
-    try {
-      confirmations.verify(req, input.confirmation);
-    } catch (err) {
-      confirmations.spend(input.confirmation); // a ticket that did not fit cannot be tried again
-      throw err;
-    }
-    settings.check('lab', input.values);
-    confirmations.spend(input.confirmation);
+    confirmations.redeem(req, input.confirmation, () => settings.check('lab', input.values));
     const outcome = await settings.update('lab', input.values, req);
     tellAdmins('lab');
     res.json({ ...labPage(req), changed: outcome.changed, reset: outcome.reset });
@@ -111,9 +105,10 @@ export function createAdminModule({ config, logger, events, repos, audit, auth, 
 
   // An SSO administrator signs in again at the provider: its session is then confirmed for 5 minutes
   admin.post('/confirm/sso', small, async (req, res) => {
-    const values = body(req).values;
+    const { values, returnTo = 'lab' } = body(req);
+    if (!CONFIRMING_TABS.includes(returnTo)) throw httpError(400, 'server.bad_request', 'Unknown page to come back to');
     if (values !== undefined) settings.check('lab', values); // a typo is told now, not after a trip to the provider
-    const started = await confirmations.beginSso(req, res);
+    const started = await confirmations.beginSso(req, res, { returnTo: `/#/admin/${returnTo}` });
     audit.log(req, 'admin.confirm.sso', { started: true });
     res.json(started);
   });
@@ -246,7 +241,7 @@ export function createAdminModule({ config, logger, events, repos, audit, auth, 
     res.json({ announcement: null });
   });
 
-  services.admin = { announcement: () => announcements.current() };
+  services.admin = { announcement: () => announcements.current(), confirmations: { redeem: confirmations.redeem, methodOf: confirmations.methodOf } };
 
   return {
     id: 'admin',

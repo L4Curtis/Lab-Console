@@ -7,12 +7,16 @@
  * document (the server guards that request); "Try a sign-in" goes to the
  * provider with the saved settings and comes back here with the claims
  * received and the role they give, without opening a session. When the
- * environment sets the provider (OIDC_ISSUER), it wins: the page is read-only
+ * environment sets the provider (OIDC_ISSUER), it wins: the page is read-only.
+ * Saving is confirmed like the lab parameters (../confirm.js): whoever holds
+ * the provider decides who is an administrator. An SSO administrator who
+ * leaves to sign in again finds the form as it was, the secret excepted
  */
 import { h, icon, toast } from '../../../core/dom.js';
 import { request, getJson } from '../../../core/api.js';
 import { t, onLocaleChange } from '../../../core/i18n.js';
 import { errorText } from '../common.js';
+import { withConfirmation, keepDraft, takeDraft } from '../confirm.js';
 
 const TEXT_FIELDS = ['providerName', 'issuer', 'clientId', 'scopes', 'groupsClaim', 'adminGroups', 'allowedGroups'];
 
@@ -130,9 +134,18 @@ export function mount(el) {
     }
   }
 
+  /** Back from signing in again at the provider: what was typed before leaving (no secret) */
+  function applyDraft(draft) {
+    for (const name of TEXT_FIELDS) if (typeof draft[name] === 'string') inputs[name].value = draft[name];
+    for (const name of ['enabled', 'allowInsecure', 'clearClientSecret']) if (typeof draft[name] === 'boolean') inputs[name].checked = draft[name];
+    if (typeof draft.clientAuthMethod === 'string') inputs.clientAuthMethod.value = draft.clientAuthMethod;
+  }
+
   async function load() {
     try {
       fill(await getJson('/api/accounts/sso'));
+      const draft = takeDraft('sso');
+      if (draft && !current.locked) applyDraft(draft);
       status.textContent = '';
     } catch (err) {
       status.textContent = errorText(err);
@@ -151,7 +164,12 @@ export function mount(el) {
     status.textContent = '';
     showProblems();
     try {
-      fill(await request('PUT', '/api/accounts/sso', values()));
+      const input = values();
+      const { clientSecret: _secret, ...notSecret } = input;
+      const saved = await withConfirmation((confirmation) => request('PUT', '/api/accounts/sso', { ...input, confirmation }),
+        { returnTo: 'sso', beforeLeaving: () => keepDraft('sso', { ...notSecret, clearClientSecret: Boolean(input.clearClientSecret) }) });
+      if (!saved) return; // cancelled, or on the way to the identity provider
+      fill(saved);
       toast(t('accounts.sso.saved'));
     } catch (err) {
       showProblems(err.params?.problems);

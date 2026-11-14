@@ -39,14 +39,14 @@ export function isOriginAllowed(req, allowedOrigins = []) {
 }
 
 /** Fixed-window rate limiter keyed by client (IP) */
-export function createRateLimiter({ limit, windowMs }) {
+export function createRateLimiter({ limit, windowMs, now: clock = Date.now }) {
   const hits = new Map();
   setInterval(() => {
-    const now = Date.now();
+    const now = clock();
     for (const [k, v] of hits) if (now - v.start > windowMs) hits.delete(k);
   }, windowMs).unref();
   return (key) => {
-    const now = Date.now();
+    const now = clock();
     const entry = hits.get(key);
     if (!entry || now - entry.start > windowMs) {
       hits.set(key, { start: now, count: 1 });

@@ -14,14 +14,14 @@
   },
   "confirm": {
     "title": "Confirm the change",
-    "totpIntro": "These parameters control access to the lab. Type your password again and a code from your authenticator app.",
+    "totpIntro": "This change controls who reaches the lab or who administers it. Type your password again and a code from your authenticator app.",
     "password": "Password",
     "code": "6-digit code",
     "submit": "Confirm",
-    "passkeyIntro": "These parameters control access to the lab. Confirm with your passkey.",
+    "passkeyIntro": "This change controls who reaches the lab or who administers it. Confirm with your passkey.",
     "passkey": "Use my passkey",
     "unavailable": "This account cannot confirm this change here. Sign in with the local administrator, an administrator account with a passkey, or through the identity provider once it is enabled.",
-    "ssoIntro": "These parameters control access to the lab. You will be sent to your identity provider to sign in again. Back here, your changes are filled in again (secrets must be typed again) and you have 5 minutes to save them.",
+    "ssoIntro": "This change controls who reaches the lab or who administers it. You will be sent to your identity provider to sign in again. Back here, what you typed is filled in again (secrets must be typed again) and you have 5 minutes to make the change.",
     "sso": "Sign in again"
   },
   "lab": {

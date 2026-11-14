@@ -1,6 +1,11 @@
 /**
- * Confirmation before a sensitive change (the lab parameters): the signed-in
- * administrator proves itself again, and gets a ticket the change must carry
+ * Confirmation before a sensitive change: the signed-in administrator proves
+ * itself again, and gets a ticket the change must carry. Sensitive: the lab
+ * parameters (this module), and whatever makes an administrator or opens the
+ * door to one (the accounts module: the identity provider's settings, an
+ * invitation as administrator, a role given or taken, an administrator's
+ * passkeys cleared, an administrator's account enabled or approved). Other
+ * modules reach it as services.admin.confirmations ({ redeem, methodOf }).
  *
  *   - the environment's administrator: its password and a fresh one-time code
  *     (auth.reauthenticate; the code is burnt, as at sign-in);
@@ -31,7 +36,7 @@ const SSO_OUTCOME_TTL_MS = 10 * 60_000;
 
 export function createConfirmations({ auth, services, audit, now = Date.now }) {
   const tickets = new Map(); // ticket → { userId, sessionId, expires }
-  const attempts = createRateLimiter({ limit: 10, windowMs: 15 * 60_000 });
+  const attempts = createRateLimiter({ limit: 10, windowMs: 15 * 60_000, now });
   const ssoOutcomes = new Map(); // session id → { userId, outcome, expires }
   const fresh = new Map(); // session id → { userId, until }: signed in again at the provider
 
@@ -55,6 +60,20 @@ export function createConfirmations({ auth, services, audit, now = Date.now }) {
     if (services.accounts?.confirmation?.available(user)) return 'passkey';
     if (user.via === 'oidc' && auth.oidc.enabled) return 'sso';
     return null;
+  }
+
+  /** Is this ticket good for this request? Throws 403 admin.confirm_required when it is missing, stale or someone else's; uses nothing up */
+  function verify(req, ticket) {
+    sweep();
+    const found = typeof ticket === 'string' ? tickets.get(ticket) : null;
+    if (!found || found.userId !== req.user?.id || found.sessionId !== req.sessionId || found.expires <= now()) {
+      throw httpError(403, 'admin.confirm_required', 'Confirm this change first (passkey, or password and code)');
+    }
+  }
+
+  /** Spend a ticket (it is good for one use, accepted or not) */
+  function spend(ticket) {
+    if (typeof ticket === 'string') tickets.delete(ticket);
   }
 
   function issue(req) {
@@ -100,13 +119,26 @@ export function createConfirmations({ auth, services, audit, now = Date.now }) {
       return issue(req);
     },
 
-    /** Is this ticket good for this request? Throws 403 admin.confirm_required when it is missing, stale or someone else's; uses nothing up */
-    verify(req, ticket) {
-      sweep();
-      const found = typeof ticket === 'string' ? tickets.get(ticket) : null;
-      if (!found || found.userId !== req.user?.id || found.sessionId !== req.sessionId || found.expires <= now()) {
-        throw httpError(403, 'admin.confirm_required', 'Confirm this change first (passkey, or password and code)');
+    verify,
+    spend,
+
+    /**
+     * The rule of every confirmed change: the ticket is checked first, then the
+     * values (`check()`, which throws its refusal), and the ticket is spent only
+     * when both are good, so a typo does not cost a new confirmation. A ticket
+     * that does not fit is spent at once: it cannot be tried again.
+     * → what check() returned
+     */
+    redeem(req, ticket, check = () => {}) {
+      try {
+        verify(req, ticket);
+      } catch (err) {
+        spend(ticket);
+        throw err;
       }
+      const checked = check();
+      spend(ticket);
+      return checked;
     },
 
     /**
@@ -155,11 +187,6 @@ export function createConfirmations({ auth, services, audit, now = Date.now }) {
       const found = ssoOutcomes.get(req.sessionId);
       ssoOutcomes.delete(req.sessionId);
       return found && found.userId === req.user?.id && found.expires > now() ? found.outcome : null;
-    },
-
-    /** Spend a ticket (it is good for one use, accepted or not) */
-    spend(ticket) {
-      if (typeof ticket === 'string') tickets.delete(ticket);
     },
   };
 }

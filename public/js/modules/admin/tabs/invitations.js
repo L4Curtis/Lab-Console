@@ -13,6 +13,7 @@ import { request, getJson, live } from '../../../core/api.js';
 import { t, onLocaleChange } from '../../../core/i18n.js';
 import { confirmDialog, formDialog } from '../../../shared/dialog.js';
 import { formatDate, errorText, showLink } from '../common.js';
+import { withConfirmation } from '../confirm.js';
 
 export function mount(el) {
   const create = h('button.btn.primary', { type: 'button', dataset: { action: 'create' } }, icon('plus'), h('span.create-label'));
@@ -55,7 +56,8 @@ export function mount(el) {
       ],
       submitLabel: t('accounts.invitations.create'),
       validate: (values) => (Number.isInteger(values.uses) && values.uses >= 1 && values.uses <= 100 ? '' : t('accounts.errors.bad_uses')),
-      onSubmit: (values) => request('POST', '/api/accounts/invitations', values),
+      // An invitation as administrator is confirmed first (the server asks): null when it was not
+      onSubmit: (values) => withConfirmation((confirmation) => request('POST', '/api/accounts/invitations', { ...values, confirmation }), { returnTo: 'invitations' }),
     });
     if (!created) return;
     await load();

@@ -7,8 +7,8 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import http from 'node:http';
 import { TestBrowser } from './helpers/browser.js';
-import { startAccountsApp, call, invite, signUp, localSignIn, createLocalAccount, testClock, PASSWORD } from './helpers/accounts.js';
-import { TEST_ADMIN, adminCode } from './helpers/app.js';
+import { startAccountsApp, call, confirmed, invite, signUp, localSignIn, createLocalAccount, testClock, PASSWORD } from './helpers/accounts.js';
+import { TEST_ADMIN, adminCode, confirmTicket } from './helpers/app.js';
 import { checkUsername, checkPassword, cleanDisplayName, usernameKey } from '../src/modules/accounts/policy.js';
 import { createLinks } from '../src/modules/accounts/links.js';
 import { memoryDatabase } from './helpers/db.js';
@@ -219,7 +219,9 @@ describe('invitations and sign-up', () => {
     for (const body of [{ ttl: '2h' }, { uses: 0 }, { uses: 101 }, { uses: 1.5 }, { role: 'root' }]) {
       assert.equal((await call(lab, 'admin', 'POST', '/api/accounts/invitations', body)).status, 400, JSON.stringify(body));
     }
-    const admin = await call(lab, 'admin', 'POST', '/api/accounts/invitations', { role: 'admin' });
+    const unconfirmed = await call(lab, 'admin', 'POST', '/api/accounts/invitations', { role: 'admin' });
+    assert.deepEqual([unconfirmed.status, unconfirmed.body.code], [403, 'admin.confirm_required'], 'an administrator invitation is confirmed first');
+    const admin = await confirmed(lab, 'POST', '/api/accounts/invitations', { role: 'admin' });
     assert.equal(admin.status, 409);
     assert.equal(admin.body.code, 'accounts.passkeys_unavailable');
   });
@@ -249,7 +251,7 @@ describe('roles, states and the last administrator', () => {
     assert.equal(stream.statusCode, 200);
     const ended = new Promise((resolve) => { stream.on('close', resolve); stream.on('end', resolve); stream.resume(); });
 
-    const res = await call(lab, 'admin', 'PATCH', `/api/accounts/users/${encodeURIComponent(id)}`, { role: 'admin' });
+    const res = await confirmed(lab, 'PATCH', `/api/accounts/users/${encodeURIComponent(id)}`, { role: 'admin' });
     assert.equal(res.status, 200);
     assert.equal(res.body.account.role, 'admin');
     assert.equal(res.body.account.needsPasskey, true);
@@ -263,14 +265,13 @@ describe('roles, states and the last administrator', () => {
   test('the last administrator of the directory cannot be demoted or disabled', async () => {
     // eve is the directory's only administrator (promoted above)
     const eve = encodeURIComponent('local:eve');
-    for (const body of [{ role: 'student' }, { state: 'disabled' }]) {
-      const res = await call(lab, 'admin', 'PATCH', `/api/accounts/users/${eve}`, body);
-      assert.equal(res.status, 409, JSON.stringify(body));
+    for (const res of [await confirmed(lab, 'PATCH', `/api/accounts/users/${eve}`, { role: 'student' }), await call(lab, 'admin', 'PATCH', `/api/accounts/users/${eve}`, { state: 'disabled' })]) {
+      assert.equal(res.status, 409);
       assert.equal(res.body.code, 'accounts.last_admin');
     }
     const { id } = await createLocalAccount(lab, 'frank');
-    assert.equal((await call(lab, 'admin', 'PATCH', `/api/accounts/users/${encodeURIComponent(id)}`, { role: 'admin' })).status, 200);
-    assert.equal((await call(lab, 'admin', 'PATCH', `/api/accounts/users/${eve}`, { role: 'student' })).status, 200, 'with another one, it can');
+    assert.equal((await confirmed(lab, 'PATCH', `/api/accounts/users/${encodeURIComponent(id)}`, { role: 'admin' })).status, 200);
+    assert.equal((await confirmed(lab, 'PATCH', `/api/accounts/users/${eve}`, { role: 'student' })).status, 200, 'with another one, it can');
     const last = await call(lab, 'admin', 'PATCH', `/api/accounts/users/${encodeURIComponent(id)}`, { state: 'disabled' });
     assert.equal(last.body.code, 'accounts.last_admin');
   });
@@ -293,7 +294,7 @@ describe('roles, states and the last administrator', () => {
   test('a change of role and state together is all or nothing: a pending account keeps its role', async () => {
     const { token } = await invite(lab, { uses: 2 });
     assert.deepEqual((await signUp(lab, token, { username: 'hugo' })).body, { pending: true });
-    const res = await call(lab, 'admin', 'PATCH', '/api/accounts/users/local%3Ahugo', { role: 'admin', state: 'active' });
+    const res = await confirmed(lab, 'PATCH', '/api/accounts/users/local%3Ahugo', { role: 'admin', state: 'active' });
     assert.equal(res.status, 409);
     assert.equal(res.body.code, 'accounts.pending');
     const hugo = (await call(lab, 'admin', 'GET', '/api/accounts/users')).body.users.find((u) => u.id === 'local:hugo');
@@ -321,6 +322,74 @@ describe('roles, states and the last administrator', () => {
     }
     // The role a student's browser believes it has is irrelevant: henri is still a student
     assert.equal((await call(lab, 'admin', 'GET', '/api/accounts/users')).body.users.find((u) => u.id === 'local:henri').role, 'student');
+  });
+});
+
+describe('a stolen administrator session alone cannot make lasting administrator access', () => {
+  let lab;
+  before(async () => { lab = await startAccountsApp({ publicHost: 'localhost' }); });
+  after(() => lab.close());
+  const unconfirmed = (res, what) => assert.deepEqual([res.status, res.body.code], [403, 'admin.confirm_required'], what);
+  const user = (id) => lab.deps.services.accounts.get(id);
+
+  test('the identity provider, an administrator invitation, a role given or taken: refused without a confirmation, nothing changed', async () => {
+    unconfirmed(await call(lab, 'admin', 'PUT', '/api/accounts/sso', { enabled: true, issuer: 'https://idp.attacker.example', clientId: 'x', adminGroups: 'everyone' }), 'PUT /sso');
+    assert.equal(lab.deps.auth.oidc.settings.issuer, '', 'the provider is unchanged');
+    unconfirmed(await call(lab, 'admin', 'POST', '/api/accounts/invitations', { role: 'admin' }), 'administrator invitation');
+    assert.equal((await call(lab, 'admin', 'GET', '/api/accounts/invitations')).body.invitations.length, 0);
+
+    const { id } = await createLocalAccount(lab, 'mallory');
+    const path = `/api/accounts/users/${encodeURIComponent(id)}`;
+    unconfirmed(await call(lab, 'admin', 'PATCH', path, { role: 'admin' }), 'promotion');
+    assert.equal(user(id).role, 'student');
+    assert.equal((await confirmed(lab, 'PATCH', path, { role: 'admin' })).status, 200);
+    unconfirmed(await call(lab, 'admin', 'PATCH', path, { role: 'student' }), 'demotion');
+    assert.equal(user(id).role, 'admin');
+    unconfirmed(await call(lab, 'admin', 'DELETE', `${path}/passkeys`), "an administrator's passkeys");
+    // Disabling an administrator takes access away: no confirmation; enabling it again gives it back: confirmed
+    const other = await createLocalAccount(lab, 'trent');
+    assert.equal((await confirmed(lab, 'PATCH', `/api/accounts/users/${encodeURIComponent(other.id)}`, { role: 'admin' })).status, 200, 'not the last administrator');
+    assert.equal((await call(lab, 'admin', 'PATCH', path, { state: 'disabled' })).status, 200);
+    unconfirmed(await call(lab, 'admin', 'PATCH', path, { state: 'active' }), 're-enabling an administrator');
+    assert.equal(user(id).state, 'disabled');
+    assert.equal((await confirmed(lab, 'PATCH', path, { state: 'active' })).status, 200);
+    assert.deepEqual((await lab.deps.audit.query({ action: 'accounts.role' })).map((e) => e.details.username).sort(), ['mallory', 'trent'], 'only the confirmed promotions');
+  });
+
+  test('approving a pending administrator is confirmed; a pending student is not', async () => {
+    const admins = await invite(lab, { role: 'admin', uses: 2 });
+    assert.deepEqual((await signUp(lab, admins.token, { username: 'nadia' })).body, { pending: true });
+    unconfirmed(await call(lab, 'admin', 'POST', '/api/accounts/users/local%3Anadia/approve'), 'approval of an administrator');
+    assert.equal(user('local:nadia').state, 'pending');
+    assert.equal((await confirmed(lab, 'POST', '/api/accounts/users/local%3Anadia/approve')).status, 200);
+    const students = await invite(lab, { uses: 2 });
+    await signUp(lab, students.token, { username: 'oscar' });
+    assert.equal((await call(lab, 'admin', 'POST', '/api/accounts/users/local%3Aoscar/approve')).status, 200);
+  });
+
+  test("everything else needs no confirmation: a student's invitation, role and state", async () => {
+    assert.equal((await call(lab, 'admin', 'POST', '/api/accounts/invitations', { role: 'student' })).status, 200);
+    const { id } = await createLocalAccount(lab, 'paula');
+    const path = `/api/accounts/users/${encodeURIComponent(id)}`;
+    assert.equal((await call(lab, 'admin', 'PATCH', path, { state: 'disabled' })).status, 200);
+    assert.equal((await call(lab, 'admin', 'PATCH', path, { state: 'active', role: 'student' })).status, 200);
+  });
+
+  test("a ticket is one person's, in one session, for one change; the request's own refusals do not spend it", async () => {
+    const { id } = await createLocalAccount(lab, 'quentin');
+    const path = `/api/accounts/users/${encodeURIComponent(id)}`;
+    const ticket = await confirmTicket(lab, lab.time);
+    unconfirmed(await call(lab, 'admin', 'PATCH', path, { role: 'admin', confirmation: ticket }), "someone else's ticket");
+    const fresh = await confirmTicket(lab, lab.time);
+    const bad = await call(lab, 'localAdmin', 'POST', '/api/accounts/invitations', { role: 'admin', ttl: '2h', confirmation: fresh });
+    assert.deepEqual([bad.status, bad.body.code], [400, 'accounts.bad_ttl']);
+    assert.equal((await call(lab, 'localAdmin', 'POST', '/api/accounts/invitations', { role: 'admin', confirmation: fresh })).status, 200, 'the ticket survived the typo');
+    unconfirmed(await call(lab, 'localAdmin', 'POST', '/api/accounts/invitations', { role: 'admin', confirmation: fresh }), 'spent');
+  });
+
+  test('an SSO administrator comes back to the tab that asked; any other page is refused', async () => {
+    const res = await call(lab, 'admin', 'POST', '/api/admin/confirm/sso', { returnTo: 'https://evil.example' });
+    assert.deepEqual([res.status, res.body.code], [400, 'server.bad_request']);
   });
 });
 

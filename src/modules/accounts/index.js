@@ -82,7 +82,7 @@ export function createAccountsModule({ config, logger, events, repos, audit, aut
   const changed = (what) => events?.publish('accounts:changed', { what, at: now() }, { audience: (user) => user?.role === 'admin' });
 
   const ctx = {
-    config, log, audit, auth, events, directory, links, sso, rp, ceremony, refusals, changed, now, passwordCost,
+    config, log, audit, auth, events, services, directory, links, sso, rp, ceremony, refusals, changed, now, passwordCost,
     exclusive: createMutex(),
     linkUrl: (kind, token) => `${publicUrl}/${kind === 'reset' ? 'reset' : 'join'}#${token}`,
   };

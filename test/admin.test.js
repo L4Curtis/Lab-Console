@@ -281,7 +281,9 @@ describe('passkey confirmation (a local account promoted to administrator)', () 
     lab = await startTestApp({ modules, publicHost: 'localhost' });
     key = new SoftAuthenticator({ origin: lab.url });
     const { id } = await createLocalAccount(lab, 'nora');
-    assert.equal((await call(lab, 'admin', 'PATCH', `/api/accounts/users/${encodeURIComponent(id)}`, { role: 'admin' })).status, 200);
+    // Promoting is itself confirmed: by the environment's administrator, with its password and code
+    const { ticket } = (await call(lab, envAdmin, 'POST', '/api/admin/confirm', { password: TEST_ADMIN.password, code: adminCode() })).body;
+    assert.equal((await call(lab, envAdmin, 'PATCH', `/api/accounts/users/${encodeURIComponent(id)}`, { role: 'admin', confirmation: ticket })).status, 200);
     browser = new TestBrowser();
     await call(lab, browser, 'POST', '/auth/local', { username: 'nora', password: 'correct horse battery' });
     const options = await call(lab, browser, 'POST', '/auth/passkey/step/options', {});

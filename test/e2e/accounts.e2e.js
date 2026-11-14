@@ -9,7 +9,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { useHarness, signInAs, signOut, waitForApp, addVirtualAuthenticator } from './harness.js';
+import { useHarness, signInAs, signOut, waitForApp, addVirtualAuthenticator, person, TEST_ADMIN } from './harness.js';
 import { call, invite, signUp, PASSWORD } from '../helpers/accounts.js';
 
 const h = useHarness({ mockLab: false, publicHost: 'localhost' });
@@ -73,7 +73,9 @@ test('invitation sign-up: an administrator creates the link, a newcomer creates 
 test('a promoted account registers a passkey at its next sign-in, then signs in with one click', async () => {
   const { token } = await invite(h.app);
   assert.equal((await signUp(h.app, token, { username: 'yann', name: 'Yann Le Goff' })).status, 200);
-  assert.equal((await call(h.app, 'admin', 'PATCH', `/api/accounts/users/${encodeURIComponent('local:yann')}`, { role: 'admin' })).status, 200);
+  // Promoting is confirmed by the environment's administrator (password and code)
+  const { ticket } = (await call(h.app, 'localAdmin', 'POST', '/api/admin/confirm', { password: TEST_ADMIN.password, code: await h.adminCode() })).body;
+  assert.equal((await call(h.app, 'localAdmin', 'PATCH', `/api/accounts/users/${encodeURIComponent('local:yann')}`, { role: 'admin', confirmation: ticket })).status, 200);
 
   const page = await h.newPage();
   const authenticator = await addVirtualAuthenticator(page);
@@ -152,22 +154,34 @@ test('a promoted account registers a passkey at its next sign-in, then signs in 
   await page.context().close();
 });
 
-test('an administrator promotes a student from the Users tab: signed out at once, back as an administrator', async () => {
+test('an administrator promotes a student from the Users tab: confirmed, signed out at once, back as an administrator', async () => {
   const student = await h.newPage();
   await signInAs(student, 'bilal'); // recorded in the directory at this sign-in
   const admin = await h.newPage();
-  await h.session(admin, 'ada');
+  await signInAs(admin, 'ada');
   await admin.goto(`${h.url}/#/admin/users`);
   await waitForApp(admin);
   const row = admin.locator('tr[data-account="oidc:mock-student2"]');
-  await row.waitFor();
-  assert.equal(await row.locator('select.role-select').inputValue(), '', 'the role comes from the groups');
-  await row.locator('select.role-select').selectOption('admin');
-  await admin.waitForSelector('dialog.modal >> text=Bilal Haddad devient Administrateur.');
-  // The server's answer, not the select's value (the page may show the choice
-  // before the change is saved): from then on the student's session is over
-  const saved = admin.waitForResponse((r) => r.request().method() === 'PATCH' && r.url().endsWith('/api/accounts/users/oidc%3Amock-student2'));
+  const promote = async () => {
+    await row.waitFor();
+    assert.equal(await row.locator('select.role-select').inputValue(), '', 'the role comes from the groups');
+    await row.locator('select.role-select').selectOption('admin');
+    await admin.waitForSelector('dialog.modal >> text=Bilal Haddad devient Administrateur.');
+    await admin.click('dialog.modal button[data-action="confirm"]');
+  };
+  await promote();
+  // Making an administrator is confirmed: an SSO administrator signs in again at the provider, and comes back to this tab
+  await admin.waitForSelector('dialog.modal >> text=Me reconnecter');
   await admin.click('dialog.modal button[data-action="confirm"]');
+  await admin.waitForURL(`${h.idp.issuer}/authorize**`);
+  await admin.click(`a.user[href$="user=${encodeURIComponent(person('ada').username)}"]`);
+  await admin.waitForURL((u) => u.href.startsWith(h.url) && u.hash === '#/admin/users');
+  await waitForApp(admin);
+  assert.equal(await row.locator('select.role-select').inputValue(), '', 'nothing changed before the confirmation');
+  // Confirmed for a few minutes: the same change goes through at once. The server's answer, not the
+  // select's value (the page may show the choice before the change is saved): from then on the student's session is over
+  const saved = admin.waitForResponse((r) => r.request().method() === 'PATCH' && r.url().endsWith('/api/accounts/users/oidc%3Amock-student2') && r.status() !== 403);
+  await promote();
   assert.equal((await saved).status(), 200);
   await admin.waitForFunction(() => document.querySelector('tr[data-account="oidc:mock-student2"] select.role-select')?.value === 'admin');
 

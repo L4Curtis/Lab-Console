@@ -14,14 +14,14 @@
   },
   "confirm": {
     "title": "Confirmer la modification",
-    "totpIntro": "Ces paramètres touchent à l’accès au labo. Retapez votre mot de passe et un code de votre application d’authentification.",
+    "totpIntro": "Cette modification touche à l’accès au labo ou à son administration. Retapez votre mot de passe et un code de votre application d’authentification.",
     "password": "Mot de passe",
     "code": "Code à 6 chiffres",
     "submit": "Confirmer",
-    "passkeyIntro": "Ces paramètres touchent à l’accès au labo. Confirmez avec votre clé d’accès.",
+    "passkeyIntro": "Cette modification touche à l’accès au labo ou à son administration. Confirmez avec votre clé d’accès.",
     "passkey": "Utiliser ma clé d’accès",
     "unavailable": "Ce compte ne peut pas confirmer cette modification ici. Connectez-vous avec l’administrateur du serveur, un compte administrateur qui a une clé d’accès, ou par le fournisseur d’identité une fois activé.",
-    "ssoIntro": "Ces paramètres touchent à l’accès au labo. Vous allez être envoyé chez votre fournisseur d’identité pour vous reconnecter. À votre retour, vos modifications sont remises dans le formulaire (les secrets sont à retaper) et vous avez 5 minutes pour les enregistrer.",
+    "ssoIntro": "Cette modification touche à l’accès au labo ou à son administration. Vous allez être envoyé chez votre fournisseur d’identité pour vous reconnecter. À votre retour, ce que vous aviez saisi est remis dans le formulaire (les secrets sont à retaper) et vous avez 5 minutes pour faire la modification.",
     "sso": "Me reconnecter"
   },
   "lab": {

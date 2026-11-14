@@ -9,7 +9,8 @@
  *   - SSO accounts, once they signed in: the role their groups give, or one
  *     forced here, disable / enable.
  * Any change of role or state signs the person out everywhere at once; the
- * server refuses to remove the last administrator
+ * server refuses to remove the last administrator. Whatever makes or unmakes
+ * an administrator is confirmed first (../confirm.js: the server asks)
  */
 import { h, icon, toast } from '../../../core/dom.js';
 import { request, getJson, live } from '../../../core/api.js';
@@ -17,6 +18,7 @@ import { t, onLocaleChange } from '../../../core/i18n.js';
 import { session } from '../../../core/session.js';
 import { confirmDialog, formDialog } from '../../../shared/dialog.js';
 import { formatDate, errorText, showLink } from '../common.js';
+import { withConfirmation } from '../confirm.js';
 
 export function mount(el) {
   const filter = h('input.field.filter', { type: 'search', placeholder: t('accounts.users.filter'), 'aria-label': t('accounts.users.filter') });
@@ -69,13 +71,16 @@ export function mount(el) {
       select.value = previous;
       return;
     }
-    await act(() => request('PATCH', `/api/accounts/users/${encodeURIComponent(user.id)}`, { role }), 'accounts.users.roleDone', () => { select.value = previous; });
+    await act(() => change('PATCH', `/api/accounts/users/${encodeURIComponent(user.id)}`, { role }), 'accounts.users.roleDone', () => { select.value = previous; });
   }
+
+  /** A change the server may want confirmed (a role given or taken, an administrator's account): null when it was not sent */
+  const change = (method, url, body = {}) => withConfirmation((confirmation) => request(method, url, { ...body, confirmation }), { returnTo: 'users' });
 
   async function act(fn, doneKey, onError) {
     try {
-      await fn();
-      if (doneKey) toast(t(doneKey));
+      if ((await fn()) === null) onError?.(); // not confirmed: nothing changed
+      else if (doneKey) toast(t(doneKey));
     } catch (err) {
       toast(errorText(err), 'error', 7000);
       onError?.();
@@ -88,7 +93,7 @@ export function mount(el) {
     const path = `/api/accounts/users/${encodeURIComponent(user.id)}`;
     const buttons = [];
     if (user.state === 'pending') {
-      buttons.push(h('button.btn.small.primary', { type: 'button', dataset: { action: 'approve' }, onclick: () => act(() => request('POST', `${path}/approve`), 'accounts.users.approved') }, icon('check'), t('accounts.users.approve')));
+      buttons.push(h('button.btn.small.primary', { type: 'button', dataset: { action: 'approve' }, onclick: () => act(() => change('POST', `${path}/approve`), 'accounts.users.approved') }, icon('check'), t('accounts.users.approve')));
       buttons.push(h('button.btn.small.danger', {
         type: 'button',
         dataset: { action: 'reject' },
@@ -106,11 +111,11 @@ export function mount(el) {
         dataset: { action: 'disable' },
         onclick: async () => {
           const ok = await confirmDialog({ title: t('accounts.users.disableTitle'), body: [t('accounts.users.disableBody', { name: user.name }), t('accounts.users.signedOut')], confirmLabel: t('accounts.users.disable'), danger: true });
-          if (ok) await act(() => request('PATCH', path, { state: 'disabled' }), 'accounts.users.disabled');
+          if (ok) await act(() => change('PATCH', path, { state: 'disabled' }), 'accounts.users.disabled');
         },
       }, t('accounts.users.disable')));
     } else {
-      buttons.push(h('button.btn.small', { type: 'button', dataset: { action: 'enable' }, onclick: () => act(() => request('PATCH', path, { state: 'active' }), 'accounts.users.enabled') }, t('accounts.users.enable')));
+      buttons.push(h('button.btn.small', { type: 'button', dataset: { action: 'enable' }, onclick: () => act(() => change('PATCH', path, { state: 'active' }), 'accounts.users.enabled') }, t('accounts.users.enable')));
     }
     if (user.via === 'local') {
       buttons.push(h('button.btn.small', {
@@ -133,7 +138,7 @@ export function mount(el) {
           dataset: { action: 'clear-passkeys' },
           onclick: async () => {
             const ok = await confirmDialog({ title: t('accounts.users.clearTitle'), body: [t('accounts.users.clearBody', { name: user.name, count: user.passkeys }), t('accounts.users.signedOut')], confirmLabel: t('accounts.users.clear'), danger: true });
-            if (ok) await act(() => request('DELETE', `${path}/passkeys`), 'accounts.users.cleared');
+            if (ok) await act(() => change('DELETE', `${path}/passkeys`), 'accounts.users.cleared');
           },
         }, icon('key'), t('accounts.users.clear')));
       }

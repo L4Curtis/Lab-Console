@@ -25,6 +25,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { base32Decode, totp } from '../../src/modules/auth/totp.js';
 import { student, admin } from './fakes.js';
+import { createUser } from '../../src/modules/auth/user.js';
 
 export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
@@ -137,7 +138,40 @@ function freePort() {
   });
 }
 
-const KNOWN_USERS = { student1: () => student(1), student2: () => student(2), student3: () => student(3), admin: () => admin() };
+/** The administrator of the environment (TEST_ADMIN), the one account that confirms with a password and a one-time code */
+const localAdmin = () => createUser({ id: `local:${TEST_ADMIN.username}`, username: TEST_ADMIN.username, name: TEST_ADMIN.username, role: 'admin', via: 'local' });
+const KNOWN_USERS = { student1: () => student(1), student2: () => student(2), student3: () => student(3), admin: () => admin(), localAdmin };
+
+/**
+ * Real time that a test moves forward by hand: { now(), advance(ms) }. What a
+ * confirmation needs (src/modules/admin/confirm.js): an accepted one-time code
+ * is burnt, so each one comes from a later step; and they are limited to 10 per
+ * 15 minutes. Give it to the sign-in module (startTestApp's `now`) and to the
+ * administration module, then use confirmTicket()
+ */
+export function shiftedClock() {
+  const clock = { shift: 0, now: () => Date.now() + clock.shift, advance: (ms) => { clock.shift += ms; } };
+  return clock;
+}
+
+/**
+ * A confirmation ticket of the environment's administrator (lab.as('localAdmin')),
+ * for a change admin/confirm.js guards. `clock` is the shiftedClock the sign-in and
+ * administration modules of `lab` run on
+ */
+export async function confirmTicket(lab, clock) {
+  clock.tickets = (clock.tickets ?? 0) + 1;
+  // A fresh one-time code each time; past the tenth, a new throttling window
+  clock.advance(clock.tickets % 10 === 1 && clock.tickets > 1 ? 15 * 60_000 + 30_000 : 30_000);
+  const res = await fetch(`${lab.url}/api/admin/confirm`, {
+    method: 'POST',
+    headers: { origin: lab.url, 'content-type': 'application/json', ...lab.as('localAdmin') },
+    body: JSON.stringify({ password: TEST_ADMIN.password, code: adminCode(clock.now()) }),
+  });
+  const body = await res.json();
+  if (res.status !== 200) throw new Error(`confirmation refused: ${res.status} ${JSON.stringify(body)}`);
+  return body.ticket;
+}
 
 /**
  * Options: env (variables), auth (a factory replacing createAuth: only
@@ -179,7 +213,7 @@ export async function startTestApp({ env = {}, logger = silentLogger, auth, modu
   /** Open a session for `user` (a name from KNOWN_USERS or a User), as a successful sign-in would */
   function signIn(who = 'admin') {
     const user = typeof who === 'string' ? KNOWN_USERS[who]?.() : who;
-    if (!user?.id) throw new TypeError(`Unknown test user "${who}" (student1, student2, student3, admin, or a User)`);
+    if (!user?.id) throw new TypeError(`Unknown test user "${who}" (student1, student2, student3, admin, localAdmin, or a User)`);
     const { id, token, cookie } = lab.deps.auth.sessions.create(user, { ip: '127.0.0.1', userAgent: 'test' });
     return { id, token, cookie, user, headers: { cookie } };
   }

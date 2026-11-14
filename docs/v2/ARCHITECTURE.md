@@ -655,7 +655,10 @@ settings.on('change', (ns, values) => …)   // → off(); after a save that cha
   tunnel reconnects, the health cache is dropped.
 - Confirmation is not the service's job: the admin module's `PUT /api/admin/lab`
   requires a ticket (`src/modules/admin/confirm.js`, 2 minutes, one change,
-  same user and session). The environment's administrator gets it with its
+  same user and session), and so do the accounts module's changes that make,
+  unmake or let in an administrator (`services.admin.confirmations.redeem(req,
+  ticket, check)`: the ticket first, then the request's own refusals, and the
+  ticket is spent only when both pass). The environment's administrator gets it with its
   password and a fresh TOTP code, a local administrator with a passkey. An
   SSO administrator signs in again at the provider (owner decision, 13 Nov):
   `POST /api/admin/confirm/sso` → a dedicated authorization request with
@@ -663,6 +666,7 @@ settings.on('change', (ns, values) => …)   // → off(); after a save that cha
   administrator, a fresh `auth_time`) marks the session as freshly confirmed
   for 5 minutes (`SSO_FRESH_MS`), during which `POST /api/admin/confirm {}`
   answers with a ticket; `GET /api/admin/confirm` → `{ method, confirmedUntil }`.
+  `returnTo` (lab, users, invitations, sso) is the tab the browser comes back to.
   Nothing waits on the server meanwhile; the lab page keeps its non-secret
   draft in `sessionStorage` across the trip. The Proxmox fields stay
   read-only on that page (owner decision: Proxmox is postponed).

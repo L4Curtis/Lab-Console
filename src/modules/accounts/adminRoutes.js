@@ -3,16 +3,18 @@
  * module mounts this router behind auth.requireRole('admin'))
  *
  *   GET    /users                      { users, passkeysAvailable }   the environment's administrator first
- *   PATCH  /users/:id                  { role } and / or { state: 'active' | 'disabled' }
+ *   PATCH  /users/:id                  { role } and / or { state: 'active' | 'disabled' }   (+ confirmation ✱)
  *                                      SSO accounts: role null = back to the groups
- *   POST   /users/:id/approve | /reject   a pending account (rejected = removed)
+ *   POST   /users/:id/approve | /reject   a pending account (rejected = removed)   (approve: + confirmation ✱)
  *   POST   /users/:id/reset-link       { ttl: '1h' | '24h' } → { url, expiresAt }   local accounts
  *   DELETE /users/:id/passkeys         a lost device: a promoted administrator registers anew at the next sign-in
+ *                                      (an administrator's: { confirmation })
  *   GET    /invitations                { invitations }
  *   POST   /invitations                { ttl: '1h' | '24h' | '7d', uses: 1…100, role, note } → { invitation, url }
+ *                                      (role 'admin': + confirmation)
  *   DELETE /invitations/:id            revoke
  *   GET    /sso                        { locked, source, settings (no secret), callbackUrl, encrypted, secretUnreadable }
- *   PUT    /sso                        save and apply (refused when the environment sets the provider)
+ *   PUT    /sso                        save and apply (refused when the environment sets the provider)   (+ confirmation)
  *   POST   /sso/test                   { issuer?, allowInsecure? } → the discovery document's summary
  *   POST   /sso/trial                  → { url }: a sign-in at the provider that opens no session
  *   GET    /sso/trial                  → { result } of the last trial of this session (once)
@@ -20,16 +22,26 @@
  * Any change of a role or a state ends the account's sessions at once (its
  * consoles and live streams with them). A link's token is in the answer that
  * creates it and nowhere else
+ *
+ * Whatever makes an administrator, unmakes one or opens the door to one needs
+ * the confirmation the lab parameters need (admin/confirm.js: passkey,
+ * password and code, or a fresh sign-in at the provider): `confirmation` is
+ * its ticket, refused 403 admin.confirm_required when missing. A stolen
+ * administrator session alone cannot turn itself into lasting access. ✱ when
+ * the account is, or becomes, an administrator: a role given or taken
+ * (an SSO account's "back to the groups" included), an administrator's account
+ * enabled again or approved. The request's own refusals come first and do not
+ * spend the ticket.
  */
 import express from 'express';
 import { jsonBody } from '../../lib/bodies.js';
 import { httpError, sendError } from '../../lib/httpError.js';
 import { ROLES } from '../auth/user.js';
 import { LINK_TTLS, RESET_TTLS, MAX_USES } from './links.js';
-import { environmentAccount } from './directory.js';
+import { environmentAccount, effectiveRole } from './directory.js';
 
 export function adminRoutes(ctx) {
-  const { config, auth, audit, directory, links, sso, rp, changed, linkUrl, log } = ctx;
+  const { config, auth, audit, services, directory, links, sso, rp, changed, linkUrl, log } = ctx;
   const router = express.Router();
   const small = jsonBody('4kb');
   const body = (req) => (req.body !== null && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {});
@@ -44,6 +56,18 @@ export function adminRoutes(ctx) {
     return account;
   }
 
+  /**
+   * A sensitive change carries a confirmation ticket (admin/confirm.js, published by the
+   * administration module). `check()` holds the request's own refusals: they come before
+   * the ticket is spent. Without the administration module nothing sensitive is allowed
+   */
+  function confirmed(req, check = () => {}) {
+    const confirmations = services?.admin?.confirmations;
+    if (!confirmations) throw httpError(403, 'admin.confirm_unavailable', 'Sensitive changes cannot be confirmed on this platform');
+    return confirmations.redeem(req, body(req).confirmation, check);
+  }
+  const guarded = (sensitive, req, check) => (sensitive ? confirmed(req, check) : check());
+
   // ── Users ──────────────────────────────────────────────────────────────────
   router.get('/users', (_req, res) => {
     res.json({ users: [environmentAccount(config.auth.localAdmin.username), ...directory.list().map(directory.summary)], passkeysAvailable: rp.available });
@@ -54,17 +78,23 @@ export function adminRoutes(ctx) {
     const input = body(req);
     const wantsRole = Object.hasOwn(input, 'role');
     const wantsState = Object.hasOwn(input, 'state');
-    if (!wantsRole && !wantsState) throw httpError(400, 'server.bad_request', 'Nothing to change');
-    if (wantsRole && !(ROLES.includes(input.role) || (input.role === null && account.via === 'oidc'))) {
-      throw httpError(400, 'accounts.bad_role', 'Unknown role');
-    }
-    if (wantsState && !['active', 'disabled'].includes(input.state)) throw httpError(400, 'accounts.bad_state', 'Unknown state');
-    // Refused before anything is saved: a request changes all it asks for, or nothing
-    if (wantsState && account.state === 'pending') throw httpError(409, 'accounts.pending', 'Approve or reject this account first');
-    // A local administrator signs in with a passkey: there must be a way to register one
-    if (wantsRole && input.role === 'admin' && account.via === 'local' && !rp.available) {
-      throw httpError(409, 'accounts.passkeys_unavailable', 'A local account can only be an administrator when passkeys are available (https)');
-    }
+    const before = effectiveRole(account);
+    const after = wantsRole ? effectiveRole({ ...account, ...(account.via === 'oidc' ? { roleOverride: input.role } : { role: input.role }) }) : before;
+    const sensitive = (wantsRole && (before === 'admin' || after === 'admin'))
+      || (wantsState && input.state === 'active' && account.state !== 'active' && after === 'admin');
+    // Refused before anything is saved (and before a confirmation is spent): a request changes all it asks for, or nothing
+    guarded(sensitive, req, () => {
+      if (!wantsRole && !wantsState) throw httpError(400, 'server.bad_request', 'Nothing to change');
+      if (wantsRole && !(ROLES.includes(input.role) || (input.role === null && account.via === 'oidc'))) {
+        throw httpError(400, 'accounts.bad_role', 'Unknown role');
+      }
+      if (wantsState && !['active', 'disabled'].includes(input.state)) throw httpError(400, 'accounts.bad_state', 'Unknown state');
+      if (wantsState && account.state === 'pending') throw httpError(409, 'accounts.pending', 'Approve or reject this account first');
+      // A local administrator signs in with a passkey: there must be a way to register one
+      if (wantsRole && input.role === 'admin' && account.via === 'local' && !rp.available) {
+        throw httpError(409, 'accounts.passkeys_unavailable', 'A local account can only be an administrator when passkeys are available (https)');
+      }
+    });
 
     let summary = directory.summary(account);
     const entries = [];
@@ -92,8 +122,9 @@ export function adminRoutes(ctx) {
     res.json({ account: summary, sessionsEnded: ended });
   });
 
-  router.post('/users/:id/approve', async (req, res) => {
+  router.post('/users/:id/approve', small, async (req, res) => {
     const account = target(req);
+    guarded(effectiveRole(account) === 'admin', req, () => {});
     const summary = await directory.approve(account.id);
     audit.log(req, 'accounts.approve', { account: account.id, username: account.username });
     changed('users');
@@ -118,9 +149,11 @@ export function adminRoutes(ctx) {
     res.json({ url: linkUrl('reset', token), expiresAt: link.expiresAt });
   });
 
-  router.delete('/users/:id/passkeys', async (req, res) => {
+  router.delete('/users/:id/passkeys', small, async (req, res) => {
     const account = target(req);
-    if (account.via !== 'local') throw httpError(400, 'accounts.not_local', 'This account signs in through the identity provider');
+    guarded(effectiveRole(account) === 'admin', req, () => {
+      if (account.via !== 'local') throw httpError(400, 'accounts.not_local', 'This account signs in through the identity provider');
+    });
     const removed = await directory.clearPasskeys(account.id);
     const ended = auth.sessions.revokeUser(account.id);
     audit.log(req, 'accounts.passkeys.clear', { account: account.id, username: account.username, removed, sessionsEnded: ended });
@@ -136,10 +169,12 @@ export function adminRoutes(ctx) {
     const ttl = input.ttl ?? '24h';
     const uses = input.uses ?? 1;
     const role = input.role ?? 'student';
-    if (!Object.hasOwn(LINK_TTLS, ttl)) throw httpError(400, 'accounts.bad_ttl', 'Unknown duration');
-    if (!Number.isInteger(uses) || uses < 1 || uses > MAX_USES) throw httpError(400, 'accounts.bad_uses', 'Between 1 and 100 people', { max: MAX_USES });
-    if (!ROLES.includes(role)) throw httpError(400, 'accounts.bad_role', 'Unknown role');
-    if (role === 'admin' && !rp.available) throw httpError(409, 'accounts.passkeys_unavailable', 'A local account can only be an administrator when passkeys are available (https)');
+    guarded(role === 'admin', req, () => {
+      if (!Object.hasOwn(LINK_TTLS, ttl)) throw httpError(400, 'accounts.bad_ttl', 'Unknown duration');
+      if (!Number.isInteger(uses) || uses < 1 || uses > MAX_USES) throw httpError(400, 'accounts.bad_uses', 'Between 1 and 100 people', { max: MAX_USES });
+      if (!ROLES.includes(role)) throw httpError(400, 'accounts.bad_role', 'Unknown role');
+      if (role === 'admin' && !rp.available) throw httpError(409, 'accounts.passkeys_unavailable', 'A local account can only be an administrator when passkeys are available (https)');
+    });
     const note = typeof input.note === 'string' ? input.note.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 120) : '';
     const { link, token } = await links.create({ kind: 'invite', role, maxUses: uses, ttlMs: LINK_TTLS[ttl], createdBy: actorOf(req), note });
     audit.log(req, 'accounts.invitation.create', { link: link.id, role, uses, ttl });
@@ -161,6 +196,7 @@ export function adminRoutes(ctx) {
   router.put('/sso', small, async (req, res) => {
     let outcome;
     try {
+      confirmed(req, () => sso.check(body(req)));
       outcome = await sso.save(body(req), req.user);
     } catch (err) {
       if (!err.code?.startsWith?.('accounts.')) throw err;

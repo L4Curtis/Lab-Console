@@ -11,7 +11,7 @@ import http from 'node:http';
 import path from 'node:path';
 import { startMockOidc } from '../dev/mock-oidc.js';
 import { signInWithOidc } from './helpers/browser.js';
-import { startAccountsApp, call } from './helpers/accounts.js';
+import { startAccountsApp, call, confirmed } from './helpers/accounts.js';
 
 const SECRET = 'mock-secret';
 const mockSettings = (idp, extra = {}) => ({
@@ -57,7 +57,7 @@ describe('SSO settings: saved, applied at once, the secret write-only', () => {
   });
 
   test('saved, then a sign-in through the provider works without a restart', async () => {
-    const saved = await call(lab, 'admin', 'PUT', '/api/accounts/sso', mockSettings(idp));
+    const saved = await confirmed(lab, 'PUT', '/api/accounts/sso', mockSettings(idp));
     assert.equal(saved.status, 200, JSON.stringify(saved.body));
     assert.equal(saved.body.settings.enabled, true);
     assert.equal(saved.body.settings.hasClientSecret, true);
@@ -82,33 +82,33 @@ describe('SSO settings: saved, applied at once, the secret write-only', () => {
   });
 
   test('an empty secret keeps the current one; a public client clears it', async () => {
-    const kept = await call(lab, 'admin', 'PUT', '/api/accounts/sso', mockSettings(idp, { clientSecret: '', providerName: 'Renamed' }));
+    const kept = await confirmed(lab, 'PUT', '/api/accounts/sso', mockSettings(idp, { clientSecret: '', providerName: 'Renamed' }));
     assert.equal(kept.body.settings.hasClientSecret, true);
     assert.equal(kept.body.settings.providerName, 'Renamed');
     assert.equal(new URL((await signInWithOidc(lab, 'student1')).landed).pathname, '/', 'still signs in: the secret was kept');
 
-    const pub = await call(lab, 'admin', 'PUT', '/api/accounts/sso', mockSettings(idp, { clientId: 'lab-console-public', clientSecret: '', clearClientSecret: true }));
+    const pub = await confirmed(lab, 'PUT', '/api/accounts/sso', mockSettings(idp, { clientId: 'lab-console-public', clientSecret: '', clearClientSecret: true }));
     assert.equal(pub.body.settings.hasClientSecret, false);
     assert.equal(new URL((await signInWithOidc(lab, 'student2')).landed).pathname, '/', 'a public client (PKCE only)');
   });
 
   test('switched off: the button goes, the settings stay', async () => {
-    const off = await call(lab, 'admin', 'PUT', '/api/accounts/sso', mockSettings(idp, { enabled: false, clientId: 'lab-console', clientSecret: SECRET }));
+    const off = await confirmed(lab, 'PUT', '/api/accounts/sso', mockSettings(idp, { enabled: false, clientId: 'lab-console', clientSecret: SECRET }));
     assert.equal(off.body.settings.enabled, false);
     assert.equal(off.body.settings.issuer, idp.issuer);
     assert.equal((await call(lab, null, 'GET', '/auth/me')).body.providerName, null);
     const res = await fetch(`${lab.url}/auth/login`, { redirect: 'manual' });
     assert.equal(res.headers.get('location'), '/login?error=sso_disabled');
-    assert.equal((await call(lab, 'admin', 'PUT', '/api/accounts/sso', mockSettings(idp))).status, 200);
+    assert.equal((await confirmed(lab, 'PUT', '/api/accounts/sso', mockSettings(idp))).status, 200);
   });
 
   test('invalid settings are refused field by field', async () => {
-    const res = await call(lab, 'admin', 'PUT', '/api/accounts/sso', mockSettings(idp, { issuer: 'http://id.example.org', clientId: '', scopes: 'profile email', groupsClaim: 'a b' }));
+    const res = await confirmed(lab, 'PUT', '/api/accounts/sso', mockSettings(idp, { issuer: 'http://id.example.org', clientId: '', scopes: 'profile email', groupsClaim: 'a b' }));
     assert.equal(res.status, 400);
     assert.equal(res.body.code, 'accounts.sso_invalid');
     assert.deepEqual(res.body.params.problems.map((p) => p.code).sort(), ['client_id_required', 'groups_claim_invalid', 'issuer_insecure', 'scopes_openid']);
     assert.equal((await call(lab, 'admin', 'GET', '/api/accounts/sso')).body.settings.issuer, idp.issuer, 'nothing changed');
-    assert.equal((await call(lab, 'admin', 'PUT', '/api/accounts/sso', mockSettings(idp, { issuer: 'https://id.example.org?x=1' }))).body.params.problems[0].code, 'issuer_invalid');
+    assert.equal((await confirmed(lab, 'PUT', '/api/accounts/sso', mockSettings(idp, { issuer: 'https://id.example.org?x=1' }))).body.params.problems[0].code, 'issuer_invalid');
   });
 
   test('the saved secret never follows a change of issuer or client id: a new one is required', async () => {
@@ -116,7 +116,7 @@ describe('SSO settings: saved, applied at once, the secret write-only', () => {
     try {
       assert.equal((await call(lab, 'admin', 'GET', '/api/accounts/sso')).body.settings.hasClientSecret, true);
       for (const change of [{ issuer: other.issuer }, { clientId: 'another-client' }]) {
-        const res = await call(lab, 'admin', 'PUT', '/api/accounts/sso', mockSettings(idp, { ...change, clientSecret: '' }));
+        const res = await confirmed(lab, 'PUT', '/api/accounts/sso', mockSettings(idp, { ...change, clientSecret: '' }));
         assert.equal(res.status, 400, JSON.stringify(change));
         assert.equal(res.body.code, 'accounts.sso_invalid');
         assert.deepEqual(res.body.params.problems, [{ field: 'clientSecret', code: 'secret_required' }]);
@@ -129,32 +129,32 @@ describe('SSO settings: saved, applied at once, the secret write-only', () => {
       assert.equal(lab.deps.auth.oidc.settings.issuer, idp.issuer);
 
       // With its own secret, or as a public client, the change goes through
-      const moved = await call(lab, 'admin', 'PUT', '/api/accounts/sso', mockSettings(idp, { issuer: other.issuer, clientSecret: 'other-secret' }));
+      const moved = await confirmed(lab, 'PUT', '/api/accounts/sso', mockSettings(idp, { issuer: other.issuer, clientSecret: 'other-secret' }));
       assert.equal(moved.status, 200);
       assert.equal(moved.body.settings.hasClientSecret, true);
-      const pub = await call(lab, 'admin', 'PUT', '/api/accounts/sso', mockSettings(idp, { clientSecret: '', clearClientSecret: true }));
+      const pub = await confirmed(lab, 'PUT', '/api/accounts/sso', mockSettings(idp, { clientSecret: '', clearClientSecret: true }));
       assert.equal(pub.status, 200);
       assert.equal(pub.body.settings.hasClientSecret, false);
     } finally {
-      assert.equal((await call(lab, 'admin', 'PUT', '/api/accounts/sso', mockSettings(idp))).status, 200);
+      assert.equal((await confirmed(lab, 'PUT', '/api/accounts/sso', mockSettings(idp))).status, 200);
       await other.close();
     }
   });
 
   test('try a sign-in while the provider is switched off: 409 accounts.sso_disabled', async () => {
-    assert.equal((await call(lab, 'admin', 'PUT', '/api/accounts/sso', mockSettings(idp, { enabled: false, clientSecret: '' }))).status, 200);
+    assert.equal((await confirmed(lab, 'PUT', '/api/accounts/sso', mockSettings(idp, { enabled: false, clientSecret: '' }))).status, 200);
     const res = await call(lab, 'admin', 'POST', '/api/accounts/sso/trial');
     assert.equal(res.status, 409);
     assert.equal(res.body.code, 'accounts.sso_disabled');
     assert.ok(!res.res.headers.getSetCookie().some((c) => c.startsWith('lc_login=')), 'no sign-in started');
-    assert.equal((await call(lab, 'admin', 'PUT', '/api/accounts/sso', mockSettings(idp, { clientSecret: '' }))).status, 200);
+    assert.equal((await confirmed(lab, 'PUT', '/api/accounts/sso', mockSettings(idp, { clientSecret: '' }))).status, 200);
   });
 
   test('a role set by an administrator wins over the groups; a disabled SSO account stays out', async () => {
     const { browser } = await signInWithOidc(lab, 'student3');
     assert.equal((await call(lab, browser, 'GET', '/api/accounts/me')).body.account.role, 'student');
     const id = encodeURIComponent('oidc:mock-student3');
-    const forced = await call(lab, 'admin', 'PATCH', `/api/accounts/users/${id}`, { role: 'admin' });
+    const forced = await confirmed(lab, 'PATCH', `/api/accounts/users/${id}`, { role: 'admin' });
     assert.equal(forced.body.account.role, 'admin');
     assert.equal(forced.body.account.roleOverride, 'admin');
     assert.equal(forced.body.sessionsEnded, 1);
@@ -164,14 +164,14 @@ describe('SSO settings: saved, applied at once, the secret write-only', () => {
 
     // The other way: an admin by group, forced to student
     const ada = await signInWithOidc(lab, 'admin');
-    await call(lab, 'admin', 'PATCH', `/api/accounts/users/${encodeURIComponent('oidc:mock-admin')}`, { role: 'student' });
+    await confirmed(lab, 'PATCH', `/api/accounts/users/${encodeURIComponent('oidc:mock-admin')}`, { role: 'student' });
     assert.equal((await call(lab, ada.browser, 'GET', '/api/accounts/me')).status, 401);
     const demoted = await signInWithOidc(lab, 'admin');
     assert.equal((await call(lab, demoted.browser, 'GET', '/api/accounts/me')).body.account.role, 'student');
     // Back to the groups
-    assert.equal((await call(lab, 'admin', 'PATCH', `/api/accounts/users/${encodeURIComponent('oidc:mock-admin')}`, { role: null })).body.account.role, 'admin');
+    assert.equal((await confirmed(lab, 'PATCH', `/api/accounts/users/${encodeURIComponent('oidc:mock-admin')}`, { role: null })).body.account.role, 'admin');
 
-    assert.equal((await call(lab, 'admin', 'PATCH', `/api/accounts/users/${id}`, { role: null })).status, 200);
+    assert.equal((await confirmed(lab, 'PATCH', `/api/accounts/users/${id}`, { role: null })).status, 200);
     assert.equal((await call(lab, 'admin', 'PATCH', `/api/accounts/users/${id}`, { state: 'disabled' })).status, 200);
     const refused = await signInWithOidc(lab, 'student3');
     assert.equal(new URL(refused.landed).pathname + new URL(refused.landed).search, '/login?error=account_disabled');
@@ -224,7 +224,7 @@ describe('SSO settings set in the environment: the page is read-only', () => {
     assert.equal(res.body.settings.issuer, idp.issuer);
     assert.equal(res.body.settings.hasClientSecret, true);
     assert.ok(!JSON.stringify(res.body).includes(SECRET));
-    const put = await call(lab, 'admin', 'PUT', '/api/accounts/sso', mockSettings(idp, { providerName: 'Other' }));
+    const put = await confirmed(lab, 'PUT', '/api/accounts/sso', mockSettings(idp, { providerName: 'Other' }));
     assert.equal(put.status, 409);
     assert.equal(put.body.code, 'accounts.sso_locked');
     assert.equal(await lab.deps.repos.settings.get('sso'), undefined, 'nothing saved');
@@ -250,7 +250,7 @@ describe('SSO settings survive a restart', () => {
     const idp = await startMockOidc({ port: 0 });
     const first = await startAccountsApp({ env: { APP_SECRET: 'k'.repeat(40) } });
     try {
-      assert.equal((await call(first, 'admin', 'PUT', '/api/accounts/sso', mockSettings(idp))).status, 200);
+      assert.equal((await confirmed(first, 'PUT', '/api/accounts/sso', mockSettings(idp))).status, 200);
       await first.deps.store.flush();
       const second = await startAccountsApp({ env: { DATA_DIR: first.dataDir, APP_SECRET: 'k'.repeat(40) } });
       try {

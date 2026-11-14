@@ -278,7 +278,14 @@ for everyone with Health and What is recorded.
   non-secret draft across the trip and fills it in again. Tickets: 2 minutes,
   one use, 10 attempts per 15 minutes (trips to the provider included); a
   ticket is spent only when the values are valid (a typo does not cost a new
-  confirmation).
+  confirmation). *Security audit:* the same confirmation guards whatever makes,
+  unmakes or lets in an administrator (accounts module): saving the SSO
+  settings, an invitation as administrator, a role given to or taken from an
+  administrator (an SSO account's "back to the groups" included), clearing an
+  administrator's passkeys, enabling or approving an administrator's account.
+  The Users, Invitations and SSO tabs send the change, and confirm when the
+  server answers `admin.confirm_required`; an SSO administrator comes back to
+  the tab that asked (the SSO tab keeps its non-secret draft).
 - **Diagram import.** DOCTYPE / entities are refused by the parser on every
   document it builds, compressed pages written in CDATA, with comments or
   with character references included; the pages may not inflate to more than
