@@ -1,6 +1,6 @@
 {
   "title": "Vérifications de la baie {bench}",
-  "intro": "Ces vérifications ne font que lire : des commandes show et des ping, sur les consoles de la baie, une baie à la fois. Ceux qui regardent une console voient la tâche passer.",
+  "intro": "Ces vérifications ne font que lire : des commandes show et des pings, sur les consoles de la baie, une baie à la fois. Ceux qui regardent une console voient la tâche passer.",
   "none": "Aucune vérification lancée sur cette baie pour l’instant.",
   "cancel": "Arrêter",
   "startedBy": "lancée par {name}",
@@ -8,7 +8,7 @@
   "at": "à {time}",
   "atDay": "le {day} à {time}",
   "notice": {
-    "notOccupant": "Seuls les occupants de la baie (et les administrateurs) lancent des vérifications ; une baie verrouillée est réservée aux administrateurs."
+    "notOccupant": "Seuls les occupants de la baie (et les administrateurs) lancent des vérifications ; une baie verrouillée est réservée aux administrateurs."
   },
   "kind": {
     "lines": "État des lignes",
@@ -57,7 +57,7 @@
     "rommon": "ROMMON",
     "bootLoader": "chargeur de démarrage (switch:)",
     "booting": "en train de démarrer",
-    "pressReturn": "« Press RETURN to get started »",
+    "pressReturn": "« Press RETURN to get started »",
     "more": "affichage paginé (--More--)",
     "empty": "rien d’affiché",
     "unknown": "écran non reconnu"
@@ -80,7 +80,7 @@
     "summary": "{ok} conformes, {wrong} sur un autre port, {missing} manquants, {unverified} non vérifiables, {unexpected} en trop",
     "assumed": "un seul port écrit sur le lien, pris pour les deux extrémités",
     "stranger": "Voisin qui n’est pas un équipement de la baie.",
-    "unexpectedLine": "Câble en trop : {a} {pa} — {b} {pb}",
+    "unexpectedLine": "Câble en trop : {a} {pa} — {b} {pb}",
     "status": {
       "ok": "conforme",
       "wrong_port": "autre port",
@@ -89,25 +89,25 @@
       "unexpected": "en trop"
     },
     "line": {
-      "ok": "{a} — {b} : conforme",
-      "wrong_port": "{a} — {b} : câblé sur {seenA} — {seenB}",
-      "missing": "{a} — {b} : manquant",
-      "unverified": "{a} — {b} : non vérifiable"
+      "ok": "{a} — {b} : conforme",
+      "wrong_port": "{a} — {b} : câblé sur {seenA} — {seenB}",
+      "missing": "{a} — {b} : manquant",
+      "unverified": "{a} — {b} : non vérifiable"
     },
     "reason": {
-      "shutdown": "{port} de {device} est désactivée (shutdown)",
-      "down": "{port} de {device} est down",
+      "shutdown": "{port} de {device} est désactivé (shutdown)",
+      "down": "{port} de {device} est hors service",
       "no_such_port": "{device} n’a pas de port {port}",
       "not_cisco": "{device} n’est pas sous Cisco IOS",
       "cdp_off": "CDP est désactivé sur {device}",
-      "not_read": "non lu : {devices}"
+      "not_read": "non lu : {devices}"
     }
   },
   "ping": {
-    "caption": "{count} paquets par adresse. Vert : répond ; orange : en partie ; rouge : ne répond pas.",
+    "caption": "{count} paquets par adresse. Vert : répond ; orange : en partie ; rouge : ne répond pas.",
     "fromTo": "De \\ vers",
-    "tooMany": "Plus de cases que la limite : les dernières n’ont pas été essayées (affichées ?).",
-    "empty": "Aucun routeur avec une adresse active : rien à pinguer.",
+    "tooMany": "Plus de cases que la limite : les dernières n’ont pas été essayées (affichées ?).",
+    "empty": "Aucun routeur avec une adresse active : rien à tester.",
     "state": {
       "ok": "répond ({rtt} ms en moyenne)",
       "partial": "répond en partie",
@@ -120,30 +120,30 @@
     "up": "up",
     "down": "down",
     "shut": "shutdown",
-    "protocolDown": "up, protocole down"
+    "protocolDown": "up, protocole hors service"
   },
   "layer": {
-    "line": "Ligne : {state} ({age})",
-    "running": "{kind} en cours, lancée par {name}"
+    "line": "Ligne : {state} ({age})",
+    "running": "Vérification en cours ({kind}), lancée par {name}"
   },
   "errors": {
     "unknown_bench": "Cette baie n’existe pas.",
     "unknown_kind": "Cette vérification n’existe pas.",
     "not_occupant": "Seuls les occupants de cette baie (et les administrateurs) lancent des vérifications.",
-    "locked": "Baie verrouillée ({reason}) : seuls les administrateurs la vérifient.",
-    "job_running": "Une tâche tourne sur cette baie : attendez qu’elle se termine.",
+    "locked": "Baie verrouillée ({reason}) : seuls les administrateurs la vérifient.",
+    "job_running": "Une tâche tourne sur cette baie : attendez qu’elle se termine.",
     "bench_busy": "Une vérification tourne déjà sur cette baie ({name}).",
-    "too_soon": "Les lignes de cette baie viennent d’être vérifiées : réessayez dans {seconds} s.",
-    "rate_limited": "Trop de vérifications : attendez une minute.",
+    "too_soon": "Les lignes de cette baie viennent d’être vérifiées : réessayez dans {seconds} s.",
+    "rate_limited": "Trop de vérifications : attendez une minute.",
     "no_routers": "Cette baie n’a pas de routeur.",
     "no_devices": "Cette baie n’a pas d’équipement à console.",
     "not_running": "Aucune vérification ne tourne sur cette baie.",
-    "cancel_forbidden": "Seuls la personne qui l’a lancée, les occupants de la baie et les administrateurs l’arrêtent.",
+    "cancel_forbidden": "Seuls les occupants de la baie, les administrateurs et la personne qui l’a lancée peuvent l’arrêter.",
     "cancelled": "arrêtée avant la fin",
     "not_allowed": "vous n’avez plus la main sur cette baie",
-    "line_in_use": "la ligne console est utilisée : rien n’a été tapé",
-    "too_many_cells": "non essayé : plus de {max} pings dans cette matrice",
-    "console_waiting": "la console attend une réponse ({state}) : rien n’a été tapé",
+    "line_in_use": "la ligne de console est utilisée : rien n’a été tapé",
+    "too_many_cells": "non essayé : plus de {max} pings dans cette matrice",
+    "console_waiting": "la console attend une réponse ({state}) : rien n’a été tapé",
     "not_router": "pas un routeur ({model})",
     "probe_failed": "le serveur de consoles n’a pas pu être interrogé",
     "probe_unknown": "le serveur de consoles n’a pas répondu clairement",
