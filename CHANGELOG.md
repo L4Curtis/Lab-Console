@@ -2,6 +2,19 @@
 
 **English** · [Français](CHANGELOG.fr.md)
 
+## 2.1.0 - 2026-11-14
+
+- **Versioned addresses for the application's own files.** The pages load
+  their scripts, stylesheets and dictionaries from `/v/<build id>/…`, where
+  the build id is a hash of `public/` computed at start-up. Those answers are
+  kept by the browser for a year (`private, max-age=31536000, immutable`):
+  a page load costs one revalidation instead of one per file, and an upgrade
+  is picked up at the next page load. An old build id answers 404; a tab left
+  open across an upgrade offers to reload when it opens a new section. The
+  plain addresses keep working, revalidated as before. Access rules are
+  unchanged. See [DEPLOY.md](docs/DEPLOY.md) ("Caching, and a CDN in front").
+- `npm run dev` also restarts when a file of `public/` changes.
+
 ## 2.0.0 - 2026-11-14
 
 Lab Console 2 is a rewrite of the platform around sign-in, teams and bench

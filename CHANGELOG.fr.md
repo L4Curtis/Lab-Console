@@ -2,6 +2,21 @@
 
 [English](CHANGELOG.md) · **Français**
 
+## 2.1.0 - 14 novembre 2026
+
+- **Adresses versionnées pour les fichiers de l'application.** Les pages
+  chargent leurs scripts, feuilles de style et dictionnaires depuis
+  `/v/<build id>/…`, où le build id est une empreinte de `public/` calculée au
+  démarrage. Le navigateur garde ces réponses un an (`private,
+  max-age=31536000, immutable`) : un chargement de page coûte une
+  revalidation au lieu d'une par fichier, et une mise à jour est prise en
+  compte au chargement suivant. Un ancien build id répond 404 ; un onglet
+  resté ouvert pendant une mise à jour propose de recharger quand il ouvre une
+  nouvelle section. Les adresses sans préfixe fonctionnent toujours,
+  revalidées comme avant. Les règles d'accès ne changent pas. Voir
+  [DEPLOY.md](docs/fr/DEPLOY.md) (« Cache, et un CDN devant »).
+- `npm run dev` redémarre aussi quand un fichier de `public/` change.
+
 ## 2.0.0 - 14 novembre 2026
 
 Lab Console 2 réécrit la plateforme autour de la connexion, des équipes et du
