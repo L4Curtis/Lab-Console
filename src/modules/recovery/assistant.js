@@ -148,6 +148,8 @@ export class RecoveryRunner {
     if (FINAL.has(rec.state)) return { status: 409, code: 'recovery.over', message: 'This recovery is over.' };
     if (rec.actor.id !== user?.id) return { status: 403, code: 'recovery.confirm_forbidden', message: 'Only the person who started the recovery confirms its steps.' };
     if (rec.state !== 'awaiting' || rec.awaiting !== step) return { status: 409, code: 'recovery.not_awaiting', message: 'The recovery is not waiting for this step.', params: { step: rec.awaiting ?? '' } };
+    // The person as they are now (same id): the next step is allowed on their current role, not the one they started with
+    rec.hidden.actorUser = user;
     rec.hidden.confirmed = step;
     this.audit.log(user, 'recovery.confirm', { bench: rec.bench, device: rec.device.name, recovery: rec.id, step });
     return null;
@@ -205,12 +207,12 @@ export class RecoveryRunner {
         try {
           await this.#steps(rec, driver, room, cli, left);
         } catch (err) {
-          // Put the bypass back in this same task, while its actor may still type on this line
-          if (rec.bypassed && !room.closed && room.canPilot(actor)) {
+          // Put the bypass back in this same task, while its actor (as they last confirmed) may still type on this line
+          if (rec.bypassed && !room.closed && room.canPilot(rec.hidden.actorUser)) {
             ending = err;
             cli.resume();
             await this.#putBack(rec, driver);
-          } else if (rec.hidden.bootBack && !rec.hidden.shutdown && !room.closed && room.canPilot(actor)) {
+          } else if (rec.hidden.bootBack && !rec.hidden.shutdown && !room.closed && room.canPilot(rec.hidden.actorUser)) {
             // The bypass step refused before typing: nothing to undo, the device only needs booting
             cli.resume();
             await this.#bootBack(rec, driver);

@@ -73,13 +73,16 @@ export function createConsolesModule({ config, events, logger, infra, services =
    * Who may drive a console: the bench rule of the teams lot when it is
    * there, otherwise every signed-in user; never an account the directory
    * holds as disabled (a running task of theirs stops at its next byte).
-   * The only place this is decided
+   * The role is the directory's when it knows the account, not the one
+   * captured when the session or the task began: a demoted administrator's
+   * running task stops at its next byte too. The only place this is decided
    */
   const mayPilot = (user, device) => {
     const account = user?.id ? services.accounts?.get?.(user.id) : null;
     if (account && account.state !== 'active') return false;
+    const who = account?.role && user ? { ...user, role: account.role } : user;
     const benches = services.benches;
-    return typeof benches?.canPilot === 'function' ? Boolean(benches.canPilot(user, device)) : Boolean(user);
+    return typeof benches?.canPilot === 'function' ? Boolean(benches.canPilot(who, device)) : Boolean(who);
   };
 
   const pool = new SshPool({ channelsPerConnection: config.rooms.channelsPerConnection, logger: log });

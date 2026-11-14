@@ -49,9 +49,19 @@ export function createRecoveryModule({ config, logger, events, repos, audit, inf
     return isAdmin(user) || rec.actor?.id === user.id || Boolean(benches()?.isOccupant?.(user, rec.bench)) || isMember(user, rec.teamId);
   }
 
-  /** May the actor still go on with it (asked before every step) */
+  /** `user` with the role the directory gives the account now, when it knows it */
+  function asNow(user) {
+    const role = user?.id ? services.accounts?.get?.(user.id)?.role : null;
+    return role ? { ...user, role } : user;
+  }
+
+  /**
+   * May the actor still go on with it (asked before every step). The actor
+   * is the person as they last confirmed, with the directory's current role:
+   * a demoted administrator does not keep the rights they started with
+   */
   function mayGoOn(rec) {
-    const user = rec.hidden.actorUser;
+    const user = asNow(rec.hidden.actorUser);
     if (isAdmin(user)) return true;
     return Boolean(benches()?.canOperate?.(user, rec.bench)) && !sharedConflict(user, rec.hidden.device);
   }

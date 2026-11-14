@@ -14,7 +14,7 @@ import assert from 'node:assert/strict';
 import { startJobsApp, waitFor, JOB_TIMEOUTS } from './helpers/jobs.js';
 import { createRecoveryModule } from '../src/modules/recovery/index.js';
 import { memoryDatabase } from './helpers/db.js';
-import { recordingLogger, student } from './helpers/fakes.js';
+import { admin, recordingLogger, student } from './helpers/fakes.js';
 
 // The simulator's clock runs fifty times faster than the real one: boots take seconds,
 // long enough for BREAKs sent through telnet's command mode to land in the boot
@@ -425,6 +425,95 @@ test('the bench locked mid-way: a guest follows but may not stop it; the next st
   } finally {
     await j.api('admin', 'DELETE', '/api/benches/B4M/lock');
     await j.api('student3', 'POST', '/api/benches/B4M/leave');
+  }
+});
+
+/** A request as an explicit session (signIn headers): the test's `as` cache would keep a revoked one */
+async function asSession(session, method, path, body) {
+  const res = await fetch(`${j.app.url}${path}`, {
+    method,
+    headers: { ...session.headers, accept: 'application/json', ...(method === 'GET' ? {} : { origin: j.app.url, 'content-type': 'application/json' }) },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  return { status: res.status, body: await res.json().catch(() => null) };
+}
+
+/** Who runs the line's exclusive tasks from now on: 'system' or a user id */
+function taskActors(name) {
+  const room = j.services.consoles.rooms.get(`${j.device(name).target.host}:${j.device(name).target.port}`);
+  const seen = [];
+  const original = room.runExclusive;
+  room.runExclusive = function (actor, ...rest) {
+    seen.push(actor === 'system' ? 'system' : actor?.id);
+    return original.call(this, actor, ...rest);
+  };
+  return { seen, restore: () => { room.runExclusive = original; } };
+}
+
+/** An admin starts a recovery on R4 of student1's bench and confirms up to the register; → { id, r4, session } */
+async function adminRecoversR4(user) {
+  const r4 = j.dev('R4');
+  await bootOwn(r4);
+  const session = j.app.signIn(user);
+  const s = await asSession(session, 'POST', `/api/recovery/devices/${encodeURIComponent(j.key('R4'))}/start`, { family: 'isr_g1' });
+  assert.equal(s.status, 202, JSON.stringify(s.body));
+  const id = s.body.recovery.id;
+  for (const step of ['power_cycle', 'confreg']) {
+    await awaiting(id, step);
+    assert.equal((await asSession(session, 'POST', `/api/recovery/runs/${id}/confirm`, { step })).status, 200);
+    if (step === 'power_cycle') await personPowerCycles(id, r4);
+  }
+  await awaiting(id, 'boot');
+  assert.equal(r4.nextConfReg, '0x2142');
+  return { id, r4, session };
+}
+
+/** Refused at the next step, nothing past it typed, the register put back by a 'system' task */
+async function refusedAndPutBack(id, r4, actors) {
+  const rec = await ended(id);
+  assert.equal(rec.state, 'failed');
+  assert.equal(rec.code, 'recovery.not_allowed');
+  assert.equal(rec.steps.find((x) => x.id === 'boot').state, 'not_run', 'the refused step never ran');
+  assert.equal(rec.putBack.ok, true, JSON.stringify(rec.putBack));
+  assert.deepEqual(actors.seen, ['system'], 'put back by the system, not by the demoted person');
+  assert.equal(r4.confReg, '0x2102');
+  assert.ok(bootedOwn(r4, 'R4-2009'), `${r4.state} ${r4.cfg.hostname}`);
+}
+
+test('an admin demoted while their recovery waits (signed in again as a student): the next confirmation ends it, put back by the system', async () => {
+  const user = admin({ id: 'oidc:demoted1', username: 'demoted1', name: 'Demoted One' });
+  const { id, r4 } = await adminRecoversR4(user);
+  j.app.deps.auth.sessions.revokeUser(user.id);
+  const demoted = j.app.signIn({ ...user, role: 'student', groups: [] });
+  const info = await asSession(demoted, 'GET', `/api/recovery/devices/${encodeURIComponent(j.key('R4'))}`);
+  assert.equal(info.body.canStart, false);
+  const actors = taskActors('R4');
+  try {
+    // The confirmation is theirs to give (same person), but the step is decided on the role they have now
+    assert.equal((await asSession(demoted, 'POST', `/api/recovery/runs/${id}/confirm`, { step: 'boot' })).status, 200);
+    await refusedAndPutBack(id, r4, actors);
+  } finally {
+    actors.restore();
+  }
+});
+
+test('an admin demoted in the directory, still holding an admin session: the next step is refused, and the line refuses them', async () => {
+  const user = admin({ id: 'oidc:demoted2', username: 'demoted2', name: 'Demoted Two' });
+  const device = j.device('R4');
+  assert.equal(j.services.consoles.rooms.canPilot(user, device), true, 'an admin pilots another team\'s bench');
+  const { id, r4, session } = await adminRecoversR4(user);
+  const before = j.services.accounts;
+  j.services.accounts = { get: (userId) => (userId === user.id ? { id: user.id, role: 'student', state: 'active' } : null) };
+  const actors = taskActors('R4');
+  try {
+    assert.equal(j.services.consoles.rooms.canPilot(user, device), false, 'the directory\'s role, not the session\'s');
+    assert.equal(j.services.consoles.rooms.canPilot(student(1), device), true, 'the bench\'s occupant still does');
+    assert.equal((await asSession(session, 'POST', `/api/recovery/runs/${id}/confirm`, { step: 'boot' })).status, 200);
+    await refusedAndPutBack(id, r4, actors);
+  } finally {
+    actors.restore();
+    if (before === undefined) delete j.services.accounts;
+    else j.services.accounts = before;
   }
 });
 
