@@ -301,7 +301,8 @@ test('frames: a telnet that exits with a code, one that simply ends, and a chann
 test('frames: a refused target keeps the detail, a host key mismatch has its own sentence', async () => {
   assert.throws(() => new ConsoleSession({ target: { host: 'bad host;', port: 2001 }, ssh: {}, telnet: {}, logger: silentLogger() }), /Invalid console host/);
   const err = new Error('Host denied (verification failed)');
-  const info = sshErrorInfo(err, { host: 'jump', port: 22 });
+  // A mismatch: a fingerprint is pinned and the key is another one (nothing pinned is consoles.ssh_unpinned)
+  const info = sshErrorInfo(err, { host: 'jump', port: 22, hostFingerprint: `SHA256:${'A'.repeat(43)}` });
   assert.equal(info.code, 'consoles.ssh_identity');
   assert.match((await render({ type: 'exit', message: info.message, ...info })).fr, /SSH_HOST_FINGERPRINT/);
   const detail = 'Invalid console port';
