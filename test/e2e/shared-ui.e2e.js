@@ -381,15 +381,18 @@ test('language switch: the FR / EN buttons in the rail change the visible texts 
   const texts = () => page.evaluate(() => ({
     rail: [...document.querySelectorAll('#rail-items .rail-btn')].map((a) => a.textContent.trim()),
     theme: document.querySelector('#theme-toggle span').textContent,
+    bell: document.querySelector('#notify-toggle').textContent.trim(),
     title: document.querySelector('section.view-consoles .view-title h1').textContent,
   }));
-  assert.deepEqual(await texts(), { rail: ['Consoles', 'Équipe', 'Infra', 'Administration', 'Sauvegardes', 'État du labo'], theme: 'Thème', title: 'Consoles du labo' });
+  // The sections, then the notification bell (lot collab) next to the theme, outside the sections
+  assert.deepEqual(await texts(), { rail: ['Consoles', 'Équipe', 'Infra', 'Administration', 'Sauvegardes', 'État du labo'], theme: 'Thème', bell: 'Alertes', title: 'Consoles du labo' });
   const before = await texts();
   await setLanguage(page, 'en');
   assert.equal(await page.getAttribute('.lang-btn[data-lang="en"]', 'aria-pressed'), 'true');
   assert.equal(await page.getAttribute('.lang-btn[data-lang="fr"]', 'aria-pressed'), 'false');
   const english = await texts();
   assert.equal(english.theme, 'Theme');
+  assert.equal(english.bell, 'Alerts');
   assert.notDeepEqual(english, before, 'visible texts changed');
   assert.ok(await page.locator('section.view-consoles svg').count() > 0, 'the open screen was not rebuilt');
 
