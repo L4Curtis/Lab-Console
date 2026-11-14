@@ -14,6 +14,8 @@
   plain addresses keep working, revalidated as before. Access rules are
   unchanged. See [DEPLOY.md](docs/DEPLOY.md) ("Caching, and a CDN in front").
 - `npm run dev` also restarts when a file of `public/` changes.
+- A section whose data came back after the user had moved to another one no
+  longer takes the address back (Sauvegardes did, when left quickly).
 
 ## 2.0.0 - 2026-11-14
 

@@ -408,6 +408,29 @@ test('language switch: the FR / EN buttons in the rail change the visible texts 
   assert.deepEqual(await texts(), before);
 });
 
+test('routing: a section whose data comes back after the user left does not take the address back', async () => {
+  const fresh = await h.newPage();
+  await h.session(fresh, 'student1');
+  await fresh.goto(`${h.url}/#/home`);
+  await waitForApp(fresh);
+  // Sauvegardes picks a bench once the benches are known, and writes it in the address: hold that answer
+  let release;
+  const held = new Promise((resolve) => { release = resolve; });
+  await fresh.route('**/api/benches', async (route) => { await held; await route.continue(); });
+  await fresh.evaluate(() => { location.hash = '#/jobs'; });
+  await fresh.waitForSelector('section.view-jobs:not([hidden]) h1');
+  await fresh.evaluate(() => { location.hash = '#/team'; });
+  await fresh.waitForSelector('section.view-team:not([hidden]) h1');
+  // The bench's own data is asked right after the address would have been written
+  const benchData = fresh.waitForRequest((req) => req.url().includes('/api/jobs/runs?bench='));
+  release();
+  await benchData;
+  assert.equal(await fresh.evaluate(() => location.hash), '#/team');
+  assert.equal(await fresh.locator('section.view-team').isHidden(), false);
+  assert.deepEqual(fresh.errors, []);
+  await fresh.context().close();
+});
+
 test('routing: an address change while a section is still loading mounts it once and shows the last address', async () => {
   const fresh = await h.newPage();
   await h.session(fresh, 'student1');

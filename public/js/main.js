@@ -94,8 +94,14 @@ async function init() {
   import('./modules/help/tour.js').then((m) => m.maybeStartTour()).catch(() => {});
 }
 
+/** The address as [section path, ...params] */
+const address = () => {
+  const [path, ...params] = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
+  return [path || 'home', ...params];
+};
+
 async function route() {
-  const [path = 'home', ...params] = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
+  const [path, ...params] = address();
   const known = available().find((m) => m.path === path);
   if (!known) history.replaceState(null, '', '#/home'); // an address that leads nowhere: say so in the bar too
   const mod = known || MODULES[0];
@@ -138,7 +144,10 @@ async function mountSection(mod) {
   views.append(el);
   try {
     const { mount } = await mod.load();
-    return { el, api: (await mount(el, { enabled: mod.enabled, navigate })) || {} }; // mount may be async
+    // A section rewrites the address only while it is the one asked for: a late call (its data
+    // came back after the user went elsewhere) must not take the address back from the new section
+    const own = (hash, options) => { if (address()[0] === mod.path) navigate(hash, options); };
+    return { el, api: (await mount(el, { enabled: mod.enabled, navigate: own })) || {} }; // mount may be async
   } catch (err) {
     // Typically a tab opened before a release: its scripts are no longer served under the old
     // build id (src/lib/assets.js), and only a reload brings the new ones

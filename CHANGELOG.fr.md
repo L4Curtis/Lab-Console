@@ -16,6 +16,8 @@
   revalidées comme avant. Les règles d'accès ne changent pas. Voir
   [DEPLOY.md](docs/fr/DEPLOY.md) (« Cache, et un CDN devant »).
 - `npm run dev` redémarre aussi quand un fichier de `public/` change.
+- Une section dont les données arrivent après que l'utilisateur est passé à
+  une autre ne reprend plus l'adresse (Sauvegardes le faisait, quittée vite).
 
 ## 2.0.0 - 14 novembre 2026
 
