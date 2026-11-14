@@ -288,6 +288,7 @@
     "unknown_device": "Un de ces équipements n’est pas sur cette baie.",
     "no_devices": "Cochez au moins un équipement.",
     "bad_passwords": "Trois mots de passe au plus, de 64 caractères au plus.",
+    "password_control": "Un mot de passe contient un caractère de contrôle (Ctrl+], Échap…).",
     "confirm_bench": "Tapez le nom de la baie ({bench}) pour confirmer.",
     "force_admin_only": "Seul un administrateur peut effacer un équipement dont la sauvegarde a échoué.",
     "no_source": "Choisissez une sauvegarde ou un modèle à injecter.",

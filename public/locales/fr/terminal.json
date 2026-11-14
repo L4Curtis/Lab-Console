@@ -168,6 +168,7 @@
       "script_empty": "Le script est vide.",
       "script_too_large": "Le script dépasse 256 Ko.",
       "script_too_long": "Le script dépasse {max} lignes.",
+      "script_control": "Le script contient des caractères de contrôle (Ctrl+], Échap…) : retirez-les.",
       "looking_for_prompt": "Recherche du prompt de l’équipement",
       "leaving_config": "Sortie du mode configuration",
       "paging_off": "Désactivation de la pagination (terminal length 0)",

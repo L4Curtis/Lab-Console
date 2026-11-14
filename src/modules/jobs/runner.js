@@ -721,9 +721,9 @@ function auditOptions(o) {
   return out;
 }
 
-/** Up to three candidates, short strings: what the job will type, nothing else */
+/** Up to three candidates, short strings of printable text: what the job will type, nothing else */
 function cleanSecrets(list) {
-  return Array.isArray(list) ? list.filter((p) => typeof p === 'string' && p.length > 0 && p.length <= 64).slice(0, 3) : [];
+  return Array.isArray(list) ? list.filter((p) => typeof p === 'string' && p.length > 0 && p.length <= 64 && !/[\x00-\x1f\x7f]/.test(p)).slice(0, 3) : [];
 }
 
 const pickFacts = (f) => ({ model: f.model, version: f.version, family: f.family, kind: f.kind, configRegister: f.configRegister });

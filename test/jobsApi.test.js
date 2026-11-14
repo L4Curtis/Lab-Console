@@ -129,6 +129,10 @@ test('refusals: not an occupant, a locked bench, another job running, bad device
   assert.equal((await j.api('student1', 'POST', `${B}/backup`, { devices: [j.key('R1', 'B4B')] })).body.code, 'jobs.unknown_device', 'a device of another bench');
   assert.equal((await j.api('student1', 'POST', `${B}/backup`, { devices: [] })).body.code, 'jobs.no_devices');
   assert.equal((await j.api('student1', 'POST', `${B}/backup`, { enablePasswords: ['a', 'b', 'c', 'd'] })).body.code, 'jobs.bad_passwords');
+  // The driver types them on the console: the telnet escape (or any control character) is refused, visibly
+  const escape = await j.api('student1', 'POST', `${B}/backup`, { enablePasswords: ['\x1dclose'] });
+  assert.deepEqual([escape.status, escape.body.code], [400, 'jobs.password_control']);
+  assert.equal((await j.api('student1', 'POST', `${B}/reset`, { devices: [j.key('R1')], confirm: 'B4M', linePasswords: ['cisco\x1b'] })).body.code, 'jobs.password_control');
   assert.equal((await j.api('student1', 'POST', `${B}/reset`, { devices: [j.key('R1')], confirm: 'b4m' })).body.code, 'jobs.confirm_bench');
   const force = await j.api('student1', 'POST', `${B}/reset`, { devices: [j.key('R1')], confirm: 'B4M', forceErase: [j.key('R1')] });
   assert.equal(force.status, 403);

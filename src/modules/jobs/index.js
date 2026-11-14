@@ -58,6 +58,7 @@ const DROPPED = {
   'banner text uses every possible delimiter': 'banner',
 };
 const RSA_MODULI = [512, 768, 1024, 2048, 4096];
+const CONTROL = /[\x00-\x1f\x7f]/;
 const KINDS = ['backup', 'reset', 'inject', 'compare'];
 const MUTATING = new Set(['reset', 'inject']);
 const LIVE = new Set(['pending', 'running']);
@@ -198,6 +199,8 @@ export function createJobsModule({ config, logger, events, store, repos, audit, 
     if (v === undefined || v === null || v === '') return [];
     const arr = Array.isArray(v) ? v : [v];
     if (arr.length > 3 || arr.some((p) => typeof p !== 'string' || p.length > 64)) throw httpError(400, 'jobs.bad_passwords', 'At most three passwords of 64 characters.');
+    // The driver types them on the console: a control character (the telnet escape above all) is no password
+    if (arr.some((p) => CONTROL.test(p))) throw httpError(400, 'jobs.password_control', 'A password holds a control character.');
     return arr.filter((p) => p.length);
   }
 

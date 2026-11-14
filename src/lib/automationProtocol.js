@@ -34,6 +34,10 @@ export const MAX_SCRIPT_BYTES = 256 * 1024;
 const MAX_SCRIPT_LINES = 5000;
 const MAX_BROADCAST_LINES = 50;
 const TASKS = { 'export-config': 'export', inject: 'inject', paste: 'paste', broadcast: 'broadcast' };
+// What a script may hold besides printable text: tab, the line ends and Ctrl+C (an IOS banner's delimiter).
+// Anything else is refused, the telnet escape (Ctrl+]) first of all: the console session drops it anyway,
+// the refusal makes it visible
+const CONTROL = /[\x00-\x02\x04-\x08\x0b\x0c\x0e-\x1f]/;
 
 export function createAutomationHandler({
   cli, send, canExport, log, label,
@@ -72,6 +76,7 @@ export function createAutomationHandler({
       if (Buffer.byteLength(script) > MAX_SCRIPT_BYTES) return refuse('The script is larger than 256 KB.', 'automation.script_too_large');
       const maxLines = task === 'broadcast' ? MAX_BROADCAST_LINES : MAX_SCRIPT_LINES;
       if (script.split('\n').length > maxLines) return refuse(`The script has more than ${maxLines} lines.`, 'automation.script_too_long', { max: maxLines });
+      if (CONTROL.test(script)) return refuse('The script holds control characters.', 'automation.script_control');
       const o = msg.options || {};
       // A paste and a broadcast show no pacing options: whatever the person chose for an injection once
       // (no wait for the prompt, no delay) must not make them drop characters on a slow console

@@ -208,6 +208,11 @@ describe('paste', () => {
     // 260 KB is over the limit of the automation but under what the socket takes: it is answered, not cut off
     c.send({ type: 'paste', script: 'a'.repeat(260 * 1024) });
     await c.frame((f) => f.task === 'paste' && f.code === 'automation.script_too_large', 'too large');
+    // The telnet escape (Ctrl+]) or another control character: refused, visibly
+    c.send({ type: 'paste', script: 'show clock\n\x1dclose\n' });
+    await c.frame((f) => f.task === 'paste' && f.code === 'automation.script_control', 'escape refused');
+    c.send({ type: 'inject', script: 'show clock\n\x1b[A\n' });
+    await c.frame((f) => f.task === 'inject' && f.code === 'automation.script_control', 'escape sequence refused');
     c.send({ type: 'paste' });
     c.send({ type: 'paste', script: 42 });
     assert.equal(c.closed, false);
@@ -221,6 +226,22 @@ describe('paste', () => {
     assert.equal(handle({ type: 'paste', script: 'show clock\n' }), false);
     assert.equal(handle({ type: 'broadcast', script: 'show clock\n', batch: 'x' }), false);
     assert.equal(handle({ type: 'unknown' }), false);
+  });
+
+  test('control characters: tab, line ends and Ctrl+C (a banner delimiter) pass; Ctrl+], Esc and the others are refused before anything runs', () => {
+    const sent = [];
+    const ran = [];
+    const handle = createAutomationHandler({
+      cli: { running: false }, send: (f) => sent.push(f), canExport: false, log: { info() {} }, label: 'R1',
+      run: (task) => { ran.push(task); return new Promise(() => {}); },
+    });
+    for (const bad of ['\x1d', '\x1b', '\x00', '\x04', '\x08', '\x0b', '\x1f']) {
+      handle({ type: 'inject', script: `show clock\n${bad}\n` });
+      assert.equal(sent.at(-1).code, 'automation.script_control', JSON.stringify(bad));
+    }
+    assert.deepEqual(ran, []);
+    handle({ type: 'inject', script: 'banner motd \x03Lab\x03\r\n\tdescription x\n' });
+    assert.deepEqual(ran, ['inject']);
   });
 });
 

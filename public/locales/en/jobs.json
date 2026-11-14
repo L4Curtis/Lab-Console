@@ -288,6 +288,7 @@
     "unknown_device": "One of these devices is not on this bench.",
     "no_devices": "Tick at least one device.",
     "bad_passwords": "Three passwords at most, 64 characters at most.",
+    "password_control": "A password holds a control character (Ctrl+], Esc…).",
     "confirm_bench": "Type the name of the bench ({bench}) to confirm.",
     "force_admin_only": "Only an admin may erase a device whose backup failed.",
     "no_source": "Choose a backup or a template to inject.",

@@ -168,6 +168,7 @@
       "script_empty": "The script is empty.",
       "script_too_large": "The script is larger than 256 KB.",
       "script_too_long": "The script has more than {max} lines.",
+      "script_control": "The script holds control characters (Ctrl+], Esc…): remove them.",
       "looking_for_prompt": "Looking for the device prompt",
       "leaving_config": "Leaving configuration mode",
       "paging_off": "Turning paging off (terminal length 0)",
