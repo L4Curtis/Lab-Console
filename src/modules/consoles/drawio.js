@@ -7,7 +7,11 @@
  * Output per page ("lab"):
  *   { id, name, bounds, devices[], shapes[], edges[] }
  * where every coordinate is absolute and every edge is already routed, so the
- * browser only has to draw - all diagram logic lives in one testable place
+ * browser only has to draw - all diagram logic lives in one testable place.
+ * An edge also names the cells it joins (`source`, `target`: cell ids, a
+ * device's `id` when it is one) and each of its labels says where it sits
+ * along the link (`at`: 0 at the source end, 1 at the target end), which is
+ * how the cabling check reads the port names written at a link's ends
  *
  * How a node becomes a clickable console device (first match wins):
  *   1. Explicit data (draw.io › Edit Data on the shape): `console_host` + `console_port`
@@ -179,6 +183,8 @@ function buildLab({ id, name, index, model, networkPrefix }) {
     }
     edges.push({
       id: cell.id,
+      source: cell.source || null,
+      target: cell.target || null,
       points: routed.map(roundPoint),
       dashed: cell.style.dashed === '1',
       color: cell.style.strokeColor,
@@ -351,6 +357,7 @@ function placeLabel(points, geo, rawLabel) {
   const nx = seg ? dy / seg : 0, ny = seg ? dx / seg : 0;
   return {
     text: labelLines(rawLabel).join(' '),
+    at: Math.round(Math.min(1, Math.max(0, (gx + 1) / 2)) * 100) / 100,
     x: round1(p0.x + dx * f + nx * gy + off.x),
     y: round1(p0.y + dy * f - ny * gy + off.y),
   };
