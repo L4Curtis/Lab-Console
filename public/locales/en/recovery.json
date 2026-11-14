@@ -11,7 +11,7 @@
   "cannotStart": "You cannot start a recovery of this device: {reason}",
   "byOther": "{name} is recovering this device.",
   "stop": "Stop the recovery",
-  "stopConfirm": "Stop the recovery of {device}? The device stays where it is now; starting the assistant again picks up from what its console shows.",
+  "stopConfirm": "Stop the recovery of {device}? If its startup-config is already bypassed, the assistant first puts it back (configuration register, config.text or the ignore flag) and lets the device boot as it was found: this can take several minutes.",
   "confirm": "Do this step",
   "ready": "I am at the device, ready",
   "notYours": "Only {name}, who started it, confirms the steps.",
@@ -20,7 +20,7 @@
   "doneText": "Its running configuration is the factory one; its startup-config is untouched and still holds the old passwords: it is read again at the next boot. Inject a backup and save it, or reset the device, from the Backups section.",
   "toJobs": "Open the Backups section",
   "failedTitle": "The recovery stopped",
-  "failedHint": "The device stays where it is. Starting the assistant again picks up from what its console shows (ROMMON, switch:, the initial dialog).",
+  "failedHint": "Nothing was left bypassed: the device reads its startup-config at its next boot. Starting the assistant again picks up from what its console shows (ROMMON, switch:, the initial dialog).",
   "cancelledTitle": "The recovery was stopped",
   "lastOutput": "End of the console output",
   "attempt": "attempt {n}",
@@ -40,7 +40,11 @@
     "cancelled": "stopped by {name}",
     "pending": "to do",
     "skipped": "not needed",
-    "not_run": "not run"
+    "not_run": "not run",
+    "restoring": "putting the device back",
+    "cancelledConsole": "stopped from the console",
+    "cancelledServer": "stopped (server restart)",
+    "stepCancelled": "stopped"
   },
   "steps": {
     "look": {
@@ -102,7 +106,12 @@
     "booting": "Booting without the startup-config",
     "restoring_register": "Setting the configuration register back to 0x2102",
     "restoring_config": "Putting flash:config.text back",
-    "restoring_startup": "Telling the switch to read its startup-config again"
+    "restoring_startup": "Telling the switch to read its startup-config again",
+    "declining_reset": "Answering no to the factory reset: nothing is erased, the switch boots as usual",
+    "putting_back": "Putting the device back as it was found",
+    "booting_back": "The device boots with its own startup-config",
+    "register_back": "Configuration register set back to 0x2102",
+    "config_back": "flash:config.text is back"
   },
   "errors": {
     "unknown_device": "There is no such device.",
@@ -128,7 +137,7 @@
     "no_boot_seen": "Nothing was printed after the power cycle: is it the right device, and is its console cable plugged in?",
     "break_missed": "The device loaded its software before the BREAK took effect. Power it off and on again.",
     "mode_missed": "The switch loaded its software: the Mode button was released too early. Power it off and on again, holding Mode until the console shows switch:.",
-    "recovery_disabled": "Password recovery is disabled on this switch: it only offers to erase its configuration. Nothing was answered: power it off and on without holding Mode to leave it as it was.",
+    "recovery_disabled": "Password recovery is disabled on this switch: it only offers to erase its configuration. The assistant answered no, which erases nothing, and let the switch boot as usual: it is back as it was found.",
     "unknown_question": "The device asks a question the assistant does not know: \"{question}\". Nothing was answered.",
     "unexpected_screen": "The console shows \"{line}\" where the assistant expected {expected}. Nothing more was typed.",
     "monitor_no_answer": "The device did not answer \"{command}\".",
@@ -140,6 +149,22 @@
     "enable_refused": "enable asks for a password after the bypass: the device is not at a factory prompt.",
     "register_not_restored": "The configuration register could not be set back to 0x2102 (it reads {register}).",
     "config_not_restored": "flash:config.text could not be put back: {detail}",
-    "ignore_not_cleared": "The switch refused to read its startup-config again: {detail}"
+    "ignore_not_cleared": "The switch refused to read its startup-config again: {detail}",
+    "recovery_disabled_stuck": "Password recovery is disabled on this switch: it only offers to erase its configuration, and it did not come back to its own prompt. Someone on site must power it off and on without holding Mode. Never answer y to its question: that erases its configuration.",
+    "not_locked": "The device is at a privileged prompt ({host}#): it is not locked. Nothing was done; a power cycle would lose what it has not saved.",
+    "left_register": "The configuration register is still 0x2142: the router ignores its startup-config at every boot until someone sets 0x2102 again (starting the assistant again does it). {detail}",
+    "left_parked": "flash:config.text is still renamed flash:config.text.recovery: the switch boots without its startup-config until someone renames it back (starting the assistant again does it). {detail}",
+    "left_ignore": "SWITCH_IGNORE_STARTUP_CFG is still 1: the switch ignores its startup-config at every boot until someone clears it (starting the assistant again does it). {detail}",
+    "putting_back": "The recovery is stopping: it puts the device back first."
+  },
+  "leftHint": "Start the assistant again to put it back: with the device at its factory prompt (Router>, Switch>), in ROMMON or at switch:, it begins with that, without a new power cycle.",
+  "cause": "Why the recovery stopped: {reason}",
+  "putBackDone": "The device was put back: it booted again with its own startup-config, as it was found.",
+  "putBackNotBooted": "The bypass was undone, but the device was not booted (the server was stopping): it sits in ROMMON or at switch: and boots normally at its next power cycle (or type boot / reset on its console).",
+  "restoring": "Stopping: the assistant puts the device back first.",
+  "leftBefore": {
+    "register": "The last recovery of this device left its configuration register at 0x2142: it ignores its startup-config at every boot. Starting the assistant puts it back.",
+    "parked": "The last recovery of this device left flash:config.text renamed flash:config.text.recovery: it boots without its startup-config. Starting the assistant puts it back.",
+    "ignore": "The last recovery of this device left SWITCH_IGNORE_STARTUP_CFG at 1: it ignores its startup-config at every boot. Starting the assistant puts it back."
   }
 }

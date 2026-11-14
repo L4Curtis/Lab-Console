@@ -20,6 +20,20 @@
  * the end of the console output). Nobody confirming for `confirmMs` ends it
  * too (`recovery.abandoned`). Cancelling stops whatever is going on.
  *
+ * Put back: from the step that bypasses the startup-config (confreg,
+ * park_config, ignore_startup) until its restore step succeeds,
+ * `facts.bypassed` says what is in place ('register' | 'parked' | 'ignore'),
+ * saved with the row. A recovery that ends any other way than 'done' (stopped
+ * by anyone or from the console tile, abandoned, refused mid-way, failed,
+ * server shutdown) first undoes it (CiscoRecovery.putBack: state 'restoring',
+ * a cancel then waits for it): in the same task while its actor may still
+ * type, else as a 'system' task on the line (the bench locked or taken
+ * mid-way, the line hung up). At shutdown nothing is booted (no time): the
+ * register / file / variable only. What could not be put back ends the
+ * recovery 'failed' with `recovery.left_<bypass>` and stays in the row
+ * (`bypassed`); the next recovery of the device resumes at the restore step
+ * when the device sits at its factory prompt (planFrom).
+ *
  * Published: 'recovery:run' (the recovery, to those who may see it: its actor,
  * the occupants of the bench, the team that held the bench, admins) and
  * 'recovery:running' (sticky, everyone: which device is being recovered, by
@@ -28,10 +42,11 @@
  * recovery.step, recovery.cancel, recovery.end.
  */
 import { newId } from '../../lib/db/values.js';
-import { CiscoRecovery, FAMILIES, STEPS, planFrom, scaledRecoveryTimeouts } from '../../lib/drivers/ciscoRecovery.js';
+import { CiscoRecovery, FAMILIES, STEPS, BYPASS, BYPASS_STEP, RESTORE_STEP, planFrom, scaledRecoveryTimeouts } from '../../lib/drivers/ciscoRecovery.js';
 
 const FINAL = new Set(['done', 'failed', 'cancelled']);
 const KEPT = 50;
+const SHUTDOWN_MS = 8000; // what a stopping server gives the recoveries to put their device back
 
 const personOf = (u) => ({ id: u.id, username: u.username ?? '', name: u.name || u.username || u.id });
 
@@ -52,13 +67,14 @@ export class RecoveryRunner {
   /**
    * @param mayGoOn  (recovery) => boolean: may its actor still recover this device (asked before each step)
    * @param viewOf   (user, recovery) => boolean: may this user follow it
-   * @param options  { timeouts, pollMs, now }
+   * @param options  { timeouts, pollMs, now, shutdownMs }
    */
   constructor({ services, events, audit, repos, logger, mayGoOn = () => true, viewOf = () => false, options = {} }) {
     Object.assign(this, { services, events, audit, repos, log: logger, mayGoOn, viewOf });
     this.timeouts = options.timeouts ?? scaledRecoveryTimeouts(1);
     this.pollMs = options.pollMs ?? 250;
     this.now = options.now ?? (() => Date.now());
+    this.shutdownMs = options.shutdownMs ?? SHUTDOWN_MS;
   }
 
   get(id) { return this.#all.get(id) ?? null; }
@@ -100,11 +116,17 @@ export class RecoveryRunner {
       steps: STEPS[FAMILIES[family].method].map((id) => ({ id, state: 'pending', code: null, params: {}, at: null, tries: 0 })),
       facts: {},
       code: null,
+      bypassed: null,
+      putBack: null,
       createdAt,
       endedAt: null,
       cancelledBy: null,
+      stoppedFrom: null,
+      cause: null,
     };
-    const hidden = { actorUser: actor, device, abort: new AbortController(), confirmed: null };
+    let ended;
+    const hidden = { actorUser: actor, device, abort: new AbortController(), confirmed: null, cancelRequested: false, shutdown: false, ended: new Promise((resolve) => { ended = resolve; }), saved: Promise.resolve() };
+    hidden.markEnded = ended;
     Object.defineProperty(rec, 'hidden', { value: hidden, enumerable: false });
     this.#all.set(rec.id, rec);
     this.#byDevice.set(device.key, rec);
@@ -126,16 +148,38 @@ export class RecoveryRunner {
     return null;
   }
 
+  /**
+   * Stop a recovery → null, or the refusal: over, or already stopping and
+   * putting its device back (a cancel waits for that)
+   */
   cancel(rec, user) {
-    if (FINAL.has(rec.state)) return false;
+    if (FINAL.has(rec.state)) return { status: 409, code: 'recovery.over', message: 'This recovery is over.' };
+    if (rec.hidden.cancelRequested || rec.state === 'restoring') return { status: 409, code: 'recovery.putting_back', message: 'The recovery is stopping: it puts the device back first.' };
+    rec.hidden.cancelRequested = true;
     rec.cancelledBy = user ? personOf(user) : null;
     this.audit.log(user ?? 'system', 'recovery.cancel', { bench: rec.bench, device: rec.device.name, recovery: rec.id, step: rec.current ?? rec.awaiting });
     rec.hidden.abort.abort();
-    return true;
+    return null;
   }
 
-  shutdown() {
-    for (const rec of this.#byDevice.values()) this.cancel(rec, null);
+  /**
+   * At shutdown: stop every recovery; each puts its device's bypass back
+   * without booting it, for `shutdownMs` at most (the consoles close too)
+   */
+  async shutdown() {
+    const runs = [...this.#byDevice.values()];
+    for (const rec of runs) {
+      rec.hidden.shutdown = true;
+      if (!rec.hidden.cancelRequested) this.cancel(rec, null);
+    }
+    if (!runs.length) return;
+    let timer;
+    await Promise.race([
+      Promise.allSettled(runs.map((r) => r.hidden.ended)),
+      new Promise((resolve) => { timer = setTimeout(resolve, this.shutdownMs); }),
+    ]);
+    clearTimeout(timer);
+    await Promise.allSettled(runs.map((r) => r.hidden.saved));
   }
 
   // ── Running ───────────────────────────────────────────────────────────────
@@ -148,40 +192,157 @@ export class RecoveryRunner {
     } catch (err) {
       return this.#finish(rec, 'failed', { code: err.code ?? 'recovery.failed', params: err.params ?? {}, message: err.message });
     }
+    const left = await this.#leftBefore(rec);
+    let ending = null; // why it stopped (an error), null: done
     try {
       await room.runExclusive(actor, 'recovery', async (cli) => {
-        const driver = new CiscoRecovery(cli, {
-          family: rec.family,
-          timeouts: this.timeouts,
-          progress: (code, params = {}) => { rec.progress = { code, params }; this.#publish(rec); },
-        });
-        const look = await this.#step(rec, 'look', () => driver.look({ screen: room.screen() }));
-        if (!look.ok) throw new Stop(look);
-        rec.look = { state: look.state, line: look.line };
-        const plan = planFrom(rec.family, rec.look);
-        if (!Array.isArray(plan)) throw new Stop(plan);
-        for (const s of rec.steps) if (s.id !== 'look' && !plan.includes(s.id)) s.state = 'skipped';
-        for (let i = 0; i < plan.length;) {
-          const id = plan[i];
-          await this.#confirmation(rec, id, cli);
-          if (!this.mayGoOn(rec)) throw new Stop({ reason: 'recovery.not_allowed', message: 'The bench is no longer yours: the recovery stops.' });
-          const r = await this.#step(rec, id, () => driver.run(id, rec.facts));
-          if (r.ok) {
-            Object.assign(rec.facts, factsOf(r));
-            i++;
-            continue;
+        const driver = this.#driver(rec, cli);
+        try {
+          await this.#steps(rec, driver, room, cli, left);
+        } catch (err) {
+          // Put the bypass back in this same task, while its actor may still type on this line
+          if (rec.bypassed && !room.closed && room.canPilot(actor)) {
+            ending = err;
+            cli.resume();
+            await this.#putBack(rec, driver);
           }
-          if (r.retry) continue; // the same step again, once the person is ready again
-          throw new Stop(r);
+          throw err;
         }
       }, { signal: abort.signal });
-      this.#finish(rec, 'done', {});
     } catch (err) {
-      if (err instanceof Stop) return this.#finish(rec, 'failed', { code: err.code, params: err.params, message: err.message, lastOutput: err.lastOutput });
-      if (err.cancelled || (abort.signal.aborted && err.code === 'automation.stopped')) return this.#finish(rec, 'cancelled', { code: 'recovery.cancelled' });
-      if (!err.code) this.log.warn(`recovery ${rec.id}: ${err.stack || err.message}`);
-      return this.#finish(rec, 'failed', { code: err.code ?? 'recovery.failed', params: err.params ?? {}, message: err.message });
+      ending = err;
     }
+    // Else as a system task on the line: the actor lost the bench, or the line closed under it
+    if (ending && rec.bypassed && !rec.putBack && !rec.hidden.shutdown) await this.#putBackAsSystem(rec);
+    if (!ending) return this.#finish(rec, 'done', {});
+    return this.#ended(rec, ending);
+  }
+
+  /** The plan, step by step, each confirmed */
+  async #steps(rec, driver, room, cli, left) {
+    const look = await this.#step(rec, 'look', () => driver.look({ screen: room.screen() }));
+    if (!look.ok) throw new Stop(look);
+    rec.look = { state: look.state, line: look.line };
+    const plan = planFrom(rec.family, { ...rec.look, host: look.host }, { bypassed: left });
+    if (!Array.isArray(plan)) throw new Stop(plan);
+    // Resuming after an earlier recovery that left the device bypassed: it still is
+    if (left && !plan.includes(BYPASS_STEP[this.#method(rec)])) this.#setBypass(rec, left);
+    for (const s of rec.steps) if (s.id !== 'look' && !plan.includes(s.id)) s.state = 'skipped';
+    for (let i = 0; i < plan.length;) {
+      const id = plan[i];
+      await this.#confirmation(rec, id, cli);
+      if (!this.mayGoOn(rec)) throw new Stop({ reason: 'recovery.not_allowed', message: 'The bench is no longer yours: the recovery stops.' });
+      // From the moment its command may reach the device, the bypass counts as in place
+      if (id === BYPASS_STEP[this.#method(rec)]) this.#setBypass(rec, BYPASS[this.#method(rec)]);
+      const r = await this.#step(rec, id, () => driver.run(id, rec.facts));
+      if (r.ok) {
+        Object.assign(rec.facts, factsOf(r));
+        if (id === BYPASS_STEP[this.#method(rec)] && r.parked === false) this.#setBypass(rec, null); // no config.text: nothing set aside
+        if (id === RESTORE_STEP[this.#method(rec)]) this.#setBypass(rec, null);
+        i++;
+        continue;
+      }
+      if (r.retry) continue; // the same step again, once the person is ready again
+      throw new Stop(r);
+    }
+  }
+
+  #method(rec) { return FAMILIES[rec.family].method; }
+
+  #driver(rec, cli) {
+    return new CiscoRecovery(cli, {
+      family: rec.family,
+      timeouts: this.timeouts,
+      progress: (code, params = {}) => { rec.progress = { code, params }; this.#publish(rec); },
+    });
+  }
+
+  #setBypass(rec, what) {
+    rec.bypassed = what;
+    rec.facts.bypassed = what;
+    this.#save(rec);
+  }
+
+  /** What the last recovery of this device left in place (its row), or null */
+  async #leftBefore(rec) {
+    try {
+      const rows = await this.repos.recoveries.list({ device: rec.device.key, limit: 5 });
+      const last = rows.find((r) => r.id !== rec.id && r.family && FAMILIES[r.family]?.method === this.#method(rec));
+      return last?.bypassed ?? null;
+    } catch (err) {
+      this.log.warn(`recovery ${rec.id}: the last recovery of ${rec.device.name} could not be read: ${err.message}`);
+      return null;
+    }
+  }
+
+  /** Undo the bypass (state 'restoring'); the outcome is kept in rec.putBack */
+  async #putBack(rec, driver) {
+    rec.state = 'restoring';
+    rec.awaiting = null;
+    rec.current = 'put_back';
+    rec.progress = null;
+    this.#publish(rec);
+    let r;
+    try {
+      r = await driver.putBack(rec.bypassed, { boot: !rec.hidden.shutdown });
+    } catch (err) {
+      r = { ok: false, reason: `recovery.left_${rec.bypassed}`, params: { detail: err.message }, message: err.message, cause: err.code ?? null };
+    }
+    rec.current = null;
+    rec.putBack = r.ok ? { ok: true, booted: Boolean(r.booted), at: r.at ?? null } : { ok: false, code: r.reason, params: r.params ?? {}, message: r.message, lastOutput: r.lastOutput ?? null };
+    if (r.ok) this.#setBypass(rec, null);
+    this.audit.log(rec.hidden.actorUser, 'recovery.put_back', { bench: rec.bench, device: rec.device.name, recovery: rec.id, ok: r.ok, code: r.ok ? null : r.reason });
+    this.#publish(rec);
+  }
+
+  /** The put-back as a 'system' task: the actor may no longer type on this line, or the line closed */
+  async #putBackAsSystem(rec) {
+    const { actorUser: actor, device } = rec.hidden;
+    try {
+      const room = this.services.consoles.rooms.open(device, actor, { task: true });
+      await room.runExclusive('system', 'recovery: put back', (cli) => this.#putBack(rec, this.#driver(rec, cli)));
+    } catch (err) {
+      if (!rec.putBack) {
+        rec.putBack = { ok: false, code: `recovery.left_${rec.bypassed}`, params: { detail: err.message }, message: err.message, lastOutput: null };
+        this.#publish(rec);
+      }
+    }
+  }
+
+  /** The recovery did not finish: how it ends, with what the put-back left */
+  #ended(rec, err) {
+    // The line freed from the console tile (by the pilot or an admin) is a stop too
+    const freed = err.code === 'consoles.room_closed' && err.params?.reason === 'consoles.freed';
+    const cancelled = err.cancelled || freed || (rec.hidden.abort.signal.aborted && err.code === 'automation.stopped');
+    let state;
+    let why;
+    if (err instanceof Stop) {
+      state = 'failed';
+      why = { code: err.code, params: err.params, message: err.message, lastOutput: err.lastOutput };
+    } else if (err.code === 'consoles.control_not_allowed') {
+      // The bench was locked or taken in the middle of a step: its next byte was refused
+      state = 'failed';
+      why = { code: 'recovery.not_allowed', params: {}, message: 'The bench is no longer yours: the recovery stopped.' };
+    } else if (cancelled) {
+      state = 'cancelled';
+      why = { code: 'recovery.cancelled' };
+      if (!rec.hidden.cancelRequested) {
+        // Stopped from the console tile (its task Stop, or the line hung up by the pilot or an admin)
+        rec.stoppedFrom = 'console';
+        this.audit.log('system', 'recovery.cancel', { bench: rec.bench, device: rec.device.name, recovery: rec.id, step: rec.steps.find((s) => s.state === 'cancelled')?.id ?? null, from: 'console' });
+      }
+    } else {
+      state = 'failed';
+      if (!err.code) this.log.warn(`recovery ${rec.id}: ${err.stack || err.message}`);
+      why = { code: err.code ?? 'recovery.failed', params: err.params ?? {}, message: err.message };
+    }
+    if (rec.bypassed) {
+      // Not put back: that is what the person must know first; the reason it stopped comes with it
+      const p = rec.putBack && !rec.putBack.ok ? rec.putBack : { code: `recovery.left_${rec.bypassed}`, params: { detail: '' }, message: null, lastOutput: null };
+      rec.cause = { code: why.code, params: why.params ?? {} };
+      return this.#finish(rec, 'failed', { code: `recovery.left_${rec.bypassed}`, params: { detail: '', ...p.params }, message: p.message, lastOutput: p.lastOutput ?? why.lastOutput ?? null, replace: true });
+    }
+    return this.#finish(rec, state, why);
   }
 
   /** Wait for the actor to confirm `id`; nobody for `confirmMs` ends the recovery */
@@ -229,28 +390,30 @@ export class RecoveryRunner {
     return r;
   }
 
-  #finish(rec, state, { code = null, params = {}, message = null, lastOutput = null }) {
+  #finish(rec, state, { code = null, params = {}, message = null, lastOutput = null, replace = false }) {
     rec.state = state;
     rec.awaiting = null;
     rec.current = null;
     rec.progress = null;
     rec.code = state === 'done' ? null : code;
-    if (state !== 'done' && (!rec.error || rec.error.code !== code)) rec.error = { code, params, message, retry: false, lastOutput, step: rec.error?.step ?? null };
+    if (state !== 'done' && (replace || !rec.error || rec.error.code !== code)) rec.error = { code, params, message, retry: false, lastOutput, step: rec.error?.step ?? null };
     if (state !== 'done' && rec.error) rec.error.retry = false;
     for (const s of rec.steps) if (s.state === 'pending') s.state = state === 'done' ? 'skipped' : 'not_run';
     rec.endedAt = new Date(this.now()).toISOString();
     if (this.#byDevice.get(rec.device.key) === rec) this.#byDevice.delete(rec.device.key);
     this.#save(rec);
     this.audit.log(rec.hidden.actorUser ?? 'system', 'recovery.end', {
-      bench: rec.bench, device: rec.device.name, recovery: rec.id, family: rec.family, state, code: rec.code,
+      bench: rec.bench, device: rec.device.name, recovery: rec.id, family: rec.family, state, code: rec.code, cause: rec.cause?.code ?? null,
+      putBack: rec.putBack ? rec.putBack.ok : null, bypassed: rec.bypassed,
       steps: rec.steps.filter((s) => s.state !== 'not_run' && s.state !== 'skipped').map((s) => `${s.id}:${s.state}`).join(' '),
     });
     try { this.services.benches?.touch?.(rec.bench); } catch { /* the bench went away */ }
     this.#publish(rec);
+    rec.hidden.markEnded();
   }
 
   #save(rec) {
-    this.repos.recoveries.save(record(rec)).catch((err) => this.log.warn(`recovery ${rec.id} not recorded: ${err.message}`));
+    rec.hidden.saved = this.repos.recoveries.save(record(rec)).catch((err) => this.log.warn(`recovery ${rec.id} not recorded: ${err.message}`));
   }
 
   #publish(rec) {
@@ -287,6 +450,6 @@ function record(rec) {
   return {
     id: rec.id, bench: rec.bench, device: rec.device, family: rec.family, actor: rec.actor, teamId: rec.teamId, state: rec.state,
     steps: rec.steps.map(({ id, state, code, params, at, tries, result }) => ({ id, state, code, params, at, tries, ...(result ? { result } : {}) })),
-    code: rec.code, createdAt: rec.createdAt, endedAt: rec.endedAt,
+    code: rec.code, bypassed: rec.bypassed ?? null, createdAt: rec.createdAt, endedAt: rec.endedAt,
   };
 }

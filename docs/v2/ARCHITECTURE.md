@@ -1376,7 +1376,16 @@ done), then
 The driver never erases flash or the startup-config: it only makes the next
 boot ignore it, then makes the boot after that read it again. Every screen is
 recognised by its text; anything else is `recovery.unexpected_screen` /
-`recovery.unknown_question` and nothing more is typed. A step result is
+`recovery.unknown_question` and nothing more is typed. `look` stops at a
+privileged prompt (`recovery.not_locked`). `BYPASS` names what each method
+puts in place (`register`, `parked`, `ignore`); `putBack(bypassed, { boot })`
+undoes it from ROMMON, `switch:`, a boot under way or an IOS prompt, and
+fails with `recovery.left_<bypass>` when it cannot; `planFrom(family, look, {
+bypassed })` resumes at the restore step when the last recovery left a
+bypass and the device sits at its factory prompt. A switch with password
+recovery disabled gets `n` (never `y`) and is followed back to its prompt.
+`restore_startup` reads the flag back with `show romvar`. Every family is
+`triedOnLab: false` until someone runs it on the real lab. A step result is
 `{ ok, … }` or `{ ok: false, reason: 'recovery.<code>', params, retry?,
 lastOutput? }`; `retry` (BREAK too late, Mode released too early, nobody
 power-cycled) puts the same step back to the person.
@@ -1387,6 +1396,16 @@ power-cycled) puts the same step back to the person.
 /runs/:id/confirm { step }` by the person who started it, then asks again
 whether that person may still operate the bench (`recovery.not_allowed`).
 Nobody confirming for `confirmMs` (30 min) ends it (`recovery.abandoned`).
+From the bypass step to its restore step, `bypassed` is saved with the row;
+any ending other than done first puts the device back (state `restoring`,
+audited `recovery.put_back`; a cancel meanwhile is `recovery.putting_back`),
+in the same task while its actor may type, else as a `system` task on the
+line; at shutdown (`shutdown()` waits `shutdownMs`, 8 s) without booting. Not
+put back: the recovery ends `failed` with `recovery.left_<bypass>`, the
+reason it stopped in `cause`. A stop from the console tile (task Stop,
+hang-up) is `stoppedFrom: 'console'`, audited `recovery.cancel` with `from:
+'console'`. The automation engine's `cli.resume()` lets a stopped task go on
+to put back what it changed.
 One recovery per device; none while a job runs on the bench. Who starts one:
 `benches.canOperate` (occupants of an unlocked bench, admins), never on an
 admin switch, a shared console line only while the other benches are free or
@@ -1395,19 +1414,21 @@ that held the bench, admins. Budgets: `RECOVERY_TIMEOUTS`, multiplied by
 `JOB_TIME_SCALE`.
 
 HTTP (`/api/recovery`): `GET /families`, `GET /devices/:key` (`canStart`,
-`refusal`, the recovery under way, the last five), `POST /devices/:key/start
+`refusal`, the recovery under way, the last five, `left`: the bypass the
+last one left), `POST /devices/:key/start
 { family }` → 202, `GET /runs?bench=`, `GET /runs/:id`, `POST
 /runs/:id/confirm`, `POST /runs/:id/cancel`. SSE: `recovery:run` (the
 recovery, to those who follow it), `recovery:running` (sticky, everyone: the
 devices being recovered, by whom, at which step). Audit: `recovery.start`,
 `recovery.confirm`, `recovery.step`, `recovery.cancel`, `recovery.end`. A
 recovery left open by a stopped server is closed as failed at start-up
-(`recovery.interrupted`).
+(`recovery.interrupted`), keeping its `bypassed`.
 
 Simulator (`dev/fakeIos.js`): `powerCycle({ modeButton })`, BREAK into
 ROMMON only while booting, `confreg`, `reset`, the classic switches' boot
 loader (`flash_init`, `dir flash:`, `rename`, `boot`, the password-recovery
-disabled question), the 9300L's `SWITCH_IGNORE_STARTUP_CFG`; the mock lab's
+disabled question), the 9300L's `SWITCH_IGNORE_STARTUP_CFG` and `show romvar`
+(`ignoreFlagSticks`: the flag stays at 1); the mock lab's
 `mock-power <host> <port> [mode]` command stands in for the person on site.
 
 ## 10. Data directory
@@ -1434,7 +1455,7 @@ admin switches as `switches`), `teams`, `team_members`, `team_invitations`
 `scripts` (013: the script library, one row per script with its text; `shelf`
 is `p:<user id>`, `t:<team id>` or `pub`, a title is unique on its shelf),
 `device_notes`, `bench_chat_messages` (014), `recoveries` (015: one row per
-password recovery, its steps as JSON).
+password recovery, its steps as JSON, `bypassed`: what it left on the device).
 Passkey ceremonies' challenges are not stored: they live in memory, five
 minutes, single use.
 

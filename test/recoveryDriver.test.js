@@ -50,6 +50,21 @@ test('the families and their steps', () => {
   for (const f of Object.values(FAMILIES)) assert.ok(STEPS[f.method][0] === 'look');
   assert.equal(planFrom('nope', { state: 'user' }).reason, 'recovery.unknown_family');
   assert.deepEqual(planFrom('isr_g1', { state: 'password' }), ['power_cycle', 'confreg', 'boot', 'restore_register']);
+  assert.deepEqual(planFrom('isr_g1', { state: 'user', host: 'R1' }), ['power_cycle', 'confreg', 'boot', 'restore_register']);
+  // Not locked: nothing to recover, and a power cycle would lose its unsaved changes
+  const open = planFrom('isr_g1', { state: 'privileged', host: 'R1', line: 'R1#' });
+  assert.equal(open.reason, 'recovery.not_locked');
+  assert.equal(open.params.host, 'R1');
+  assert.equal(planFrom('catalyst', { state: 'config', host: 'S1', line: 'S1(config)#' }).reason, 'recovery.not_locked');
+  // Left bypassed by the last recovery and at its factory prompt: straight to the restore step
+  assert.deepEqual(planFrom('isr_g1', { state: 'user', host: 'Router' }, { bypassed: 'register' }), ['restore_register']);
+  assert.deepEqual(planFrom('isr4300', { state: 'privileged', host: 'Router' }, { bypassed: 'register' }), ['restore_register']);
+  assert.deepEqual(planFrom('catalyst', { state: 'user', host: 'Switch' }, { bypassed: 'parked' }), ['restore_config']);
+  assert.deepEqual(planFrom('c9300l', { state: 'dialog' }, { bypassed: 'ignore' }), ['boot', 'restore_startup']);
+  assert.deepEqual(planFrom('isr_g1', { state: 'rommon' }, { bypassed: 'register' }), ['confreg', 'boot', 'restore_register']);
+  assert.deepEqual(planFrom('catalyst', { state: 'password' }, { bypassed: 'register' }), ['power_cycle', 'flash_init', 'park_config', 'boot', 'restore_config'], 'another family\'s bypass means nothing here');
+  // No procedure has been run on the real lab yet: every family says so
+  for (const f of Object.values(FAMILIES)) assert.equal(f.triedOnLab, false);
   assert.deepEqual(planFrom('isr_g1', { state: 'rommon' }), ['confreg', 'boot', 'restore_register']);
   assert.deepEqual(planFrom('isr_g1', { state: 'dialog' }), ['boot', 'restore_register']);
   assert.deepEqual(planFrom('catalyst', { state: 'bootLoader' }), ['flash_init', 'park_config', 'boot', 'restore_config']);
@@ -199,19 +214,24 @@ test('Mode released too early: mode_missed, to try again, nothing typed into IOS
   } finally { r.done(); }
 });
 
-test('password recovery disabled on the switch: the factory reset it offers is never answered', async () => {
+test('password recovery disabled on the switch: "n" to the factory reset, never "y"; the switch boots back as it was', async () => {
   const r = rig({ model: '2960', start: 'exec', passwordRecovery: false, enableSecret: 'x', hostname: 'S5' });
   try {
     const rec = new CiscoRecovery(r.cli, { family: 'catalyst', timeouts: RT });
     await r.cli.perform('recovery', async () => {
       setTimeout(() => r.dev.powerCycle({ modeButton: true }), 30);
       const res = await rec.interruptBoot();
-      assert.equal(res.reason, 'recovery.recovery_disabled');
+      assert.equal(res.reason, 'recovery.recovery_disabled', JSON.stringify(res));
       assert.notEqual(res.retry, true);
     });
-    assert.equal(r.written(), '');
+    const typed = typedLines(r);
+    assert.equal(typed[0], 'n', typed.join(' | '));
+    assert.ok(!typed.includes('y'));
+    // Back at its own prompt, its configuration and startup-config unchanged
+    assert.equal(r.dev.state, 'exec');
+    assert.equal(r.dev.cfg.hostname, 'S5');
     assert.equal(r.dev.startup.hostname, 'S5');
-    assert.equal(r.dev.state, 'question');
+    assert.ok(r.dev.startup.global.some((l) => l.startsWith('enable secret')));
   } finally { r.done(); }
 });
 
@@ -258,5 +278,123 @@ test('cancelled in the middle of the BREAKs: the step stops with the engine\'s c
     const rec = new CiscoRecovery(r.cli, { family: 'isr_g1', timeouts: RT });
     setTimeout(() => r.cli.cancel(), 100);
     await assert.rejects(r.cli.perform('recovery', () => rec.interruptBoot()), (err) => err.cancelled === true);
+  } finally { r.done(); }
+});
+
+test('9300L: the ignore flag read back with show romvar; accepted but not cleared is ignore_not_cleared', async () => {
+  const r = rig({ model: 'c9300l', start: 'exec', enableSecret: 'lost', hostname: 'SW1-2005', ignoreFlagSticks: true });
+  try {
+    const { results } = await recover(r, 'c9300l', { mode: true });
+    assert.ok(results.boot.ok, JSON.stringify(results.boot));
+    assert.equal(results.restore_startup.reason, 'recovery.ignore_not_cleared', JSON.stringify(results.restore_startup));
+    assert.match(results.restore_startup.params.detail, /SWITCH_IGNORE_STARTUP_CFG=1/);
+    assert.equal(r.dev.romvars.SWITCH_IGNORE_STARTUP_CFG, '1');
+    assert.ok(typedLines(r).includes('show romvar'));
+  } finally { r.done(); }
+});
+
+/**
+ * Run the steps up to `last` (included), as a recovery stopped right after it
+ * would have, then put the device back. → { putBack, facts }
+ */
+async function stopAfter(r, family, last, { mode = false, boot = true } = {}) {
+  const rec = new CiscoRecovery(r.cli, { family, timeouts: RT });
+  return r.cli.perform('recovery', async () => {
+    const look = await rec.look({});
+    const plan = planFrom(family, look);
+    const facts = {};
+    for (const step of plan) {
+      if (step === 'power_cycle') setTimeout(() => r.dev.powerCycle({ modeButton: mode }), 30);
+      const out = await rec.run(step, facts);
+      assert.ok(out.ok, `${step}: ${JSON.stringify(out)}`);
+      Object.assign(facts, out);
+      if (step === last) break;
+    }
+    return { putBack: await rec.putBack({ isr_g1: 'register', isr4300: 'register', catalyst: 'parked', c1000: 'parked', c9300l: 'ignore' }[family], { boot }), facts };
+  });
+}
+
+/** Booted to its own configuration: the line password asks, or its own prompt */
+const bootedOwn = (dev, host) => ['linepass', 'exec', 'pressreturn', 'idle'].includes(dev.state) && !dev.inBoot && dev.cfg.hostname === host;
+
+test('put back a router stopped after confreg: confreg 0x2102, reset, its own startup-config again', async () => {
+  const r = rig({ model: '2811', start: 'linepass', linePassword: 'pw', hostname: 'R1-2001' });
+  try {
+    const { putBack } = await stopAfter(r, 'isr_g1', 'confreg');
+    assert.ok(putBack.ok, JSON.stringify(putBack));
+    assert.equal(putBack.booted, true);
+    assert.equal(r.dev.confReg, '0x2102');
+    assert.ok(bootedOwn(r.dev, 'R1-2001'), `${r.dev.state} ${r.dev.cfg.hostname}`);
+    assert.ok(typedLines(r).includes('confreg 0x2102'));
+    assert.ok(!typedLines(r).some((l) => DESTRUCTIVE.test(l)));
+  } finally { r.done(); }
+});
+
+test('put back a router stopped after boot (Router>, 0x2142): config-register 0x2102, checked', async () => {
+  const r = rig({ model: '2811', start: 'linepass', linePassword: 'pw', hostname: 'R1-2001' });
+  try {
+    const { putBack } = await stopAfter(r, 'isr_g1', 'boot');
+    assert.ok(putBack.ok, JSON.stringify(putBack));
+    assert.equal(r.dev.confReg, '0x2142', 'running as booted');
+    assert.equal(r.dev.nextConfReg, '0x2102', 'its next boot reads the startup-config');
+    assert.equal(r.dev.startup.hostname, 'R1-2001');
+    // A second recovery from Router> resumes at restore_register, no power cycle
+    assert.deepEqual(planFrom('isr_g1', { state: 'user', host: 'Router' }, { bypassed: 'register' }), ['restore_register']);
+  } finally { r.done(); }
+});
+
+test('put back a classic switch stopped after park_config: config.text renamed back at switch:, booted with it', async () => {
+  const r = rig({ model: '2960', start: 'linepass', linePassword: 'pw', hostname: 'S5' });
+  try {
+    const { putBack, facts } = await stopAfter(r, 'catalyst', 'park_config', { mode: true });
+    assert.equal(facts.parked, true);
+    assert.ok(putBack.ok, JSON.stringify(putBack));
+    assert.equal(putBack.booted, true);
+    assert.equal(r.dev.parked, null);
+    assert.equal(r.dev.startup.hostname, 'S5');
+    assert.ok(bootedOwn(r.dev, 'S5'), `${r.dev.state} ${r.dev.cfg.hostname}`);
+    assert.ok(typedLines(r).includes(`rename flash:${PARKED_NAME} flash:config.text`));
+  } finally { r.done(); }
+});
+
+test('put back a classic switch stopped after boot (Switch>): config.text renamed back from IOS', async () => {
+  const r = rig({ model: '3560', start: 'linepass', linePassword: 'pw', hostname: 'S1' });
+  try {
+    const { putBack } = await stopAfter(r, 'catalyst', 'boot', { mode: true });
+    assert.ok(putBack.ok, JSON.stringify(putBack));
+    assert.equal(r.dev.parked, null);
+    assert.equal(r.dev.startup.hostname, 'S1');
+    assert.equal(r.dev.cfg.hostname, 'Switch', 'it runs the factory configuration until its next boot');
+  } finally { r.done(); }
+});
+
+test('put back a 9300L stopped after ignore_startup: SWITCH_IGNORE_STARTUP_CFG=0, booted with its startup-config', async () => {
+  const r = rig({ model: 'c9300l', start: 'exec', enableSecret: 'lost', hostname: 'SW1-2005' });
+  try {
+    const { putBack } = await stopAfter(r, 'c9300l', 'ignore_startup', { mode: true });
+    assert.ok(putBack.ok, JSON.stringify(putBack));
+    assert.equal(r.dev.romvars.SWITCH_IGNORE_STARTUP_CFG, '0');
+    assert.ok(bootedOwn(r.dev, 'SW1-2005'), `${r.dev.state} ${r.dev.cfg.hostname}`);
+  } finally { r.done(); }
+});
+
+test('put back without booting (server stopping): the register only, the router left in ROMMON', async () => {
+  const r = rig({ model: '2801', start: 'rommon' });
+  try {
+    const { putBack } = await stopAfter(r, 'isr_g1', 'confreg', { boot: false });
+    assert.ok(putBack.ok, JSON.stringify(putBack));
+    assert.equal(putBack.booted, false);
+    assert.equal(r.dev.state, 'rommon');
+    assert.equal(r.dev.nextConfReg, '0x2102');
+  } finally { r.done(); }
+});
+
+test('put back that cannot: the restore refused names what is left (left_ignore)', async () => {
+  const r = rig({ model: 'c9300l', start: 'exec', enableSecret: 'lost', hostname: 'SW1-2005', ignoreFlagSticks: true });
+  try {
+    const { putBack } = await stopAfter(r, 'c9300l', 'boot', { mode: true });
+    assert.equal(putBack.reason, 'recovery.left_ignore', JSON.stringify(putBack));
+    assert.equal(putBack.cause, 'recovery.ignore_not_cleared');
+    assert.equal(r.dev.romvars.SWITCH_IGNORE_STARTUP_CFG, '1');
   } finally { r.done(); }
 });

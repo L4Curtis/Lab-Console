@@ -462,6 +462,50 @@ the diagram.
 Guided password recovery (BREAK, ROMMON, configuration register) for a device
 left locked. It needs someone on site to power-cycle the device.
 
+*As built (recovery lot):* contracts in ARCHITECTURE §9c.
+- **The lock itself is not removed.** The assistant bypasses the
+  startup-config for one boot (register 0x2142, flash:config.text renamed
+  config.text.recovery, or SWITCH_IGNORE_STARTUP_CFG=1), brings the device to
+  its factory prompt, then makes the next boot read the startup-config again.
+  That startup-config still holds the console and enable passwords: the
+  device is locked again at its next reload unless the team overwrites it
+  (an injection saved with `copy running-config startup-config`, or a
+  reset, from the Backups section). Cisco's way of keeping the configuration
+  (copy startup-config running-config, change the secrets, save) is not
+  offered: it would mean reading and rewriting a configuration whose secrets
+  the assistant never handles. The end screen says so.
+- **Only a locked device.** A device at a privileged prompt stops the
+  assistant (`recovery.not_locked`): nothing is typed and nobody is asked to
+  power-cycle it (its unsaved changes would be lost).
+- **Stop, failure, abandonment, refusal, shutdown.** From the step that
+  bypasses the startup-config until its restore step, the bypass is recorded
+  with the recovery (`bypassed`). Any ending other than done puts it back
+  first (state `restoring`; a second Stop is refused meanwhile): in ROMMON
+  `confreg 0x2102` then `reset`, at `switch:` the file renamed back or the
+  variable cleared then `boot`, at an IOS prompt the restore step; the boot
+  is followed to the device's own (locked) prompt. It runs in the same task
+  while the person who started it may still type on the line, otherwise as a
+  system task (bench locked or taken mid-way, line hung up). At shutdown the
+  device is not booted (no time): the register, file or variable only. What
+  cannot be put back ends the recovery `recovery.left_register` /
+  `left_parked` / `left_ignore`, stays on the device's history, and the next
+  recovery of that device starts with it (no new power cycle when the device
+  sits at its factory prompt). A stop from the console tile is recorded as
+  "stopped from the console".
+- **Password recovery disabled on a switch** (`no service
+  password-recovery`): the assistant answers `n` to the factory-reset
+  question (Cisco: the boot goes on, nothing erased), follows the boot back
+  to the switch's prompt and reports it. It never answers `y`.
+- **9300L**: `no system ignore startupconfig switch all` is checked with
+  `show romvar` (SWITCH_IGNORE_STARTUP_CFG must read 0 or be absent).
+- **Not verified on the real equipment (no lab access): no procedure has
+  been run on the lab's devices yet**, and every family says so in the
+  browser (`triedOnLab: false`). Unknown in particular: how quickly the
+  console server passes a BREAK on, the exact ROMMON and boot loader
+  messages, the Catalyst 1000 (taken to behave like the 2960) and 9300L
+  procedures (`show romvar`, the effect of `no system ignore startupconfig`),
+  the IOS XE first-boot questions after the bypass.
+
 ### Lot overview, lot help
 One screen with every bench: team, occupants, open consoles, running jobs,
 locks. A **personal home page** after sign-in: my team, our bench, our

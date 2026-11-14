@@ -13,6 +13,7 @@
  *        sendBreak()          a serial BREAK (through the line's own mechanism: telnet's
  *                             "send brk"), what interrupts a booting device into ROMMON
  *        cancel()             stop the running task (steps throw `cancelled`)
+ *        resume()             go on after cancel(), in the same task (to put back what it changed)
  *      Every step runs inside perform(): output is only captured while a
  *      task runs, so a step outside one would wait for nothing.
  *   2. Two features expressed on those steps, each in two forms: a step that
@@ -99,6 +100,16 @@ export class CliAutomation {
     if (!this.#task) return;
     this.#cancelled = true;
     this.#waiter?.fail(new Cancelled());
+  }
+
+  /**
+   * Go on after cancel(), inside the same task: a task that was stopped may
+   * still have to put back what it changed on the device (the password
+   * recovery's bypass). Its right to type is still asked before every byte,
+   * and a later cancel() stops it again.
+   */
+  resume() {
+    if (this.#task) this.#cancelled = false;
   }
 
   /** Every chunk of device output (decoded text) */

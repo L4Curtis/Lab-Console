@@ -15,7 +15,8 @@
  *   GET  /runs?bench=                  the recoveries this user may see, newest first
  *   GET  /runs/:id
  *   POST /runs/:id/confirm             { step }   the next step, by the person who started it
- *   POST /runs/:id/cancel              its actor, the occupants of the bench, admins
+ *   POST /runs/:id/cancel              its actor, the occupants of the bench, admins (the device
+ *                                      is put back first: a second cancel meanwhile is refused)
  *
  * Who may start one: services.benches.canOperate(user, bench) (the occupants
  * of an unlocked bench, and admins), as for the jobs; never an admin switch;
@@ -61,6 +62,7 @@ export function createRecoveryModule({ config, logger, events, repos, audit, inf
       timeouts: options.timeouts ?? scaledRecoveryTimeouts(config.jobs?.timeScale ?? 1),
       pollMs: options.pollMs,
       now: options.now,
+      shutdownMs: options.shutdownMs,
     },
   });
 
@@ -148,6 +150,8 @@ export function createRecoveryModule({ config, logger, events, repos, audit, inf
       refusal: no ? { code: no.code, params: no.params ?? {} } : null,
       running: running ? (viewOf(req.user, running) ? view(running) : { id: running.id, state: running.state, actor: { name: running.actor.name } }) : null,
       history: await visible(req.user, { device: device.key, limit: 5 }),
+      // What the last recovery of this device left in place (the next one puts it back)
+      left: running ? null : ((await repos.recoveries.list({ device: device.key, limit: 1 }))[0]?.bypassed ?? null),
     });
   });
 
@@ -187,7 +191,8 @@ export function createRecoveryModule({ config, logger, events, repos, audit, inf
     if (!(isAdmin(req.user) || live.actor.id === req.user.id || benches()?.canOperate?.(req.user, live.bench))) {
       throw httpError(403, 'recovery.cancel_forbidden', 'Only the person who started the recovery, the occupants of the bench and admins may stop it.');
     }
-    runner.cancel(live, req.user);
+    const no = runner.cancel(live, req.user);
+    if (no) throw httpError(no.status, no.code, no.message);
     res.json({ recovery: view(live) });
   });
 
@@ -203,7 +208,8 @@ export function createRecoveryModule({ config, logger, events, repos, audit, inf
     router,
     runner,
     async start() {
-      // Recoveries a stopped server left open: they did not finish, say so
+      // Recoveries a stopped server left open: they did not finish, say so (what they left
+      // bypassed stays in the row: the next recovery of the device puts it back)
       for (const rec of await repos.recoveries.unfinished()) {
         const steps = rec.steps.map((s) => (['running', 'pending'].includes(s.state) ? { ...s, state: s.state === 'running' ? 'failed' : 'not_run' } : s));
         await repos.recoveries.save({ ...rec, state: 'failed', code: 'recovery.interrupted', steps, endedAt: new Date().toISOString() });
@@ -211,12 +217,12 @@ export function createRecoveryModule({ config, logger, events, repos, audit, inf
       events.publish('recovery:running', runner.summary(), { sticky: true });
     },
     shutdown() {
-      runner.shutdown();
+      return runner.shutdown();
     },
   };
 }
 
 /** The families, their kind and steps, for the browser */
 function familyList() {
-  return Object.entries(FAMILIES).map(([id, f]) => ({ id, kind: f.kind, models: f.models, software: f.software, verified: f.verified, steps: STEPS[f.method], handsOn: STEPS[f.method].filter((s) => HANDS_ON.has(s)) }));
+  return Object.entries(FAMILIES).map(([id, f]) => ({ id, kind: f.kind, models: f.models, software: f.software, triedOnLab: f.triedOnLab, steps: STEPS[f.method], handsOn: STEPS[f.method].filter((s) => HANDS_ON.has(s)) }));
 }

@@ -10,8 +10,10 @@
  * the device to choose, Start (or why this person may not). During one: the
  * steps of the family, the one waiting for the person with what to do on
  * site and the button that confirms it (only for the person who started it),
- * what the device is doing now, Stop. At the end: a clean prompt and the way
- * to the Backups section, or why it stopped and the end of the console
+ * what the device is doing now, Stop. A recovery that stops before its end
+ * first puts the device back (state 'restoring'). At the end: a clean prompt
+ * and the way to the Backups section, or why it stopped, whether the device
+ * was put back (or what was left bypassed), and the end of the console
  * output. Closing the dialog never stops a recovery: it runs on the server,
  * and opening the assistant of the device again shows it where it is.
  *
@@ -29,6 +31,7 @@ import { registerPaneAction } from '../../shared/paneActions.js';
 import { registerDiagramLayer, refreshDiagram } from '../../shared/diagramLayers.js';
 
 const FINAL = new Set(['done', 'failed', 'cancelled']);
+const LEFT_CODE = /^recovery\.left_/; // the recovery ended with its device still bypassed
 let running = [];                 // 'recovery:running': [{ id, bench, device: { key, name }, state, awaiting, current, actor }]
 const followers = new Set();      // open dialogs: fn(recovery)
 
@@ -68,7 +71,11 @@ function progressText(p) {
   const name = String(p?.code ?? '').replace(/^recovery\.progress\./, '');
   return name && has(`recovery.progress.${name}`) ? t(`recovery.progress.${name}`, p.params ?? {}) : '';
 }
-const stateText = (rec) => (rec.state === 'cancelled' ? t('recovery.state.cancelled', { name: rec.cancelledBy?.name ?? '' }) : t(`recovery.state.${rec.state}`));
+function stateText(rec) {
+  if (rec.state !== 'cancelled') return t(`recovery.state.${rec.state}`);
+  if (rec.cancelledBy?.name) return t('recovery.state.cancelled', { name: rec.cancelledBy.name });
+  return rec.stoppedFrom === 'console' ? t('recovery.state.cancelledConsole') : t('recovery.state.cancelledServer');
+}
 
 /**
  * The assistant of one device (its registry key). Returns the dialog
@@ -147,10 +154,11 @@ export function openRecoveryDialog(key) {
   function startView() {
     const families = info.families ?? [];
     const select = h('select.field', { name: 'family', 'aria-label': t('recovery.family') },
-      families.map((f) => h('option', { value: f.id }, f.verified ? t(`recovery.families.${f.id}`) : `${t(`recovery.families.${f.id}`)} (${t('recovery.unverified')})`)));
+      families.map((f) => h('option', { value: f.id }, f.triedOnLab ? t(`recovery.families.${f.id}`) : `${t(`recovery.families.${f.id}`)} (${t('recovery.unverified')})`)));
     const go = h('button.btn.primary', { type: 'submit', dataset: { action: 'start' }, disabled: busy || !info.canStart }, icon('play'), t('recovery.start'));
     return [
       h('p.recovery-intro', t('recovery.intro')),
+      info.left ? h('p.recovery-problem', { role: 'status', dataset: { left: info.left } }, t(`recovery.leftBefore.${info.left}`)) : null,
       info.canStart ? null : h('p.recovery-problem', { role: 'status' }, t('recovery.cannotStart', { reason: codeText(info.refusal?.code, info.refusal?.params, '') })),
       h('form.recovery-start', { onsubmit: (e) => { e.preventDefault(); start(select.value); } },
         h('label.field-label', h('span', t('recovery.family')), select), go),
@@ -172,11 +180,18 @@ export function openRecoveryDialog(key) {
         h('a.btn.primary', { href: `#/jobs/${encodeURIComponent(rec.bench)}`, dataset: { action: 'jobs' }, onclick: () => dlg.close() }, icon('archive'), t('recovery.toJobs'))));
     } else if (final) {
       const err = rec.error ?? { code: rec.code };
-      out.push(h('section.recovery-end', { dataset: { end: rec.state } },
+      // What the device was left with: the run's own code, or a row closed by a restart (bypassed kept)
+      const left = LEFT_CODE.test(rec.code ?? '') || Boolean(rec.bypassed);
+      out.push(h('section.recovery-end', { dataset: { end: rec.state, left: left ? 'yes' : 'no' } },
         h('h3', rec.state === 'cancelled' ? t('recovery.cancelledTitle') : t('recovery.failedTitle')),
         h('p.recovery-error', codeText(err.code, err.params, err.message ?? '')),
-        rec.state === 'failed' ? h('p.muted', t('recovery.failedHint')) : null,
+        rec.cause?.code ? h('p.recovery-cause', t('recovery.cause', { reason: codeText(rec.cause.code, rec.cause.params, '') })) : null,
+        !LEFT_CODE.test(rec.code ?? '') && rec.bypassed ? h('p.recovery-problem', t(`recovery.leftBefore.${rec.bypassed}`)) : null,
+        rec.putBack?.ok ? h('p.recovery-putback', t(rec.putBack.booted ? 'recovery.putBackDone' : 'recovery.putBackNotBooted')) : null,
+        h('p.muted', left ? t('recovery.leftHint') : t('recovery.failedHint')),
         err.lastOutput ? lastOutput(err.lastOutput) : null));
+    } else if (rec.state === 'restoring') {
+      out.push(h('p.recovery-progress', { role: 'status' }, t('recovery.restoring'), rec.progress ? ` · ${progressText(rec.progress)}` : ''));
     } else {
       out.push(h('div.recovery-run-actions',
         h('button.btn.danger', { type: 'button', dataset: { action: 'stop' }, disabled: busy, onclick: stop }, icon('stop'), t('recovery.stop'))));
@@ -190,7 +205,7 @@ export function openRecoveryDialog(key) {
     const state = waiting ? 'awaiting' : s.state;
     const title = h('span.recovery-step-title', t(`recovery.steps.${s.id}.title`));
     const item = h('li', { dataset: { step: s.id, state } }, title, ' ',
-      h('span.recovery-state', { dataset: { state } }, t(`recovery.state.${state}`)),
+      h('span.recovery-state', { dataset: { state } }, state === 'cancelled' ? t('recovery.state.stepCancelled') : t(`recovery.state.${state}`)),
       s.tries > 1 ? h('small.muted', ` · ${t('recovery.attempt', { n: s.tries })}`) : null);
     if (waiting || doing) item.append(h('p.recovery-what', whatText(s.id)));
     if (doing && rec.progress) item.append(h('p.recovery-progress', { role: 'status' }, progressText(rec.progress)));

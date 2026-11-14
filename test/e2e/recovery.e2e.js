@@ -110,3 +110,46 @@ test('a router locked by a console password, walked through the assistant from i
   assert.deepEqual(alice.errors, []);
   await alice.context().close();
 });
+
+test('stopped from the assistant after confreg: the router is put back and boots its own startup-config', async () => {
+  // Locked again: switched off and on, it reads its startup-config (0x2102 since the first test)
+  r1.powerCycle();
+  await until(() => ['pressreturn', 'idle', 'linepass', 'exec'].includes(r1.state) && !r1.inBoot, 'R1 to boot locked');
+  const alice = await h.newPage();
+  await signInAs(alice, 'alice');
+  // The line of the first test may still be open (its grace time): then no console server login
+  const d = h.app.deps.services.consoles.registry.model.labs.find((l) => l.name === 'B4M').devices.find((x) => x.name === 'R1');
+  const open = Boolean(h.app.deps.services.consoles.rooms.get(`${d.target.host}:${d.target.port}`));
+  const pane = await openConsole(alice, 'B4M', 'R1', open ? { login: false } : {});
+  await pane.locator('button[data-action="recovery"]').click();
+  const dlg = dialog(alice);
+  await dlg.locator('button[data-action="start"]:not([disabled])').waitFor();
+  // No procedure has been tried on the real lab yet: the families say so
+  assert.match(await dlg.locator('option[value="isr_g1"]').textContent(), /pas encore essayée/);
+  await dlg.locator('select[name="family"]').selectOption('isr_g1');
+  await dlg.locator('button[data-action="start"]').click();
+
+  const power = dlg.locator('li[data-step="power_cycle"][data-state="awaiting"]');
+  await power.waitFor();
+  await power.locator('button[data-action="confirm"]').click();
+  await dlg.locator('li[data-step="power_cycle"] .recovery-progress', { hasText: /maintenant/ }).waitFor();
+  r1.powerCycle();
+  const confreg = dlg.locator('li[data-step="confreg"][data-state="awaiting"]');
+  await confreg.waitFor({ timeout: 90_000 });
+  await confreg.locator('button[data-action="confirm"]').click();
+  await dlg.locator('li[data-step="boot"][data-state="awaiting"]').waitFor({ timeout: 90_000 });
+  assert.equal(r1.nextConfReg, '0x2142');
+
+  // Stop: the confirmation says the device is put back first
+  await dlg.locator('button[data-action="stop"]').click();
+  const ask = alice.locator('dialog.modal[open]').last();
+  assert.match(await ask.textContent(), /remet d’abord en place/);
+  await ask.locator('button[data-action="confirm"]').click();
+  const end = dlg.locator('.recovery-end[data-end="cancelled"][data-left="no"]');
+  await end.waitFor({ timeout: 120_000 });
+  assert.match(await end.locator('.recovery-putback').textContent(), /remis en place/);
+  assert.equal(r1.confReg, '0x2102');
+  assert.ok(!r1.inBoot && r1.state !== 'rommon', `R1 booted (${r1.state})`);
+  assert.deepEqual(alice.errors, []);
+  await alice.context().close();
+});

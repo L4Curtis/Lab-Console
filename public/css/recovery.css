@@ -28,3 +28,7 @@
 .recovery-run-actions, .recovery-dialog .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
 .recovery-other { display: flex; align-items: center; gap: 8px; }
 .deco-ring.ring-recovery { stroke: var(--led-red); stroke-dasharray: 4 2; stroke-width: 2.5; }
+.recovery-state[data-state="restoring"] { background: color-mix(in srgb, var(--led-amber) 22%, transparent); color: var(--ink); }
+.recovery-end[data-left="yes"] { border-width: 2px; }
+.recovery-cause { color: var(--ink-2); }
+.recovery-putback { color: var(--ink); font-weight: 600; }

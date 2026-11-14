@@ -8,7 +8,10 @@
  *   recoveries   bench, device (key and name), family, who started it, the
  *                team that held the bench, state ('awaiting', 'running',
  *                'done', 'failed', 'cancelled'), the steps with their
- *                outcome (JSON), the code it ended with
+ *                outcome (JSON), the code it ended with, and the bypass
+ *                the device was left with ('register' | 'parked' |
+ *                'ignore', or NULL: nothing left), which the next recovery
+ *                of the device puts back
  */
 export async function up(tx) {
   await tx.run(`CREATE TABLE recoveries (
@@ -22,6 +25,7 @@ export async function up(tx) {
     state TEXT NOT NULL,
     steps TEXT NOT NULL,
     code TEXT,
+    bypassed TEXT,
     created_at TEXT NOT NULL,
     ended_at TEXT
   )`);

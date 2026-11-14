@@ -33,7 +33,8 @@
  *     `confreg`, the classic switches' boot loader (`flash_init`, `dir flash:`,
  *     `rename flash:config.text …`, `boot`) where the startup-config is the file
  *     flash:config.text, the Catalyst 9300L's `SWITCH_IGNORE_STARTUP_CFG=1` and
- *     `no system ignore startupconfig switch all`, IOS `rename`; a switch whose
+ *     `no system ignore startupconfig switch all` (read back with `show romvar`),
+ *     IOS `rename`; a switch whose
  *     password recovery is disabled asks to reset itself to factory defaults
  *   - VTP as classic IOS keeps it: version, domain, password and mode live in
  *     flash:vlan.dat with the VLANs (`show vtp status`, `show vtp password`), and
@@ -193,7 +194,7 @@ function genericProfile(hostname) {
 const W = null;
 const SHOW = {
   'running-config': { interface: W }, 'startup-config': {}, version: {}, vlan: { brief: {} }, vtp: { status: {}, password: {}, counters: {} }, cdp: { neighbors: { detail: {} } },
-  ip: { interface: { brief: {} }, route: W }, interfaces: W, flash: W, clock: {}, history: {}, users: {}, inventory: {}, boot: {}, license: W,
+  ip: { interface: { brief: {} }, route: W }, interfaces: W, flash: W, clock: {}, history: {}, users: {}, inventory: {}, boot: {}, license: W, romvar: {},
 };
 const EXEC = {
   show: SHOW, enable: W, disable: {}, configure: { terminal: {} }, copy: W, write: { memory: {}, erase: {}, terminal: {} }, erase: W, delete: W,
@@ -371,17 +372,19 @@ export class FakeIos {
    * @param deleteError   `delete flash:vlan.dat` fails with this reason, e.g. 'Permission denied'
    * @param passwordRecovery  false: `no service password-recovery` (switches: the Mode button
    *                      only offers a reset to factory defaults)
+   * @param ignoreFlagSticks  9300L: `no system ignore startupconfig switch all` is accepted but
+   *                      SWITCH_IGNORE_STARTUP_CFG stays at 1 (what `show romvar` then shows)
    */
   constructor({
     hostname, out = () => {}, username, password, model = null, start = 'exec',
     termLengthSupported = true, slowConsole = null, enableSecret = null, linePassword = null,
     bootFailure = null, firstBootExtra = null, chatterMs = null, timeScale = 0.001, syslogOnMore = null,
     cdp = [], serial = null, confReg = null, pnpEveryMs = 5000, stamps = 'datetime', deleteError = null,
-    passwordRecovery = true,
+    passwordRecovery = true, ignoreFlagSticks = false,
   } = {}) {
     this.profile = model ? MODELS[model] : genericProfile(hostname || 'Router');
     if (!this.profile) throw new Error(`Unknown fake model "${model}"`);
-    Object.assign(this, { out, username, password, termLengthSupported, slowConsole, bootFailure, firstBootExtra, timeScale, cdp, pnpEveryMs, stamps, deleteError, passwordRecovery });
+    Object.assign(this, { out, username, password, termLengthSupported, slowConsole, bootFailure, firstBootExtra, timeScale, cdp, pnpEveryMs, stamps, deleteError, passwordRecovery, ignoreFlagSticks });
     this.model = model || 'generic';
     const prefix = this.profile.kind === 'switch' ? 'FOC' : this.profile.family === 'iosxe' ? 'FDO' : 'FTX';
     this.serial = serial || `${prefix}${crypto.createHash('md5').update(`${model}-${hostname}`).digest('hex').slice(0, 8).toUpperCase()}`;
@@ -976,7 +979,8 @@ export class FakeIos {
     if (w[0] === 'username') { this.cfg.global = this.cfg.global.filter((l) => !l.startsWith(`username ${w[1]} `)); return this.#prompt(); }
     if (w[0] === 'router' || (w[0] === 'ip' && /^(dhcp|access-list)$/.test(w[1]))) { this.cfg.blocks = this.cfg.blocks.filter((b) => !b.head.startsWith(text)); return this.#prompt(); }
     if (w[0] === 'system' && w.slice(1).join(' ') === 'ignore startupconfig switch all' && this.profile.family === 'iosxe' && this.profile.kind === 'switch') {
-      this.romvars.SWITCH_IGNORE_STARTUP_CFG = '0'; return this.#prompt();
+      if (!this.ignoreFlagSticks) this.romvars.SWITCH_IGNORE_STARTUP_CFG = '0';
+      return this.#prompt();
     }
     if (w[0] === 'hostname') { this.cfg.hostname = this.profile.kind === 'router' ? 'Router' : 'Switch'; return this.#prompt(); }
     if (this.cfg.global.includes(text)) { this.cfg.global = this.cfg.global.filter((l) => l !== text); return this.#prompt(); }
@@ -1257,6 +1261,12 @@ export class FakeIos {
       return this.#page([`Using ${lines.join('\n').length} out of ${p.family === 'iosxe' ? 33554432 : 245752} bytes`, ...lines]);
     }
     if (what === 'version') return this.#page(this.#showVersion());
+    if (what === 'romvar') {
+      // IOS XE switches only (the 9300L): the ROMMON variables
+      if (p.family !== 'iosxe' || p.kind !== 'switch') return this.#invalid(raw, 1);
+      return this.#page(['ROMMON variables:', ' MAC_ADDR="00:1A:2B:3C:4D:00"', ' MODEL_NUM="C9300L-24T-4G"', ` BOOT="${p.image}"`,
+        ...Object.entries(this.romvars).map(([k, v]) => ` ${k}="${v}"`)]);
+    }
     if (what.startsWith('vlan')) {
       if (p.kind !== 'switch') return this.#invalid(raw, 1);
       return this.#page(this.#showVlanBrief());

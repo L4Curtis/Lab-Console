@@ -7,11 +7,13 @@
  *   unfinished()                          → the recoveries a stopped server left open (closed at start-up)
  *
  * Recovery: { id, bench, device: { key, name }, family, actor: { id, username, name }, teamId,
- *             state, steps: [{ id, state, code, params, at }], code, createdAt, endedAt }
+ *             state, steps: [{ id, state, code, params, at }], code, bypassed, createdAt, endedAt }
+ *   bypassed: what the device was left with ('register' 0x2142, 'parked' config.text.recovery,
+ *             'ignore' SWITCH_IGNORE_STARTUP_CFG=1), null when nothing is left
  */
 import { toIso, toJson, fromJson } from '../values.js';
 
-const COLUMNS = 'id, bench, device_key, device_name, family, actor, team_id, state, steps, code, created_at, ended_at';
+const COLUMNS = 'id, bench, device_key, device_name, family, actor, team_id, state, steps, code, bypassed, created_at, ended_at';
 const FINAL = ['done', 'failed', 'cancelled'];
 
 const view = (r) => ({
@@ -24,6 +26,7 @@ const view = (r) => ({
   state: r.state,
   steps: fromJson(r.steps, []),
   code: r.code ?? null,
+  bypassed: r.bypassed ?? null,
   createdAt: r.created_at,
   endedAt: r.ended_at ?? null,
 });
@@ -32,10 +35,10 @@ export function createRecoveriesRepository(db) {
   return {
     async save(rec) {
       return db.run(
-        `INSERT INTO recoveries (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-         ON CONFLICT (id) DO UPDATE SET state = excluded.state, steps = excluded.steps, code = excluded.code, ended_at = excluded.ended_at`,
+        `INSERT INTO recoveries (${COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT (id) DO UPDATE SET state = excluded.state, steps = excluded.steps, code = excluded.code, bypassed = excluded.bypassed, ended_at = excluded.ended_at`,
         [String(rec.id), String(rec.bench), String(rec.device.key), String(rec.device.name), String(rec.family), toJson(rec.actor ?? {}),
-          rec.teamId ?? null, String(rec.state), toJson(rec.steps ?? []), rec.code ?? null, toIso(rec.createdAt), toIso(rec.endedAt)],
+          rec.teamId ?? null, String(rec.state), toJson(rec.steps ?? []), rec.code ?? null, rec.bypassed ?? null, toIso(rec.createdAt), toIso(rec.endedAt)],
       );
     },
     async get(id) {
