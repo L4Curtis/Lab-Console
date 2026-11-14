@@ -15,9 +15,9 @@
  */
 import { h, icon, toast, loadCss } from '../../core/dom.js';
 import { live, request } from '../../core/api.js';
-import { t, has, loadNamespace, onLocaleChange } from '../../core/i18n.js';
+import { t, loadNamespace, onLocaleChange } from '../../core/i18n.js';
 import { confirmDialog, formDialog, openDialog } from '../../shared/dialog.js';
-import { onBenches, call, benchUrl, mayPilot, isOccupant, benchSummary, fmtTime, fmtSlot, fmtDateTime } from './data.js';
+import { onBenches, call, benchUrl, mayPilot, isOccupant, benchSummary, fmtTime, fmtSlot, fmtDateTime, historyText } from './data.js';
 
 const SLOTS_SHOWN = 3;
 
@@ -155,17 +155,6 @@ export function mountBenchBar(host) {
       { title: t('benches.history.title', { bench }), wide: true });
   }
 
-  function historyText(e) {
-    const params = { who: e.actor.name, team: e.details.team ?? '', guest: e.details.guest ?? '', device: e.details.device ?? '' };
-    const known = HISTORY_KEYS[e.action];
-    if (known) return t(known, params);
-    // Bench jobs speak through the jobs dictionary (loaded at start-up for the diagram layer)
-    const job = `jobs.audit.${e.action.slice(4).replace(/\./g, '_')}`;
-    if (e.action.startsWith('job.') && has(job)) return t(job, params);
-    if (e.action.startsWith('job.')) return t('benches.history.job', { ...params, action: e.action.slice(4) });
-    return `${e.actor.name} · ${e.action}`;
-  }
-
   // ── Rendering ─────────────────────────────────────────────────────────────
 
   function render() {
@@ -275,20 +264,3 @@ export function mountBenchBar(host) {
 
 /** Inside a form dialog: an error stays in the dialog instead of a toast */
 const requestOrThrow = (method, url, body) => request(method, url, body);
-
-/** Bench history lines: audit action → sentence */
-const HISTORY_KEYS = {
-  'bench.take': 'benches.history.take',
-  'bench.release': 'benches.history.release',
-  'bench.release.idle': 'benches.history.releaseIdle',
-  'bench.assign': 'benches.history.assign',
-  'bench.join.request': 'benches.history.joinRequest',
-  'bench.join.accept': 'benches.history.joinAccept',
-  'bench.join.refuse': 'benches.history.joinRefuse',
-  'bench.leave': 'benches.history.leave',
-  'bench.guest.remove': 'benches.history.guestRemove',
-  'bench.lock': 'benches.history.lock',
-  'bench.unlock': 'benches.history.unlock',
-  'bench.reserve': 'benches.history.reserve',
-  'bench.reservation.cancel': 'benches.history.reservationCancel',
-};

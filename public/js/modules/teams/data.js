@@ -11,7 +11,7 @@
  */
 import { toast } from '../../core/dom.js';
 import { request, live } from '../../core/api.js';
-import { getLocale } from '../../core/i18n.js';
+import { getLocale, t, has } from '../../core/i18n.js';
 import { session } from '../../core/session.js';
 
 let summaries = new Map(); // bench → summary
@@ -72,3 +72,36 @@ export const fmtTime = fmt({ hour: '2-digit', minute: '2-digit' });
 export const fmtDay = fmt({ weekday: 'short', day: 'numeric', month: 'short' });
 export const fmtDateTime = (value) => `${fmtDay(value)} ${fmtTime(value)}`;
 export const fmtSlot = (r) => `${fmtDay(r.start)} ${fmtTime(r.start)}–${fmtTime(r.end)}`;
+
+// ── The story of a bench, from its audit trail ─────────────────────────────
+
+/** Bench history lines: audit action → sentence */
+const HISTORY_KEYS = {
+  'bench.take': 'benches.history.take',
+  'bench.release': 'benches.history.release',
+  'bench.release.idle': 'benches.history.releaseIdle',
+  'bench.assign': 'benches.history.assign',
+  'bench.join.request': 'benches.history.joinRequest',
+  'bench.join.accept': 'benches.history.joinAccept',
+  'bench.join.refuse': 'benches.history.joinRefuse',
+  'bench.leave': 'benches.history.leave',
+  'bench.guest.remove': 'benches.history.guestRemove',
+  'bench.lock': 'benches.history.lock',
+  'bench.unlock': 'benches.history.unlock',
+  'bench.reserve': 'benches.history.reserve',
+  'bench.reservation.cancel': 'benches.history.reservationCancel',
+};
+
+/**
+ * One entry of a bench's history or activity, as a sentence: { action, actor: { name }, details: { team, guest, device } }.
+ * Bench jobs speak through the jobs dictionary (loaded at start-up for the diagram layer)
+ */
+export function historyText(e) {
+  const params = { who: e.actor.name, team: e.details.team ?? '', guest: e.details.guest ?? '', device: e.details.device ?? '' };
+  const known = HISTORY_KEYS[e.action];
+  if (known) return t(known, params);
+  const job = `jobs.audit.${e.action.slice(4).replace(/\./g, '_')}`;
+  if (e.action.startsWith('job.') && has(job)) return t(job, params);
+  if (e.action.startsWith('job.')) return t('benches.history.job', { ...params, action: e.action.slice(4) });
+  return `${e.actor.name} · ${e.action}`;
+}

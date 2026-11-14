@@ -15,7 +15,9 @@
   "shell": {
     "appTitle": "Lab Console",
     "sections": "Sections",
+    "home": "Accueil",
     "consoles": "Consoles",
+    "overview": "Vue d’ensemble",
     "team": "Équipe",
     "jobs": "Sauvegardes",
     "infra": "Infra",

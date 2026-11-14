@@ -1,0 +1,136 @@
+/* Overview of the benches and the personal home page. Only the shared custom
+   properties are used, so both themes work. Cards flow in a grid that
+   follows the window: three or four across at 1280 px, one on a narrow one */
+
+.view-overview .view-head, .view-home .view-head { flex-wrap: wrap; gap: 12px 28px; }
+.ov-body { flex: 1; min-height: 0; overflow: auto; padding: 16px 20px 28px; display: grid; gap: 14px; align-content: start; background: var(--paper); }
+.ov-status { margin: 0; font-size: 13px; }
+
+/* ── Filters and totals ────────────────────────────────────────────────── */
+.ov-filters { display: inline-flex; gap: 4px; margin-left: auto; }
+.ov-filters .btn[aria-pressed="true"] { background: var(--console-soft); border-color: var(--console); color: var(--console-strong); }
+.ov-totals { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; font-size: 12.5px; }
+.ov-totals li { padding: 3px 10px; border-radius: 99px; background: var(--surface); border: 1px solid var(--line); color: var(--ink-2); }
+.ov-totals li[data-count="0"] { color: var(--ink-3); }
+.ov-totals li[data-total="locked"]:not([data-count="0"]) { border-color: var(--led-red); }
+.ov-totals li[data-total="free"]:not([data-count="0"]) { border-color: var(--led-green); }
+
+/* ── The grid of benches ───────────────────────────────────────────────── */
+.ov-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); align-items: start; }
+
+.ov-card {
+  display: grid; gap: 8px; padding: 14px 16px; min-width: 0;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
+  box-shadow: inset 4px 0 0 var(--led-off);
+  font-size: 13px;
+}
+.ov-card[data-state="free"] { box-shadow: inset 4px 0 0 var(--led-green); }
+.ov-card[data-state="taken"] { box-shadow: inset 4px 0 0 var(--led-amber); }
+.ov-card[data-state="taken"][data-mine="true"] { box-shadow: inset 4px 0 0 var(--console); }
+.ov-card[data-state="locked"] { box-shadow: inset 4px 0 0 var(--led-red); }
+.ov-card p { margin: 0; }
+.ov-card h3 { margin: 0; font-size: 12px; font-weight: 600; color: var(--ink-2); }
+.ov-card-head { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; }
+.ov-bench { margin: 0; font-size: 18px; font-weight: 600; letter-spacing: -.01em; }
+.ov-state { padding: 1px 9px; border-radius: 99px; font-size: 12px; font-weight: 500; background: var(--surface-2); color: var(--ink-2); }
+.ov-state.free { background: color-mix(in srgb, var(--led-green) 16%, var(--surface)); }
+.ov-state.taken { background: color-mix(in srgb, var(--led-amber) 18%, var(--surface)); }
+.ov-state.locked { background: color-mix(in srgb, var(--led-red) 16%, var(--surface)); }
+.ov-you { font-size: 12px; font-weight: 500; color: var(--console-strong); }
+.ov-requests { display: inline-flex; align-items: center; gap: 4px; margin-left: auto; font-size: 12px; color: var(--ink-2); }
+.ov-requests .icon { width: 14px; height: 14px; }
+
+.ov-holder, .ov-lines, .ov-job, .ov-lock { display: flex; align-items: flex-start; gap: 8px; }
+.ov-lines { flex-wrap: wrap; align-items: center; }
+.ov-holder .icon, .ov-lines .icon, .ov-job .icon, .ov-lock .icon { width: 16px; height: 16px; margin-top: 2px; }
+.ov-lines .icon { margin-top: 0; }
+.ov-lock { padding: 6px 10px; border-radius: 6px; background: color-mix(in srgb, var(--led-red) 12%, var(--surface)); }
+.ov-lock .icon { color: var(--led-red); }
+.ov-job { padding: 6px 10px; border-radius: 6px; background: var(--console-soft); color: var(--ink); }
+.ov-job .icon { color: var(--console-strong); }
+.ov-holder > span:not(.icon), .ov-job > span:not(.icon), .ov-lock > span:not(.icon) { flex: 1 1 0; min-width: 0; overflow-wrap: anywhere; }
+
+.ov-people { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.ov-people li {
+  display: inline-flex; align-items: center; gap: 4px; max-width: 100%;
+  padding: 2px 8px; border-radius: 99px; overflow-wrap: anywhere;
+  background: var(--console-soft); color: var(--console-strong); font-size: 12px;
+}
+.ov-people li[data-guest="true"] { background: var(--surface-2); color: var(--ink-2); border: 1px dashed var(--line); }
+.ov-people small { color: var(--ink-3); }
+
+.ov-pill { padding: 1px 8px; border-radius: 99px; font-size: 11.5px; border: 1px solid var(--line); color: var(--ink-2); }
+.ov-pill.busy { border-color: var(--led-amber); }
+.ov-pill.silent { border-color: var(--led-red); }
+
+.ov-consoles { display: grid; gap: 3px; margin: 0; padding: 0; list-style: none; }
+.ov-consoles li {
+  display: grid; grid-template-columns: 3.2em 1fr; column-gap: 8px; align-items: baseline;
+  padding: 3px 8px; border-radius: 6px; background: var(--surface-2);
+}
+.ov-consoles li[data-state="silent"] { box-shadow: inset 3px 0 0 var(--led-red); }
+.ov-consoles li[data-state="connecting"] { box-shadow: inset 3px 0 0 var(--led-amber); }
+.ov-consoles li[data-state="connected"] { box-shadow: inset 3px 0 0 var(--led-green); }
+.ov-consoles small { grid-column: 2; }
+
+.ov-slots ul { margin: 2px 0 0; padding: 0; list-style: none; display: grid; gap: 2px; font-size: 12.5px; }
+.ov-slots li[data-mine="true"] { color: var(--console-strong); }
+
+.ov-card-foot { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: 2px; }
+.ov-release { font-size: 12px; }
+.ov-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
+.ov-actions a.btn { text-decoration: none; }
+.ov-card-foot .ov-actions { margin-left: auto; }
+
+/* ── Home ──────────────────────────────────────────────────────────────── */
+.ov-greeting { margin: 0; }
+.ov-home { max-width: 1280px; width: 100%; }
+.ov-home-grid { display: grid; gap: 14px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr)); align-items: start; }
+.ov-bench-panel { grid-column: span 2; display: grid; gap: 8px; align-content: start; }
+.ov-bench-panel > h2 { margin: 0; font-size: 15px; }
+.ov-bench-panel .ov-card { box-shadow: inset 4px 0 0 var(--led-off), var(--shadow); }
+.ov-bench-panel .ov-card[data-state="free"] { box-shadow: inset 4px 0 0 var(--led-green), var(--shadow); }
+.ov-bench-panel .ov-card[data-state="taken"] { box-shadow: inset 4px 0 0 var(--led-amber), var(--shadow); }
+.ov-bench-panel .ov-card[data-state="taken"][data-mine="true"] { box-shadow: inset 4px 0 0 var(--console), var(--shadow); }
+.ov-bench-panel .ov-card[data-state="locked"] { box-shadow: inset 4px 0 0 var(--led-red), var(--shadow); }
+.ov-panel {
+  display: grid; gap: 10px; padding: 14px 16px; min-width: 0; align-content: start;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 10px; font-size: 13px;
+}
+.ov-panel h2 { margin: 0; font-size: 15px; }
+.ov-panel p { margin: 0; }
+.ov-panel .ov-actions { margin-left: 0; }
+.ov-team-name { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.ov-panel-invitations { border-color: var(--console); }
+.ov-list { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.ov-list li { display: flex; align-items: baseline; flex-wrap: wrap; gap: 2px 10px; padding: 4px 0; border-bottom: 1px solid var(--line); }
+.ov-list li:last-child { border-bottom: 0; }
+.ov-list li > time { margin-left: auto; font-size: 12px; font-variant-numeric: tabular-nums; }
+.ov-list a { color: var(--console-strong); overflow-wrap: anywhere; }
+.ov-activity { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; max-height: 340px; overflow: auto; }
+.ov-activity li { display: grid; grid-template-columns: 9.5em 1fr; gap: 10px; }
+.ov-activity time { color: var(--ink-3); font-variant-numeric: tabular-nums; }
+.ov-activity span { overflow-wrap: anywhere; }
+.ov-announcement {
+  display: flex; align-items: flex-start; gap: 10px; padding: 10px 14px;
+  border: 1px solid var(--line); border-radius: 10px; background: var(--console-soft);
+}
+.ov-announcement[data-level="warning"] { background: color-mix(in srgb, var(--led-amber) 22%, var(--surface)); }
+.ov-announcement p { margin: 0; }
+.ov-announcement .icon { margin-top: 2px; }
+.ov-announcement-text { white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* The page already shows the announcement in a card: the banner above it would say it twice */
+.views:has(> .view-home:not([hidden])) > .announcement-banner { display: none; }
+
+/* ── Narrow windows ────────────────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .ov-body { padding: 12px 14px 24px; }
+  .ov-filters { margin-left: 0; }
+  .ov-bench-panel { grid-column: auto; }
+  .ov-activity li { grid-template-columns: 1fr; gap: 0; }
+}
+@media (max-width: 480px) {
+  .ov-card, .ov-panel { padding: 12px; }
+  .ov-list li > time { margin-left: 0; flex-basis: 100%; }
+}
