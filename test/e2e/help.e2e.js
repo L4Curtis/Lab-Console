@@ -162,7 +162,10 @@ test('the help page: its sections, the figures of the server, both languages', a
   const text = await view.locator('.help-sections').textContent();
   assert.match(text, /Le serveur n’est pas une sauvegarde/);
   assert.match(text, /Télécharger le ZIP/);
-  assert.match(text, /compte à rebours de 10 secondes/);
+  assert.match(text, /compte à rebours de quelques secondes/);
+  assert.match(text, /sans écho/);
+  assert.doesNotMatch(text, /Jamais ce que vous tapez|60 minutes/);
+  assert.match(text, /dans la section Consoles/);
   assert.match(text, /Demander la main/);
   assert.match(text, /Équipement muet/);
   assert.match(text, /Ctrl K/);
@@ -201,5 +204,29 @@ test('the help page replays the tour', async () => {
   await card(page).waitFor();
   await button(page, 'skip').click();
   await card(page).waitFor({ state: 'detached' });
+  await page.context().close();
+});
+
+test('the tour survives a step whose element never appears: no ring, the card stays usable', async () => {
+  const page = await h.newPage({ tour: true });
+  await page.route('**/api/benches/**', (route) => route.abort());
+  // Every person of the mock provider has already ended the tour in an earlier scenario: this one starts afresh
+  await page.route('**/api/help/tour', (route) => (route.request().method() === 'GET' ? route.fulfill({ json: { state: null } }) : route.fulfill({ json: { state: 'done' } })));
+  await signInAs(page, 'student3');
+  await card(page).waitFor();
+  await button(page, 'next').click();     // the 'team' step points at the bench bar, which cannot load
+  await page.waitForFunction(() => document.querySelector('.tour-card')?.dataset.step === 'team');
+  await page.waitForTimeout(3000);
+  assert.equal(await card(page).isVisible(), true);
+  assert.equal(await page.locator('.tour-target').count(), 0, 'nothing to ring');
+  const box = await card(page).boundingBox();
+  const size = page.viewportSize();
+  assert.ok(box.x >= 0 && box.y >= 0 && box.x + box.width <= size.width && box.y + box.height <= size.height, 'the card is inside the viewport');
+  await button(page, 'next').click();
+  await button(page, 'back').click();
+  assert.equal(await stepOf(page), 'team');
+  await button(page, 'skip').click();
+  await card(page).waitFor({ state: 'detached' });
+  assert.deepEqual(page.errors.filter((e) => !/Failed to load|ERR_FAILED|aborted/i.test(String(e))), []);
   await page.context().close();
 });

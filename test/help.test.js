@@ -122,7 +122,16 @@ describe('the help text', () => {
   test('the sentences that matter are there: the server is not a backup, the ZIP, the countdown, the bench name', () => {
     const fr = JSON.stringify(read('fr').s);
     const en = JSON.stringify(read('en').s);
-    for (const word of [/n’est pas une sauvegarde/, /ZIP/, /10 secondes/, /nom de la baie/, /Prendre la baie/, /Demander la main/]) assert.match(fr, word);
-    for (const word of [/not a backup/, /ZIP/, /10 second/, /bench's name/, /Take the bench/, /Ask for the keyboard/]) assert.match(en, word);
+    for (const word of [/n’est pas une sauvegarde/, /ZIP/, /compte à rebours/, /nom de la baie/, /Prendre la baie/, /Demander la main/]) assert.match(fr, word);
+    for (const word of [/not a backup/, /ZIP/, /countdown/, /bench's name/, /Take the bench/, /Ask for the keyboard/]) assert.match(en, word);
+  });
+  test('the privacy lines say that echoed commands are journaled, and no fixed figure that an administrator can change', () => {
+    for (const lang of ['fr', 'en']) {
+      const j = JSON.stringify(read(lang).s);
+      assert.doesNotMatch(j, /60 (minutes|min)\b/);
+      assert.doesNotMatch(j, /10 second/);
+    }
+    assert.match(read('fr').s.journal.never, /sans écho/);
+    assert.match(read('en').s.journal.never, /without echo/);
   });
 });

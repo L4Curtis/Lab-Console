@@ -13,7 +13,7 @@
       "consoles": "Consoles : choisissez une baie, puis cliquez sur un équipement du schéma pour ouvrir sa console. C’est là que vous prenez la baie pour votre équipe, que vous tapez vos commandes et que vous voyez qui travaille sur quoi (« En direct », « Mur de la baie »).",
       "team": "Équipe : créer l’équipe de votre groupe de TP, inviter vos camarades, répondre à une invitation, réserver une baie dans le calendrier.",
       "jobs": "Sauvegardes : sauvegarder la configuration de tous les équipements d’une baie, la comparer, la réinjecter, ou réinitialiser la baie. Vos sauvegardes et les modèles de TP y sont aussi.",
-      "infra": "Infra : les VM Proxmox et les switchs d’administration du labo.",
+      "infra": "Infra : les VM Proxmox quand Proxmox est configuré, et les switchs d’administration du labo.",
       "status": "État du labo : la chaîne d’accès répond-elle (rebond, serveurs de consoles), et ce qui est journalisé.",
       "admin": "Administration (administrateurs seulement) : comptes, invitations, connexion SSO, paramètres du labo, schéma, sessions, journal d’audit, annonce.",
       "account": "Mon compte (menu de la pastille) : nom d’affichage, mot de passe et clés d’accès d’un compte local, sessions ouvertes.",
@@ -44,8 +44,8 @@
       "give": "Pilote : « Rendre la main » la libère. « Partager le clavier » laisse taper toutes les personnes qui ont le droit de piloter l’équipement ; « Reprendre le clavier » vous le redonne à vous seul.",
       "admin": "Un administrateur peut prendre la main d’autorité.",
       "task": "Pendant une tâche (export, injection, sauvegarde…) le clavier de la console est suspendu jusqu’à la fin. « Arrêter » interrompt la tâche.",
-      "free": "« Libérer la ligne » coupe la console pour tout le monde et rend la ligne au serveur de consoles. Sans cela, la ligne reste ouverte tant que quelqu’un la regarde, 30 secondes après le départ du dernier, et se ferme d’elle-même après 60 minutes sans rien taper.",
-      "live": "« En direct » liste les consoles ouvertes, qui est dessus et la dernière commande tapée. « Mur de la baie » montre en lecture seule toutes les consoles ouvertes d’une baie. « Trouver un équipement » (Ctrl K) ouvre un équipement par son nom, sa baie ou son port.",
+      "free": "« Libérer la ligne » coupe la console pour tout le monde et rend la ligne au serveur de consoles. Sans cela, la ligne reste ouverte tant que quelqu’un la regarde, 30 secondes après le départ du dernier, et se ferme d’elle-même après un long moment sans rien taper.",
+      "live": "« En direct » liste les consoles ouvertes, qui est dessus et la dernière commande tapée. « Mur de la baie » montre en lecture seule toutes les consoles ouvertes d’une baie. « Trouver un équipement » (Ctrl K, dans la section Consoles) ouvre un équipement par son nom, sa baie ou son port.",
       "tools": "Chaque console a ses outils : envoyer un BREAK, exporter la running-config en .txt, injecter un script, envoyer les mêmes commandes à plusieurs consoles, chercher dans son historique, écrire la note de l’équipement. Coller plusieurs lignes les envoie une à une (il faut avoir la main)."
     },
     "backup": {
@@ -73,7 +73,7 @@
       "resetTitle": "Réinitialiser une baie",
       "reset1": "La fenêtre liste les équipements, les personnes connectées dessus et ce qui sera effacé : la startup-config, flash:vlan.dat sur un switch (tous les VLAN), le registre de configuration remis à 0x2102 sur un routeur, puis un redémarrage sans enregistrer.",
       "reset2": "Pour chaque équipement la configuration est d’abord sauvegardée et relue. Si la sauvegarde échoue, l’équipement n’est pas effacé (seul un administrateur peut forcer).",
-      "reset3": "Il faut taper le nom de la baie pour confirmer. Un compte à rebours de 10 secondes laisse ensuite le temps d’arrêter : rien n’est tapé tant qu’il court.",
+      "reset3": "Il faut taper le nom de la baie pour confirmer. Un compte à rebours de quelques secondes laisse ensuite le temps d’arrêter : rien n’est tapé tant qu’il court.",
       "reset4": "Un équipement qui partage sa ligne console avec une autre baie est décoché par défaut, et refusé si cette autre baie est tenue par une autre équipe ou verrouillée.",
       "reset5": "Le redémarrage prend plusieurs minutes selon le modèle. La tâche continue sur le serveur si vous fermez la page ; son rapport (équipement par équipement, lignes refusées comprises) est dans « Tâches récentes de la baie ».",
       "stop": "Dans tous les cas, « Arrêter » est disponible à celle ou celui qui a lancé la tâche, aux occupants de la baie et aux administrateurs."
@@ -81,13 +81,13 @@
     "journal": {
       "title": "Ce qui est journalisé, et combien de temps",
       "intro": "Ce que vous faites ici n’est pas anonyme. Le détail à jour est dans État du labo, onglet « Ce qui est journalisé ».",
-      "consoles": "Journal des consoles : ce que les équipements affichent, avec qui avait la main. Gardé {days} jours. Jamais ce que vous tapez, donc pas un mot de passe tapé sans écho. Il se relit pour toute la journée d’une console : par ceux qui y sont passés avec le droit de la piloter (regarder seulement ne compte pas), par l’équipe qui tenait la baie ce jour-là et par les administrateurs. Bouton « Journaux » pour le télécharger.",
-      "consolesUnknown": "Journal des consoles : ce que les équipements affichent, avec qui avait la main, gardé un nombre de jours limité. Jamais ce que vous tapez, donc pas un mot de passe tapé sans écho. Il se relit pour toute la journée d’une console : par ceux qui y sont passés avec le droit de la piloter (regarder seulement ne compte pas), par l’équipe qui tenait la baie ce jour-là et par les administrateurs. Bouton « Journaux » pour le télécharger.",
+      "consoles": "Journal des consoles : ce que les équipements affichent, avec qui avait la main. Gardé {days} jours. Aucune frappe n’est enregistrée comme telle, mais ce que l’équipement renvoie en écho, donc vos commandes, y figure ; un mot de passe tapé sans écho n’y est jamais. Il se relit pour toute la journée d’une console : par ceux qui y sont passés avec le droit de la piloter (regarder seulement ne compte pas), par l’équipe qui tenait la baie ce jour-là et par les administrateurs. Bouton « Journaux » pour le télécharger.",
+      "consolesUnknown": "Journal des consoles : ce que les équipements affichent, avec qui avait la main, gardé un nombre de jours limité. Aucune frappe n’est enregistrée comme telle, mais ce que l’équipement renvoie en écho, donc vos commandes, y figure ; un mot de passe tapé sans écho n’y est jamais. Il se relit pour toute la journée d’une console : par ceux qui y sont passés avec le droit de la piloter (regarder seulement ne compte pas), par l’équipe qui tenait la baie ce jour-là et par les administrateurs. Bouton « Journaux » pour le télécharger.",
       "jobs": "Ce que lisent ou envoient les tâches (les configurations) n’entre pas dans le journal des consoles : un simple repère le remplace.",
       "audit": "Journal d’audit : connexions, ouverture des consoles, prises de main, actions d’équipe et de baie, sauvegardes, injections et réinitialisations, actions d’administration, avec la personne et l’heure. Les administrateurs le lisent, aucune suppression automatique. L’« Historique » d’une baie en montre l’essentiel à ses occupants.",
       "kept": "Sauvegardes, notes d’équipement et discussions restent sur le serveur jusqu’à ce qu’on les supprime. La discussion garde les 200 derniers messages par baie et par équipe, et disparaît avec l’équipe. Rappel : le serveur n’est pas une sauvegarde.",
       "session": "Votre session se ferme après {idle} h sans activité, et au plus tard après {max} h.",
-      "never": "Jamais gardés : vos mots de passe (seulement une empreinte), les codes à usage unique, ce que vous tapez dans les consoles.",
+      "never": "Jamais gardés : vos mots de passe (seulement une empreinte), les codes à usage unique, ce que vous tapez sans écho dans les consoles (un mot de passe). Les commandes que l’équipement affiche en retour figurent en revanche dans le journal des consoles.",
       "open": "Ouvrir « Ce qui est journalisé »"
     },
     "trouble": {
@@ -104,7 +104,7 @@
       "watchTitle": "Je ne peux pas taper",
       "watch": "« Vous pouvez regarder, pas taper » : demandez la main si un camarade l’a ; si la baie est tenue par une autre équipe, demandez à la rejoindre ; si une tâche tourne sur la console, attendez la fin de la tâche.",
       "lostTitle": "La console s’est déconnectée",
-      "lost": "« Déconnecté » ou « La connexion à la plateforme a été perdue » : « Se reconnecter ». Une console se ferme aussi après 60 minutes sans rien taper, et la ligne est alors libre pour les autres."
+      "lost": "« Déconnecté » ou « La connexion à la plateforme a été perdue » : « Se reconnecter ». Une console se ferme aussi après un long moment sans rien taper, et la ligne est alors libre pour les autres."
     },
     "keys": {
       "title": "Raccourcis clavier",
@@ -115,7 +115,7 @@
       },
       "finder": {
         "keys": "Ctrl K ou /",
-        "what": "Trouver un équipement (hors d’un terminal)."
+        "what": "Trouver un équipement (dans la section Consoles, hors d’un terminal)."
       },
       "finderMove": {
         "keys": "↑ ↓ puis Entrée",

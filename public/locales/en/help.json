@@ -13,7 +13,7 @@
       "consoles": "Consoles: pick a bench, then click a device on the diagram to open its console. This is where you take the bench for your team, type your commands and see who is working on what (\"Live\", \"Bench wall\").",
       "team": "Team: create the team of your lab group, invite your classmates, answer an invitation, book a bench in the calendar.",
       "jobs": "Backups: back up the configuration of every device of a bench, compare it, inject it again, or reset the bench. Your backups and the lab templates are here too.",
-      "infra": "Infra: the Proxmox VMs and the admin switches of the lab.",
+      "infra": "Infra: the Proxmox VMs when Proxmox is configured, and the admin switches of the lab.",
       "status": "Lab status: whether the access chain answers (jump server, console servers), and what is recorded.",
       "admin": "Admin (administrators only): accounts, invitations, SSO sign-in, lab parameters, diagram, sessions, audit trail, announcement.",
       "account": "My account (from your badge): display name, password and passkeys of a local account, open sessions.",
@@ -44,8 +44,8 @@
       "give": "If you hold it: \"Give the keyboard back\" frees it. \"Share the keyboard\" lets everyone who may drive the device type; \"Take the keyboard back\" gives it back to you alone.",
       "admin": "An administrator can take the keyboard outright.",
       "task": "While a job runs on a console (export, injection, backup…) its keyboard is suspended until the end. \"Stop\" interrupts the job.",
-      "free": "\"Free the line\" closes the console for everyone and gives the line back to the console server. Without it, the line stays open while someone is watching, for 30 seconds after the last person leaves, and closes by itself after 60 minutes without typing.",
-      "live": "\"Live\" lists the open consoles, who is on them and the last command typed. \"Bench wall\" shows every open console of a bench, read-only. \"Find a device\" (Ctrl K) opens a device by its name, bench or port.",
+      "free": "\"Free the line\" closes the console for everyone and gives the line back to the console server. Without it, the line stays open while someone is watching, for 30 seconds after the last person leaves, and closes by itself after a long time without typing.",
+      "live": "\"Live\" lists the open consoles, who is on them and the last command typed. \"Bench wall\" shows every open console of a bench, read-only. \"Find a device\" (Ctrl K, in the Consoles section) opens a device by its name, bench or port.",
       "tools": "Each console has its tools: send a BREAK, export the running-config as .txt, inject a script, send the same commands to several consoles, search its history, write the device's note. Pasting several lines sends them one by one (you need the keyboard)."
     },
     "backup": {
@@ -73,7 +73,7 @@
       "resetTitle": "Resetting a bench",
       "reset1": "The dialog lists the devices, the people connected to them and what will be erased: the startup-config, flash:vlan.dat on a switch (all VLANs), the configuration register put back to 0x2102 on a router, then a reload without saving.",
       "reset2": "For each device the configuration is backed up first and read back. If the backup fails the device is not erased (only an administrator can force it).",
-      "reset3": "You must type the bench's name to confirm. A 10 second countdown then leaves time to stop: nothing is typed while it runs.",
+      "reset3": "You must type the bench's name to confirm. A countdown of a few seconds then leaves time to stop: nothing is typed while it runs.",
       "reset4": "A device that shares its console line with another bench is unticked by default, and refused if that other bench is held by another team or locked.",
       "reset5": "The reload takes several minutes depending on the model. The job goes on in the server if you close the page; its report (device by device, refused lines included) is in \"Recent jobs of the bench\".",
       "stop": "In every case \"Stop\" is available to the person who started the job, to the bench's occupants and to administrators."
@@ -81,13 +81,13 @@
     "journal": {
       "title": "What is recorded, and for how long",
       "intro": "What you do here is not anonymous. The up-to-date detail is in Lab status, \"What is recorded\" tab.",
-      "consoles": "Console journal: what the devices print, with who held the keyboard. Kept {days} days. Never what you type, so not a password typed without echo. It is readable for a console's whole day: by those who were on it with the right to drive it (only watching does not count), by the team that held the bench that day and by administrators. The \"Journals\" button downloads it.",
-      "consolesUnknown": "Console journal: what the devices print, with who held the keyboard, kept for a limited number of days. Never what you type, so not a password typed without echo. It is readable for a console's whole day: by those who were on it with the right to drive it (only watching does not count), by the team that held the bench that day and by administrators. The \"Journals\" button downloads it.",
+      "consoles": "Console journal: what the devices print, with who held the keyboard. Kept {days} days. No keystroke is recorded as such, but what the device echoes back, so your commands, is in it; a password typed without echo never is. It is readable for a console's whole day: by those who were on it with the right to drive it (only watching does not count), by the team that held the bench that day and by administrators. The \"Journals\" button downloads it.",
+      "consolesUnknown": "Console journal: what the devices print, with who held the keyboard, kept for a limited number of days. No keystroke is recorded as such, but what the device echoes back, so your commands, is in it; a password typed without echo never is. It is readable for a console's whole day: by those who were on it with the right to drive it (only watching does not count), by the team that held the bench that day and by administrators. The \"Journals\" button downloads it.",
       "jobs": "What jobs read or send (configurations) does not enter the console journal: a simple marker takes its place.",
       "audit": "Audit trail: sign-ins, console openings, keyboard hand-overs, team and bench actions, backups, injections and resets, administration actions, with the person and the time. Administrators read it, with no automatic deletion. A bench's \"History\" shows its occupants the essentials.",
       "kept": "Backups, device notes and chats stay on the server until someone deletes them. The chat keeps the last 200 messages per bench and team, and goes away with the team. Remember: the server is not a backup.",
       "session": "Your session ends after {idle} h without activity, and after {max} h at the latest.",
-      "never": "Never kept: your passwords (only a fingerprint), one-time codes, what you type in the consoles.",
+      "never": "Never kept: your passwords (only a fingerprint), one-time codes, what you type without echo in the consoles (a password). Commands the device echoes back do appear in the console journal.",
       "open": "Open \"What is recorded\""
     },
     "trouble": {
@@ -104,7 +104,7 @@
       "watchTitle": "I cannot type",
       "watch": "\"You may watch, not type\": ask for the keyboard if a classmate has it; if the bench is held by another team, ask to join it; if a job is running on the console, wait for it to end.",
       "lostTitle": "The console disconnected",
-      "lost": "\"Disconnected\" or \"The connection to the platform was lost\": \"Reconnect\". A console also closes after 60 minutes without typing, and the line is then free for others."
+      "lost": "\"Disconnected\" or \"Connection to the platform was lost\": \"Reconnect\". A console also closes after a long time without typing, and the line is then free for others."
     },
     "keys": {
       "title": "Keyboard shortcuts",
@@ -115,7 +115,7 @@
       },
       "finder": {
         "keys": "Ctrl K or /",
-        "what": "Find a device (outside a terminal)."
+        "what": "Find a device (in the Consoles section, outside a terminal)."
       },
       "finderMove": {
         "keys": "↑ ↓ then Enter",
