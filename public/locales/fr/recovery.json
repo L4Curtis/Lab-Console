@@ -119,6 +119,7 @@
     "locked": "Cette baie est verrouillée : seuls les administrateurs y travaillent ({reason}).",
     "shared_in_use": "{device} partage sa ligne de console avec la baie {bench}, qu’une autre équipe occupe : on n’y touche pas.",
     "job_running": "Une tâche tourne sur cette baie : attendez qu’elle se termine.",
+    "check_running": "Une vérification tourne sur cette baie ({name}) : attendez qu’elle se termine.",
     "busy": "{name} récupère déjà cet équipement.",
     "bad_family": "Choisissez la famille de l’équipement.",
     "no_recovery": "Cette récupération n’existe pas.",

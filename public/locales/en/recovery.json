@@ -119,6 +119,7 @@
     "locked": "This bench is locked: nobody but admins works on it ({reason}).",
     "shared_in_use": "{device} shares its console line with bench {bench}, which another team holds: it is left alone.",
     "job_running": "A job is running on this bench: wait for it to end.",
+    "check_running": "A check is running on this bench ({name}): wait for it to end.",
     "busy": "{name} is already recovering this device.",
     "bad_family": "Choose the family of the device.",
     "no_recovery": "There is no such recovery.",

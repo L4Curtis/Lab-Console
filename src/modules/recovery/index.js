@@ -22,7 +22,7 @@
  * of an unlocked bench, and admins), as for the jobs; never an admin switch;
  * a device whose console line other benches use only while those benches are
  * free, or held by the same team (admins are not refused); not while a job
- * runs on the bench. Who sees one: its actor, the occupants of the bench, the
+ * or a bench check runs on the bench. Who sees one: its actor, the occupants of the bench, the
  * team that held the bench, admins.
  */
 import express from 'express';
@@ -107,6 +107,9 @@ export function createRecoveryModule({ config, logger, events, repos, audit, inf
     if (shared) return shared;
     const job = services.jobs?.running?.(bench);
     if (job) return httpError(409, 'recovery.job_running', 'A job is running on this bench: wait for it to end.', { kind: job.kind });
+    // A check types on the bench's free lines one after the other: a recovery would race it for a device
+    const check = services.checks?.running?.(bench);
+    if (check) return httpError(409, 'recovery.check_running', 'A check is running on this bench: wait for it to end.', { kind: check.kind, name: check.actor.name });
     const busy = runner.running(device.key);
     if (busy) return httpError(409, 'recovery.busy', 'A recovery of this device is already under way.', { name: busy.actor.name });
     return null;

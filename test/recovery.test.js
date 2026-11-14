@@ -222,6 +222,24 @@ test('one recovery per device; not while a job runs on the bench; stopped by an 
   await j.until(job.body.job.id);
 });
 
+test('not while a bench check runs on the bench: the check would race the recovery for the device', async () => {
+  const services = j.app.deps.services;
+  const before = services.checks;
+  services.checks = { running: (bench) => (bench === 'B4M' ? { id: 'c1', bench, kind: 'cabling', actor: { name: 'Alice' } } : null) };
+  try {
+    const refused = await start('student1', 'R2', 'isr4300');
+    assert.equal(refused.status, 409);
+    assert.equal(refused.body.code, 'recovery.check_running');
+    assert.equal(refused.body.params.name, 'Alice');
+    const view = await j.api('student1', 'GET', `/api/recovery/devices/${encodeURIComponent(j.key('R2'))}`);
+    assert.equal(view.body.canStart, false);
+    assert.equal(view.body.refusal.code, 'recovery.check_running');
+  } finally {
+    services.checks = before;
+  }
+  assert.equal(j.dev('R2').powerCycles, 0);
+});
+
 test('nobody confirms: the recovery is abandoned, nothing typed past the look', async () => {
   const before = recovery.runner.timeouts.confirmMs;
   recovery.runner.timeouts = { ...recovery.runner.timeouts, confirmMs: 300 };

@@ -1582,7 +1582,8 @@ reason it stopped in `cause`. A stop from the console tile (task Stop,
 hang-up) is `stoppedFrom: 'console'`, audited `recovery.cancel` with `from:
 'console'`. The automation engine's `cli.resume()` lets a stopped task go on
 to put back what it changed.
-One recovery per device; none while a job runs on the bench. Who starts one:
+One recovery per device; none while a job or a check runs on the bench
+(`recovery.job_running`, `recovery.check_running`). Who starts one:
 `benches.canOperate` (occupants of an unlocked bench, admins), never on an
 admin switch, a shared console line only while the other benches are free or
 held by the same team. Who follows one: its actor, the occupants, the team
