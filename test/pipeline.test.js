@@ -178,7 +178,21 @@ describe('signed in: the application behaves as upstream', () => {
       assert.match(res.headers.get('content-security-policy'), /default-src 'self'/, path);
       assert.equal(res.headers.get('x-content-type-options'), 'nosniff', path);
       assert.equal(res.headers.get('x-powered-by'), null, path);
+      assert.equal(res.headers.get('strict-transport-security'), null, `${path}: published on http, no HSTS`);
       await res.body.cancel();
+    }
+  });
+
+  test('published on https: every response tells the browser to stay on https (HSTS)', async () => {
+    const https = await startTestApp({ env: { PUBLIC_URL: 'https://lab.example.org' } });
+    try {
+      for (const path of ['/login', '/api/health', '/css/app.css']) {
+        const res = await fetch(https.url + path, { redirect: 'manual' });
+        assert.equal(res.headers.get('strict-transport-security'), 'max-age=31536000; includeSubDomains', path);
+        await res.body?.cancel();
+      }
+    } finally {
+      await https.close();
     }
   });
 

@@ -155,7 +155,8 @@ Every new variable is documented in `.env.example`. Secrets never get defaults.
 → `{ app, server, modules, deps, listen(), close() }` and only listens when it
 is run directly (`node src/server.js`). Order inside `createApp`:
 
-1. `securityHeaders`
+1. `securityHeaders` (CSP, nosniff, Referrer-Policy, COOP, Permissions-Policy;
+   HSTS when `PUBLIC_URL` is https)
 2. public static assets: `/css`, `/vendor` (`/vendor/simplewebauthn` is the
    WebAuthn browser library), `/locales`, `/js/core`, `/favicon.svg` (also
    answered on `/favicon.ico`). A missing public file is a 404, never a

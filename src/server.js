@@ -94,7 +94,7 @@ export async function createApp({ config, logger = createLogger, createAuth: mak
   app.set('trust proxy', (address) => trust.isTrusted(address));
 
   // ── 1. Security headers on every response ──────────────────────────────────
-  app.use(securityHeaders);
+  app.use(securityHeaders({ https: config.server.publicUrl?.startsWith('https://') ?? false }));
 
   // ── 2. Public static assets: what the login page needs, nothing more ───────
   // Self-hosted front-end dependencies (works on isolated lab networks)

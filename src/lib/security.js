@@ -1,8 +1,18 @@
 /** HTTP hardening helpers shared by every module */
 import net from 'node:net';
 
-/** Strict security headers; The UI is fully self-hosted, so 'self' is enough */
-export function securityHeaders(req, res, next) {
+/**
+ * Strict security headers on every response; the UI is fully self-hosted, so
+ * 'self' is enough. `https`: the platform is published on https
+ * (PUBLIC_URL), so browsers are told to never come back over plain http (HSTS,
+ * one year, subdomains included): a first visit through an attacker on the
+ * path can then no longer be kept on http
+ */
+export function securityHeaders({ https = false } = {}) {
+  return (req, res, next) => setSecurityHeaders(req, res, next, https);
+}
+
+function setSecurityHeaders(req, res, next, https) {
   const host = req.headers.host || '';
   res.setHeader('Content-Security-Policy', [
     "default-src 'self'",
@@ -19,6 +29,7 @@ export function securityHeaders(req, res, next) {
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  if (https) res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   next();
 }
 
