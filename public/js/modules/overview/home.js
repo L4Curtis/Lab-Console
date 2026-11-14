@@ -12,7 +12,7 @@
 import { h, icon, loadCss } from '../../core/dom.js';
 import { t, tNode, has, loadNamespace, onLocaleChange } from '../../core/i18n.js';
 import { session } from '../../core/session.js';
-import { followApi, roomsSignature } from './live.js';
+import { followApi, roomsSignature, checksSignature } from './live.js';
 import { benchCard } from './benchCard.js';
 import { replaceKeepingFocus } from './keepFocus.js';
 import { fmtDateTime, fmtSlot, historyText } from '../teams/data.js';
@@ -145,8 +145,8 @@ export async function mount(el) {
 
   const feed = followApi('/api/overview/home', {
     // Everything the page shows moves with one of these: the benches and teams, the jobs (a finished backup), the announcement
-    topics: ['benches:state', 'benches:reservations', 'consoles:rooms', 'jobs:running', 'jobs:done', 'jobs:snapshots', 'teams:changed', 'teams:invitation', 'admin:announcement'],
-    changed: { 'consoles:rooms': roomsSignature },
+    topics: ['benches:state', 'benches:reservations', 'consoles:rooms', 'jobs:running', 'jobs:done', 'jobs:snapshots', 'teams:changed', 'teams:invitation', 'admin:announcement', 'checks:running'],
+    changed: { 'consoles:rooms': roomsSignature, 'checks:running': checksSignature },
     onData: (next) => {
       // Most events move nothing the page shows: draw again only when the answer differs
       const same = data && !failed && JSON.stringify(next) === JSON.stringify(data);

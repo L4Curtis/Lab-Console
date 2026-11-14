@@ -88,7 +88,7 @@ describe('overview: the benches', () => {
     assert.equal(b4m.state, 'free');
     assert.equal(b4m.holder, null);
     assert.deepEqual(b4m.occupants, []);
-    assert.deepEqual(b4m.lines, { total: 10, open: 0, busy: 0, silent: 0 });
+    assert.deepEqual(b4m.lines, { total: 10, open: 0, busy: 0, silent: 0, free: 0, checkedAt: null }, 'no line status of the checks: none known');
     assert.deepEqual(b4m.consoles, []);
     assert.equal(b4m.job, null);
     assert.deepEqual(b4m.slots, []);
@@ -192,7 +192,7 @@ describe('overview: the benches', () => {
     const target = `${b6b.devices[0].target.host}:${b6b.devices[0].target.port}`;
     j.services.consoles.rooms.markBusy(target);
     try {
-      assert.deepEqual((await card('student1', 'B6B')).lines, { total: 7, open: 0, busy: 1, silent: 0 });
+      assert.deepEqual((await card('student1', 'B6B')).lines, { total: 7, open: 0, busy: 1, silent: 0, free: 0, checkedAt: null });
     } finally {
       j.services.consoles.rooms.markFree(target);
     }

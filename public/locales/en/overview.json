@@ -77,7 +77,13 @@
       "one": "{count} silent",
       "other": "{count} silent"
     },
-    "silentHint": "The line is open but the device does not answer: powered off, cable unplugged or hung.",
+    "silentHint": "The device does not answer on its line (a console open, or the last line status): powered off, cable unplugged or hung.",
+    "freeLines": {
+      "one": "{count} free",
+      "other": "{count} free"
+    },
+    "freeHint": "The last line status found the line free and the device answered.",
+    "checkedAt": "lines checked at {time}",
     "pilot": "piloted by {name}",
     "noPilot": "nobody at the keyboard",
     "people": {

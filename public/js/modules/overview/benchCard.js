@@ -1,7 +1,8 @@
 /**
  * One bench as a card: the team that holds it, who is on it, the consoles
  * open and who pilots them, the job that runs, the lock, the next slots and
- * how its console lines stand. The same card serves the overview of every
+ * how its console lines stand (with the last line status of the bench
+ * checks while it is fresh). The same card serves the overview of every
  * bench and, larger, the home page's "our bench"
  *
  *   benchCard(card, { actions })     card: one entry of GET /api/overview/benches
@@ -51,6 +52,9 @@ export function benchCard(c, { actions = [] } = {}) {
   const lines = h('p.ov-lines', icon('terminal'), h('span', t('overview.card.lines', { count: c.lines.open, total: c.lines.total })));
   if (c.lines.busy) lines.append(h('span.ov-pill.busy', { title: t('overview.card.busyHint') }, t('overview.card.busy', { count: c.lines.busy })));
   if (c.lines.silent) lines.append(h('span.ov-pill.silent', { title: t('overview.card.silentHint') }, t('overview.card.silent', { count: c.lines.silent })));
+  // The last line status of the bench checks, while it is fresh: the lines it found free
+  if (c.lines.free) lines.append(h('span.ov-pill.free', { title: t('overview.card.freeHint') }, t('overview.card.freeLines', { count: c.lines.free })));
+  if (c.lines.checkedAt) lines.append(h('small.muted.ov-checked', { dataset: { checked: c.lines.checkedAt } }, t('overview.card.checkedAt', { time: fmtTime(c.lines.checkedAt) })));
   el.append(lines);
   if (c.consoles.length) {
     el.append(h('ul.ov-consoles', c.consoles.map((k) => h('li', { dataset: { device: k.device, state: consoleState(k.state) } },

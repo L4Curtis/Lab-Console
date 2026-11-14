@@ -11,7 +11,7 @@
  */
 import { h, loadCss, prefs } from '../../core/dom.js';
 import { t, tNode, loadNamespace, onLocaleChange } from '../../core/i18n.js';
-import { followApi, roomsSignature } from './live.js';
+import { followApi, roomsSignature, checksSignature } from './live.js';
 import { benchCard } from './benchCard.js';
 import { replaceKeepingFocus } from './keepFocus.js';
 
@@ -73,9 +73,9 @@ export async function mount(el) {
   }
 
   const feed = followApi('/api/overview/benches', {
-    // The state of the benches, of the consoles open, of the jobs, the calendar and the teams' names
-    topics: ['benches:state', 'benches:reservations', 'consoles:rooms', 'consoles:busy', 'jobs:running', 'teams:changed'],
-    changed: { 'consoles:rooms': roomsSignature },
+    // The state of the benches, of the consoles open, of the jobs, the calendar, the teams' names and the line status the checks found
+    topics: ['benches:state', 'benches:reservations', 'consoles:rooms', 'consoles:busy', 'jobs:running', 'teams:changed', 'checks:running'],
+    changed: { 'consoles:rooms': roomsSignature, 'checks:running': checksSignature },
     onData: (next) => {
       // Most events move nothing a card shows: draw again only when the benches differ
       const same = data && !failed && JSON.stringify(next.benches) === JSON.stringify(data.benches);

@@ -31,15 +31,18 @@ import { scaledTimeouts } from '../jobs/runner.js';
 import { CheckRunner, KINDS, publicCheck } from './runner.js';
 
 const isAdmin = (u) => u?.role === 'admin';
+/** How long a line status stays worth showing: the diagram's badges and the overview's cards (the lines move) */
+export const LINES_FRESH_MS = 30 * 60_000;
 const targetKey = (t) => `${t.host}:${t.port}`;
 
 /**
- * @param options  test seam: { timeouts, wakeMs, retryMs, probeSeconds, pingRepeat, pingCellsMax, devicesAtOnce, linesCooldownMs, perMinute, now }
+ * @param options  test seam: { timeouts, wakeMs, retryMs, probeSeconds, pingRepeat, pingCellsMax, devicesAtOnce, linesCooldownMs, linesFreshMs, perMinute, now }
  */
 export function createChecksModule({ config, logger, events, repos, audit, infra, services }, options = {}) {
   const log = logger.child('checks');
   const now = options.now ?? (() => Date.now());
   const linesCooldownMs = options.linesCooldownMs ?? 20_000;
+  const linesFreshMs = options.linesFreshMs ?? LINES_FRESH_MS;
   const perMinute = options.perMinute ?? 10;
   const allow = createRateLimiter({ limit: perMinute, windowMs: 60_000 });
   const lastLines = new Map(); // bench → when its line status last started
@@ -167,6 +170,16 @@ export function createChecksModule({ config, logger, events, repos, audit, infra
   services.checks = {
     /** The check running on `bench`, or null: { id, kind, actor: { name }, devices } */
     running: (bench) => { const c = runner.running(bench); return c ? summaryOf(c) : null; },
+    /**
+     * The last line status of `bench` while it is fresh (what the diagram shows as badges), or null:
+     * { at, devices: [{ key, name, line }] }, line 'free' | 'busy' | 'silent' | 'in_app' | 'unknown'.
+     * Everyone signed in may read it (the overview's cards); no console address in it
+     */
+    lines: (bench) => {
+      const c = runner.last(bench, 'lines');
+      if (!c?.endedAt || now() - Date.parse(c.endedAt) > linesFreshMs) return null;
+      return { at: c.endedAt, devices: (c.result?.devices ?? []).map((d) => ({ key: d.key, name: d.name, line: d.line })) };
+    },
   };
 
   return {

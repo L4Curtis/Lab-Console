@@ -36,7 +36,8 @@ export const CHECK_MODELS = {
   S4: { model: 'aruba' },
 };
 
-export async function startChecksApp({ models = CHECK_MODELS, lab: labOptions = {}, checks = {}, cabling = true, env = {} } = {}) {
+/** `extra(deps)`: more modules (one or a list), created after the checks module */
+export async function startChecksApp({ models = CHECK_MODELS, lab: labOptions = {}, checks = {}, cabling = true, env = {}, extra = null } = {}) {
   const { labs } = parseDrawio(fs.readFileSync(`${repoRoot}/diagrams/diagram.drawio`, 'utf8'), { networkPrefix: '10.22.9' });
   const all = labs.flatMap((l) => l.devices.map((d) => ({ ...d, labName: l.name })));
   const names = new Map(all.map((d) => [`${d.target.host}:${d.target.port}`, d.name]));
@@ -61,6 +62,7 @@ export async function startChecksApp({ models = CHECK_MODELS, lab: labOptions = 
         ...createTeamsModules(deps, { tickMs: 0 }),
         createJobsModule(deps, { timeouts: JOB_TIMEOUTS, pacing: JOB_PACING, countdownMs: 4000 }),
         createChecksModule(deps, { timeouts: JOB_TIMEOUTS, wakeMs: 1500, probeSeconds: 1, pingRepeat: 2, linesCooldownMs: 60_000, perMinute: 100, ...checks }),
+        ...(extra ? [extra(deps)].flat() : []),
       ];
       return modules;
     },

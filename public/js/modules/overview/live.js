@@ -89,3 +89,12 @@ export function roomsSignature(rooms) {
     r.target, r.state, r.pilot?.id ?? '', r.shared ? 1 : 0, r.task ? 1 : 0, (r.users ?? []).map((u) => u.id).sort().join(','),
   ].join('|')).sort().join(';');
 }
+
+/**
+ * Which bench checks run, and of which kind: 'checks:running' moves at every
+ * device a check reaches, the cards only care when a check starts or ends (a
+ * line status that ends is what they show)
+ */
+export function checksSignature(data) {
+  return (data?.checks ?? []).map((c) => `${c.bench}|${c.kind}|${c.id ?? ''}`).sort().join(';');
+}

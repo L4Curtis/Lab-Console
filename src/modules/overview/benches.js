@@ -4,12 +4,13 @@
  * the state of its console lines (SPEC "Lot overview")
  *
  * Nothing is stored here. Every field is read from the service that owns it
- * (benches, teams, consoles, jobs) at the moment of the request, so the page
- * and the other screens can never disagree
+ * (benches, teams, consoles, jobs, checks) at the moment of the request, so
+ * the page and the other screens can never disagree
  *
  * What is shown is what every signed-in user already receives over SSE
- * (`benches:state`, `consoles:rooms`, `jobs:running`) and in the reservation
- * calendar. What is left out on purpose: backups, journals, notes and chat
+ * (`benches:state`, `consoles:rooms`, `jobs:running`), in the reservation
+ * calendar, and in the last line status of the checks lot (everyone may read
+ * it: /api/checks/latest). What is left out on purpose: backups, journals, notes and chat
  * (they belong to a team), the last command typed on a console, user names
  * and ids of the people (names only), the address of a console line. The
  * only thing that depends on the reader is `you`: whether they work on the
@@ -67,8 +68,11 @@ export function benchCards({ services, user, now }) {
   return labs.map((lab) => {
     const detail = services.benches.detail(lab.name, user);
 
-    // The lines of the bench: open in the application, refused by the console server, silent (accepted, nothing printed)
-    const lines = { total: 0, open: 0, busy: 0, silent: 0 };
+    // The lines of the bench: open in the application, refused by the console server, silent (accepted, nothing
+    // printed), and what the checks lot's last line status (while fresh) found on the lines nobody has open now
+    const checked = services.checks?.lines?.(lab.name) ?? null;
+    const lineOf = new Map((checked?.devices ?? []).map((d) => [d.key, d.line]));
+    const lines = { total: 0, open: 0, busy: 0, silent: 0, free: 0, checkedAt: checked?.at ?? null };
     const consoles = [];
     for (const device of lab.devices) {
       if (device.allowed === false) continue; // outside the allow-list: inert, not a line of the bench
@@ -76,7 +80,12 @@ export function benchCards({ services, user, now }) {
       const key = targetKey(device.target);
       const room = roomOf.get(key);
       if (!room || room.state === 'closed') {
+        // What the application knows now wins; the check speaks for the lines it found free or silent.
+        // Its busy lines are already in busyOutside (the check marks them); one in the application then
+        // is no longer known
         if (busyOutside.has(key)) lines.busy += 1;
+        else if (lineOf.get(device.key) === 'silent') lines.silent += 1;
+        else if (lineOf.get(device.key) === 'free') lines.free += 1;
         continue;
       }
       lines.open += 1;

@@ -77,7 +77,13 @@
       "one": "{count} muette",
       "other": "{count} muettes"
     },
-    "silentHint": "La ligne est ouverte mais l’appareil ne répond pas : éteint, câble débranché ou planté.",
+    "silentHint": "L’équipement ne répond pas sur sa ligne (console ouverte, ou dernière vérification des lignes) : éteint, câble débranché ou planté.",
+    "freeLines": {
+      "one": "{count} libre",
+      "other": "{count} libres"
+    },
+    "freeHint": "La dernière vérification des lignes a trouvé la ligne libre et l’équipement a répondu.",
+    "checkedAt": "lignes vérifiées à {time}",
     "pilot": "piloté par {name}",
     "noPilot": "personne au clavier",
     "people": {
