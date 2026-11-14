@@ -330,7 +330,7 @@
     },
     "consoles": {
       "title": "Console journal",
-      "what": "What the devices print on the consoles opened from the platform, with who had the keyboard. Never what you type.",
+      "what": "What the devices print on the consoles opened from the platform, with who had the keyboard. No keystroke is kept as such, but what the device echoes back, so your commands, is in it; a password typed without echo never is.",
       "kept": {
         "one": "Kept {count} day. Read access covers the whole day of a console: whoever was on it that day with the right to drive it, even for a minute (watching only does not count), and the teams that held its bench that day read every session of that day; administrators read everything.",
         "other": "Kept {count} days. Read access covers the whole day of a console: whoever was on it that day with the right to drive it, even for a minute (watching only does not count), and the teams that held its bench that day read every session of that day; administrators read everything."
@@ -349,7 +349,7 @@
     },
     "never": {
       "title": "Never kept",
-      "what": "Your passwords (only a hash), one-time codes, what you type in the consoles."
+      "what": "Your passwords (only a hash), one-time codes, what you type without echo in the consoles (a password). Commands the device echoes back do appear in the console journal."
     }
   },
   "errors": {

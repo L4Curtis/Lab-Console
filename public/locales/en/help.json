@@ -1,0 +1,180 @@
+{
+  "title": "Help",
+  "subtitle": "What you can do in Lab Console, and what to do when something is stuck",
+  "toc": "On this page",
+  "replayTour": "Replay the guided tour",
+  "menu": {
+    "tour": "Replay the guided tour"
+  },
+  "s": {
+    "sections": {
+      "title": "The sections of Lab Console",
+      "intro": "The left-hand bar leads to every section. Your badge, at the bottom, opens your account menu.",
+      "consoles": "Consoles: pick a bench, then click a device on the diagram to open its console. This is where you take the bench for your team, type your commands and see who is working on what (\"Live\", \"Bench wall\").",
+      "team": "Team: create the team of your lab group, invite your classmates, answer an invitation, book a bench in the calendar.",
+      "jobs": "Backups: back up the configuration of every device of a bench, compare it, inject it again, or reset the bench. Your backups and the lab templates are here too.",
+      "infra": "Infra: the Proxmox VMs when Proxmox is configured, and the admin switches of the lab.",
+      "status": "Lab status: whether the access chain answers (jump server, console servers), and what is recorded.",
+      "admin": "Admin (administrators only): accounts, invitations, SSO sign-in, lab parameters, diagram, sessions, audit trail, announcement.",
+      "account": "My account (from your badge): display name, password and passkeys of a local account, open sessions.",
+      "help": "Help: this page. The account menu also lets you replay the guided tour.",
+      "extras": "Also in the left-hand bar: FR / EN switches the language, \"Theme\" switches light and dark, and the \"Alerts\" bell turns on browser alerts (keyboard asked for, line free, job finished)."
+    },
+    "team": {
+      "title": "Taking a bench with your team",
+      "intro": "Benches belong to a team, not to a person. You are in one team at a time.",
+      "step1": "Team section, \"My team\" tab: \"Create the team\", then invite your classmates by their sign-in name. A classmate who signs in through the university is only known after their first sign-in.",
+      "step2": "Each person invited answers in the Team section: \"Join\" or \"Decline\".",
+      "step3": "Consoles section: pick the bench, then \"Take the bench\". Every member of the team becomes an occupant.",
+      "step4": "When you leave: \"Release the bench\". Back up first (see below).",
+      "idle": "A bench with no activity at all for {hours} h is released automatically. \"We are still here\" keeps it yours.",
+      "idleUnknown": "A bench with no activity for a while is released automatically. \"We are still here\" keeps it yours.",
+      "taken": "On a bench taken by another team you can watch the consoles that are already open but not type. \"Ask to join\" sends a request: a member of the team accepts or refuses. An accepted guest is an occupant until they leave the bench or it is released.",
+      "free": "On a free bench anyone can open a console. Take the bench anyway: without it your backups and jobs have no team to belong to.",
+      "reserve": "Team section, \"Bookings\" tab: book a slot for your team. When the slot starts you can take the bench; its current occupants are warned ten minutes before.",
+      "lock": "An administrator can lock a bench (a graded lab, for instance): the reason is shown, and nobody but administrators opens a console or starts a job on it.",
+      "history": "The bench's \"History\": who took, backed up, injected or reset it, and when.",
+      "group": "\"Notes & chat\" opens beside the diagram the note of each device (everyone reads it, occupants edit it) and the bench chat (occupants only, 500 characters per message). They stay with the team."
+    },
+    "share": {
+      "title": "Sharing a console and asking for the keyboard",
+      "intro": "A console exists once: if a classmate has already opened the device, you join the same console and see what it displayed recently. One person at a time holds the keyboard, the others watch.",
+      "who": "Anyone can watch an open console. Typing needs the right to drive the device: being an occupant of its bench (or an administrator), or the bench being free. Otherwise the console says \"You may watch, not type.\"",
+      "ask": "To type while someone else holds the keyboard: \"Ask for the keyboard\". The pilot sees the request and answers \"Give the keyboard\" or \"Refuse\". With no answer after 30 seconds the keyboard comes to you; it comes at once if the pilot has typed nothing for 2 minutes.",
+      "give": "If you hold it: \"Give the keyboard back\" frees it. \"Share the keyboard\" lets everyone who may drive the device type; \"Take the keyboard back\" gives it back to you alone.",
+      "admin": "An administrator can take the keyboard outright.",
+      "task": "While a job runs on a console (export, injection, backup…) its keyboard is suspended until the end. \"Stop\" interrupts the job.",
+      "free": "\"Free the line\" closes the console for everyone and gives the line back to the console server. Without it, the line stays open while someone is watching, for 30 seconds after the last person leaves, and closes by itself after a long time without typing.",
+      "live": "\"Live\" lists the open consoles, who is on them and the last command typed. \"Bench wall\" shows every open console of a bench, read-only. \"Find a device\" (Ctrl K, in the Consoles section) opens a device by its name, bench or port.",
+      "tools": "Each console has its tools: send a BREAK, export the running-config as .txt, inject a script, send the same commands to several consoles, search its history, write the device's note. Pasting several lines sends them one by one (you need the keyboard)."
+    },
+    "backup": {
+      "title": "Backing up: the server is not a backup",
+      "warning": "The server is not a backup: it may be wiped between two sessions. After every backup, download the ZIP and keep it yourself.",
+      "step1": "Backups section: pick the bench, then \"Back up\".",
+      "step2": "Tick the devices and name the backup (\"Lab 3 end of session\"). If a device asks for an enable password, type it: it is used during the job only, never stored or logged.",
+      "step3": "Each device's running-config is read (and the VLANs of a switch) and filed in a backup of your team.",
+      "step4": "\"Download the ZIP\" right away, not later.",
+      "offer": "When you release the bench by hand, the application offers to back it up. The offer lasts 30 minutes; you find it again in the Backups section.",
+      "list": "\"Team backups\": view a configuration, its ZIP, \"Differences…\" between two backups, \"Compare with live\", \"Inject\", \"Lab folder\" (configurations and console journals), \"Delete\", \"Import a ZIP\", and a search across every configuration.",
+      "owner": "Backups belong to the team that held the bench: its members and the administrators see them.",
+      "templates": "\"Lab templates\": starting configurations published by administrators, which you can inject on your bench.",
+      "cisco": "Only Cisco IOS and IOS XE devices are backed up; any other system is recognised and left untouched.",
+      "single": "For a single device, the \"Export config\" button of its console downloads its show running-config as a .txt file."
+    },
+    "tasks": {
+      "title": "Injection and reset, and their safeguards",
+      "intro": "These are jobs: they run on the server, take the keyboard of the bench's consoles, everyone follows them live and they can be stopped. One job at a time per bench. Only the occupants of the bench and administrators start one, and a locked bench accepts none. A job only touches Cisco IOS or IOS XE.",
+      "injectTitle": "Injecting a configuration",
+      "inject1": "Pick a backup or a lab template, then \"Preview\": you read the exact script each device will receive before anything starts.",
+      "inject2": "Mode \"Reset, then inject (recommended)\" or \"Merge with the current configuration\". Every device is backed up first; in merge mode a device whose backup fails is refused.",
+      "inject3": "Some lines of a running-config cannot be replayed (licences, certificates, factory values): they are removed and the preview counts them.",
+      "inject4": "Then the device is read again and compared with the source. \"Save afterwards (copy run start)\" only happens if everything was accepted; otherwise the report shows the refused lines.",
+      "resetTitle": "Resetting a bench",
+      "reset1": "The dialog lists the devices, the people connected to them and what will be erased: the startup-config, flash:vlan.dat on a switch (all VLANs), the configuration register put back to 0x2102 on a router, then a reload without saving.",
+      "reset2": "For each device the configuration is backed up first and read back. If the backup fails the device is not erased (only an administrator can force it).",
+      "reset3": "You must type the bench's name to confirm. A countdown of a few seconds then leaves time to stop: nothing is typed while it runs.",
+      "reset4": "A device that shares its console line with another bench is unticked by default, and refused if that other bench is held by another team or locked.",
+      "reset5": "The reload takes several minutes depending on the model. The job goes on in the server if you close the page; its report (device by device, refused lines included) is in \"Recent jobs of the bench\".",
+      "stop": "In every case \"Stop\" is available to the person who started the job, to the bench's occupants and to administrators."
+    },
+    "journal": {
+      "title": "What is recorded, and for how long",
+      "intro": "What you do here is not anonymous. The up-to-date detail is in Lab status, \"What is recorded\" tab.",
+      "consoles": "Console journal: what the devices print, with who held the keyboard. Kept {days} days. No keystroke is recorded as such, but what the device echoes back, so your commands, is in it; a password typed without echo never is. It is readable for a console's whole day: by those who were on it with the right to drive it (only watching does not count), by the team that held the bench that day and by administrators. The \"Journals\" button downloads it.",
+      "consolesUnknown": "Console journal: what the devices print, with who held the keyboard, kept for a limited number of days. No keystroke is recorded as such, but what the device echoes back, so your commands, is in it; a password typed without echo never is. It is readable for a console's whole day: by those who were on it with the right to drive it (only watching does not count), by the team that held the bench that day and by administrators. The \"Journals\" button downloads it.",
+      "jobs": "What jobs read or send (configurations) does not enter the console journal: a simple marker takes its place.",
+      "audit": "Audit trail: sign-ins, console openings, keyboard hand-overs, team and bench actions, backups, injections and resets, administration actions, with the person and the time. Administrators read it, with no automatic deletion. A bench's \"History\" shows its occupants the essentials.",
+      "kept": "Backups, device notes and chats stay on the server until someone deletes them. The chat keeps the last 200 messages per bench and team, and goes away with the team. Remember: the server is not a backup.",
+      "session": "Your session ends after {idle} h without activity, and after {max} h at the latest.",
+      "never": "Never kept: your passwords (only a fingerprint), one-time codes, what you type without echo in the consoles (a password). Commands the device echoes back do appear in the console journal.",
+      "open": "Open \"What is recorded\""
+    },
+    "trouble": {
+      "title": "When something is stuck",
+      "busyTitle": "The line is busy",
+      "busy": "On the diagram the device is marked \"Busy outside Lab Console\": the console server refuses the line because someone is connected to it outside Lab Console (another terminal, for instance), or because it is out of service. Click \"Tell me when it is free\": the line is watched for 30 minutes at most and you are told. Turn on the \"Alerts\" bell to be told when the window is hidden too. If nothing changes, talk to the instructor.",
+      "silentTitle": "The device is silent",
+      "silent": "\"Device silent\": the console server opened the line but nothing comes back after Enter. It is not Lab Console: check on site that the device is powered on and that its console cable is plugged in.",
+      "lockedTitle": "The device asks for a password",
+      "locked": "If the console shows \"Password:\" before you typed anything, a previous group left a password on the console line. Lab Console does not know it and does not bypass it: ask the previous group or the instructor. Jobs (backup, injection, reset) never force a device they cannot bring to privileged mode: it is flagged in the report and left as it is.",
+      "locked2": "If the password is lost, recovery (BREAK, ROMMON, configuration register) is done with someone on site: the console's \"Send BREAK\" button is for that.",
+      "dialogTitle": "The device offers the initial configuration",
+      "dialog": "A device with no configuration asks \"Would you like to enter the initial configuration dialog?\": answer no. Jobs do it by themselves.",
+      "watchTitle": "I cannot type",
+      "watch": "\"You may watch, not type\": ask for the keyboard if a classmate has it; if the bench is held by another team, ask to join it; if a job is running on the console, wait for it to end.",
+      "lostTitle": "The console disconnected",
+      "lost": "\"Disconnected\" or \"Connection to the platform was lost\": \"Reconnect\". A console also closes after a long time without typing, and the line is then free for others."
+    },
+    "keys": {
+      "title": "Keyboard shortcuts",
+      "intro": "No shortcut takes a terminal's keys: Ctrl C stays the device's interrupt, and Ctrl K there erases to the end of the line as on Cisco.",
+      "col": {
+        "keys": "Keys",
+        "what": "Effect"
+      },
+      "finder": {
+        "keys": "Ctrl K or /",
+        "what": "Find a device (in the Consoles section, outside a terminal)."
+      },
+      "finderMove": {
+        "keys": "↑ ↓ then Enter",
+        "what": "In the finder: choose a device and open its console. Esc closes."
+      },
+      "device": {
+        "keys": "Tab, then Enter or Space",
+        "what": "On the diagram: move from device to device and open its console."
+      },
+      "copy": {
+        "keys": "Ctrl Shift C",
+        "what": "Copy the selected text in a terminal."
+      },
+      "send": {
+        "keys": "Ctrl Enter",
+        "what": "Send, in the script injection dialog and in the one that sends to several consoles."
+      },
+      "chat": {
+        "keys": "Enter",
+        "what": "Send a message in the bench chat."
+      },
+      "close": {
+        "keys": "Esc",
+        "what": "Close a dialog or the account menu."
+      },
+      "splitter": {
+        "keys": "← → ↑ ↓",
+        "what": "On the bar between the diagram and the consoles: move it."
+      }
+    }
+  },
+  "tour": {
+    "label": "Guided tour",
+    "step": "Step {n} of {total}",
+    "next": "Next",
+    "back": "Back",
+    "skip": "Skip the tour",
+    "finish": "Finish",
+    "steps": {
+      "bench": {
+        "title": "Pick a bench",
+        "body": "The lab is split into benches of routers and switches. Click a bench's name, then a device on the diagram to open its console."
+      },
+      "team": {
+        "title": "Take the bench with your team",
+        "body": "A bench is taken for the team. Create or join yours in the Team section, then click \"Take the bench\" in this bar: your classmates become occupants with you."
+      },
+      "console": {
+        "title": "Open a console",
+        "body": "Click a device on the diagram: its console opens in your workspace. If a classmate already opened it, you join it and see what it displayed."
+      },
+      "keyboard": {
+        "title": "Ask for the keyboard",
+        "body": "One person types at a time: whoever holds the keyboard. If a classmate has it, \"Ask for the keyboard\" above the console lets them know; with no answer in 30 seconds it comes to you."
+      },
+      "backup": {
+        "title": "Back up before you leave",
+        "body": "In Backups, \"Back up\" reads the configuration of every device of the bench. The server is not a backup: download the ZIP afterwards. The Help section covers the rest; your account menu lets you replay this tour."
+      }
+    }
+  }
+}

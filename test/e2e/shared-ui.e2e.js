@@ -36,7 +36,7 @@ test('boot: session and language are loaded before the screens, without errors',
     return { user: session.user.id, isAdmin: session.isAdmin, loaded: session.loaded, locale: getLocale(), cancel: t('common.actions.cancel') };
   });
   assert.deepEqual(state, { user: 'oidc:admin', isAdmin: true, loaded: true, locale: 'fr', cancel: 'Annuler' });
-  assert.equal(await page.locator('#rail-items .rail-btn').count(), 8, 'home, consoles, overview, then Team, Administration for an administrator, Backups and the lab status');
+  assert.equal(await page.locator('#rail-items .rail-btn').count(), 9, 'home, consoles, overview, then Team, Administration for an administrator, Backups, the lab status and Help');
   assert.equal(await page.locator('#rail-items a.rail-btn.active').getAttribute('data-path'), 'home', 'no section was asked for: the home page');
   await page.evaluate(() => { location.hash = '#/consoles'; });
   await page.waitForSelector('section.view-consoles svg');
@@ -389,7 +389,7 @@ test('language switch: the FR / EN buttons in the rail change the visible texts 
     title: document.querySelector('section.view-consoles .view-title h1').textContent,
   }));
   // The sections, then the notification bell (lot collab) next to the theme, outside the sections
-  assert.deepEqual(await texts(), { rail: ['Accueil', 'Consoles', 'Vue d’ensemble', 'Équipe', 'Infra', 'Administration', 'Sauvegardes', 'État du labo'], theme: 'Thème', bell: 'Alertes', title: 'Consoles du labo' });
+  assert.deepEqual(await texts(), { rail: ['Accueil', 'Consoles', 'Vue d’ensemble', 'Équipe', 'Infra', 'Administration', 'Sauvegardes', 'État du labo', 'Aide'], theme: 'Thème', bell: 'Alertes', title: 'Consoles du labo' });
   const before = await texts();
   await setLanguage(page, 'en');
   assert.equal(await page.getAttribute('.lang-btn[data-lang="en"]', 'aria-pressed'), 'true');

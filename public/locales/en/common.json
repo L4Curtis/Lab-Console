@@ -34,6 +34,7 @@
     },
     "admin": "Admin",
     "account": "My account",
+    "help": "Help",
     "status": "Lab status"
   },
   "errors": {

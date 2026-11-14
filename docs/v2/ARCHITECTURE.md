@@ -79,6 +79,7 @@ src/
     collab/                 device notes, bench chat (notifications are browser work)   (lot: collab), see §9 "Group work"
     overview/               read-only views: every bench on one screen, the personal home page   (lot: overview), see §9d
     scripts/                shared script library: personal, team, published scripts   (lot: terminal)
+    help/                   what the guided tour remembers per person (the help text is browser work)   (lot: help), see §9f
     checks/                 line status, cabling, ping matrix, interface overlay   (lot: checks), see §9c
     proxmox/                unchanged
 public/
@@ -1608,6 +1609,43 @@ disabled question), the 9300L's `SWITCH_IGNORE_STARTUP_CFG` and `show romvar`
 (`ignoreFlagSticks`: the flag stays at 1); the mock lab's
 `mock-power <host> <port> [mode]` command stands in for the person on site.
 
+## 9f. Help (lot: help)
+
+**Guided tour.** `src/modules/help/` (`/api/help`, repository `repos.tour`,
+migration 017, table `tour_progress`). `GET /api/help/tour` → `{ state: null |
+'done' | 'skipped' }` for the signed-in person; `PUT /api/help/tour` `{ state
+}` records how the tour ended (400 `help.bad_state` for anything else). The
+person is the session's, never one named in the request. `skipped` never
+replaces `done`: skipping a replay does not make someone who finished the tour
+a person who never saw it. Not audited: it is a reading aid, not an action.
+
+In the browser (`public/js/modules/help/tour.js`), `main.js` calls
+`maybeStartTour()` once the first screen is routed: no record means the tour
+opens by itself, any record means it never does. It is a non-modal card
+(`.tour-card`, `role="dialog"`) placed next to the element of the current step,
+which gets the class `tour-target`; Escape (unless a modal dialog is open) or
+"Skip the tour" ends it as `skipped`, the last step's button as `done`. The
+steps are a list in the file (`id`, `route`, `target` selector): pick a bench
+(`.lab-picker`), take it with the team (`.bench-bar`), open a console
+(`.diagram-canvas`), ask for the keyboard (`.pane-presence`, only present once
+a shared console is open; the card is then shown without a pointer), back up
+(the rail's Sauvegardes link). A step whose target does not show within 2.5 s
+is shown without a pointer. The user menu's "Replay the guided tour" button and
+the help page's both call `startTour()`; a replay writes nothing but the
+record above. Texts: `help.tour.steps.<id>.title` and `.body`.
+
+**Help page** (`#/help[/<section>]`, `modules/help/index.js`, a rail section
+for everyone, server module `help`). The text is the `help` dictionary
+(`help.s.<section>.<key>`); the page file lists which keys make which section
+(`SECTIONS`), and `test/help.test.js` checks that every listed key exists in
+both languages and that no sentence is left out of the page. The figures the
+server decides are read when the page opens and written into the sentence:
+the console journal's retention (`/api/admin/journaling`), the bench's idle
+release (`idleHours` of `/api/benches`), the session's idle and maximum length;
+while unknown, or if the request fails, the sentence without a number is shown
+(`consolesUnknown`, `idleUnknown`). When a feature changes, its sentence in
+the dictionary changes in the same commit.
+
 ## 10. Data directory
 
 ```
@@ -1620,7 +1658,7 @@ data/
   <dir>/<name>.json.imported   audit/*.jsonl.imported   files of before the database, kept after their import
 ```
 
-In the database today (migrations 001-016): `schema_migrations`,
+In the database today (migrations 001-017): `schema_migrations`,
 `legacy_imports`, `auth_sessions`, `auth_state` (the local administrator's
 last TOTP step, the known-browser key), `audit_entries`, `settings` (the
 run-time settings per namespace, the SSO page's provider as `sso`, the edited
@@ -1633,7 +1671,9 @@ admin switches as `switches`), `teams`, `team_members`, `team_invitations`
 is `p:<user id>`, `t:<team id>` or `pub`, a title is unique on its shelf),
 `device_notes`, `bench_chat_messages` (014), `bench_checks` (015: the last
 result of each kind of bench check, §9c), `recoveries` (016: one row per
-password recovery, its steps as JSON, `bypassed`: what it left on the device).
+password recovery, its steps as JSON, `bypassed`: what it left on the device),
+`tour_progress` (017: how each person's guided tour ended, `done` or
+`skipped`; no row, never shown).
 Passkey ceremonies' challenges are not stored: they live in memory, five
 minutes, single use.
 
@@ -1676,6 +1716,9 @@ file alone while it runs may miss what is still in the `-wal` file.
   file's own `before()` awaits `h.ready` first (top-level hooks run
   concurrently). `h.newPage({ locale })` (with `page.errors`),
   `h.session(page, who)` (cookie of a session opened by the test helper),
+  `h.newPage({ locale, tour })` (the guided tour is switched off in the page
+  unless `tour: true`: it answers `skipped` to GET `/api/help/tour`, in the
+  browser, the application is untouched),
   `h.adminCode()` (the next usable TOTP code); page helpers `signInAs(page,
   'alice')` (mock provider; first names or user names), `signInAsAdmin(page)`,
   `signOut(page)`, `setLanguage(page, lang)`, `waitForApp(page)`,

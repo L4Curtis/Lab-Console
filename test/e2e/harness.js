@@ -107,7 +107,7 @@ const within = (promise, ms, what) => Promise.race([
  *   env      extra variables for the application
  *   publicHost  the host name of PUBLIC_URL (default 127.0.0.1); 'localhost' where
  *            the browser needs a domain name: passkeys (see addVirtualAuthenticator)
- * → { url, app, idp, lab, browser, marker, newPage({ locale }), session(page, who), adminCode(), close() }
+ * → { url, app, idp, lab, browser, marker, newPage({ locale, tour }), session(page, who), adminCode(), close() }
  */
 export async function startHarness({ oidc = true, mockLab = true, env = {}, publicHost } = {}) {
   guardProcess();
@@ -183,10 +183,20 @@ export async function startHarness({ oidc = true, mockLab = true, env = {}, publ
     throw err;
   }
 
-  /** A new browser context and page; `errors` collects what the page logged as errors */
-  h.newPage = async ({ locale = 'fr-FR' } = {}) => {
+  /**
+   * A new browser context and page; `errors` collects what the page logged as errors.
+   * The guided tour opens by itself for someone who never saw it, which every
+   * fresh test user is: unless `tour: true`, the page is told (in the browser,
+   * the application is untouched) that this person already went through it
+   */
+  h.newPage = async ({ locale = 'fr-FR', tour = false } = {}) => {
     const context = await h.browser.newContext({ locale });
     context.setDefaultTimeout(TIMEOUT);
+    if (!tour) {
+      await context.route('**/api/help/tour', (route) => (route.request().method() === 'GET'
+        ? route.fulfill({ contentType: 'application/json', body: '{"state":"skipped"}' })
+        : route.continue()));
+    }
     const page = await context.newPage();
     page.errors = [];
     page.on('pageerror', (err) => page.errors.push(err.message));

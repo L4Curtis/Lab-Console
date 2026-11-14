@@ -20,7 +20,8 @@ import { createCollabModule } from './collab/index.js';
 import { createChecksModule } from './checks/index.js';
 import { createRecoveryModule } from './recovery/index.js';
 import { createOverviewModule } from './overview/index.js';
+import { createHelpModule } from './help/index.js';
 
 export function createModules(deps) {
-  return [createConsolesModule(deps), ...createTeamsModules(deps), createProxmoxModule(deps), createAccountsModule(deps), createAdminModule(deps), createJobsModule(deps), createScriptsModule(deps), createCollabModule(deps), createChecksModule(deps), createRecoveryModule(deps), createOverviewModule(deps)];
+  return [createConsolesModule(deps), ...createTeamsModules(deps), createProxmoxModule(deps), createAccountsModule(deps), createAdminModule(deps), createJobsModule(deps), createScriptsModule(deps), createCollabModule(deps), createChecksModule(deps), createRecoveryModule(deps), createOverviewModule(deps), createHelpModule(deps)];
 }

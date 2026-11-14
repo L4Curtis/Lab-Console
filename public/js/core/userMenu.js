@@ -15,7 +15,7 @@ import { t, loadNamespace, onLocaleChange } from './i18n.js';
 export async function mountUserMenu(rail = document.querySelector('.rail')) {
   const user = session.user;
   if (!rail || !user) return null;
-  await Promise.all([loadNamespace('auth'), loadCss('auth')]);
+  await Promise.all([loadNamespace('auth', 'help'), loadCss('auth')]);
 
   const badge = h('span.user-badge', { 'aria-hidden': 'true' }, user.initials);
   badge.style.background = user.color; // derived from the id on the server, never from user input
@@ -24,9 +24,10 @@ export async function mountUserMenu(rail = document.querySelector('.rail')) {
   const role = h('span.user-menu-role');
   const via = h('span.user-menu-via');
   const heading = h('span.user-menu-label');
+  const tour = h('button.btn.wide.user-menu-tour', { type: 'button', dataset: { action: 'replay-tour' }, onclick: () => { toggle(false); import('../modules/help/tour.js').then((m) => m.startTour()); } });
   const out = h('button.btn.wide.user-menu-out', { type: 'button', onclick: () => { out.disabled = true; signOut(); } });
   const account = h('a.btn.wide.user-menu-account', { href: '#/account', onclick: () => toggle(false) });
-  const menu = h('div.user-menu#user-menu', { role: 'dialog', hidden: true }, heading, name, h('div.user-menu-meta', role, via), account, out);
+  const menu = h('div.user-menu#user-menu', { role: 'dialog', hidden: true }, heading, name, h('div.user-menu-meta', role, via), account, tour, out);
   const root = h('div.user-menu-root', button, menu);
 
   function render() {
@@ -39,6 +40,7 @@ export async function mountUserMenu(rail = document.querySelector('.rail')) {
     role.dataset.role = user.role;
     via.textContent = user.via === 'oidc' ? t('auth.menu.viaOidc', { provider: session.providerName ?? 'SSO' }) : t('auth.menu.viaLocal');
     account.textContent = t('auth.menu.account');
+    tour.textContent = t('help.menu.tour');
     out.textContent = t('auth.menu.signOut');
   }
 

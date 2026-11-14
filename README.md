@@ -362,6 +362,7 @@ src/
     jobs/                   bench jobs (backup, injection, reset, compare), snapshots, TP templates
     scripts/                shared script library (personal, team, published)
     collab/                 device notes, bench chat
+    help/                   guided tour, help page, tour progress (migration 017)
     proxmox/                Proxmox client (ticket auth, over the SSH tunnel), service, console proxies
 public/
   index.html, css/app.css
@@ -372,6 +373,7 @@ public/
   js/modules/infra/         Infrastructure section: VMs, network dialog, admin switches
   js/modules/jobs/          Sauvegardes section: jobs, snapshots, templates, the diagram layer
   js/modules/collab/        device notes, bench chat panel, browser notifications
+  js/modules/help/          guided tour and the Help section
 scripts/check-diagram.js    diagram linter
 dev/mock-lab.js             fake jump server (telnet, line probe, port forwarding); importable
 dev/fakeIos.js              simulated Cisco IOS / IOS XE (four families, boot, erase, VLANs, slow console)

@@ -559,6 +559,24 @@ backups, recent activity. A guided tour at first sign-in and a help page.
   locking stay in the bench bar), no history beyond the last 15 entries, no
   per-team statistics.
 
+*As built (help lot):* contracts in ARCHITECTURE §9f.
+- **Guided tour**: five steps on the real screen (pick a bench, take it with
+  your team, open a console, ask for the keyboard, back up); opens by itself
+  on any page load until it has ended once (so at the first sign-in, and
+  again if the tab was closed mid-tour); skippable (button or Escape); replayable
+  from the user menu and from the help page. How it ended is kept per person
+  in the database (`tour_progress`, migration 017), so it follows the person
+  from one browser to the next.
+- **Help page** ("Aide" / "Help", a rail section for everyone), in French and
+  English: what each section does, how a team takes a bench, sharing a console
+  and asking for the keyboard, backups (the server is not a backup: download
+  the ZIP), injection and reset with their safeguards, what is journaled and
+  for how long, what to do when a line is busy, a device silent or locked,
+  keyboard shortcuts. It describes what exists in this version only; the
+  password recovery of the recovery lot, the checks of the checks lot and the
+  overview of the overview lot are not described until they are merged.
+- Browser scenario `test/e2e/help.e2e.js`.
+
 ## Wave 5
 End-to-end scenarios, security review, completeness check against this file,
 documentation in French and English, version 2.0.0.

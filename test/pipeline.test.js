@@ -141,6 +141,7 @@ describe('signed in: the application behaves as upstream', () => {
       { id: 'checks', title: 'Bench checks', enabled: true },
       { id: 'recovery', title: 'Password recovery', enabled: true },
       { id: 'overview', title: 'Overview', enabled: true },
+      { id: 'help', title: 'Help', enabled: true },
     ]);
     const labs = await (await get(lab, '/api/consoles/labs')).json();
     // The upstream keys, plus how long console journals are kept (for the journal notice)

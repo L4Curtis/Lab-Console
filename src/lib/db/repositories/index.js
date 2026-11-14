@@ -28,6 +28,7 @@ import { createScriptsRepository } from './scripts.js';
 import { createCollabRepository } from './collab.js';
 import { createChecksRepository } from './checks.js';
 import { createRecoveriesRepository } from './recoveries.js';
+import { createTourRepository } from './tour.js';
 
 export function createRepositories(db, { now = () => new Date() } = {}) {
   const options = { now };
@@ -51,6 +52,7 @@ export function createRepositories(db, { now = () => new Date() } = {}) {
     collab: createCollabRepository(db, options),
     checks: createChecksRepository(db, options),
     recoveries: createRecoveriesRepository(db, options),
+    tour: createTourRepository(db, options),
     /** Run fn(repos) in one transaction: every repository inside works on it */
     transaction: (fn) => db.transaction((tx) => fn(createRepositories(tx, options))),
   };
