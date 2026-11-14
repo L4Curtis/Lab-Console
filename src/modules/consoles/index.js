@@ -21,6 +21,9 @@
  *   client → server  text frame    {"type":"input","data"} | {"type":"resize","cols","rows"} | {"type":"break"}
  *                                  {"type":"control","action":"request"|"grant"|"deny"|"release"|"take"|"share"|"unshare"|"hangup","to"?}
  *                                  {"type":"export-config"} | {"type":"inject",…} | {"type":"automation-cancel"}
+ *                                  {"type":"paste","script",options} | {"type":"broadcast","batch","script",options}
+ *                                  (src/lib/automationProtocol.js: through the room, paced; a paste needs the
+ *                                  keyboard, a broadcast needs to be the pilot of this very console)
  *   `mode=wall` attaches read-only to a line someone already opened (bench wall tiles):
  *   no keyboard, no control (`control-refused` consoles.wall_read_only), no automation,
  *   not counted in the per-user limit, refused when the line is not open
@@ -39,8 +42,10 @@ import { ConsoleJournal } from './journal.js';
 import { LineWatch, sshProbe } from './lineWatch.js';
 import { SshPool } from '../../lib/sshPool.js';
 import { createRateLimiter } from '../../lib/security.js';
-import { createAutomationHandler } from '../../lib/automationProtocol.js';
+import { createAutomationHandler, MAX_SCRIPT_BYTES } from '../../lib/automationProtocol.js';
 import { httpError } from '../../lib/httpError.js';
+import { plainLines, plainText, searchLines } from '../../lib/terminalText.js';
+import { HISTORY_LIMITS, readableSessions, sessionsOfConsole, daysOf, searchSessions, dayText } from './history.js';
 
 const ACTIVITY_KEPT = 100;
 const WATCHES_PER_USER = 10;
@@ -202,13 +207,8 @@ export function createConsolesModule({ config, events, logger, infra, services =
   // Console journal: the sessions this user may read, and one session as a file
   const teamOfUser = (user) => services.teams?.teamOf?.(user)?.id ?? null;
   // Read rights cover a console's whole day (owner decision): a day is readable when any of its sessions is
-  const dayKey = (d) => `${d.benchDir}/${d.deviceDir}/${d.day}`;
   router.get('/journal', async (req, res) => {
-    const all = await journal.list();
-    const metasOf = new Map();
-    for (const d of all) metasOf.set(dayKey(d), [...(metasOf.get(dayKey(d)) ?? []), d.meta]);
-    const sessions = all
-      .filter((d) => journal.canReadDay(req.user, metasOf.get(dayKey(d)), teamOfUser))
+    const sessions = readableSessions(journal, await journal.list(), req.user, teamOfUser)
       .map(({ benchDir, deviceDir, day, session, bench, device, from, to, bytes, truncated, meta }) => ({
         id: `${benchDir}/${deviceDir}/${day}/${session}`, bench, device, day, from, to, bytes, truncated,
         people: [...new Set([...Object.values(meta.attended ?? {}), ...Object.values(meta.watched ?? {})].map((p) => p.name))],
@@ -238,8 +238,75 @@ export function createConsolesModule({ config, events, logger, infra, services =
     fs.createReadStream(file).pipe(res);
   });
 
+  // ── History of a console: its room's recent output, and the journal ───────
+  //   GET /history?device=<key>[&q=<text>][&case=1]   the days of journal this person may read, and the lines holding q
+  //   GET /history/download?device=<key>              the room's recent output, as a text file (people on the console only)
+  //   GET /history/download?device=<key>&day=<day>    that day of the journal, as one text file
+  // The room's output is read by whoever is attached to it (it is replayed to them anyway); a journal day by
+  // the rule of the journal (canReadDay). A search is plain text, never a pattern
+  const allowHistory = createRateLimiter({ limit: 30, windowMs: 60_000 });
+  const historyOf = (req) => {
+    if (!allowHistory(req.user.id)) throw httpError(429, 'consoles.too_many_searches', 'Too many searches in the last minute. Wait a moment and try again.');
+    const device = typeof req.query.device === 'string' ? findDevice(req.query.device) : null;
+    if (!device) throw httpError(404, 'consoles.device_gone', 'This device no longer exists. Reload the page.');
+    return { device, target: targetKey(device.target), room: rooms.get(targetKey(device.target)) };
+  };
+  const journalOf = async ({ device, target }, user) => {
+    const ofConsole = sessionsOfConsole(await journal.list(), { target, bench: device.labName, device: device.name });
+    return { ofConsole, readable: readableSessions(journal, ofConsole, user, teamOfUser) };
+  };
+
+  router.get('/history', async (req, res) => {
+    const found = historyOf(req);
+    const query = typeof req.query.q === 'string' ? req.query.q : '';
+    if (query.length > HISTORY_LIMITS.query || (query && !query.trim())) throw httpError(400, 'consoles.bad_query', `A search is 1 to ${HISTORY_LIMITS.query} characters.`, { max: HISTORY_LIMITS.query });
+    const matchCase = req.query.case === '1';
+    const attached = Boolean(found.room?.isAttached(req.user.id));
+    const lines = attached ? plainLines(found.room.scrollback) : [];
+    const { ofConsole, readable } = await journalOf(found, req.user);
+    res.set('Cache-Control', 'no-store').json({
+      device: { bench: found.device.labName, name: found.device.name },
+      live: { open: Boolean(found.room), attached, lines: lines.length, ...(query && attached ? searchLines(lines, query, { matchCase, limit: HISTORY_LIMITS.matches }) : {}) },
+      journal: {
+        exists: ofConsole.length > 0,
+        allowed: readable.length > 0,
+        days: daysOf(readable),
+        ...(query && readable.length ? await searchSessions(journal, readable, query, { matchCase }) : {}),
+      },
+    });
+  });
+
+  router.get('/history/download', async (req, res) => {
+    const found = historyOf(req);
+    const { device } = found;
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[-:]/g, '').replace('T', '_');
+    const fileName = (...parts) => `${parts.map((p) => String(p).replace(/[^\w.-]/g, '_')).join('_')}.txt`;
+    const send = (name, text) => res.set({
+      'Cache-Control': 'no-store',
+      'Content-Type': 'text/plain; charset=utf-8',
+      'Content-Disposition': `attachment; filename="${name}"`,
+      'X-Content-Type-Options': 'nosniff',
+    }).send(text);
+
+    if (req.query.day === undefined) {
+      if (!found.room) throw httpError(404, 'consoles.room_gone', `Nobody has ${device.name}'s console open any more.`, { name: device.name });
+      if (!found.room.isAttached(req.user.id)) throw httpError(403, 'consoles.history_forbidden', 'Only the people on this console may read what it shows.');
+      audit.log(req, 'console.history.download', { bench: device.labName, device: device.name, source: 'screen' });
+      return send(fileName('history', device.labName, device.name, stamp), plainText(found.room.scrollback));
+    }
+    const day = String(req.query.day);
+    if (!DAY.test(day)) throw httpError(400, 'consoles.bad_journal', 'Unknown journal');
+    const { ofConsole, readable } = await journalOf(found, req.user);
+    if (!ofConsole.some((s) => s.day === day)) throw httpError(404, 'consoles.no_journal', 'There is no such console journal.');
+    const sessions = readable.filter((s) => s.day === day);
+    if (!sessions.length) throw httpError(403, 'consoles.journal_forbidden', 'Only the people who were on this console that day, their team and the admins may read its journal.');
+    audit.log(req, 'console.journal.download', { bench: device.labName, device: device.name, day, session: 'all' });
+    return send(fileName('journal', device.labName, device.name, day), await dayText(journal, sessions));
+  });
+
   // ── WebSocket terminals ───────────────────────────────────────────────────
-  const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
+  // Room for the largest script the automation accepts (256 KB), in its JSON envelope
+  const wss = new WebSocketServer({ noServer: true, maxPayload: MAX_SCRIPT_BYTES + 16 * 1024 });
 
   function upgrade(req, socket, head) {
     const url = new URL(req.url, 'http://localhost');
@@ -294,6 +361,18 @@ export function createConsolesModule({ config, events, logger, infra, services =
       cancel: () => room.cancelTask(user),
       busy: () => Boolean(room.task),
       report: (msg) => room.broadcast(msg),
+      permit: {
+        // A paste is typing: whoever may type may paste (the pilot, or anyone while the keyboard is shared)
+        paste: () => (room.mayType(user) ? null : {
+          message: `You cannot type in ${device.name} right now: ask for the keyboard first.`,
+          code: 'consoles.paste_not_allowed', params: { name: device.name },
+        }),
+        // Several consoles at once is for the person who holds the keyboard of each: the pilot, not a typist of a shared keyboard
+        broadcast: () => (room.pilot === user.id && room.mayType(user) ? null : {
+          message: `You do not hold the keyboard of ${device.name}: nothing was sent there.`,
+          code: 'consoles.broadcast_not_pilot', params: { name: device.name },
+        }),
+      },
     });
 
     ws.on('message', (raw, isBinary) => {

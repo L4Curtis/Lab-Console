@@ -110,6 +110,8 @@ export class ConsoleRoom extends EventEmitter {
   get shared() { return this.#shared; }
   get task() { return this.#task ? { label: this.#task.label, by: this.#task.actor, state: this.#task.state } : null; }
   get closed() { return this.#closed; }
+  /** The recent output a newcomer is replayed (the last ~200 KB), as bytes */
+  get scrollback() { return Buffer.concat(this.#scroll); }
   /** People attached (one entry per user, whatever their number of tabs) */
   get users() { return [...this.#people.values()].map((p) => p.user); }
   /** Users counted against their per-user limit (a bench wall tile does not count) */
