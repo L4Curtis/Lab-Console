@@ -1,7 +1,7 @@
 {
   "scope": {
     "personal": "Mes scripts",
-    "team": "Mon équipe : {team}",
+    "team": "Mon équipe : {team}",
     "teamAdmin": "Scripts des équipes",
     "published": "Publiés par les administrateurs"
   },
@@ -25,7 +25,7 @@
   "fields": {
     "title": "Titre",
     "description": "Description (facultative)",
-    "descriptionHint": "Pour retrouver le script : à quoi il sert, sur quel équipement.",
+    "descriptionHint": "Pour retrouver le script : à quoi il sert, sur quel équipement.",
     "shelf": "Où le ranger",
     "body": "Commandes",
     "bodyHint": "Une commande par ligne, {kb} Ko au plus."
@@ -33,7 +33,7 @@
   "save": {
     "title": "Garder dans la bibliothèque",
     "submit": "Enregistrer",
-    "done": "« {title} » est dans la bibliothèque."
+    "done": "« {title} » est dans la bibliothèque."
   },
   "edit": {
     "title": "Modifier le script",
@@ -42,10 +42,10 @@
     "done": "Script enregistré."
   },
   "delete": {
-    "title": "Supprimer « {title} » ?",
+    "title": "Supprimer « {title} » ?",
     "personal": "Ce script disparaît de votre bibliothèque.",
     "shared": "Ce script disparaît pour tous ceux qui le voient.",
-    "done": "« {title} » est supprimé."
+    "done": "« {title} » est supprimé."
   },
   "errors": {
     "unknown": "Ce script n’existe pas (ou plus).",
@@ -56,9 +56,9 @@
     "bad_body": "Le script est vide ou contient des caractères de commande.",
     "body_too_large": "Le script dépasse {max} Ko.",
     "admin_only": "Seuls les administrateurs publient des scripts pour tout le monde.",
-    "no_team": "Vous n’êtes dans aucune équipe : rangez ce script dans vos scripts.",
-    "duplicate_title": "Un script « {title} » existe déjà sur cette étagère.",
+    "no_team": "Vous n’êtes dans aucune équipe : rangez ce script dans vos scripts.",
+    "duplicate_title": "Un script « {title} » existe déjà sur cette étagère.",
     "shelf_full": "Cette étagère contient déjà {max} scripts.",
-    "conflict": "{by} a modifié ce script entre-temps : rouvrez-le avant d’enregistrer."
+    "conflict": "{by} a modifié ce script entre-temps : rouvrez-le avant d’enregistrer."
   }
 }
