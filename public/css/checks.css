@@ -1,0 +1,60 @@
+/* Bench checks: the dialog and the diagram layers. Only the shared custom
+   properties are used, so both themes work */
+
+/* Diagram: devices */
+.deco-badge.badge-line-free circle { fill: var(--led-green); }
+.deco-badge.badge-line-busy circle { fill: var(--led-red); }
+.deco-badge.badge-line-silent circle { fill: var(--led-amber); }
+.deco-ring.ring-check-bad { stroke: var(--led-red); stroke-dasharray: none; stroke-width: 2.5; }
+.deco-ring.ring-check-run { stroke: var(--console); stroke-dasharray: 3 2; stroke-width: 2.5; }
+
+/* Diagram: links */
+.edge .edge-hit { fill: none; stroke: transparent; stroke-width: 10px; pointer-events: stroke; }
+.edge[data-tone="cabling-ok"] > polyline { stroke: var(--led-green); stroke-width: 2.2; }
+.edge[data-tone="cabling-wrong_port"] > polyline { stroke: var(--led-amber); stroke-width: 2.6; }
+.edge[data-tone="cabling-missing"] > polyline { stroke: var(--led-red); stroke-width: 2.6; stroke-dasharray: 7 4; }
+.edge[data-tone="cabling-unverified"] > polyline { stroke: var(--ink-3); stroke-dasharray: 2 4; }
+.edge-end {
+  font: 500 9.5px var(--mono); fill: var(--console-strong);
+  paint-order: stroke; stroke: var(--paper); stroke-width: 4px; stroke-linejoin: round; pointer-events: none;
+}
+
+/* Consoles section: the button under the diagram's title */
+.canvas-heading .checks-btn { position: relative; margin: 6px 0 0 6px; pointer-events: auto; }
+
+/* Dialog */
+.checks-dialog { display: grid; gap: 12px; }
+.checks-intro { margin: 0; font-size: 13px; color: var(--ink-2); }
+.checks-notice { margin: 0; padding: 8px 12px; border-radius: 8px; background: color-mix(in srgb, var(--led-amber) 16%, var(--surface)); font-size: 13px; }
+.checks-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.checks-current { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; box-shadow: inset 4px 0 0 var(--console); display: grid; gap: 8px; }
+.checks-current-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.checks-current-head .btn { margin-left: auto; }
+.checks-results { display: grid; gap: 14px; }
+.checks-result { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; background: var(--surface); display: grid; gap: 8px; }
+.checks-result-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.checks-result-head h3 { margin: 0; font-size: 14px; }
+.checks-summary, .checks-foot { margin: 0; font-size: 12.5px; }
+.checks-table { border-collapse: collapse; font-size: 12.5px; width: 100%; }
+.checks-table th, .checks-table td { text-align: left; padding: 3px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.checks-table thead th { color: var(--ink-2); font-weight: 600; }
+.checks-problems { margin: 0; padding-left: 18px; font-size: 12.5px; }
+.checks-ifs { display: grid; gap: 4px; }
+.checks-ifs summary { cursor: pointer; font-size: 13px; }
+
+.checks-state, .checks-line, .checks-verdict { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12px; background: var(--surface-2); color: var(--ink-2); white-space: nowrap; }
+.checks-state[data-state="running"], .checks-state[data-state="waiting"] { background: var(--console-soft); color: var(--console-strong); }
+.checks-state[data-state="done"], .checks-line[data-line="free"], .checks-verdict[data-status="ok"] { background: color-mix(in srgb, var(--led-green) 18%, transparent); color: var(--ink); }
+.checks-state[data-state="failed"], .checks-state[data-state="partial"], .checks-line[data-line="busy"], .checks-verdict[data-status="missing"] { background: color-mix(in srgb, var(--led-red) 16%, transparent); color: var(--ink); }
+.checks-state[data-state="cancelled"], .checks-state[data-state="skipped"], .checks-line[data-line="silent"], .checks-verdict[data-status="wrong_port"], .checks-verdict[data-status="unexpected"] { background: color-mix(in srgb, var(--led-amber) 18%, transparent); color: var(--ink); }
+.checks-line[data-line="in_app"] { background: var(--console-soft); color: var(--console-strong); }
+
+.checks-matrix-wrap { overflow-x: auto; }
+.checks-matrix { width: auto; }
+.checks-matrix caption { caption-side: bottom; text-align: left; padding-top: 4px; font-size: 12px; }
+.checks-matrix td { text-align: center; font-variant-numeric: tabular-nums; min-width: 4.5em; }
+.checks-ping[data-state="ok"] { background: color-mix(in srgb, var(--led-green) 30%, transparent); }
+.checks-ping[data-state="partial"] { background: color-mix(in srgb, var(--led-amber) 30%, transparent); }
+.checks-ping[data-state="fail"] { background: color-mix(in srgb, var(--led-red) 30%, transparent); }
+.checks-ping[data-state="error"], .checks-ping[data-state="skipped"] { background: var(--surface-2); }
+.checks-self { color: var(--ink-3); }

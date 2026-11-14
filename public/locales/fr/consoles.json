@@ -144,5 +144,6 @@
   },
   "scripts": {
     "button": "Scripts"
-  }
+  },
+  "checks": "Vérifications"
 }

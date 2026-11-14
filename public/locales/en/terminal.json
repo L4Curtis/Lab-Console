@@ -256,7 +256,11 @@
     "export": "export",
     "inject": "injection",
     "paste": "paste",
-    "broadcast": "send to several consoles"
+    "broadcast": "send to several consoles",
+    "check:lines": "line check",
+    "check:cabling": "cabling check",
+    "check:ping": "ping matrix",
+    "check:interfaces": "interface reading"
   },
   "paste": {
     "tooLarge": "The pasted text is larger than 256 KB: it was not sent.",

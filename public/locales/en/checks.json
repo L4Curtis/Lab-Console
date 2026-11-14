@@ -1,0 +1,150 @@
+{
+  "title": "Checks of bench {bench}",
+  "button": "Checks",
+  "intro": "These checks only read: show commands and pings, on the bench's consoles, one bench at a time. People watching a console see the task go by.",
+  "none": "No check has been run on this bench yet.",
+  "cancel": "Stop",
+  "startedBy": "started by {name}",
+  "ranBy": "by {name} {when}",
+  "at": "at {time}",
+  "atDay": "on {day} at {time}",
+  "notice": {
+    "notOccupant": "Only the bench's occupants (and admins) run checks; a locked bench is for admins only."
+  },
+  "kind": {
+    "lines": "Line status",
+    "cabling": "Cabling (CDP)",
+    "ping": "Ping matrix",
+    "interfaces": "Addresses and interfaces"
+  },
+  "state": {
+    "queued": "queued",
+    "waiting": "waiting for the keyboard",
+    "running": "running",
+    "done": "done",
+    "failed": "failed",
+    "partial": "partly done",
+    "skipped": "skipped",
+    "cancelled": "stopped"
+  },
+  "steps": {
+    "keyboard": "Taking the keyboard",
+    "identify": "Identifying (show version)",
+    "probe": "Asking the console server",
+    "wake": "Enter sent, waiting for an answer",
+    "cdp": "show cdp neighbors detail",
+    "interfaces": "show ip interface brief",
+    "ping": "ping {ip}"
+  },
+  "line": {
+    "free": "free",
+    "busy": "busy outside the application",
+    "silent": "device silent",
+    "in_app": "open in the application",
+    "unknown": "unknown"
+  },
+  "screen": {
+    "user": "user EXEC (>)",
+    "privileged": "privileged EXEC (#)",
+    "config": "configuration mode",
+    "password": "asks for a password",
+    "username": "asks for a username",
+    "dialog": "initial configuration dialog",
+    "setup": "initial configuration dialog",
+    "autoinstall": "autoinstall running",
+    "confirm": "waiting for a confirmation",
+    "save": "asks to save",
+    "question": "waiting for an answer",
+    "rommon": "ROMMON",
+    "bootLoader": "boot loader (switch:)",
+    "booting": "booting",
+    "pressReturn": "\"Press RETURN to get started\"",
+    "more": "paged output (--More--)",
+    "empty": "nothing shown",
+    "unknown": "screen not recognised"
+  },
+  "columns": {
+    "device": "Device",
+    "line": "Line",
+    "screen": "Screen",
+    "link": "Diagram link",
+    "verdict": "Result",
+    "seen": "Ports seen by CDP",
+    "interface": "Interface",
+    "address": "Address",
+    "state": "State"
+  },
+  "lines": {
+    "foot": "A line open in the application or busy outside it is never opened by the check."
+  },
+  "cabling": {
+    "summary": "{ok} as drawn, {wrong} on another port, {missing} missing, {unverified} not verifiable, {unexpected} unexpected",
+    "assumed": "one port written on the link, taken for both ends",
+    "stranger": "A neighbour that is not a device of the bench.",
+    "unexpectedLine": "Unexpected cable: {a} {pa} — {b} {pb}",
+    "status": {
+      "ok": "as drawn",
+      "wrong_port": "other port",
+      "missing": "missing",
+      "unverified": "not verifiable",
+      "unexpected": "unexpected"
+    },
+    "line": {
+      "ok": "{a} — {b}: as drawn",
+      "wrong_port": "{a} — {b}: cabled on {seenA} — {seenB}",
+      "missing": "{a} — {b}: missing",
+      "unverified": "{a} — {b}: not verifiable"
+    },
+    "reason": {
+      "shutdown": "{port} of {device} is shut down",
+      "down": "{port} of {device} is down",
+      "no_such_port": "{device} has no port {port}",
+      "not_cisco": "{device} does not run Cisco IOS",
+      "cdp_off": "CDP is off on {device}",
+      "not_read": "not read: {devices}"
+    }
+  },
+  "ping": {
+    "caption": "{count} packets per address. Green: answers; orange: partly; red: no answer.",
+    "fromTo": "From \\ to",
+    "empty": "No router with an active address: nothing to ping.",
+    "state": {
+      "ok": "answers ({rtt} ms on average)",
+      "partial": "answers partly",
+      "fail": "no answer",
+      "error": "ping not possible",
+      "skipped": "not tried"
+    }
+  },
+  "interfaces": {
+    "up": "up",
+    "down": "down",
+    "shut": "shutdown",
+    "protocolDown": "up, protocol down"
+  },
+  "layer": {
+    "line": "Line: {state} ({age})",
+    "running": "{kind} running, started by {name}"
+  },
+  "errors": {
+    "unknown_bench": "This bench does not exist.",
+    "unknown_kind": "There is no such check.",
+    "not_occupant": "Only the occupants of this bench (and admins) run checks on it.",
+    "locked": "This bench is locked ({reason}): only admins check it.",
+    "job_running": "A job is running on this bench: wait until it ends.",
+    "bench_busy": "A check is already running on this bench ({name}).",
+    "too_soon": "The lines of this bench were just checked: try again in {seconds} s.",
+    "rate_limited": "Too many checks: wait a minute.",
+    "no_routers": "This bench has no router.",
+    "no_devices": "This bench has no console device.",
+    "not_running": "No check is running on this bench.",
+    "cancel_forbidden": "Only the person who started it, the bench's occupants and admins can stop it.",
+    "cancelled": "stopped before the end",
+    "not_allowed": "you no longer hold this bench",
+    "console_waiting": "the console is waiting for an answer ({state}): nothing was typed",
+    "not_router": "not a router ({model})",
+    "probe_failed": "the console server could not be asked",
+    "probe_unknown": "the console server gave no clear answer",
+    "device_failed": "failed on this device"
+  }
+}
