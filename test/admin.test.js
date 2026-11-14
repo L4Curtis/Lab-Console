@@ -873,7 +873,7 @@ describe('with the simulated lab: health, and lab parameters used by the next co
     const rooms = lab.deps.services.consoles.rooms;
     const target = `${device.target.host}:${device.target.port}`;
     rooms.get(target)?.hangUp(createUser({ id: 'local:root', username: 'root', name: 'root', role: 'admin', via: 'local' }));
-    await waitFor(() => !rooms.get(target), 5000);
+    await waitFor(() => !rooms.get(target), { ms: 5000 });
 
     clock.advance(30_000);
     const ticket = (await call(lab, envAdmin, 'POST', '/api/admin/confirm', { password: TEST_ADMIN.password, code: adminCode(clock.ms) })).body.ticket;

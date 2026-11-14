@@ -16,7 +16,8 @@ import fs from 'node:fs';
 import { startMockLab } from '../dev/mock-lab.js';
 import { startTestApp, repoRoot } from './helpers/app.js';
 import { student } from './helpers/fakes.js';
-import { connectConsole, openReady, until } from './helpers/consoleClient.js';
+import { connectConsole, openReady } from './helpers/consoleClient.js';
+import { waitFor } from './helpers/http.js';
 import { parseDrawio } from '../src/modules/consoles/drawio.js';
 import { createConsolesModule } from '../src/modules/consoles/index.js';
 import { dayOf } from '../src/modules/consoles/journal.js';
@@ -54,7 +55,7 @@ after(async () => {
 
 const open = (who, device) => openReady(app, who, device);
 const connect = (who, device, extra) => connectConsole(app, who, device, extra);
-const idle = (device) => until(() => sim(device).queue.length === 0 && !sim(device).busy, `${device.name} idle`);
+const idle = (device) => waitFor(() => sim(device).queue.length === 0 && !sim(device).busy, { what: `${device.name} idle` });
 
 const CONFIG = [
   'enable', 'configure terminal', 'hostname PASTED', 'interface loopback 10', ' description pasted', ' ip address 10.10.10.1 255.255.255.255',
@@ -89,7 +90,7 @@ describe('paste', () => {
     // The same text as keystrokes arrives faster than the device reads it
     const raw = await open('student1', second);
     raw.type(`${CONFIG.replaceAll('\n', '\r')}\r`);
-    await until(() => sim(second).dropped > 0, 'the device dropped bytes');
+    await waitFor(() => sim(second).dropped > 0, { what: 'the device dropped bytes' });
     await idle(second);
     assert.ok(!sim(second).cfg.interfaces.has('Loopback11'), 'the unpaced paste lost its end');
     await paced.close();
@@ -120,7 +121,7 @@ describe('paste', () => {
     const long = `description ${'abcdefghij'.repeat(15)}`;
     c.type(`${long}\r`);
     c.type('ip address 10.60.60.1 255.255.255.255\r');
-    await until(() => sim(device).cfg.interfaces.get('Loopback60')?.lines.length >= 2 || sim(device).dropped > 0, 'both lines arrived');
+    await waitFor(() => sim(device).cfg.interfaces.get('Loopback60')?.lines.length >= 2 || sim(device).dropped > 0, { what: 'both lines arrived' });
     await idle(device);
     assert.equal(sim(device).dropped, 0);
     assert.deepEqual(sim(device).cfg.interfaces.get('Loopback60')?.lines, [long, 'ip address 10.60.60.1 255.255.255.255'], 'whole, in order');

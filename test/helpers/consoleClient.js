@@ -9,14 +9,7 @@
  *   c.frames, c.text (bytes shown, as latin1), c.close()
  */
 import WebSocket from 'ws';
-
-export async function until(fn, what, ms = 6000) {
-  const end = Date.now() + ms;
-  while (!fn()) {
-    if (Date.now() > end) throw new Error(`timed out: ${what}`);
-    await new Promise((r) => setTimeout(r, 10));
-  }
-}
+import { waitFor } from './http.js';
 
 export function connectConsole(app, who, device, extra = '') {
   const ws = new WebSocket(`${app.wsUrl}/ws/console?device=${encodeURIComponent(device.key)}&cols=80&rows=24${extra}`, { headers: { origin: app.url, ...app.as(who) } });
@@ -25,7 +18,7 @@ export function connectConsole(app, who, device, extra = '') {
   ws.on('close', () => { c.closed = true; });
   c.send = (msg) => ws.send(JSON.stringify(msg));
   c.type = (data) => c.send({ type: 'input', data });
-  c.until = (fn, what, ms = 6000) => until(() => fn(c), `${typeof who === 'string' ? who : who.id}: ${what}`, ms);
+  c.until = (fn, what, ms = 6000) => waitFor(() => fn(c), { ms, what: `${typeof who === 'string' ? who : who.id}: ${what}` });
   c.see = (re, ms) => c.until((x) => re.test(x.text), `screen ${re}`, ms);
   c.frame = async (pred, what, ms) => { await c.until((x) => x.frames.some(pred), what, ms); return c.frames.filter(pred).at(-1); };
   /** The last automation frame of a task (and batch) in the given states */

@@ -48,7 +48,7 @@ before(async () => {
 after(() => j?.close());
 
 const live = (id) => recovery.runner.get(id);
-const until = (id, check, what, ms = 20_000) => waitFor(() => { const r = live(id); return r && check(r) ? r : null; }, ms, what);
+const until = (id, check, what, ms = 20_000) => waitFor(() => { const r = live(id); return r && check(r) ? r : null; }, { ms, what });
 const awaiting = (id, step) => until(id, (r) => r.state === 'awaiting' && r.awaiting === step, `awaiting ${step}`);
 const ended = (id) => until(id, (r) => ['done', 'failed', 'cancelled'].includes(r.state), 'the end', 60_000);
 const confirm = (who, id, step) => j.api(who, 'POST', `/api/recovery/runs/${id}/confirm`, { step });
@@ -73,7 +73,7 @@ async function walk(id, dev, steps, next, { mode = false } = {}) {
 /** Switched off and on, the device boots its own startup-config (locked again) */
 async function bootOwn(dev) {
   dev.powerCycle();
-  await waitFor(() => !dev.inBoot && ['pressreturn', 'linepass', 'idle', 'exec'].includes(dev.state), 20_000, 'the device to boot');
+  await waitFor(() => !dev.inBoot && ['pressreturn', 'linepass', 'idle', 'exec'].includes(dev.state), { ms: 20_000, what: 'the device to boot' });
 }
 
 /** Booted with its own startup-config: not in ROMMON, not at switch:, its own hostname */
@@ -134,7 +134,7 @@ test('a router locked by its console line password, walked through every step, e
   assert.equal(stored.actor.username, 'student1');
   assert.deepEqual(stored.steps.map((x) => x.state), ['done', 'done', 'done', 'done', 'done']);
   const entries = () => j.app.deps.repos.audit.query({ actions: ['recovery'], limit: 200 });
-  await waitFor(async () => (await entries()).some((e) => e.action === 'recovery.end' && e.details?.recovery === id), 5000, 'the audit entries');
+  await waitFor(async () => (await entries()).some((e) => e.action === 'recovery.end' && e.details?.recovery === id), { ms: 5000, what: 'the audit entries' });
   const actions = (await entries()).filter((e) => e.details?.recovery === id).map((e) => e.action);
   for (const a of ['recovery.start', 'recovery.confirm', 'recovery.step', 'recovery.end']) assert.ok(actions.includes(a), `${a} in ${actions.join(', ')}`);
   assert.equal(actions.filter((a) => a === 'recovery.confirm').length, 4);
@@ -398,7 +398,7 @@ test('stopped from the console tile after boot: put back (0x2102 for the next bo
   assert.equal(rec.putBack.ok, true, JSON.stringify(rec.putBack));
   assert.equal(r1.nextConfReg, '0x2102');
   assert.ok(r1.startup.blocks.find((b) => b.head === 'line con 0').lines.includes('password left-by-a-group'));
-  await waitFor(async () => (await j.app.deps.repos.audit.query({ actions: ['recovery'], limit: 200 })).some((e) => e.action === 'recovery.cancel' && e.details?.recovery === id && e.details?.from === 'console'), 5000, 'the stop from the console audited');
+  await waitFor(async () => (await j.app.deps.repos.audit.query({ actions: ['recovery'], limit: 200 })).some((e) => e.action === 'recovery.cancel' && e.details?.recovery === id && e.details?.from === 'console'), { ms: 5000, what: 'the stop from the console audited' });
 });
 
 test('the bench locked mid-way: a guest follows but may not stop it; the next step is refused, the device put back by the system', async () => {

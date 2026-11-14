@@ -49,7 +49,7 @@ test('a line status of the team shows on the card for everyone: free, busy, sile
     assert.equal(by.get('R2'), 'busy');
     assert.equal(by.get('R3'), 'silent');
     assert.equal(by.get('R4'), 'in_app');
-    await waitFor(() => !c.services.consoles.rooms.get(c.targetOf('R3')), 5000, 'the probed lines hung up');
+    await waitFor(() => !c.services.consoles.rooms.get(c.targetOf('R3')), { ms: 5000, what: 'the probed lines hung up' });
 
     const free = [...by.values()].filter((l) => l === 'free').length;
     assert.ok(free >= 5, `free lines found: ${free}`);

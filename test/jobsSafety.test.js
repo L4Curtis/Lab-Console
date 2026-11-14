@@ -37,7 +37,7 @@ const run = async (who, kind, body) => {
 const reach = (job, name, pred, what) => waitFor(() => {
   const d = j.job(job.id)?.devices.find((x) => x.name === name);
   return d && pred(d);
-}, 20_000, `${name} ${what}`);
+}, { ms: 20_000, what: `${name} ${what}` });
 
 test('a wrong enable secret: the backup fails, nothing is erased, the reason is told; the right one works', { timeout: 30_000 }, async () => {
   const wrong = await j.until((await run('student1', 'reset', { devices: [j.key('R4')], confirm: 'B4M', enablePasswords: ['nope'] })).id);
@@ -136,8 +136,8 @@ test('cancelled while waiting for the keyboard someone holds: the device is left
   const ws = new WebSocket(`${j.app.wsUrl}/ws/console?device=${encodeURIComponent(device.key)}&cols=80&rows=24`, { headers: { origin: j.app.url, ...j.app.as('admin') } });
   await new Promise((resolve) => ws.once('open', resolve));
   try {
-    const room = await waitFor(() => j.services.consoles.rooms.get(`${device.target.host}:${device.target.port}`), 5000, 'the room');
-    await waitFor(() => room.pilot, 5000, 'a pilot');
+    const room = await waitFor(() => j.services.consoles.rooms.get(`${device.target.host}:${device.target.port}`), { ms: 5000, what: 'the room' });
+    await waitFor(() => room.pilot, { ms: 5000, what: 'a pilot' });
     const job = await run('student1', 'backup', { devices: [device.key] });
     await reach(job, 'R2', (d) => d.state === 'waiting' && room.presence({ id: 'x' }).pending?.kind === 'task', 'waiting for the keyboard');
     await j.api('student1', 'POST', `/api/jobs/runs/${job.id}/cancel`);

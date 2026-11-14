@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import { startMockLab } from '../dev/mock-lab.js';
 import { SshPool } from '../src/lib/sshPool.js';
 import { silentLogger } from './helpers/app.js';
+import { waitFor } from './helpers/http.js';
 
 const SSH = { username: 'jump', password: 'jump-pass' };
 const sshTo = (port, extra = {}) => ({ host: '127.0.0.1', port, ...SSH, readyTimeoutMs: 5000, keepaliveIntervalMs: 0, ...extra });
@@ -18,17 +19,10 @@ const sshTo = (port, extra = {}) => ({ host: '127.0.0.1', port, ...SSH, readyTim
 async function line(pool, ssh, port) {
   let text = '';
   const stream = await pool.exec(ssh, `telnet 10.22.9.4 ${port}`, { pty: { term: 'xterm' } }, (s) => s.on('data', (d) => { text += d; }));
-  await until(() => /Escape character|Connection refused/.test(text));
+  await waitFor(() => /Escape character|Connection refused/.test(text));
   return stream;
 }
 
-async function until(fn, ms = 4000) {
-  const end = Date.now() + ms;
-  while (!fn()) {
-    if (Date.now() > end) throw new Error('condition not met in time');
-    await new Promise((r) => setTimeout(r, 10));
-  }
-}
 
 const closeAll = (streams) => Promise.all(streams.map((s) => new Promise((r) => { s.once('close', r); s.close(); })));
 
@@ -47,13 +41,13 @@ test('pool: lines share connections, each under the jump server\'s MaxSessions',
 
     // Closing lines gives the slots back; an eighth line reuses a slot
     await closeAll(streams.slice(0, 3));
-    await until(() => pool.size.channels === 4);
+    await waitFor(() => pool.size.channels === 4);
     const again = await line(pool, sshTo(lab.port), 2010);
     assert.ok(lab.stats().connections <= 3);
 
     // No leak: everything closed → no channel, and the idle connections go away
     await closeAll([...streams.slice(3), again]);
-    await until(() => pool.size.connections === 0 && lab.stats().connections === 0);
+    await waitFor(() => pool.size.connections === 0 && lab.stats().connections === 0);
     assert.equal(lab.stats().channels, 0);
   } finally {
     pool.close();
@@ -72,7 +66,7 @@ test('pool: a jump server with a lower MaxSessions than ours caps the connection
     assert.equal(lab.stats().peakChannels, 2);
     assert.equal(lab.stats().connections, 2);
     await closeAll(streams);
-    await until(() => lab.stats().connections === 0);
+    await waitFor(() => lab.stats().connections === 0);
   } finally {
     pool.close();
     await lab.close();
@@ -89,7 +83,7 @@ test('pool: a connection that dies is replaced; settings that change open a new 
     // The jump server goes away under the line: it ends, and the pool forgets the connection
     await lab.close();
     await closed;
-    await until(() => pool.size.connections === 0);
+    await waitFor(() => pool.size.connections === 0);
 
     // The administrator points the platform at another jump server: the next line goes there
     const moved = await line(pool, sshTo(other.port, { username: 'jump2', password: 'other' }), 2002);

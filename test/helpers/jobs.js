@@ -16,6 +16,7 @@ import { createTeamsModules } from '../../src/modules/teams/index.js';
 import { createJobsModule } from '../../src/modules/jobs/index.js';
 import { startTestApp, repoRoot } from './app.js';
 import { FAST } from './ios.js';
+import { apiClient, waitFor, holdBench } from './http.js';
 
 export const SSH = { username: 'jump', password: 'jump-pass' };
 export const TELNET = { username: 'line', password: 'line-pass' };
@@ -36,24 +37,23 @@ export const B4M_MODELS = {
 export const JOB_TIMEOUTS = { ...FAST, promptMs: 3000, observeMs: 600, quietMs: 300, commandMs: 8000, eraseMs: 4000, bootTotalMs: 20_000, bootIdleMs: 2500, pressReturnMs: 3000, wakeWaitMs: 400 };
 export const JOB_PACING = { delayMs: 0, chunkBytes: 64, chunkDelayMs: 1, lineTimeoutMs: 3000 };
 
-export async function waitFor(check, timeoutMs = 5000, what = 'condition') {
-  const end = Date.now() + timeoutMs;
-  for (;;) {
-    const value = await check();
-    if (value) return value;
-    if (Date.now() > end) throw new Error(`${what} not met within ${timeoutMs} ms`);
-    await new Promise((resolve) => setTimeout(resolve, 20));
-  }
+export { waitFor };
+
+/** The diagram's benches, and every device with its bench (`labName`) */
+export function benchDiagram() {
+  const { labs } = parseDrawio(fs.readFileSync(`${repoRoot}/diagrams/diagram.drawio`, 'utf8'), { networkPrefix: '10.22.9' });
+  return { labs, all: labs.flatMap((l) => l.devices.map((d) => ({ ...d, labName: l.name }))) };
 }
 
-/** `extra(deps)` adds modules that sit next to the jobs (one, or a list): the wave 3 wiring tests add collab */
+/**
+ * `extra(deps)` adds modules that sit next to the jobs (one, or a list): the wave 3 wiring tests add collab,
+ * the checks their module; `lab` adds options of the mock lab
+ */
 export async function startJobsApp({ models = B4M_MODELS, countdownMs = 300, devicesAtOnce = 5, env = {}, lab: labOptions = {}, extra } = {}) {
-  const { labs } = parseDrawio(fs.readFileSync(`${repoRoot}/diagrams/diagram.drawio`, 'utf8'), { networkPrefix: '10.22.9' });
-  const all = labs.flatMap((l) => l.devices.map((d) => ({ ...d, labName: l.name })));
+  const { all } = benchDiagram();
   const names = new Map(all.map((d) => [`${d.target.host}:${d.target.port}`, d.name]));
-  const b4m = all.filter((d) => d.labName === 'B4M');
   const devices = {};
-  for (const d of b4m) devices[`${d.target.host}:${d.target.port}`] = { timeScale: 0.002, ...(models[d.name] ?? {}) };
+  for (const d of all.filter((x) => x.labName === 'B4M')) devices[`${d.target.host}:${d.target.port}`] = { timeScale: 0.002, ...(models[d.name] ?? {}) };
   const lab = await startMockLab({ port: 0, ssh: SSH, telnet: TELNET, names, devices, defaults: { timeScale: 0.002 }, ...labOptions });
   let modules = [];
   const app = await startTestApp({
@@ -75,23 +75,13 @@ export async function startJobsApp({ models = B4M_MODELS, countdownMs = 300, dev
   });
   const jobs = modules.find((m) => m.id === 'jobs');
 
-  async function api(who, method, path, body, { raw = false, headers = {} } = {}) {
-    const h = { accept: 'application/json', ...(who ? app.as(who) : {}), ...headers };
-    if (method !== 'GET') h.origin = app.url;
-    let payload;
-    if (body instanceof Uint8Array || Buffer.isBuffer(body)) { payload = body; h['content-type'] ??= 'application/zip'; }
-    else if (body !== undefined) { payload = JSON.stringify(body); h['content-type'] = 'application/json'; }
-    const res = await fetch(`${app.url}${path}`, { method, headers: h, body: payload });
-    if (raw) return { status: res.status, headers: res.headers, buffer: Buffer.from(await res.arrayBuffer()) };
-    let data = null;
-    try { data = await res.json(); } catch { /* empty */ }
-    return { status: res.status, body: data };
-  }
+  const api = apiClient(app);
 
   const device = (name, bench = 'B4M') => all.find((d) => d.labName === bench && d.name === name);
   return {
     lab,
     app,
+    modules,
     jobs,
     api,
     services: app.deps.services,
@@ -100,13 +90,7 @@ export async function startJobsApp({ models = B4M_MODELS, countdownMs = 300, dev
     /** The simulated device behind B4M's `name` */
     dev: (name, bench = 'B4M') => { const d = device(name, bench); return lab.device(`${d.target.host}:${d.target.port}`); },
     /** A team for `who` holding `bench` */
-    async holdBench(who, bench = 'B4M', team = `team-${who}`) {
-      const t = await api(who, 'POST', '/api/teams', { name: team });
-      if (t.status !== 201 && t.status !== 409) throw new Error(`team: ${t.status} ${JSON.stringify(t.body)}`);
-      const r = await api(who, 'POST', `/api/benches/${bench}/take`);
-      if (r.status !== 200) throw new Error(`take: ${r.status} ${JSON.stringify(r.body)}`);
-      return r.body;
-    },
+    holdBench: (who, bench, team) => holdBench(api, who, bench, team),
     async release(who, bench = 'B4M') {
       return api(who, 'POST', `/api/benches/${bench}/release`);
     },
@@ -114,7 +98,7 @@ export async function startJobsApp({ models = B4M_MODELS, countdownMs = 300, dev
     job: (id) => jobs.runner.get(id),
     /** Wait until the job is over; → its public view */
     async until(id, timeoutMs = 30_000) {
-      await waitFor(() => ['done', 'failed', 'cancelled', 'partial'].includes(jobs.runner.get(id)?.state), timeoutMs, `job ${id} to end`);
+      await waitFor(() => ['done', 'failed', 'cancelled', 'partial'].includes(jobs.runner.get(id)?.state), { ms: timeoutMs, what: `job ${id} to end` });
       return (await api('admin', 'GET', `/api/jobs/runs/${id}`)).body.job;
     },
     async close() {

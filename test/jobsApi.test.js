@@ -295,7 +295,7 @@ test('ZIP import attacks: a path that leaves the folder, a zip bomb, lying sizes
 });
 
 test('TP folder: the configurations of a snapshot and the console journals of its day that the user may read', { timeout: 20_000 }, async () => {
-  await waitFor(async () => (await j.services.consoles.journal.list()).some((d) => d.bench === 'B4M'), 5000, 'a journal of B4M');
+  await waitFor(async () => (await j.services.consoles.journal.list()).some((d) => d.bench === 'B4M'), { ms: 5000, what: 'a journal of B4M' });
   const z = await j.api('student1', 'GET', `${B}/folder?snapshot=${snapshotId}`, undefined, { raw: true });
   assert.equal(z.status, 200);
   const names = Object.keys(unzipSync(new Uint8Array(z.buffer)));

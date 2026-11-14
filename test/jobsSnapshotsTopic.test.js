@@ -52,7 +52,7 @@ test('a backup, an import and a deletion are told to the team and the admins, as
   const r = await j.api('student1', 'POST', '/api/jobs/benches/B4M/backup', { devices: [j.key('R1')], label: 'un' });
   assert.equal(r.status, 202, JSON.stringify(r.body));
   await j.until(r.body.job.id);
-  await waitFor(() => told.length >= 1, 2000, 'a backup finished');
+  await waitFor(() => told.length >= 1, { ms: 2000, what: 'a backup finished' });
   assert.deepEqual(told.at(-1).data, { teamId });
   const { audience } = told.at(-1);
   assert.equal(audience(student(1)), true, 'a member');

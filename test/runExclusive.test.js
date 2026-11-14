@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { ConsoleRoom } from '../src/modules/consoles/room.js';
 import { CliAutomation } from '../src/lib/cliAutomation.js';
+import { waitFor } from './helpers/http.js';
 
 const user = (id, role = 'student') => ({ id, username: id, name: id, role });
 const alice = user('alice');
@@ -48,13 +49,6 @@ function attach(r, who) {
 }
 
 const tick = () => new Promise((r) => setImmediate(r));
-async function until(fn, ms = 3000) {
-  const end = Date.now() + ms;
-  while (!fn()) {
-    if (Date.now() > end) throw new Error('condition not met in time');
-    await new Promise((r) => setTimeout(r, 5));
-  }
-}
 
 test('runExclusive: a free line runs at once, locks every keyboard while it runs, and the person keeps the keyboard', async () => {
   const r = room();
@@ -82,7 +76,7 @@ test('runExclusive: the pilot is asked; yes runs it, no rejects with consoles.co
   r.write(alice, 'x'); // alice is active
   let ran = 0;
   const refused = r.runExclusive(bob, 'inject', async () => { ran++; });
-  await until(() => a.event('request'));
+  await waitFor(() => a.event('request'));
   assert.equal(a.event('request').label, 'inject');
   assert.equal(r.write(alice, 'y'), true, 'the pilot keeps typing while she decides');
   r.denyControl(bob.id, alice);
@@ -92,7 +86,7 @@ test('runExclusive: the pilot is asked; yes runs it, no rejects with consoles.co
   assert.equal(r.task, null);
 
   const granted = r.runExclusive(bob, 'inject', async () => { ran++; return 'ok'; });
-  await until(() => a.frames.filter((f) => f.event === 'request').length === 2);
+  await waitFor(() => a.frames.filter((f) => f.event === 'request').length === 2);
   r.grantControl(bob.id, alice);
   assert.equal(await granted, 'ok');
   assert.equal(ran, 1);
@@ -122,7 +116,7 @@ test('runExclusive: spectators and a second task are refused at once; so is a cl
   await assert.rejects(r.runExclusive(eve, 'export', async () => {}), { code: 'consoles.control_not_allowed', params: { name: 'R1' } });
   let release;
   const first = r.runExclusive(alice, 'export', () => new Promise((res) => { release = res; }));
-  await until(() => r.task?.state === 'running');
+  await waitFor(() => r.task?.state === 'running');
   await assert.rejects(r.runExclusive(alice, 'inject', async () => {}), { code: 'consoles.task_running', params: { task: 'export' } });
   await assert.rejects(r.runExclusive('system', 'reset', async () => {}), { code: 'consoles.task_running' });
   assert.equal(r.requestControl(eve).code, 'consoles.control_not_allowed');
@@ -139,7 +133,7 @@ test('runExclusive: cancelled while waiting for the pilot, while waiting for the
   r.write(alice, 'x');
   const ctl = new AbortController();
   const waiting = r.runExclusive(bob, 'export', async () => assert.fail('must not run'), { signal: ctl.signal });
-  await until(() => a.event('request'));
+  await waitFor(() => a.event('request'));
   ctl.abort();
   await assert.rejects(waiting, (err) => err.cancelled === true);
   assert.equal(r.task, null);
@@ -162,7 +156,7 @@ test('runExclusive: cancelled while waiting for the pilot, while waiting for the
   attach(run, alice);
   attach(run, bob);
   const running = run.runExclusive(alice, 'inject', (cli) => cli.pause(10_000));
-  await until(() => run.task?.state === 'running');
+  await waitFor(() => run.task?.state === 'running');
   assert.equal(run.cancelTask(bob).code, 'consoles.control_not_pilot', 'a spectator cannot stop someone else\'s task');
   assert.deepEqual(run.cancelTask(ada), { ok: true }, 'an admin can');
   await assert.rejects(running, (err) => err.cancelled === true);
@@ -176,9 +170,9 @@ test('runExclusive: the line closing underneath rejects the task; a task never q
   attach(r, bob);
   r.write(alice, 'x');
   const running = r.runExclusive('system', 'reset', (cli) => cli.pause(10_000), {});
-  await until(() => a.event('request'));
+  await waitFor(() => a.event('request'));
   r.grantControl(r.presence(alice).pending.from.id, alice);
-  await until(() => r.task?.state === 'running');
+  await waitFor(() => r.task?.state === 'running');
   r.close('Connection to the jump server closed', { code: 'consoles.ssh_closed' });
   // Not a user's Stop: the job can tell a dropped line from a cancel
   await assert.rejects(running, (err) => err.code === 'consoles.room_closed' && !err.cancelled && err.params.reason === 'consoles.ssh_closed');
@@ -189,7 +183,7 @@ test('runExclusive: the line closing underneath rejects the task; a task never q
   r2.write(alice, 'x');
   assert.deepEqual(r2.requestControl(bob), { ok: true, pending: true });
   const task = r2.runExclusive('system', 'backup', async () => 'done');
-  await until(() => a2.event('superseded'));
+  await waitFor(() => a2.event('superseded'));
   assert.equal(r2.presence(alice).pending.kind, 'task');
   r2.grantControl(r2.presence(alice).pending.from.id, alice);
   assert.equal(await task, 'done');
@@ -199,7 +193,7 @@ test('runExclusive: the line closing underneath rejects the task; a task never q
 test('runExclusive: a line a job opened and nobody watches hangs up after the grace period once the job ends', async () => {
   const r = room({ options: { graceMs: 50 } });
   assert.equal(await r.runExclusive('system', 'backup', async () => 'saved'), 'saved');
-  await until(() => r.closed);
+  await waitFor(() => r.closed);
 });
 
 test('runExclusive: a person\'s task stops once its actor may no longer pilot: during the wait for the pilot, for the line, and while it runs; nothing more is typed', async () => {
@@ -212,7 +206,7 @@ test('runExclusive: a person\'s task stops once its actor may no longer pilot: d
   r.write(alice, 'x');
   let ran = false;
   const waiting = r.runExclusive(bob, 'inject', async (cli) => { ran = true; cli.send('conf t\r'); });
-  await until(() => a.event('request'));
+  await waitFor(() => a.event('request'));
   bobMay = false;
   await assert.rejects(waiting, { code: 'consoles.control_not_allowed', params: { name: 'R1' } });
   assert.equal(ran, false, 'the task never ran');
@@ -223,7 +217,7 @@ test('runExclusive: a person\'s task stops once its actor may no longer pilot: d
   // …and when the pilot says yes after the lock
   bobMay = true;
   const granted = r.runExclusive(bob, 'inject', async () => { ran = true; });
-  await until(() => r.presence(alice).pending?.kind === 'task');
+  await waitFor(() => r.presence(alice).pending?.kind === 'task');
   bobMay = false;
   r.grantControl(r.presence(alice).pending.from.id, alice);
   await assert.rejects(granted, { code: 'consoles.control_not_allowed' });
@@ -276,7 +270,7 @@ test('runExclusive: a pilot the bench rule turned into a spectator cannot stop t
   let release;
   const gate = new Promise((res) => { release = res; });
   const job = r.runExclusive('system', 'job:reset', async () => gate);
-  await until(() => r.task?.state === 'running');
+  await waitFor(() => r.task?.state === 'running');
   assert.equal(e.event('request'), undefined, 'eve is not asked');
   assert.equal(r.cancelTask(eve).code, 'consoles.control_not_pilot', 'a former pilot cannot stop the team\'s job');
   assert.equal(r.task.state, 'running');
@@ -289,7 +283,7 @@ test('runExclusive: a pilot the bench rule turned into a spectator cannot stop t
 
   // A paste of alice's (her task) cannot be stopped by eve either; alice and an admin can
   const paste = r.runExclusive(alice, 'paste', (cli) => cli.pause(10_000));
-  await until(() => r.task?.state === 'running');
+  await waitFor(() => r.task?.state === 'running');
   assert.equal(r.cancelTask(eve).code, 'consoles.control_not_pilot');
   assert.equal(r.hangUp(eve).code, 'consoles.task_running', 'nor free the line under it');
   assert.deepEqual(r.cancelTask(alice), { ok: true });

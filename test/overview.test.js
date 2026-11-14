@@ -163,7 +163,7 @@ describe('overview: the benches', () => {
       const c = await waitFor(async () => {
         const b = await card(S5, 'B4M');
         return b.consoles.length === 1 ? b : null;
-      }, 5000, 'R1 open on the overview');
+      }, { ms: 5000, what: 'R1 open on the overview' });
       assert.equal(c.consoles[0].device, 'R1');
       assert.equal(c.consoles[0].pilot, 'Student 1');
       assert.equal(c.consoles[0].people, 1);
@@ -173,7 +173,7 @@ describe('overview: the benches', () => {
       // A spectator on the same line (the line is open: anyone signed in may watch)
       const spectator = connectConsole(j.app, S5, r1, '&mode=wall');
       try {
-        await waitFor(async () => (await card('student1', 'B4M')).consoles[0]?.people === 2, 5000, 'two people');
+        await waitFor(async () => (await card('student1', 'B4M')).consoles[0]?.people === 2, { ms: 5000, what: 'two people' });
         assert.equal((await card('student1', 'B4M')).consoles[0].pilot, 'Student 1');
       } finally {
         await spectator.close();
@@ -184,7 +184,7 @@ describe('overview: the benches', () => {
       await pilot.close();
     }
     // The line stays open 2 s after the last one leaves (test timings), then the bench shows it closed
-    await waitFor(async () => (await card(S5, 'B4M')).consoles.length === 0, 8000, 'the line closed');
+    await waitFor(async () => (await card(S5, 'B4M')).consoles.length === 0, { ms: 8000, what: 'the line closed' });
   });
 
   test('a line the console server refused is counted as busy outside the application', async () => {

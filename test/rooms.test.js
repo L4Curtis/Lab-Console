@@ -15,6 +15,7 @@ import { ConsoleJournal, dayOf } from '../src/modules/consoles/journal.js';
 import { SshPool } from '../src/lib/sshPool.js';
 import { createStore } from '../src/lib/store.js';
 import { silentLogger, tempDataDir } from './helpers/app.js';
+import { waitFor } from './helpers/http.js';
 
 const SSH = { username: 'jump', password: 'jump-pass' };
 const TELNET = { username: 'line', password: 'line-pass' };
@@ -78,20 +79,13 @@ function browser(room, who, { readOnly = false } = {}) {
   b.sendBytes = (buf) => { b.text += buf.toString('latin1'); };
   b.close = () => { b.closed = true; };
   b.detach = room.attach(b);
-  b.until = (fn, what = 'condition', ms = 6000) => until(() => fn(b), `${who.username}: ${what}`, ms);
+  b.until = (fn, what = 'condition', ms = 6000) => waitFor(() => fn(b), { what: `${who.username}: ${what}`, ms });
   b.see = (re) => b.until((x) => re.test(x.text), `screen ${re}`).catch((err) => { throw new Error(`${err.message}; the screen ends with ${JSON.stringify(b.text.slice(-200))}`); });
   b.frame = (pred, what) => b.until((x) => x.frames.some(pred), what).then(() => b.frames.filter(pred).at(-1));
   b.presence = () => b.frames.filter((f) => f.type === 'presence').at(-1);
   return b;
 }
 
-async function until(fn, what, ms = 6000) {
-  const end = Date.now() + ms;
-  while (!fn()) {
-    if (Date.now() > end) throw new Error(`timed out: ${what}`);
-    await new Promise((r) => setTimeout(r, 10));
-  }
-}
 
 /** Open the line as `who`, wait until the console server's login is done and the device answers */
 async function openReady(m, d, who) {
@@ -233,9 +227,9 @@ test('rooms: the line stays during the grace period, then hangs up; the pilot le
   assert.equal(room.closed, false, 'someone came back: the line stays');
   assert.equal(room.pilot, bob.id, 'an unowned line goes to the first one who may drive it');
   back.detach();
-  await until(() => room.closed, 'hang-up after the grace period', 3000);
+  await waitFor(() => room.closed, { what: 'hang-up after the grace period', ms: 3000 });
   assert.equal(m.get(`${HOST}:2008`), undefined);
-  await until(() => pool.size.channels === 0 || lab.stats().channels === 0, 'the channel went back to the pool', 3000);
+  await waitFor(() => pool.size.channels === 0 || lab.stats().channels === 0, { what: 'the channel went back to the pool', ms: 3000 });
 });
 
 test('rooms: idle timeout; "free the line"; limits per user', async () => {
@@ -357,7 +351,7 @@ test('rooms: under a running task only its actor, the pilot or an admin frees th
   assert.equal(room.pilot, null);
   let release;
   const job = room.runExclusive('system', 'backup', () => new Promise((resolve) => { release = resolve; }));
-  await until(() => room.task?.state === 'running', 'task running');
+  await waitFor(() => room.task?.state === 'running', { what: 'task running' });
   // chloe may pilot, but she may not stop the job: neither cancelTask nor "free the line"
   assert.equal(room.cancelTask(chloe).code, 'consoles.control_not_pilot');
   assert.deepEqual(room.hangUp(chloe), { ok: false, code: 'consoles.task_running', params: { task: 'backup' } });
@@ -369,7 +363,7 @@ test('rooms: under a running task only its actor, the pilot or an admin frees th
 
   // Now an admin frees it during a task: the job learns that the line closed, not that someone pressed Stop
   const second = room.runExclusive('system', 'restore', (cli) => cli.pause(10_000));
-  await until(() => room.task?.state === 'running', 'second task running');
+  await waitFor(() => room.task?.state === 'running', { what: 'second task running' });
   browser(room, ada);
   assert.deepEqual(room.hangUp(ada), { ok: true });
   await assert.rejects(second, (err) => err.code === 'consoles.room_closed' && !err.cancelled && err.params.reason === 'consoles.freed');
@@ -386,7 +380,7 @@ test('rooms: a long input reaches the device in small chunks, in order; the rest
   const long = `show${' '.repeat(100)}clock\r`;
   assert.equal(room.write(alice, long), true);
   assert.equal(room.write(alice, ' '), true, 'what is typed behind a long input waits its turn');
-  await until(() => writes.length >= 5, 'every chunk sent');
+  await waitFor(() => writes.length >= 5, { what: 'every chunk sent' });
   assert.equal(writes.join(''), `${long} `, 'in order, nothing lost');
   assert.ok(writes.slice(0, -1).every((w) => w.length <= 32), 'chunks no longer than the typing chunk of an injection');
   assert.ok(writes.length >= 5);

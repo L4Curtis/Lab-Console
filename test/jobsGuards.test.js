@@ -157,7 +157,7 @@ test('a shared console line is erased or written only when every bench using it 
     }
     // Reading is no harm
     assert.equal((await j.api('student1', 'POST', `${B}/backup`, { devices: [j.key('S5')] })).status, 202);
-    await waitFor(() => !j.jobs.runner.running('B4M'), 20_000, 'the backup to end');
+    await waitFor(() => !j.jobs.runner.running('B4M'), { ms: 20_000, what: 'the backup to end' });
     // An admin may
     j.jobs.runner.countdownMs = 5000;
     try {
@@ -369,7 +369,7 @@ test('what a backup prints on the console reaches its team only: not an outsider
         if (file.status === 200) text += await file.text();
       }
       return /job:backup not recorded/.test(text);
-    }, 10_000, 'the journal marker');
+    }, { ms: 10_000, what: 'the journal marker' });
     assert.doesNotMatch(text, /line con 0/, 'team 1\'s configuration does not reach team 2 through the journal');
   } finally {
     await j.release('student2');

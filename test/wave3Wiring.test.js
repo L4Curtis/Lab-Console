@@ -38,7 +38,7 @@ test('a finished backup is told once to the bench\'s occupants: { bench, jobId, 
   assert.equal(r.status, 202, JSON.stringify(r.body));
   const job = await j.until(r.body.job.id);
   assert.equal(job.state, 'done');
-  await waitFor(() => done.some((d) => d.data.jobId === job.id), 2000, 'jobs:done');
+  await waitFor(() => done.some((d) => d.data.jobId === job.id), { ms: 2000, what: 'jobs:done' });
   const mine = done.filter((d) => d.data.jobId === job.id);
   assert.equal(mine.length, 1, 'once per job');
   assert.deepEqual(mine[0].data, { bench: 'B4M', jobId: job.id, kind: 'backup', ok: true, state: 'done' });
@@ -53,7 +53,7 @@ test('a cancelled reset is told too, as not ok; a job on a bench nobody holds is
   assert.equal(r.status, 202, JSON.stringify(r.body));
   assert.equal((await j.api('student1', 'POST', `/api/jobs/runs/${r.body.job.id}/cancel`)).status, 200);
   await j.until(r.body.job.id);
-  await waitFor(() => done.some((d) => d.data.jobId === r.body.job.id), 2000, 'jobs:done');
+  await waitFor(() => done.some((d) => d.data.jobId === r.body.job.id), { ms: 2000, what: 'jobs:done' });
   const cancelled = done.find((d) => d.data.jobId === r.body.job.id);
   assert.equal(cancelled.data.ok, false);
   assert.equal(cancelled.data.state, 'cancelled');

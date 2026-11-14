@@ -8,11 +8,12 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import WebSocket from 'ws';
 import { startMockLab } from '../dev/mock-lab.js';
 import { startTestApp, repoRoot } from './helpers/app.js';
 import { parseDrawio } from '../src/modules/consoles/drawio.js';
 import { createConsolesModule } from '../src/modules/consoles/index.js';
+import { connectConsole, openReady } from './helpers/consoleClient.js';
+import { waitFor } from './helpers/http.js';
 
 const SSH = { username: 'jump', password: 'jump-pass' };
 const TELNET = { username: 'line', password: 'line-pass' };
@@ -42,50 +43,18 @@ after(async () => {
   await lab?.close();
 });
 
-function connect(who, device, extra = '') {
-  const ws = new WebSocket(`${app.wsUrl}/ws/console?device=${encodeURIComponent(device.key)}&cols=80&rows=24${extra}`, { headers: { origin: app.url, ...app.as(who) } });
-  const c = { ws, frames: [], text: '', closed: false };
-  ws.on('message', (raw, isBinary) => { if (isBinary) c.text += raw.toString('latin1'); else c.frames.push(JSON.parse(raw.toString())); });
-  ws.on('close', () => { c.closed = true; });
-  c.send = (msg) => ws.send(JSON.stringify(msg));
-  c.type = (data) => c.send({ type: 'input', data });
-  c.until = (fn, what, ms = 6000) => until(() => fn(c), `${who}: ${what}`, ms);
-  c.see = (re) => c.until((x) => re.test(x.text), `screen ${re}`);
-  c.frame = async (pred, what) => { await c.until((x) => x.frames.some(pred), what); return c.frames.filter(pred).at(-1); };
-  c.close = () => new Promise((r) => { if (c.closed) return r(); ws.once('close', r); ws.close(); });
-  return c;
-}
-
-async function until(fn, what, ms = 6000) {
-  const end = Date.now() + ms;
-  while (!fn()) {
-    if (Date.now() > end) throw new Error(`timed out: ${what}`);
-    await new Promise((r) => setTimeout(r, 10));
-  }
-}
-
 const get = (who, path) => fetch(`${app.url}${path}`, { headers: who ? app.as(who) : {} });
 const notify = (who, device) => fetch(`${app.url}/api/consoles/notify`, {
   method: 'POST', headers: { ...app.as(who), origin: app.url, 'content-type': 'application/json' }, body: JSON.stringify({ device }),
 });
 
-/** The console server's login is done once "Password:" was answered */
-async function openReady(who, device) {
-  const c = connect(who, device);
-  await c.see(/Password: /);
-  await c.until((x) => x.frames.some((f) => f.type === 'status' && f.phase === 'login'), 'auto-login');
-  c.type('\r');
-  await c.see(new RegExp(`${device.name}>$`));
-  return c;
-}
-
 test('consoles over the WebSocket: bob joins alice\'s line, sees its history, asks for the keyboard and types', async () => {
   const r1 = byName('B4M', 'R1');
-  const alice = await openReady('student1', r1);
+  const alice = await openReady(app, 'student1', r1);
   alice.type('show clock\r');
   await alice.see(/show clock[\s\S]*R1>$/);
 
-  const bob = connect('student2', r1);
+  const bob = connectConsole(app, 'student2', r1);
   await bob.frame((f) => f.type === 'replay', 'replay');
   await bob.see(/R1>show clock/);
   const presence = await bob.frame((f) => f.type === 'presence' && f.users.length === 2, 'two people');
@@ -134,12 +103,12 @@ test('consoles: on a bench of another team you watch: no opening, no export, no 
   const s4 = byName('B4M', 'S4');
   app.deps.services.benches = { canPilot: (user) => user.id !== 'oidc:student3' };
   try {
-    const refused = connect('student3', s4);
+    const refused = connectConsole(app, 'student3', s4);
     const error = await refused.frame((f) => f.type === 'error', 'refused');
     assert.equal(error.code, 'consoles.open_not_allowed');
 
-    const alice = await openReady('student1', s4);
-    const eve = connect('student3', s4);
+    const alice = await openReady(app, 'student1', s4);
+    const eve = connectConsole(app, 'student3', s4);
     await eve.frame((f) => f.type === 'presence' && f.users.length === 2, 'joined to watch');
     eve.send({ type: 'export-config' });
     const answer = await eve.frame((f) => f.type === 'automation', 'export refused');
@@ -165,10 +134,10 @@ test('consoles: on a bench of another team you watch: no opening, no export, no 
 
 test('consoles: a wall tile only watches an open line and is refused on a closed one', async () => {
   const s1 = byName('B4M', 'S2');
-  const wallFirst = connect('student2', s1, '&mode=wall');
+  const wallFirst = connectConsole(app, 'student2', s1, '&mode=wall');
   assert.equal((await wallFirst.frame((f) => f.type === 'error', 'no room')).code, 'consoles.room_gone');
-  const alice = await openReady('student1', s1);
-  const wall = connect('student2', s1, '&mode=wall');
+  const alice = await openReady(app, 'student1', s1);
+  const wall = connectConsole(app, 'student2', s1, '&mode=wall');
   const p = await wall.frame((f) => f.type === 'presence' && f.users.length === 2, 'watching');
   assert.equal(p.mayType, false);
   // The keyboard is shared and then left free: a wall socket still has no keys, no control, no automation
@@ -201,7 +170,7 @@ test('consoles: a wall tile only watches an open line and is refused on a closed
 
 test('consoles: a busy line is refused with its own message; "tell me when it is free" tells only that user', async () => {
   const busy = byName('B4M', 'S1'); // port 2016: held outside the application
-  const alice = connect('student1', busy);
+  const alice = connectConsole(app, 'student1', busy);
   const exit = await alice.frame((f) => f.type === 'exit', 'refused line');
   assert.equal(exit.code, 'consoles.line_refused');
   const { busy: outside } = await (await get('student1', '/api/consoles/rooms')).json();
@@ -223,10 +192,10 @@ test('consoles: a busy line is refused with its own message; "tell me when it is
     assert.ok(Date.parse((await post.json()).until) > Date.now());
     assert.equal((await (await get('student1', '/api/consoles/notify')).json()).watches.length, 1);
     lab.setBusy(2016, false); // the person outside lets go
-    await until(() => /event: consoles:free/.test(streams[0].text), 'alice is told', 5000);
+    await waitFor(() => /event: consoles:free/.test(streams[0].text), { what: 'alice is told', ms: 5000 });
     assert.match(streams[0].text, /"state":"free"/);
     assert.doesNotMatch(streams[1].text, /consoles:free/, 'bob is not');
-    await until(() => !/2016/.test(JSON.stringify(app.deps.services.consoles.rooms.busyOutside())), 'no longer busy outside');
+    await waitFor(() => !/2016/.test(JSON.stringify(app.deps.services.consoles.rooms.busyOutside())), { what: 'no longer busy outside' });
 
     // Refusals: an unknown device, a missing session, someone else's watch
     const unknown = await fetch(`${app.url}/api/consoles/notify`, {
@@ -271,7 +240,7 @@ test('consoles: the journal is listed and downloaded by those who were there tha
   const r2 = byName('B4M', 'R2');
   // B4M is held by team-x while the console is open (the teams lot's services, read lazily)
   app.deps.services.benches = { holder: (bench) => (bench === 'B4M' ? { teamId: 'team-x', since: new Date().toISOString() } : null) };
-  const alice = await openReady('student1', r2);
+  const alice = await openReady(app, 'student1', r2);
   delete app.deps.services.benches;
   alice.type('show ip interface brief\r');
   await alice.see(/show ip interface brief[\s\S]*R2>$/);
@@ -319,8 +288,8 @@ test('consoles: the journal is listed and downloaded by those who were there tha
   }
 
   // Later the same day bob watches R2 for a moment: read rights cover the whole day of R2 (owner decision), alice's morning included
-  const later = await openReady('student1', r2);
-  const bob = connect('student2', r2);
+  const later = await openReady(app, 'student1', r2);
+  const bob = connectConsole(app, 'student2', r2);
   await bob.frame((f) => f.type === 'presence' && f.users.length === 2, 'bob watches');
   await bob.close();
   later.send({ type: 'control', action: 'hangup' });

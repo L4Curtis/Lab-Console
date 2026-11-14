@@ -60,7 +60,7 @@ test('lines open in the application are left alone by every check: nothing is ty
   // Nor does a ping matrix have a row for them
   assert.equal(c.runner.last('B4M', 'ping').result.routers.find((d) => d.name === 'R1').addresses, null);
   await Promise.all([r1.close(), r2.close()]);
-  await waitFor(() => !rooms.get(c.targetOf('R1')) && !rooms.get(c.targetOf('R2')), 5000, 'the consoles to close');
+  await waitFor(() => !rooms.get(c.targetOf('R1')) && !rooms.get(c.targetOf('R2')), { ms: 5000, what: 'the consoles to close' });
 });
 
 test('no job starts while a check runs on the bench, and one can start once it is over', { timeout: 60_000 }, async () => {
@@ -77,7 +77,7 @@ test('no job starts while a check runs on the bench, and one can start once it i
   await c.until('B4M', 'cabling');
   const after = await c.api('student1', 'POST', '/api/jobs/benches/B4M/backup', { devices: [c.key('R1')] });
   assert.equal(after.status, 202, JSON.stringify(after.body));
-  await waitFor(() => !c.services.jobs.running('B4M'), 30_000, 'the backup to end');
+  await waitFor(() => !c.services.jobs.running('B4M'), { ms: 30_000, what: 'the backup to end' });
 });
 
 test('a check stops where it is once its actor lost the bench: the devices left are not_allowed', { timeout: 60_000 }, async () => {

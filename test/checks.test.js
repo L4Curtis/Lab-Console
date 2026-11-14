@@ -64,7 +64,7 @@ test('line status: free lines answer, a line held outside is busy, a dead device
   assert.equal(by(lines, 'S4').line, 'free');
   // The diagram's "busy outside" knows it too; the lines the check opened are free again, R4 still open
   assert.ok(rooms.busyOutside().includes(c.targetOf('R2')));
-  await waitFor(() => !rooms.get(c.targetOf('R1')) && !rooms.get(c.targetOf('R3')), 5000, 'the probed lines hung up');
+  await waitFor(() => !rooms.get(c.targetOf('R1')) && !rooms.get(c.targetOf('R3')), { ms: 5000, what: 'the probed lines hung up' });
   assert.ok(rooms.get(c.targetOf('R4')), 'the line someone uses is still theirs');
   assert.doesNotMatch(r4.text, /check:lines/, 'nothing was typed on the open line');
   await r4.close();
@@ -193,7 +193,7 @@ test('no check while a job runs on the bench; a locked bench is for admins only'
   assert.equal(refused.status, 409);
   assert.equal(refused.body.code, 'checks.job_running');
   await c.api('student1', 'POST', `/api/jobs/runs/${job.body.job.id}/cancel`);
-  await waitFor(() => !c.services.jobs.running('B4M'), 5000, 'the job to stop');
+  await waitFor(() => !c.services.jobs.running('B4M'), { ms: 5000, what: 'the job to stop' });
 
   assert.equal((await c.api('admin', 'PUT', '/api/benches/B4M/lock', { reason: 'maintenance' })).status, 200);
   const locked = await c.api('student1', 'POST', `${B}/interfaces`);

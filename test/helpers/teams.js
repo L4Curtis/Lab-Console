@@ -10,22 +10,14 @@
 import { startTestApp } from './app.js';
 import { createConsolesModule } from '../../src/modules/consoles/index.js';
 import { createTeamsModules } from '../../src/modules/teams/index.js';
+import { apiClient, waitFor } from './http.js';
 
 /** 13 Nov 2026, 09:00 UTC: a Friday morning, on a quarter of an hour */
 export const T0 = Date.UTC(2026, 10, 13, 9, 0, 0);
 export const MIN = 60_000;
 export const HOUR = 60 * MIN;
 
-/** Wait until `check()` is truthy (work that follows a response, such as a dissolved team's bench) */
-export async function waitFor(check, timeoutMs = 2000) {
-  const end = Date.now() + timeoutMs;
-  for (;;) {
-    const value = await check();
-    if (value) return value;
-    if (Date.now() > end) throw new Error(`condition not met within ${timeoutMs} ms: ${check}`);
-    await new Promise((resolve) => setTimeout(resolve, 10));
-  }
-}
+export { waitFor };
 
 /**
  * `extra(deps)` adds modules that sit on teams and benches (the collab module's tests):
@@ -44,15 +36,7 @@ export async function startTeamsApp({ env = {}, extra } = {}) {
   const benchesModule = modules.find((m) => m.id === 'benches');
   const listeners = [];
 
-  async function api(who, method, path, body) {
-    const headers = { accept: 'application/json', ...(who ? lab.as(who) : {}) };
-    if (method !== 'GET') headers.origin = lab.url;
-    if (body !== undefined) headers['content-type'] = 'application/json';
-    const res = await fetch(`${lab.url}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
-    let data = null;
-    try { data = await res.json(); } catch { /* empty */ }
-    return { status: res.status, body: data };
-  }
+  const api = apiClient(lab);
 
   /** An SSE stream opened as `who`; every event it receives is kept in `events` */
   async function listen(who) {
