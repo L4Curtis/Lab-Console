@@ -37,4 +37,5 @@
 .user-menu-role { padding: 1px 7px; border-radius: 10px; background: var(--surface-2); border: 1px solid var(--line); }
 .user-menu-role[data-role="admin"] { border-color: var(--console); color: var(--console-strong); }
 .user-menu-account { margin-top: 10px; text-decoration: none; }
+.user-menu-tour { margin-top: 6px; }
 .user-menu-out { margin-top: 6px; }

@@ -467,6 +467,23 @@ One screen with every bench: team, occupants, open consoles, running jobs,
 locks. A **personal home page** after sign-in: my team, our bench, our
 backups, recent activity. A guided tour at first sign-in and a help page.
 
+*As built (help lot):* contracts in ARCHITECTURE §9c.
+- **Guided tour**: five steps on the real screen (pick a bench, take it with
+  your team, open a console, ask for the keyboard, back up); opens by itself
+  at a person's first sign-in only; skippable (button or Escape); replayable
+  from the user menu and from the help page. How it ended is kept per person
+  in the database (`tour_progress`, migration 015), so it follows the person
+  from one browser to the next.
+- **Help page** ("Aide" / "Help", a rail section for everyone), in French and
+  English: what each section does, how a team takes a bench, sharing a console
+  and asking for the keyboard, backups (the server is not a backup: download
+  the ZIP), injection and reset with their safeguards, what is journaled and
+  for how long, what to do when a line is busy, a device silent or locked,
+  keyboard shortcuts. It describes what exists in this version only; the
+  password recovery of the recovery lot, the checks of the checks lot and the
+  overview of the overview lot are not described until they are merged.
+- Browser scenario `test/e2e/help.e2e.js`.
+
 ## Wave 5
 End-to-end scenarios, security review, completeness check against this file,
 documentation in French and English, version 2.0.0.

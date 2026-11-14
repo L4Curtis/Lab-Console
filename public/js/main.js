@@ -30,6 +30,8 @@ const MODULES = [
   { id: 'jobs', path: 'jobs', titleKey: 'common.shell.jobs', icon: 'archive', load: () => import('./modules/jobs/index.js') },
   // Lab status (health, what is journaled): everyone; the admin lot's server module answers it
   { id: 'admin', path: 'status', titleKey: 'common.shell.status', icon: 'pulse', load: () => import('./modules/status/index.js') },
+  // Help page and guided tour (the tour opens by itself at the first sign-in)
+  { id: 'help', path: 'help', titleKey: 'common.shell.help', icon: 'help', load: () => import('./modules/help/index.js') },
 ];
 const available = () => MODULES.filter((m) => m.when?.() !== false);
 
@@ -75,6 +77,7 @@ async function init() {
   onLocaleChange(labelRail);
   addEventListener('hashchange', route);
   route();
+  import('./modules/help/tour.js').then((m) => m.maybeStartTour()).catch(() => {});
 }
 
 async function route() {

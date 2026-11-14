@@ -1,0 +1,180 @@
+{
+  "title": "Aide",
+  "subtitle": "Ce qu’on fait dans Lab Console, et quoi faire quand ça coince",
+  "toc": "Sur cette page",
+  "replayTour": "Revoir la visite guidée",
+  "menu": {
+    "tour": "Revoir la visite guidée"
+  },
+  "s": {
+    "sections": {
+      "title": "Les sections de Lab Console",
+      "intro": "La barre de gauche donne accès à chaque section. Votre pastille, en bas, ouvre le menu de votre compte.",
+      "consoles": "Consoles : choisissez une baie, puis cliquez sur un équipement du schéma pour ouvrir sa console. C’est là que vous prenez la baie pour votre équipe, que vous tapez vos commandes et que vous voyez qui travaille sur quoi (« En direct », « Mur de la baie »).",
+      "team": "Équipe : créer l’équipe de votre groupe de TP, inviter vos camarades, répondre à une invitation, réserver une baie dans le calendrier.",
+      "jobs": "Sauvegardes : sauvegarder la configuration de tous les équipements d’une baie, la comparer, la réinjecter, ou réinitialiser la baie. Vos sauvegardes et les modèles de TP y sont aussi.",
+      "infra": "Infra : les VM Proxmox et les switchs d’administration du labo.",
+      "status": "État du labo : la chaîne d’accès répond-elle (rebond, serveurs de consoles), et ce qui est journalisé.",
+      "admin": "Administration (administrateurs seulement) : comptes, invitations, connexion SSO, paramètres du labo, schéma, sessions, journal d’audit, annonce.",
+      "account": "Mon compte (menu de la pastille) : nom d’affichage, mot de passe et clés d’accès d’un compte local, sessions ouvertes.",
+      "help": "Aide : cette page. Le menu du compte permet aussi de revoir la visite guidée.",
+      "extras": "Toujours dans la barre de gauche : FR / EN change la langue, « Thème » bascule clair / sombre, et la cloche « Alertes » active les alertes du navigateur (clavier demandé, ligne libre, tâche terminée)."
+    },
+    "team": {
+      "title": "Prendre une baie avec son équipe",
+      "intro": "Les baies appartiennent à une équipe, pas à une personne. On ne fait partie que d’une équipe à la fois.",
+      "step1": "Section Équipe, onglet « Mon équipe » : « Créer l’équipe », puis invitez vos camarades avec leur identifiant de connexion. Un camarade qui se connecte par l’université n’est connu qu’après sa première connexion.",
+      "step2": "Chaque invité répond dans la section Équipe : « Rejoindre » ou « Refuser ».",
+      "step3": "Section Consoles : choisissez la baie, puis « Prendre la baie ». Tous les membres de l’équipe en deviennent occupants.",
+      "step4": "En partant : « Libérer la baie ». Sauvegardez avant (voir plus bas).",
+      "idle": "Une baie sans aucune activité pendant {hours} h est libérée automatiquement. « On est toujours là » la garde à vous.",
+      "idleUnknown": "Une baie sans activité pendant un certain temps est libérée automatiquement. « On est toujours là » la garde à vous.",
+      "taken": "Sur une baie prise par une autre équipe, vous regardez les consoles déjà ouvertes mais vous ne tapez pas. « Demander à rejoindre » envoie une demande : un membre de l’équipe accepte ou refuse. Un invité accepté est occupant jusqu’à ce qu’il quitte la baie ou qu’elle soit libérée.",
+      "free": "Sur une baie libre, tout le monde peut ouvrir une console. Prenez quand même la baie : sans cela, vos sauvegardes et vos tâches n’ont pas d’équipe à qui appartenir.",
+      "reserve": "Section Équipe, onglet « Réservations » : réservez un créneau pour votre équipe. Au début du créneau vous pouvez prendre la baie ; ses occupants du moment sont prévenus dix minutes avant.",
+      "lock": "Un administrateur peut verrouiller une baie (un TP noté, par exemple) : le motif est affiché, et personne d’autre que les administrateurs n’y ouvre de console ni n’y lance de tâche.",
+      "history": "« Historique » de la baie : qui l’a prise, sauvegardée, injectée ou réinitialisée, et quand.",
+      "group": "« Notes et discussion » ouvre à côté du schéma la note de chaque équipement (tout le monde la lit, les occupants la modifient) et la discussion de la baie (réservée aux occupants, 500 caractères par message). Elles restent avec l’équipe."
+    },
+    "share": {
+      "title": "Partager une console et demander la main",
+      "intro": "Une console n’existe qu’une fois : si un camarade a déjà ouvert l’équipement, vous rejoignez la même console et vous voyez ce qui s’est affiché récemment. Une seule personne a la main (le clavier) à la fois, les autres regardent.",
+      "who": "Tout le monde peut regarder une console ouverte. Taper demande le droit de piloter l’équipement : être occupant de sa baie (ou administrateur), ou que la baie soit libre. Sinon la console indique « Vous pouvez regarder, pas taper ».",
+      "ask": "Pour taper alors qu’un autre a la main : « Demander la main ». Le pilote voit la demande et répond « Donner la main » ou « Refuser ». Sans réponse au bout de 30 secondes la main passe à vous ; elle passe tout de suite si le pilote n’a rien tapé depuis 2 minutes.",
+      "give": "Pilote : « Rendre la main » la libère. « Partager le clavier » laisse taper toutes les personnes qui ont le droit de piloter l’équipement ; « Reprendre le clavier » vous le redonne à vous seul.",
+      "admin": "Un administrateur peut prendre la main d’autorité.",
+      "task": "Pendant une tâche (export, injection, sauvegarde…) le clavier de la console est suspendu jusqu’à la fin. « Arrêter » interrompt la tâche.",
+      "free": "« Libérer la ligne » coupe la console pour tout le monde et rend la ligne au serveur de consoles. Sans cela, la ligne reste ouverte tant que quelqu’un la regarde, 30 secondes après le départ du dernier, et se ferme d’elle-même après 60 minutes sans rien taper.",
+      "live": "« En direct » liste les consoles ouvertes, qui est dessus et la dernière commande tapée. « Mur de la baie » montre en lecture seule toutes les consoles ouvertes d’une baie. « Trouver un équipement » (Ctrl K) ouvre un équipement par son nom, sa baie ou son port.",
+      "tools": "Chaque console a ses outils : envoyer un BREAK, exporter la running-config en .txt, injecter un script, envoyer les mêmes commandes à plusieurs consoles, chercher dans son historique, écrire la note de l’équipement. Coller plusieurs lignes les envoie une à une (il faut avoir la main)."
+    },
+    "backup": {
+      "title": "Sauvegarder : le serveur n’est pas une sauvegarde",
+      "warning": "Le serveur n’est pas une sauvegarde : il peut être remis à zéro entre deux séances. Après chaque sauvegarde, téléchargez le ZIP et gardez-le chez vous.",
+      "step1": "Section Sauvegardes : choisissez la baie, puis « Sauvegarder ».",
+      "step2": "Cochez les équipements et donnez un nom (« TP3 fin de séance »). Si un équipement demande un mot de passe enable, saisissez-le : il sert pendant la tâche seulement, il n’est ni enregistré ni journalisé.",
+      "step3": "La running-config de chaque équipement est lue (et les VLAN d’un switch), puis rangée dans une sauvegarde de votre équipe.",
+      "step4": "« Télécharger le ZIP » tout de suite, pas plus tard.",
+      "offer": "Quand vous libérez la baie à la main, l’application propose de la sauvegarder. L’offre reste valable 30 minutes ; vous la retrouvez dans la section Sauvegardes.",
+      "list": "« Sauvegardes de l’équipe » : voir une configuration, son ZIP, « Différences… » entre deux sauvegardes, « Comparer à la configuration en cours », « Injecter », « Dossier de TP » (configurations et journaux de console), « Supprimer », « Importer un ZIP », et une recherche dans toutes les configurations.",
+      "owner": "Les sauvegardes appartiennent à l’équipe qui tenait la baie : ses membres et les administrateurs les voient.",
+      "templates": "« Modèles de TP » : des configurations de départ publiées par les administrateurs, que vous pouvez injecter sur votre baie.",
+      "cisco": "Seuls les équipements Cisco IOS et IOS XE sont sauvegardés ; un autre système est reconnu et laissé tel quel.",
+      "single": "Pour un seul équipement, le bouton « Exporter la config » de sa console télécharge son show running-config dans un fichier .txt."
+    },
+    "tasks": {
+      "title": "Injection et réinitialisation, et leurs garde-fous",
+      "intro": "Ce sont des tâches : elles tournent sur le serveur, prennent le clavier des consoles de la baie, tout le monde les suit en direct et on peut les arrêter. Une seule tâche à la fois par baie. Seuls les occupants de la baie et les administrateurs en lancent, et une baie verrouillée n’en accepte pas. Une tâche ne touche que du Cisco IOS ou IOS XE.",
+      "injectTitle": "Injecter une configuration",
+      "inject1": "Choisissez une sauvegarde ou un modèle de TP, puis « Voir l’aperçu » : vous lisez le script exact que recevra chaque équipement avant de lancer quoi que ce soit.",
+      "inject2": "Mode « Réinitialisation puis injection » (recommandé) ou « Fusion avec la configuration actuelle ». Chaque équipement est d’abord sauvegardé ; en fusion, un équipement dont la sauvegarde échoue est refusé.",
+      "inject3": "Certaines lignes d’une running-config ne se rejouent pas (licences, certificats, valeurs d’usine) : elles sont retirées et l’aperçu les compte.",
+      "inject4": "Ensuite l’équipement est relu et comparé à la source. « Enregistrer ensuite (copy run start) » n’a lieu que si tout a été accepté ; sinon le rapport montre les lignes refusées.",
+      "resetTitle": "Réinitialiser une baie",
+      "reset1": "La fenêtre liste les équipements, les personnes connectées dessus et ce qui sera effacé : la startup-config, flash:vlan.dat sur un switch (tous les VLAN), le registre de configuration remis à 0x2102 sur un routeur, puis un redémarrage sans enregistrer.",
+      "reset2": "Pour chaque équipement la configuration est d’abord sauvegardée et relue. Si la sauvegarde échoue, l’équipement n’est pas effacé (seul un administrateur peut forcer).",
+      "reset3": "Il faut taper le nom de la baie pour confirmer. Un compte à rebours de 10 secondes laisse ensuite le temps d’arrêter : rien n’est tapé tant qu’il court.",
+      "reset4": "Un équipement qui partage sa ligne console avec une autre baie est décoché par défaut, et refusé si cette autre baie est tenue par une autre équipe ou verrouillée.",
+      "reset5": "Le redémarrage prend plusieurs minutes selon le modèle. La tâche continue sur le serveur si vous fermez la page ; son rapport (équipement par équipement, lignes refusées comprises) est dans « Tâches récentes de la baie ».",
+      "stop": "Dans tous les cas, « Arrêter » est disponible à celle ou celui qui a lancé la tâche, aux occupants de la baie et aux administrateurs."
+    },
+    "journal": {
+      "title": "Ce qui est journalisé, et combien de temps",
+      "intro": "Ce que vous faites ici n’est pas anonyme. Le détail à jour est dans État du labo, onglet « Ce qui est journalisé ».",
+      "consoles": "Journal des consoles : ce que les équipements affichent, avec qui avait la main. Gardé {days} jours. Jamais ce que vous tapez, donc pas un mot de passe tapé sans écho. Il se relit pour toute la journée d’une console : par ceux qui y sont passés avec le droit de la piloter (regarder seulement ne compte pas), par l’équipe qui tenait la baie ce jour-là et par les administrateurs. Bouton « Journaux » pour le télécharger.",
+      "consolesUnknown": "Journal des consoles : ce que les équipements affichent, avec qui avait la main, gardé un nombre de jours limité. Jamais ce que vous tapez, donc pas un mot de passe tapé sans écho. Il se relit pour toute la journée d’une console : par ceux qui y sont passés avec le droit de la piloter (regarder seulement ne compte pas), par l’équipe qui tenait la baie ce jour-là et par les administrateurs. Bouton « Journaux » pour le télécharger.",
+      "jobs": "Ce que lisent ou envoient les tâches (les configurations) n’entre pas dans le journal des consoles : un simple repère le remplace.",
+      "audit": "Journal d’audit : connexions, ouverture des consoles, prises de main, actions d’équipe et de baie, sauvegardes, injections et réinitialisations, actions d’administration, avec la personne et l’heure. Les administrateurs le lisent, aucune suppression automatique. L’« Historique » d’une baie en montre l’essentiel à ses occupants.",
+      "kept": "Sauvegardes, notes d’équipement et discussions restent sur le serveur jusqu’à ce qu’on les supprime. La discussion garde les 200 derniers messages par baie et par équipe, et disparaît avec l’équipe. Rappel : le serveur n’est pas une sauvegarde.",
+      "session": "Votre session se ferme après {idle} h sans activité, et au plus tard après {max} h.",
+      "never": "Jamais gardés : vos mots de passe (seulement une empreinte), les codes à usage unique, ce que vous tapez dans les consoles.",
+      "open": "Ouvrir « Ce qui est journalisé »"
+    },
+    "trouble": {
+      "title": "Quand ça coince",
+      "busyTitle": "La ligne est occupée",
+      "busy": "Sur le schéma l’équipement est marqué « Occupée hors de Lab Console » : le serveur de consoles refuse la ligne parce que quelqu’un y est connecté en dehors de Lab Console (un autre terminal, par exemple), ou parce qu’elle est hors service. Cliquez sur « Prévenez-moi quand elle est libre » : la ligne est surveillée 30 minutes au plus et vous êtes prévenu. Activez la cloche « Alertes » pour l’être aussi quand la fenêtre est cachée. Si rien ne bouge, voyez avec l’enseignant.",
+      "silentTitle": "L’équipement est muet",
+      "silent": "« Équipement muet » : le serveur de consoles a ouvert la ligne mais rien ne revient après Entrée. Ce n’est pas Lab Console : vérifiez sur place que l’équipement est allumé et que le câble console est bien branché.",
+      "lockedTitle": "L’équipement demande un mot de passe",
+      "locked": "Si la console affiche « Password: » avant même que vous ayez tapé quoi que ce soit, un groupe précédent a laissé un mot de passe sur la ligne console. Lab Console ne le connaît pas et ne le contourne pas : demandez-le au groupe précédent ou à l’enseignant. Les tâches (sauvegarde, injection, réinitialisation) ne forcent jamais un équipement qu’elles n’atteignent pas en mode privilégié : il est signalé dans le rapport et laissé tel quel.",
+      "locked2": "Si le mot de passe est perdu, la récupération (BREAK, ROMMON, registre de configuration) se fait avec quelqu’un sur place : le bouton « Envoyer un BREAK » de la console y sert.",
+      "dialogTitle": "L’équipement propose la configuration initiale",
+      "dialog": "Un équipement sans configuration demande « Would you like to enter the initial configuration dialog? » : répondez no. Les tâches le font d’elles-mêmes.",
+      "watchTitle": "Je ne peux pas taper",
+      "watch": "« Vous pouvez regarder, pas taper » : demandez la main si un camarade l’a ; si la baie est tenue par une autre équipe, demandez à la rejoindre ; si une tâche tourne sur la console, attendez la fin de la tâche.",
+      "lostTitle": "La console s’est déconnectée",
+      "lost": "« Déconnecté » ou « La connexion à la plateforme a été perdue » : « Se reconnecter ». Une console se ferme aussi après 60 minutes sans rien taper, et la ligne est alors libre pour les autres."
+    },
+    "keys": {
+      "title": "Raccourcis clavier",
+      "intro": "Aucun raccourci ne prend les touches d’un terminal : Ctrl C reste l’interruption de l’équipement, et Ctrl K y efface jusqu’à la fin de la ligne comme sur Cisco.",
+      "col": {
+        "keys": "Touches",
+        "what": "Effet"
+      },
+      "finder": {
+        "keys": "Ctrl K ou /",
+        "what": "Trouver un équipement (hors d’un terminal)."
+      },
+      "finderMove": {
+        "keys": "↑ ↓ puis Entrée",
+        "what": "Dans la recherche : choisir un équipement et ouvrir sa console. Échap ferme."
+      },
+      "device": {
+        "keys": "Tab, puis Entrée ou Espace",
+        "what": "Sur le schéma : passer d’un équipement à l’autre et ouvrir sa console."
+      },
+      "copy": {
+        "keys": "Ctrl Maj C",
+        "what": "Copier le texte sélectionné dans un terminal."
+      },
+      "send": {
+        "keys": "Ctrl Entrée",
+        "what": "Envoyer, dans la fenêtre d’injection de script et dans celle d’envoi à plusieurs consoles."
+      },
+      "chat": {
+        "keys": "Entrée",
+        "what": "Envoyer un message dans la discussion de la baie."
+      },
+      "close": {
+        "keys": "Échap",
+        "what": "Fermer une fenêtre ou le menu du compte."
+      },
+      "splitter": {
+        "keys": "← → ↑ ↓",
+        "what": "Sur la barre qui sépare le schéma des consoles : la déplacer."
+      }
+    }
+  },
+  "tour": {
+    "label": "Visite guidée",
+    "step": "Étape {n} sur {total}",
+    "next": "Suivant",
+    "back": "Précédent",
+    "skip": "Passer la visite",
+    "finish": "Terminer",
+    "steps": {
+      "bench": {
+        "title": "Choisir une baie",
+        "body": "Le labo est découpé en baies de routeurs et de switchs. Cliquez sur le nom d’une baie, puis sur un équipement du schéma pour ouvrir sa console."
+      },
+      "team": {
+        "title": "Prendre la baie avec votre équipe",
+        "body": "Une baie se prend pour l’équipe. Créez ou rejoignez la vôtre dans la section Équipe, puis cliquez sur « Prendre la baie » dans cette barre : vos camarades deviennent occupants avec vous."
+      },
+      "console": {
+        "title": "Ouvrir une console",
+        "body": "Cliquez sur un équipement du schéma : sa console s’ouvre dans votre espace de travail. Si un camarade l’a déjà ouverte, vous la rejoignez et voyez ce qui s’est affiché."
+      },
+      "keyboard": {
+        "title": "Demander la main",
+        "body": "Une seule personne tape à la fois : celle qui a la main (le clavier). Si un camarade l’a, « Demander la main » au-dessus de la console le prévient ; sans réponse en 30 secondes, la main passe à vous."
+      },
+      "backup": {
+        "title": "Sauvegarder avant de partir",
+        "body": "Dans Sauvegardes, « Sauvegarder » lit la configuration de tous les équipements de la baie. Le serveur n’est pas une sauvegarde : téléchargez ensuite le ZIP. La section Aide détaille le reste ; le menu de votre compte permet de revoir cette visite."
+      }
+    }
+  }
+}

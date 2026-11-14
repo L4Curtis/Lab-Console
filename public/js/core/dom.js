@@ -93,6 +93,7 @@ const ICONS = {
   chat: '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/>',
   bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>',
   send: '<path d="M4 12l16-8-6 16-2.5-6.5z"/>',
+  help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.6 2.6 0 0 1 5 1c0 1.8-2.5 2.2-2.5 4M12 17.5v.01"/>',
 };
 export function icon(name, cls = '') {
   const span = document.createElement('span');

@@ -44,6 +44,11 @@ own, start it with `await h.ready`.
   opened by the test helper is put in the browser as its cookie. Use it when
   the sign-in is not what the scenario is about.
 - `await signOut(page)`: the user menu's button, until `/login`.
+- The guided tour opens by itself for a person who never saw it, which every
+  fresh test user is, and it would sit over the page. `h.newPage()` therefore
+  tells the page (in the browser only) that the tour was already seen; a
+  scenario about the tour itself opens `h.newPage({ tour: true })` and uses a
+  person no other scenario of the file signed in as (`test/e2e/help.e2e.js`).
 
 ## Consoles
 
