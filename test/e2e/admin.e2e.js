@@ -215,3 +215,30 @@ test('an announcement reaches a student page that is already open, as text', asy
   await admin.context().close();
   await student.context().close();
 });
+
+test('the audit trail is searched by a person\'s name, and the sessions tab lists who is signed in', async () => {
+  const student = await h.newPage();
+  await h.session(student, 'alice');
+  await student.context().close();
+
+  const admin = await h.newPage();
+  await signInAsAdmin(admin);
+  await admin.evaluate(() => { location.hash = '#/admin/sessions'; });
+  await admin.waitForSelector('section.view-admin table tbody tr');
+  const alice = person('alice');
+  assert.ok((await admin.textContent('section.view-admin')).includes(alice.username), 'the open session of a student');
+
+  await admin.evaluate(() => { location.hash = '#/admin/audit'; });
+  await admin.waitForSelector('section.view-admin .audit-table tbody tr');
+  await admin.fill('#audit-actor', 'STUDENT 2');
+  await admin.click('button[data-action="filter"]');
+  await admin.waitForFunction(() => {
+    const cells = [...document.querySelectorAll('.audit-table tbody tr td:nth-child(2) strong')];
+    return cells.length > 0 && cells.every((c) => c.textContent === 'Student 2');
+  });
+  const names = await admin.locator('.audit-table tbody tr td:nth-child(2) strong').allTextContents();
+  assert.ok(names.length > 0 && names.every((n) => n === 'Student 2'), `only Student 2: ${names}`);
+  await admin.screenshot({ path: '/srv/lab-console-dev/tmp/audit-by-name.png' });
+  assert.deepEqual(admin.errors, []);
+  await admin.context().close();
+});
