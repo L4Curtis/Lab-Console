@@ -264,7 +264,13 @@
     "check:lines": "vérification des lignes",
     "check:cabling": "vérification du câblage",
     "check:ping": "matrice de ping",
-    "check:interfaces": "lecture des interfaces"
+    "check:interfaces": "lecture des interfaces",
+    "job:backup": "sauvegarde",
+    "job:inject": "injection",
+    "job:reset": "réinitialisation",
+    "job:compare": "comparaison",
+    "recovery": "récupération de mot de passe",
+    "recovery: put back": "remise en état"
   },
   "paste": {
     "tooLarge": "Le texte collé dépasse 256 Ko : il n’a pas été envoyé.",

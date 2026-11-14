@@ -160,3 +160,15 @@ test('server messages: the sentence stays next to the code (English text unchang
   assert.equal(sshErrorInfo({ level: 'client-authentication', message: 'x' }, ssh).code, 'consoles.ssh_rejected');
   assert.equal(sshErrorInfo({ message: 'boom' }, ssh).message, 'SSH error: boom');
 });
+
+test('the labels the server gives its console tasks have a name in both languages', () => {
+  // runExclusive(actor, label, …): `job:${kind}` in src/modules/jobs/runner.js, 'recovery' and 'recovery: put back' in src/modules/recovery/assistant.js
+  const labels = ['job:backup', 'job:inject', 'job:reset', 'job:compare', 'recovery', 'recovery: put back'];
+  for (const lang of ['fr', 'en']) {
+    const names = dictionary(lang, 'terminal').taskNames;
+    for (const label of labels) assert.ok(names[label], `${lang}: no name for the task "${label}"`);
+  }
+  for (const [file, pattern] of [['jobs/runner.js', /runExclusive\([^,]+, `job:\$\{job\.kind\}`/], ['recovery/assistant.js', /runExclusive\(actor, 'recovery'/], ['recovery/assistant.js', /runExclusive\('system', 'recovery: put back'/]]) {
+    assert.match(fs.readFileSync(path.join(repoRoot, 'src/modules', file), 'utf8'), pattern, `${file} no longer names its task the way this test says`);
+  }
+});

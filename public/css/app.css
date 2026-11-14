@@ -97,8 +97,8 @@ code, kbd { font-family: var(--mono); }
 
 .rail {
   width: 72px; flex: none;
-  display: flex; flex-direction: column; align-items: center; gap: 4px;
-  padding: 10px 0;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 8px 0;
   background: var(--rail);
   color: var(--rail-ink);
 }
@@ -107,16 +107,16 @@ code, kbd { font-family: var(--mono); }
 .rail-brand rect { fill: var(--console); }
 .rail-brand path { fill: none; stroke: #fff; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
 /* The sections scroll when the window is too short for them all; the strip of the active one sits at the rail's edge */
-.rail-items { display: flex; flex-direction: column; align-items: center; align-self: stretch; gap: 4px; flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--rail-hover) transparent; }
+.rail-items { display: flex; flex-direction: column; align-items: center; align-self: stretch; gap: 2px; flex: 1; min-height: 0; overflow-y: auto; scrollbar-width: thin; scrollbar-color: var(--rail-hover) transparent; }
 .rail-btn {
   position: relative;
   display: flex; flex-direction: column; align-items: center; gap: 3px;
-  width: 60px; padding: 6px 0 5px;
+  width: 60px; padding: 4px 0 3px;
   border: 0; border-radius: var(--radius); background: none;
-  color: inherit; text-decoration: none; font-size: 11px; font-weight: 500;
+  color: inherit; text-decoration: none; font-size: 11px; font-weight: 500; line-height: 1.15; text-align: center;
   cursor: pointer;
 }
-.rail-btn .icon { width: 22px; height: 22px; }
+.rail-btn .icon { width: 20px; height: 20px; }
 .rail-btn:hover { background: var(--rail-hover); color: #fff; }
 .rail-btn.active { background: var(--rail-hover); color: #fff; }
 .rail-btn.active::before {
@@ -130,7 +130,7 @@ code, kbd { font-family: var(--mono); }
   background: rgba(255, 255, 255, .1);
 }
 /* Language switch: two small buttons side by side, above the theme toggle */
-.rail-lang { display: flex; gap: 2px; padding: 2px; margin-bottom: 4px; border-radius: var(--radius); background: rgba(255, 255, 255, .06); }
+.rail-lang { display: flex; gap: 2px; padding: 2px; margin-bottom: 2px; border-radius: var(--radius); background: rgba(255, 255, 255, .06); }
 .lang-btn {
   width: 27px; padding: 5px 0; border: 0; border-radius: calc(var(--radius) - 2px);
   background: none; color: inherit; font: inherit; font-size: 11px; font-weight: 600; letter-spacing: .02em; cursor: pointer;
@@ -547,6 +547,8 @@ tr[data-status="running"] .vm-led { background: var(--led-green); box-shadow: 0 
 .form-grid label.check small { display: block; }
 .form-grid label.check input { margin-top: 3px; }
 .form-actions { display: flex; justify-content: flex-end; gap: 8px; padding-top: 4px; }
+/* In a dialog taller than the window the confirm button stays in view */
+.modal .form-actions { position: sticky; bottom: -20px; z-index: 1; margin-bottom: -20px; padding: 10px 0 20px; background: var(--surface); }
 
 
 /* ── v1.1: console automation (export config / inject script) ───────────── */

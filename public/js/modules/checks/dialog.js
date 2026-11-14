@@ -32,7 +32,7 @@ export async function openChecksDialog(lab) {
   const buttons = KINDS.map((kind) => h('button.btn.small', { type: 'button', dataset: { action: kind }, onclick: () => run(kind) }, icon(ICONS[kind]), h('span.checks-label', kindText(kind))));
   const current = h('section.checks-current', { hidden: true, 'aria-live': 'polite' });
   const results = h('div.checks-results');
-  const body = h('div.checks-dialog',
+  const body = h('div.checks-dialog.modal-body',
     h('p.checks-intro', tNode('checks.intro')),
     notice,
     h('div.checks-actions', buttons),

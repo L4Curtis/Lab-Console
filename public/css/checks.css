@@ -23,7 +23,7 @@
 .canvas-heading .checks-btn { position: relative; margin: 6px 0 0 6px; pointer-events: auto; }
 
 /* Dialog */
-.checks-dialog { display: grid; gap: 12px; }
+.checks-dialog { gap: 12px; }
 .checks-intro { margin: 0; font-size: 13px; color: var(--ink-2); }
 .checks-notice { margin: 0; padding: 8px 12px; border-radius: 8px; background: color-mix(in srgb, var(--led-amber) 16%, var(--surface)); font-size: 13px; }
 .checks-actions { display: flex; flex-wrap: wrap; gap: 8px; }
