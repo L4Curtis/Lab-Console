@@ -73,7 +73,8 @@ src/
     accounts/               directory, invitations, reset links, passkeys, SSO settings (lot: accounts)
     admin/                  lab parameters + confirmation, diagram versions, switches, sessions,
                             audit viewer, announcements, health, journaling   (lot: admin)
-    jobs/                   bench jobs, snapshots                (lot: jobs)
+    jobs/                   bench jobs (runner.js), snapshots and templates (library.js,
+                            configFiles.js: files, hashes, ZIP)      (lot: jobs), see §9b
     collab/                 device notes, bench chat, notifications
     scripts/                shared script library
     checks/                 line status, cabling, ping matrix, interface overlay
@@ -379,7 +380,8 @@ known-browser key), `audit`, `settings` (run-time settings, plus the rows
 `sso` and `switches`), `legacyImports`, `teams`, `benches` (occupancy, locks,
 reservations), `accounts` (with their passkeys), `accountLinks` (invitation
 and reset links), `announcements`, `diagrams` (the index of diagram versions
-and the stack of activations), `journalDays` (§9). Modules that read their
+and the stack of activations), `journalDays` (§9), `jobs`, `snapshots`,
+`templates` (§9b). Modules that read their
 state synchronously on every request keep it in memory with
 `createCachedDocument({ fallback, load, save })` (`src/lib/cachedDocument.js`,
 the contract of `store.json()`: serialized updates, nothing changes when the
@@ -754,7 +756,10 @@ services.accounts = {                          // lot accounts
   }
 }
 services.admin = { announcement() → { text, level, at, expiresAt, by } | null }   // lot admin
-services.jobs = { running(labName) → Job | null, list({ bench }) }
+services.jobs = {                              // lot jobs (§9b)
+  running(labName) → { id, kind, bench, state, startsAt, actor: { name }, devices: [{ key, name, state, step }] } | null
+  list({ bench }) → Job[]                      // recent jobs kept in memory, newest first
+}
 ```
 
 ## 8. Front end
@@ -880,7 +885,8 @@ attach to it. `RoomManager` (`services.consoles.rooms`, `src/modules/consoles/ro
 rooms.get(targetKey) → ConsoleRoom | undefined
 rooms.list() → RoomSummary[]
 rooms.canOpen(device, user, { readOnly }) → { ok } | { ok: false, code, params, message }
-rooms.open(device, user, { cols, rows, readOnly }) → ConsoleRoom    // creates or returns; throws RoomError { code, params }
+rooms.open(device, user, { cols, rows, readOnly, task }) → ConsoleRoom    // creates or returns; throws RoomError { code, params };
+                                        //   `task`: a bench job's line, not counted in the user's MAX_SESSIONS_PER_CLIENT
 rooms.busyOutside() → ['host:port']     // lines the console server refused in the last 15 min
 rooms.on('change', (summaries) => {}) · rooms.on('activity', (entry) => {}) · rooms.on('busy', (targets) => {})
 
@@ -894,6 +900,8 @@ room.cancelTask(user | 'system')
 room.cli                                // CliAutomation bound to this line
 room.summary()                          // { target, key, bench, device, state, users, pilot, shared, task,
                                         //   since, lastActivity, lastCommand }
+room.screen(maxBytes = 4096)            // the end of the scrollback as text (no escapes, no CR): what a job's
+                                        //   driver reads before typing (ios.prepare({ screen }))
 room.presence(user)                     // the presence frame for that user
 ```
 
@@ -1073,6 +1081,114 @@ isr4331, 2960, 3560, 3560v2, c1000, c9300l); `dev/mock-lab.js` keeps one
 device per console port for its whole life and answers `nc -z -w <s> <host>
 <port>` (exit 0: the line is free, 1: busy or down).
 
+## 9b. Bench jobs (lot: jobs)
+
+`src/modules/jobs/`: `index.js` (routes, permissions, `services.jobs`, the
+release offer), `runner.js` (the jobs themselves), `library.js` (snapshots
+and templates: who sees what, import, diff, search), `configFiles.js` (the
+files, their SHA-256, ZIP in and out). Contract of SPEC "Lot jobs".
+
+**A job** covers chosen devices of one bench: `backup`, `reset`, `inject`,
+`compare` (a snapshot against the live devices). One job per bench at a time
+(`jobs.bench_busy`), five devices at once (`JOB_DEVICES_AT_ONCE`). For each
+device: `rooms.open(device, actor, { task: true })`, then
+`room.runExclusive(actor, 'job:<kind>', fn, { signal })` with the person who
+started it as actor (the pilot is asked; the bench rule is asked again before
+every byte: a lock or another team taking the bench stops the device with
+`consoles.control_not_allowed`, and devices not started yet with
+`jobs.not_allowed`), then the IOS driver on `room.cli`. A reset waits
+`JOB_COUNTDOWN_SECONDS` (10) in state `pending` before anything starts.
+
+Order enforced in `runner.js`, never in the browser: `prepare` (with
+`room.screen()`), `identify` (not Cisco IOS / IOS XE → `skipped`, `ios.not_ios`,
+nothing more typed), backup (`runningConfig`, and `vlans` with VTP on a
+switch) written to the job's snapshot and indexed, the file read back and
+checked against its SHA-256 and what was read (`verifyBackup`), and only then
+`eraseAndReload({ backup: { kind: 'snapshot', … }, verifyBackup, facts })`.
+A failed backup leaves the device untouched (`jobs.backup_failed`, `params.cause`)
+unless an admin listed it in `forceErase` (then an `override` proof naming
+them, and the warning `erased_without_backup`). After a reset the base
+configuration (a template marked `base`) is sent and saved unless
+`applyBase: false`. An injection backs up first; in mode `reset` (the
+default) it erases as above, then sends the script with `sendScript`
+(`skipComments: false`, `lineTimeouts`), `copy running-config
+startup-config` unless `save: false`, reads the device again and compares
+(`comparableConfig` + VLANs) with the source.
+
+**Exact scripts.** `POST /benches/:bench/preview` returns, per device, the
+script `planScript()` (= `toReplayScript` on the stored source) produces and
+its SHA-256; `POST /benches/:bench/inject` must carry these fingerprints
+(`scripts: { key: sha256 }`), recomputes them and refuses any difference
+(`jobs.preview_stale`). The report gives the fingerprint of what was sent.
+
+**Passwords.** `enablePasswords` / `linePasswords` (three each at most) come
+with the request, live in the job's memory while it runs and are dropped at
+its end; they are never in the `jobs` row, the audit trail, an SSE event or
+a report (the driver masks them in its failures). A test greps the data
+directory for one.
+
+**Who.** Running a job: `services.benches.canOperate(user, bench)`, refused
+with `jobs.locked` (423, the reason) or `jobs.not_occupant` (403). After a
+release (`services.benches.onRelease`), the team that let the bench go may
+still run a **backup** of it for 30 minutes while it stays free (or theirs)
+and unlocked: the hook answers `{ kind: 'backup', bench, href:
+'#/jobs/<bench>/backup' }`, the bench bar offers it. Seeing a job (report,
+`jobs:job` events): its actor, the members of the team that held the bench,
+the bench's occupants, admins. Cancelling: its actor, the occupants, admins.
+Shared devices (one console line on several benches) are only touched when
+listed explicitly (the dialogs leave them unticked); admin switches are never
+devices of a job.
+
+**Snapshots** are owned by the team that held the bench at the time
+(`holder().teamId`; none for an admin on a free bench: admins only) and seen
+by its members and admins, never by guests or other teams (403
+`jobs.snapshot_forbidden`). Files in `data/snapshots/<bench>/<id>/`
+(`manifest.json`, `<device>.cfg`, `<device>.vlan.txt`), index in the tables
+`snapshots` and `snapshot_devices` (migration 012: path, SHA-256, size,
+hostname, model, version, family, kind, register). VLANs and VTP (whose
+password is a secret of the backup) live in the manifest, not in the
+database. Nothing is deleted automatically. **Templates** (`templates`,
+`template_devices`, `data/templates/<id>/`): admins publish them (typed, from
+a snapshot, or a ZIP), everyone reads and injects them; device `*` (file
+`_any.cfg`) applies to every device; at most one is the base configuration.
+
+**ZIP import** (`POST /snapshots/import?bench=`, `POST /templates/import`):
+the body is capped (`JOB_IMPORT_MAX_KB`, 413 `server.too_large`); refused
+without inflating anything when an entry name leaves the folder
+(`jobs.zip_unsafe`), when there are more than 200 entries or a declared size
+over 512 KB per file / 8 × the upload in all (`jobs.zip_too_large`: fflate
+never writes past a declared size, so a lying header gives a truncated, then
+refused, file); a file that is not text or not a configuration is ignored;
+only names of the bench's devices are kept (`jobs.zip_empty` otherwise).
+
+HTTP (`/api/jobs`): `GET /benches/:bench` (devices with `shared`, people on
+their console, the running job, `canOperate`, `lock`, `offer`, `base`,
+`countdownSeconds`); `POST /benches/:bench/backup | reset | preview | inject |
+compare`; `GET /benches/:bench/folder?snapshot=` (the TP folder: the
+snapshot's configurations and the console journals of its day the user may
+read, `canReadDay`); `GET /runs?bench=`, `GET /runs/:id`, `POST
+/runs/:id/cancel`; `GET /snapshots?bench=`, `GET /snapshots/search?q=` (plain
+text, 2 to 100 characters, 200 hits), `GET /snapshots/:id`, `GET
+/snapshots/:id/devices/:device`, `GET /snapshots/:id/zip`, `GET
+/snapshots/:a/diff/:b[?device=]`, `POST /snapshots/import`, `DELETE
+/snapshots/:id`; `GET /templates`, `GET /templates/:id`, `GET
+/templates/:id/devices/:device`, `POST /templates`, `POST /templates/import`,
+`PUT /templates/:id` (`name`, `description`, `base`), `DELETE /templates/:id`.
+SSE: `jobs:running` (sticky, everyone: per bench, the job and each device's
+state and step: the diagram layer `jobs` draws it), `jobs:job` (the whole
+job, audience above). Audit: `job.<kind>` (start, `details.device` = the
+device names), `job.<kind>.cancel`, `job.<kind>.end` (each device's state,
+code, stage), `job.snapshot.import | download | delete`,
+`job.folder.download`, `job.template.publish | update | delete`. A job left
+running by a stopped server is closed as failed at start-up
+(`jobs.interrupted`).
+
+Configuration (`src/modules/jobs/config.js`): `JOB_DEVICES_AT_ONCE` (5),
+`JOB_COUNTDOWN_SECONDS` (10), `JOB_IMPORT_MAX_KB` (2048), `JOB_TIME_SCALE` (1:
+the driver's budgets multiplied by it; only the simulator boots fast enough
+to lower it). The mock lab's model `aruba` (`dev/fakeOther.js`) is a switch
+that does not run Cisco IOS.
+
 ## 10. Data directory
 
 ```
@@ -1080,24 +1196,25 @@ data/
   lab-console.db (600)      + lab-console.db-wal, lab-console.db-shm: the structured state (§6, "database")
   diagrams/current.drawio   diagrams/versions/<ts>-<user>-<rand>.drawio
   journal/<bench>/<device>/<yyyy-mm-dd>/<hhmmss>.log   …/<hhmmss>.json (one console session, who was there)
-  snapshots/<bench>/<ts>-<label>/{manifest.json,<device>.cfg,<device>.vlan.txt}
-  templates/<name>/...      same layout as a snapshot
+  snapshots/<bench>/<id>/{manifest.json,<device>.cfg,<device>.vlan.txt}   <id> = yyyymmdd-hhmmss-<origin>-<6 hex>
+  templates/<id>/...        same layout as a snapshot; _any.cfg is the '*' device
   <dir>/<name>.json.imported   audit/*.jsonl.imported   files of before the database, kept after their import
 ```
 
-In the database today (migrations 001-011): `schema_migrations`,
+In the database today (migrations 001-012): `schema_migrations`,
 `legacy_imports`, `auth_sessions`, `auth_state` (the local administrator's
 last TOTP step, the known-browser key), `audit_entries`, `settings` (the
 run-time settings per namespace, the SSO page's provider as `sso`, the edited
 admin switches as `switches`), `teams`, `team_members`, `team_invitations`
 (006; `invitee_id`, the account invited, 011), `bench_occupancy`, `bench_locks`, `bench_reservations` (007),
 `accounts`, `account_passkeys`, `account_links` (008), `announcements`,
-`diagram_versions`, `diagram_activations` (009), `journal_days` (010).
+`diagram_versions`, `diagram_activations` (009), `journal_days` (010),
+`jobs`, `snapshots`, `snapshot_devices`, `templates`, `template_devices` (012).
 Passkey ceremonies' challenges are not stored: they live in memory, five
 minutes, single use.
 
 Planned for wave 3, a repository each (§14): device notes, the script
-library, the jobs and the snapshot index. Bench chat
+library. Bench chat
 (`collab/chat/<bench>.jsonl`) is a log people may read as a file: decide
 with the owner.
 

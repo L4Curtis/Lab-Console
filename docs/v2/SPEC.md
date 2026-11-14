@@ -335,6 +335,35 @@ memory, never stored or logged.
   reset. **TP folder**: one ZIP with final configurations and console journals.
 - Only Cisco IOS / IOS-XE. Any other system is detected and left untouched.
 
+*As built (jobs lot):* a rail section **Sauvegardes** (`#/jobs/<bench>`) and
+a `jobs` layer on the diagram; contracts in ARCHITECTURE §9b. Decisions taken
+where the text above leaves room:
+- **One job per bench, of any kind** (a backup also waits for a reset to
+  end): two jobs would fight for the same console lines anyway.
+- **"Ticked by hand" is an admin's tick**: only an admin may ask to erase a
+  device whose backup failed (`jobs.force_admin_only` otherwise), as the
+  driver's `override` proof says. A device that does not run Cisco IOS, or
+  that never reached privileged EXEC, is never erased, ticked or not.
+- **The countdown runs on the server**: a reset waits ten seconds in state
+  *pending*; whoever follows the job (its actor, the occupants, admins) can
+  stop it, and nothing has been typed until then.
+- **A merge backs up first too**, and is refused on a device whose backup
+  failed: it overwrites lines.
+- **Snapshot against live** is a job (`compare`): it takes the keyboard to
+  read the devices, changes nothing, and reports a diff per device.
+- **The release offer** is a backup only, for the team that released, for
+  30 minutes while the bench stays free (or theirs) and unlocked; the
+  snapshot belongs to that team.
+- **The TP folder** is the configurations of a chosen snapshot and the
+  console journals of that snapshot's day the user may read.
+- **A template's `*` device** applies to every device: that is how a base
+  configuration is written once for a whole bench.
+- The bench history shows the job entries through the jobs dictionary.
+- Not verified on the real equipment (no lab access): the whole erase and
+  reload path on IOS XE 17 (see the ios lot), the time a 2048-bit RSA key
+  takes on an ISR G1, and the console server's behaviour with five jobs'
+  lines opened at once.
+
 ### Lot terminal
 Reliable multi-line paste (paced like script injection); the same command sent
 to several consoles at once; a shared script library; search in a console's
