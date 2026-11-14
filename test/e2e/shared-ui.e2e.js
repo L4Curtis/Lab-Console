@@ -31,8 +31,8 @@ const activeText = () => page.evaluate(() => document.activeElement?.textContent
 test('boot: session and language are loaded before the screens, without errors', async () => {
   assert.equal(await page.getAttribute('html', 'lang'), 'fr', 'DEFAULT_LOCALE on a first visit');
   const state = await page.evaluate(async () => {
-    const { session } = await import('/js/core/session.js');
-    const { t, getLocale } = await import('/js/core/i18n.js');
+    const { session } = await window.appModule('/js/core/session.js');
+    const { t, getLocale } = await window.appModule('/js/core/i18n.js');
     return { user: session.user.id, isAdmin: session.isAdmin, loaded: session.loaded, locale: getLocale(), cancel: t('common.actions.cancel') };
   });
   assert.deepEqual(state, { user: 'oidc:admin', isAdmin: true, loaded: true, locale: 'fr', cancel: 'Annuler' });
@@ -46,7 +46,7 @@ test('boot: session and language are loaded before the screens, without errors',
 
 test('i18n: setLocale persists, updates <html lang> and static markup, and survives a reload', async () => {
   const result = await page.evaluate(async () => {
-    const { setLocale, t } = await import('/js/core/i18n.js');
+    const { setLocale, t } = await window.appModule('/js/core/i18n.js');
     const probe = document.createElement('span');
     probe.id = 'i18n-probe';
     probe.dataset.i18n = 'common.actions.close';
@@ -59,22 +59,22 @@ test('i18n: setLocale persists, updates <html lang> and static markup, and survi
   await page.reload();
   await waitForApp(page);
   assert.equal(await page.getAttribute('html', 'lang'), 'en', 'the choice wins over the server default');
-  await page.evaluate(async () => { const { setLocale } = await import('/js/core/i18n.js'); await setLocale('fr'); });
+  await page.evaluate(async () => { const { setLocale } = await window.appModule('/js/core/i18n.js'); await setLocale('fr'); });
 });
 
 test('loadCss: one <link> per stylesheet, resolved once the rules apply', async () => {
   const result = await page.evaluate(async () => {
-    const { loadCss } = await import('/js/core/dom.js');
+    const { loadCss } = await window.appModule('/js/core/dom.js');
     const [a, b] = await Promise.all([loadCss('shared'), loadCss('shared')]);
     const missing = await loadCss('does-not-exist');
-    return { a, b, missing, links: document.querySelectorAll('link[href="/css/shared.css"]').length };
+    return { a, b, missing, links: document.querySelectorAll('link[href$="/css/shared.css"]').length, versioned: document.querySelector('link[href$="/css/shared.css"]').getAttribute('href').startsWith('/v/') };
   });
-  assert.deepEqual(result, { a: true, b: true, missing: false, links: 1 });
+  assert.deepEqual(result, { a: true, b: true, missing: false, links: 1, versioned: true });
 });
 
 test('confirmDialog: modal, labelled, Escape answers no, focus comes back', async () => {
   await page.evaluate(async () => {
-    const { confirmDialog } = await import('/js/shared/dialog.js');
+    const { confirmDialog } = await window.appModule('/js/shared/dialog.js');
     document.getElementById('theme-toggle').focus();
     window.__answer = 'pending';
     confirmDialog({ title: 'Libérer la baie B4M ?', body: 'Les consoles ouvertes seront fermées.', confirmLabel: 'Libérer' }).then((v) => { window.__answer = v; });
@@ -100,7 +100,7 @@ test('confirmDialog: modal, labelled, Escape answers no, focus comes back', asyn
 
 test('confirmDialog: Enter confirms, Cancel and the close button refuse', async () => {
   const ask = () => page.evaluate(async () => {
-    const { confirmDialog } = await import('/js/shared/dialog.js');
+    const { confirmDialog } = await window.appModule('/js/shared/dialog.js');
     window.__answer = 'pending';
     confirmDialog({ title: 'Question', body: ['Ligne 1', 'Ligne 2'] }).then((v) => { window.__answer = v; });
   });
@@ -120,7 +120,7 @@ test('confirmDialog: Enter confirms, Cancel and the close button refuse', async 
 
 test('confirmDialog: Tab and Shift+Tab stay inside the dialog', async () => {
   await page.evaluate(async () => {
-    const { confirmDialog } = await import('/js/shared/dialog.js');
+    const { confirmDialog } = await window.appModule('/js/shared/dialog.js');
     confirmDialog({ title: 'Piège', body: 'x', confirmLabel: 'Oui', cancelLabel: 'Non' });
   });
   await page.locator('dialog[open]').waitFor();
@@ -143,7 +143,7 @@ test('confirmDialog: Tab and Shift+Tab stay inside the dialog', async () => {
 
 test('confirmDialog danger + requireText: alertdialog, focus on the input, locked until the exact text is typed', async () => {
   await page.evaluate(async () => {
-    const { confirmDialog } = await import('/js/shared/dialog.js');
+    const { confirmDialog } = await window.appModule('/js/shared/dialog.js');
     window.__answer = 'pending';
     confirmDialog({ title: 'Réinitialiser la baie', body: 'Tout sera effacé.', confirmLabel: 'Réinitialiser', danger: true, requireText: 'B4M' }).then((v) => { window.__answer = v; });
   });
@@ -173,7 +173,7 @@ test('confirmDialog danger + requireText: alertdialog, focus on the input, locke
 
 test('confirmDialog danger without typed text: focus starts on Cancel', async () => {
   await page.evaluate(async () => {
-    const { confirmDialog } = await import('/js/shared/dialog.js');
+    const { confirmDialog } = await window.appModule('/js/shared/dialog.js');
     confirmDialog({ title: 'Supprimer', body: 'x', danger: true });
   });
   await page.locator('dialog[open]').waitFor();
@@ -184,7 +184,7 @@ test('confirmDialog danger without typed text: focus starts on Cancel', async ()
 
 test('dialog text is text: markup in a title or a body is never interpreted', async () => {
   await page.evaluate(async () => {
-    const { confirmDialog } = await import('/js/shared/dialog.js');
+    const { confirmDialog } = await window.appModule('/js/shared/dialog.js');
     confirmDialog({ title: '<img src=x onerror="window.__xss=1">', body: '<b id="injected">bold</b>', requireText: '<i>x</i>' });
   });
   const dlg = page.locator('dialog[open]');
@@ -198,7 +198,7 @@ test('dialog text is text: markup in a title or a body is never interpreted', as
 
 test('formDialog: typed values, validation, async submit with error, cancel gives null', async () => {
   await page.evaluate(async () => {
-    const { formDialog } = await import('/js/shared/dialog.js');
+    const { formDialog } = await window.appModule('/js/shared/dialog.js');
     window.__calls = [];
     window.__answer = 'pending';
     formDialog({
@@ -250,7 +250,7 @@ test('formDialog: typed values, validation, async submit with error, cancel give
   assert.deepEqual(await page.evaluate(() => window.__calls), [expected, expected]);
 
   await page.evaluate(async () => {
-    const { formDialog } = await import('/js/shared/dialog.js');
+    const { formDialog } = await window.appModule('/js/shared/dialog.js');
     window.__answer = 'pending';
     formDialog({ title: 'x', fields: [{ name: 'a', label: 'A' }] }).then((v) => { window.__answer = v; });
   });
@@ -262,8 +262,8 @@ test('formDialog: typed values, validation, async submit with error, cancel give
 
 test('openDialog: custom content, close(value), not dismissible when asked', async () => {
   await page.evaluate(async () => {
-    const { openDialog } = await import('/js/shared/dialog.js');
-    const { h } = await import('/js/core/dom.js');
+    const { openDialog } = await window.appModule('/js/shared/dialog.js');
+    const { h } = await window.appModule('/js/core/dom.js');
     const dlg = openDialog(h('div.modal-body', h('p', 'Compte à rebours'), h('button.btn#stop', { type: 'button', onclick: () => dlg.close('stopped') }, 'Arrêter')),
       { label: 'Compte à rebours', dismissible: false, initialFocus: '#stop' });
     window.__answer = 'pending';
@@ -287,8 +287,8 @@ test('openDialog: custom content, close(value), not dismissible when asked', asy
 
 test('tabs: lazy mount, show/hide, keyboard, address, role filter, language', async () => {
   await page.evaluate(async () => {
-    const { mountTabs } = await import('/js/shared/tabs.js');
-    const { t } = await import('/js/core/i18n.js');
+    const { mountTabs } = await window.appModule('/js/shared/tabs.js');
+    const { t } = await window.appModule('/js/core/i18n.js');
     const host = document.createElement('div');
     host.id = 'tabs-host';
     document.body.append(host);
@@ -367,9 +367,9 @@ test('tabs: lazy mount, show/hide, keyboard, address, role filter, language', as
   assert.equal(await page.evaluate(() => document.activeElement.dataset.tab), 'broken');
 
   // A title given as a function follows the language
-  await page.evaluate(async () => { const { setLocale } = await import('/js/core/i18n.js'); await setLocale('en', { persist: false }); });
+  await page.evaluate(async () => { const { setLocale } = await window.appModule('/js/core/i18n.js'); await setLocale('en', { persist: false }); });
   assert.deepEqual(await page.locator('#tabs-host [role="tab"]').allTextContents(), ['Close', 'Journal', 'Cassé']);
-  await page.evaluate(async () => { const { setLocale } = await import('/js/core/i18n.js'); await setLocale('fr', { persist: false }); window.__tabs.destroy(); });
+  await page.evaluate(async () => { const { setLocale } = await window.appModule('/js/core/i18n.js'); await setLocale('fr', { persist: false }); window.__tabs.destroy(); });
   assert.equal(await page.locator('#tabs-host [role="tab"]').count(), 0);
 });
 

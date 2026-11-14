@@ -185,7 +185,7 @@ test('the bench bar decorates the diagram: ours, taken, locked, nothing on a fre
   assert.equal(locked, 200);
 
   const mount = (page, bench) => page.evaluate(async (name) => {
-    const { mountBenchBar } = await import('/js/modules/teams/benchBar.js');
+    const { mountBenchBar } = await window.appModule('/js/modules/teams/benchBar.js');
     const host = document.createElement('div');
     host.id = `decor-${name}`;
     document.body.append(host);

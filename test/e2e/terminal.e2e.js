@@ -163,7 +163,7 @@ test('the same lines go to every console the person holds the keyboard of, each 
 
   // The server decides, not the page: a request sent to the console she only watches comes back refused
   await alice.evaluate(async () => {
-    const { workspace } = await import('/js/shared/workspace.js');
+    const { workspace } = await window.appModule('/js/shared/workspace.js');
     const pane = [...workspace.panes.values()].find((p) => p.session.title === 'R3');
     pane.sendBroadcast({ batch: 'forced', script: 'show clock\n', options: {} });
   });
@@ -248,7 +248,7 @@ test('the inject dialog is a dialog like the others: named, the keyboard kept in
   for (let i = 0; i < 12; i += 1) await page.keyboard.press('Tab');
   assert.equal(await dlg.evaluate((d) => d.contains(document.activeElement)), true, 'Tab goes round inside the dialog');
   // The language changes while it is open: the title follows
-  await page.evaluate(() => import('/js/core/i18n.js').then((m) => m.setLocale('en', { persist: false })));
+  await page.evaluate(() => window.appModule('/js/core/i18n.js').then((m) => m.setLocale('en', { persist: false })));
   await title.filter({ hasText: /^Inject a script into .*R4/ }).waitFor();
   await page.keyboard.press('Escape');
   await dlg.waitFor({ state: 'detached' });

@@ -93,7 +93,7 @@ test('alice opens R1, bob joins and sees the history, asks for the keyboard, ali
 
   // A later lot adds a button to every console tile with one call (ARCHITECTURE §8)
   await alice.evaluate(async () => {
-    const { registerPaneAction } = await import('/js/shared/paneActions.js');
+    const { registerPaneAction } = await window.appModule('/js/shared/paneActions.js');
     window.probeRuns = [];
     registerPaneAction({ id: 'probe', icon: 'check', title: () => 'Probe', when: (s) => s.kind === 'console', enabled: (pane) => pane.mayType, run: (pane) => window.probeRuns.push(pane.session.title) });
   });
@@ -112,7 +112,7 @@ test('alice opens R1, bob joins and sees the history, asks for the keyboard, ali
 
   // A later lot draws on the diagram with one call too, without holding the view (ARCHITECTURE §8)
   await alice.evaluate(async () => {
-    const { registerDiagramLayer } = await import('/js/shared/diagramLayers.js');
+    const { registerDiagramLayer } = await window.appModule('/js/shared/diagramLayers.js');
     window.offProbeLayer = registerDiagramLayer('probe', (d) => (d.name === 'R2' ? { ring: 'probe', badges: [{ text: 'PR', kind: 'probe', title: 'probe' }] } : null));
   });
   await alice.waitForSelector('g.device .deco-badge.badge-probe');
@@ -122,8 +122,8 @@ test('alice opens R1, bob joins and sees the history, asks for the keyboard, ali
   await alice.waitForFunction(() => !document.querySelector('.deco-badge.badge-probe'));
   // A view that is thrown away stops listening to the shared registry
   const redraws = await alice.evaluate(async () => {
-    const { DiagramView } = await import('/js/modules/consoles/diagramView.js');
-    const { registerDiagramLayer, refreshDiagram } = await import('/js/shared/diagramLayers.js');
+    const { DiagramView } = await window.appModule('/js/modules/consoles/diagramView.js');
+    const { registerDiagramLayer, refreshDiagram } = await window.appModule('/js/shared/diagramLayers.js');
     const view = new DiagramView(document.createElement('div'), { onOpen() {} });
     let calls = 0;
     view.refresh = () => { calls += 1; };

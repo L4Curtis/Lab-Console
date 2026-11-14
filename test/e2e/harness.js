@@ -197,6 +197,16 @@ export async function startHarness({ oidc = true, mockLab = true, env = {}, publ
         ? route.fulfill({ contentType: 'application/json', body: '{"state":"skipped"}' })
         : route.continue()));
     }
+    // The application loads its own files under /v/<build id>/ (src/lib/assets.js). A scenario that
+    // reaches into the page's modules must use the same copies, not a second one with its own state:
+    // window.appModule('/js/shared/workspace.js') imports it under the prefix the page itself used
+    await context.addInitScript(() => {
+      window.appModule = (file) => {
+        const main = document.querySelector('script[type="module"][src*="/js/"]');
+        if (!main) throw new Error('no script of the application on this page');
+        return import(main.src.slice(0, main.src.indexOf('/js/')) + file);
+      };
+    });
     const page = await context.newPage();
     page.errors = [];
     page.on('pageerror', (err) => page.errors.push(err.message));
@@ -413,7 +423,7 @@ export async function typeInConsole(target, line) {
 
 /** An `input` frame on the pane's own socket, the page's check on who may type bypassed: what the server alone refuses */
 export function sendInputFrame(target, data) {
-  return paneOf(target).evaluate((el, d) => import('/js/shared/workspace.js').then(({ workspace }) => {
+  return paneOf(target).evaluate((el, d) => window.appModule('/js/shared/workspace.js').then(({ workspace }) => {
     const pane = [...workspace.panes.values()].find((p) => p.el === el);
     pane.ws.send(JSON.stringify({ type: 'input', data: d }));
   }), data);
