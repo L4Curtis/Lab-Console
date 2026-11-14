@@ -1756,9 +1756,20 @@ file alone while it runs may miss what is still in the `-wal` file.
   a shared one. `startTestApp()` uses a real file in its temporary data
   directory.
 - `npm test` runs every `test/**/*.test.js` with `node:test`. It must pass;
-  it takes two to three minutes, most of it in the mock lab and boot
-  simulations (files run in parallel, and a long test uses `JOB_TIME_SCALE`
-  or a fake clock rather than a long sleep). (The glob needs Node 22, like the Docker image.)
+  it takes one to two minutes, most of it waiting on the mock lab and boot
+  simulations: twelve files run at once (`--test-concurrency=12`, twice the
+  cores: they mostly wait), the tests of a file that each build their own
+  simulated device run in a concurrent `describe`, a long file is split
+  (the recovery tests are three files), and a long test uses
+  `JOB_TIME_SCALE` or a fake clock rather than a long sleep. (The glob needs
+  Node 22, like the Docker image.)
+- Shared test helpers: `test/helpers/http.js` (`apiClient(app)` →
+  `api(who, method, path, body, { raw, headers })`, `waitFor(check, { ms,
+  what })`, `holdBench`), `helpers/consoleClient.js` (a console WebSocket:
+  `connectConsole`, `openReady`), `helpers/jobs.js` (`startJobsApp`, which
+  `helpers/checks.js` `startChecksApp` and `helpers/recovery.js`
+  `startRecoveryApp` build on), `helpers/teams.js` (`startTeamsApp`, SSE
+  listeners), `helpers/ios.js` (`rig()`, `roundTrip()`).
 - `npm run test:e2e` runs `test/e2e/*.e2e.js` serially: `playwright-core`
   driving the system Chromium (`CHROMIUM_PATH`, default `/usr/bin/chromium`,
   headless, `--no-sandbox`). Every file goes through the shared harness,
