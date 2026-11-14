@@ -15,7 +15,7 @@
  */
 import { h, icon, toast, loadCss } from '../../core/dom.js';
 import { live, request } from '../../core/api.js';
-import { t, loadNamespace, onLocaleChange } from '../../core/i18n.js';
+import { t, has, loadNamespace, onLocaleChange } from '../../core/i18n.js';
 import { confirmDialog, formDialog, openDialog } from '../../shared/dialog.js';
 import { onBenches, call, benchUrl, mayPilot, isOccupant, benchSummary, fmtTime, fmtSlot, fmtDateTime } from './data.js';
 
@@ -159,6 +159,9 @@ export function mountBenchBar(host) {
     const params = { who: e.actor.name, team: e.details.team ?? '', guest: e.details.guest ?? '', device: e.details.device ?? '' };
     const known = HISTORY_KEYS[e.action];
     if (known) return t(known, params);
+    // Bench jobs speak through the jobs dictionary (loaded at start-up for the diagram layer)
+    const job = `jobs.audit.${e.action.slice(4).replace(/\./g, '_')}`;
+    if (e.action.startsWith('job.') && has(job)) return t(job, params);
     if (e.action.startsWith('job.')) return t('benches.history.job', { ...params, action: e.action.slice(4) });
     return `${e.actor.name} · ${e.action}`;
   }

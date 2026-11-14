@@ -317,5 +317,23 @@
     "cancelled": "Arrêté.",
     "interrupted": "Le serveur a redémarré pendant la tâche : vérifiez l’équipement sur sa console.",
     "device_failed": "L’équipement n’a pas pu être traité."
+  },
+  "audit": {
+    "backup": "{who} a lancé une sauvegarde ({device})",
+    "backup_end": "Sauvegarde lancée par {who} terminée",
+    "backup_cancel": "{who} a arrêté une sauvegarde",
+    "reset": "{who} a lancé une réinitialisation ({device})",
+    "reset_end": "Réinitialisation lancée par {who} terminée",
+    "reset_cancel": "{who} a arrêté une réinitialisation",
+    "inject": "{who} a lancé une injection ({device})",
+    "inject_end": "Injection lancée par {who} terminée",
+    "inject_cancel": "{who} a arrêté une injection",
+    "compare": "{who} a comparé la baie à une sauvegarde ({device})",
+    "compare_end": "Comparaison lancée par {who} terminée",
+    "compare_cancel": "{who} a arrêté une comparaison",
+    "snapshot_import": "{who} a importé une sauvegarde ({device})",
+    "snapshot_download": "{who} a téléchargé une sauvegarde",
+    "snapshot_delete": "{who} a supprimé une sauvegarde",
+    "folder_download": "{who} a téléchargé le dossier de TP"
   }
 }

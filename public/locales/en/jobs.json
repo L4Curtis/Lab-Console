@@ -317,5 +317,23 @@
     "cancelled": "Stopped.",
     "interrupted": "The server restarted during the job: check the device on its console.",
     "device_failed": "The device could not be processed."
+  },
+  "audit": {
+    "backup": "{who} started a backup ({device})",
+    "backup_end": "Backup started by {who} over",
+    "backup_cancel": "{who} stopped a backup",
+    "reset": "{who} started a reset ({device})",
+    "reset_end": "Reset started by {who} over",
+    "reset_cancel": "{who} stopped a reset",
+    "inject": "{who} started an injection ({device})",
+    "inject_end": "Injection started by {who} over",
+    "inject_cancel": "{who} stopped an injection",
+    "compare": "{who} compared the bench with a backup ({device})",
+    "compare_end": "Comparison started by {who} over",
+    "compare_cancel": "{who} stopped a comparison",
+    "snapshot_import": "{who} imported a backup ({device})",
+    "snapshot_download": "{who} downloaded a backup",
+    "snapshot_delete": "{who} deleted a backup",
+    "folder_download": "{who} downloaded the lab folder"
   }
 }
