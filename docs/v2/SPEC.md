@@ -153,6 +153,8 @@ exposed directly to the Internet (no Cloudflare Access in front).
   member accepts or refuses; an accepted guest is an occupant until they leave
   or the bench is released. Admins can assign a bench to a team, remove
   people and release.
+- A team has at most 8 members, invitations not yet answered included
+  (`TEAM_MAX_MEMBERS`, 2 to 30); a ninth is refused with `teams.full`.
 - Released by hand or after 3 h without activity (`BENCH_IDLE_HOURS`). On
   release the application offers a backup of the bench (the jobs lot provides
   the action: after a release by hand, the bench bar asks whether to back the
@@ -623,3 +625,31 @@ backups, recent activity. A guided tour at first sign-in and a help page.
 ## Wave 5
 End-to-end scenarios, security review, completeness check against this file,
 documentation in French and English, version 2.0.0.
+
+### Wave 5 as integrated
+- Version 2.0.0. French and English documentation: `README.md` and
+  `README.fr.md`, `docs/v2/AUTH.md` and `docs/fr/AUTH.md`. The other files of
+  `docs/v2/` (this one, ARCHITECTURE, TESTING) are working documents for the
+  people who build the application and stay in English; the in-app Help page
+  and every screen are bilingual.
+- The Proxmox section is untouched on purpose. Known gap, to settle with the
+  owner: the health page shows no Proxmox tunnel line, because the module
+  does not publish `services.proxmox`, and `/api/proxmox/status` names the
+  environment's jump server, not the one saved on the lab parameters page.
+  Its API errors reach the interface in English.
+- Template ZIP import is available to administrators in the Sauvegardes
+  section as well as through the API.
+
+**Open decisions for the owner**
+- Release offer: whether a release by the idle timer, an administrator, a
+  reservation or a dissolved team should reach the team some other way (the
+  offer stays available for 30 minutes in Sauvegardes).
+- Whether a spectator who may not drive gains the right to the journal (marked
+  "to be confirmed" in the collab lot).
+- The bench chat has no notification, by design.
+
+**Pre-production checklist** (the simulator cannot settle these)
+- The erase and reload path on IOS XE 17; the time of a 2048-bit RSA key on
+  an ISR G1; five job lines at once on the console server.
+- Every recovery family (`triedOnLab: false`), CDP output on IOS XE 17 and
+  the 9300L, and the console server's handling of BREAK.
