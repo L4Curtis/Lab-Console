@@ -1,7 +1,7 @@
 {
   "panel": {
-    "button": "Notes et chat",
-    "title": "Notes et chat de la baie",
+    "button": "Notes et discussion",
+    "title": "Notes et discussion de la baie",
     "titleFor": "Baie {bench}",
     "notesHeading": "Notes des équipements"
   },
@@ -10,11 +10,11 @@
     "badgeTitle": "Note de {name}",
     "tooltipHead": "Note de {name}, {time}",
     "action": "Note de l’équipement",
-    "title": "Note : {device} ({bench})",
+    "title": "Note : {device} ({bench})",
     "none": "Pas encore de note sur cet équipement.",
-    "lastBy": "Dernière modification : {name}, {time}",
+    "lastBy": "Dernière modification : {name}, {time}",
     "field": "Note de {device}",
-    "placeholder": "Ce que la prochaine personne doit savoir : câblage, adresses, état de la configuration…",
+    "placeholder": "Ce que la prochaine personne doit savoir : câblage, adresses, état de la configuration…",
     "count": "{count} / {max} caractères",
     "emptyDeletes": "Une note vide est supprimée.",
     "save": "Enregistrer",
@@ -33,7 +33,7 @@
     "field": "Votre message",
     "send": "Envoyer",
     "empty": "Aucun message pour l’instant.",
-    "notYours": "La discussion est réservée aux personnes qui travaillent sur cette baie : prenez-la, ou demandez à la rejoindre.",
+    "notYours": "La discussion est réservée aux personnes qui travaillent sur cette baie : prenez la main sur la baie, ou demandez à la rejoindre.",
     "unread": {
       "one": "{count} message non lu",
       "other": "{count} messages non lus"
@@ -43,9 +43,9 @@
   "notify": {
     "rail": "Alertes",
     "state": {
-      "on": "Alertes du navigateur activées : cliquer pour les couper",
-      "off": "Activer les alertes du navigateur : clavier demandé, ligne libre, tâche terminée",
-      "denied": "Alertes bloquées par le navigateur : à autoriser dans les réglages du site",
+      "on": "Alertes du navigateur activées : cliquer pour les couper",
+      "off": "Activer les alertes du navigateur : clavier demandé, ligne libre, tâche terminée",
+      "denied": "Alertes bloquées par le navigateur : à autoriser dans les réglages du site",
       "unsupported": "Ce navigateur ne sait pas afficher d’alertes"
     },
     "refused": "Le navigateur n’autorise pas les alertes. Autorisez-les dans les réglages du site, puis cliquez à nouveau sur la cloche.",
@@ -58,23 +58,23 @@
     },
     "free": {
       "title": "{device} est libre",
-      "body": "La ligne de {device} (baie {bench}) est libre : vous pouvez l’ouvrir."
+      "body": "La ligne de {device} (baie {bench}) est libre : vous pouvez l’ouvrir."
     },
     "open": {
       "title": "{device} est ouverte",
-      "body": "La console de {device} (baie {bench}) est ouverte dans Lab Console : vous pouvez la rejoindre."
+      "body": "La console de {device} (baie {bench}) est ouverte dans Lab Console : vous pouvez la rejoindre."
     },
     "job": {
       "titleOk": "Tâche terminée sur {bench}",
       "titleFailed": "Tâche en échec sur {bench}",
-      "bodyOk": "Tâche « {kind} » terminée sur la baie {bench}.",
-      "bodyFailed": "Tâche « {kind} » en échec sur la baie {bench} : consultez le rapport."
+      "bodyOk": "Tâche « {kind} » terminée sur la baie {bench}.",
+      "bodyFailed": "Tâche « {kind} » en échec sur la baie {bench} : consultez le rapport."
     }
   },
   "jobKinds": {
     "backup": "Sauvegarde",
     "inject": "Injection",
-    "reset": "Remise à zéro"
+    "reset": "Réinitialisation"
   },
   "errors": {
     "unknown_device": "Cet équipement n’existe plus dans le schéma.",
@@ -82,12 +82,12 @@
     "note_forbidden": "Seuls les occupants de la baie {bench} et les administrateurs écrivent ses notes.",
     "chat_forbidden": "La discussion de la baie {bench} est réservée à ses occupants.",
     "bad_text": "Ce texte contient des caractères non autorisés.",
-    "too_long": "Texte trop long : {max} caractères au plus.",
-    "too_many_lines": "Trop de lignes : {max} au plus.",
+    "too_long": "Texte trop long : {max} caractères au plus.",
+    "too_many_lines": "Trop de lignes : {max} au plus.",
     "empty_message": "Le message est vide.",
-    "bad_revision": "La version de la note est invalide : rouvrez-la.",
-    "note_conflict": "Quelqu’un a modifié cette note entre-temps. Votre texte est gardé : reprenez leur version si besoin.",
-    "rate_limited": "Trop vite : patientez {seconds} s.",
+    "bad_revision": "La version de la note est invalide : rouvrez-la.",
+    "note_conflict": "Quelqu’un a modifié cette note entre-temps. Votre texte est gardé : reprenez leur version si besoin.",
+    "rate_limited": "Trop vite : patientez {seconds} s.",
     "unknown_message": "Ce message n’existe plus."
   }
 }
