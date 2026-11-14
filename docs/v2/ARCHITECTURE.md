@@ -776,7 +776,12 @@ services.jobs = {                              // lot jobs (§9b)
   snapshots(user, { teamId, limit }) → Snapshot[]   // that team's snapshots as `user` may see them (its members and admins), newest first
 }
 services.scripts = { list(user), get(user, id) }   // lot terminal: the library as that person may see it, the rules of the API
-services.checks = { running(bench) → { id, bench, kind, state, actor: { name }, startedAt, devices } | null }   // lot checks (§9c)
+services.checks = {                            // lot checks (§9c)
+  running(bench) → { id, bench, kind, state, actor: { name }, startedAt, devices } | null
+  lines(bench) → { at, devices: [{ key, name, line }] } | null   // the last line status while fresh (30 min,
+                                               //   LINES_FRESH_MS, as the diagram's badges): what the overview's cards read
+}
+services.recovery = { running(deviceKey) → { id, bench, device, family, state, awaiting, current, actor } | null }   // lot recovery (§9e)
 services.collab = {                            // lot collab
   notes() → Promise<Note[]>                    // every note of a device still in the diagram
   noteOf(deviceKey) → Promise<Note | null>     // { key, bench, device, text, rev, updatedAt, by: { id, name } }
@@ -812,6 +817,14 @@ services.collab = {                            // lot collab
   button, outside `#rail-items`). The consoles view mounts the collab
   bench panel (notes and chat) beside the diagram, one side panel at a time
   with the live panel, and a script library button in its header.
+  Wave 4 (as integrated): the rail is Accueil (`#/home`, the landing
+  page and the address no section answers), Consoles, Vue d'ensemble
+  (`#/overview`), Équipe, Infra, Administration (admins), Sauvegardes, État
+  du labo, Aide (`#/help`). `main.js` also starts the checks' diagram layers
+  (`modules/checks/layer.js`), the recovery assistant (`startRecovery()`: its
+  pane action and diagram badge) and, once the first screen is routed, the
+  guided tour (`maybeStartTour()`); the consoles view has a "Vérifications"
+  button in its header (`modules/checks/dialog.js`).
 - **Live events.** `live.on(topic, fn)` (`core/api.js`) shares one
   `EventSource`. A named event without a listener is lost, and sticky topics
   are only replayed when a stream opens: when a section subscribes to a new
@@ -913,7 +926,8 @@ services.collab = {                            // lot collab
   the keyboard or a task changes (`pane.mayType`, `pane.canAutomate`,
   `pane.isPilot`, `pane.presenceBar.presence`). Break, export, inject, send to
   several consoles, history (lot terminal) and the device note (lot collab)
-  are registered this way (order 10, 20, 30, 40, 50, 60). `pane.onAutomation(fn)` follows the server's `automation` frames of
+  are registered this way (order 10, 20, 30, 40, 50, 60), then the password
+  recovery (lot recovery, order 70). `pane.onAutomation(fn)` follows the server's `automation` frames of
   that console; `pane.sendBroadcast({ batch, script, options })` sends a
   broadcast frame on its socket. A session descriptor of a lab console carries
   `device` (the device key).
@@ -1488,8 +1502,14 @@ source of truth.
   *Line status when known*: `lines.open` (a room is open, whoever opened it),
   `busy` (the console server refused the line lately, `rooms.busyOutside()`)
   and `silent` (open, the device printed nothing); `total` counts the devices
-  inside the allow-list. The on-demand status probe of the checks lot is not
-  read here yet.
+  inside the allow-list. The checks lot's last line status, while fresh
+  (`services.checks.lines(bench)`, 30 minutes), speaks for the lines nobody
+  has open now and that the console server did not refuse: those it found
+  `silent` are added to `silent`, those it found `free` make `lines.free`,
+  and `lines.checkedAt` is when it ended (else `free: 0, checkedAt: null`).
+  Its busy lines are already in `busyOutside()` (the check marks them); a
+  line it found open in the application and closed since is not counted.
+  Only counts and a time reach the card, never the check's console addresses.
 - `GET /api/overview/home` → the page of the person who asks: `team` (name and
   members' names, `you` marks the reader) or null, `invitations` waiting for
   them, `bench` (the card above of the bench their team holds, else one they
@@ -1513,10 +1533,12 @@ filter: all, free, mine, kept in `prefs`). `live.js` keeps them live with the
 topics the services already publish, each under its own audience: it reads the
 API again, once for a burst (250 ms), when `benches:state`,
 `benches:reservations`, `consoles:rooms`, `consoles:busy`, `jobs:running`,
-`teams:changed` (home also `jobs:done`, `jobs:snapshots`, `teams:invitation`,
-`admin:announcement`) moves. `consoles:rooms` moves at every command typed in
-the lab, so it is compared on what the screen shows (`roomsSignature`: line,
-state, pilot, people, task) and ignored otherwise. Sections stay mounted when
+`teams:changed`, `checks:running` (home also `jobs:done`, `jobs:snapshots`,
+`teams:invitation`, `admin:announcement`) moves. `consoles:rooms` moves at
+every command typed in the lab, so it is compared on what the screen shows
+(`roomsSignature`: line, state, pilot, people, task) and ignored otherwise;
+`checks:running` moves at every device a check reaches, so only a check that
+starts or ends counts (`checksSignature`). Sections stay mounted when
 hidden: a hidden one reads nothing and catches up when shown. The cards
 (`benchCard.js`) are text only and lead to the bench (`#/consoles/<bench>`)
 and to its backups (`#/jobs/<bench>`); taking, joining and releasing stay in
@@ -1625,19 +1647,25 @@ opens by itself, any record means it never does. It is a non-modal card
 (`.tour-card`, `role="dialog"`) placed next to the element of the current step,
 which gets the class `tour-target`; Escape (unless a modal dialog is open) or
 "Skip the tour" ends it as `skipped`, the last step's button as `done`. The
-steps are a list in the file (`id`, `route`, `target` selector): pick a bench
+steps are a list in the file (`id`, `route`, `target` selector): the home page
+where a sign-in lands (`section.view-home .ov-home`), pick a bench
 (`.lab-picker`), take it with the team (`.bench-bar`), open a console
 (`.diagram-canvas`), ask for the keyboard (`.pane-presence`, only present once
 a shared console is open; the card is then shown without a pointer), back up
 (the rail's Sauvegardes link). A step whose target does not show within 2.5 s
-is shown without a pointer. The user menu's "Replay the guided tour" button and
+is shown without a pointer. A step's `route` is followed when the address is
+another section's; no address is the home page, as in `main.js`. The user menu's "Replay the guided tour" button and
 the help page's both call `startTour()`; a replay writes nothing but the
 record above. Texts: `help.tour.steps.<id>.title` and `.body`.
 
 **Help page** (`#/help[/<section>]`, `modules/help/index.js`, a rail section
 for everyone, server module `help`). The text is the `help` dictionary
 (`help.s.<section>.<key>`); the page file lists which keys make which section
-(`SECTIONS`), and `test/help.test.js` checks that every listed key exists in
+(`SECTIONS`: the sections of the application, home and overview, the team and
+the bench, sharing a console, backups, injection and reset, the bench checks,
+the password recovery, the journal, troubleshooting, keyboard shortcuts;
+the checks, recovery and home sections were written at the wave 4
+integration), and `test/help.test.js` checks that every listed key exists in
 both languages and that no sentence is left out of the page. The figures the
 server decides are read when the page opens and written into the sentence:
 the console journal's retention (`/api/admin/journaling`), the bench's idle

@@ -59,6 +59,12 @@ immediately and hangs up on an empty login.
 `MOCK_STATES=2005=linepass,2006=dialog,2007=rommon,2008=silent` the state a
 console starts in, `MOCK_ENABLE_SECRET` an enable secret for every device,
 `MOCK_TIME_SCALE=0.02` how fast devices boot.
+The devices are cabled as the diagram draws them (CDP, line protocol and ping
+follow the cables); `MOCK_CABLING=unplug:2016/Fa0/1;move:2016/Fa0/2>Fa0/9`
+makes deliberate faults for the cabling check. To try the password recovery,
+the person on site is played from a shell:
+`ssh -p 2222 <user>@127.0.0.1 mock-power 10.22.9.211 2001` switches the
+device off and on (add `mode` to hold a switch's Mode button).
 
 ## The diagram
 
@@ -204,6 +210,33 @@ imported into the database at the first start and kept as `*.imported`.
 - **Group work**: a shared note per device, a chat per bench for its
   occupants, and browser notifications, among them "the job on your bench is
   finished" (see the security model above).
+
+## Checks, password recovery, home page and help (v2, wave 4)
+
+- **Accueil** (`#/home`, the page after sign-in): my team, the invitations
+  waiting for me, our bench, our five latest backups, the bench's activity
+  since our team took it, our next slots, the lab in numbers, the
+  announcement. **Vue d'ensemble** (`#/overview`): one live card per bench
+  for everyone (team, occupants, open consoles and pilots, running job, lock,
+  next slots, console lines, with the last line status of the checks while
+  it is fresh). Both are read-only views of the existing services.
+- **Vérifications** (button above the diagram, occupants and admins):
+  line status (free, busy outside the app, device silent), cabling (CDP
+  against the diagram's links: missing, wrong port, unexpected), a ping
+  matrix between the routers, and the addresses and state of the
+  interfaces, shown in a report and on the diagram. Read-only commands
+  only; a console line someone uses is never touched; one check at a time
+  per bench, never during a job; the last result of each kind is kept.
+- **Password recovery** (a button on a lab console tile): a guided BREAK /
+  ROMMON / configuration register procedure (or the switch's boot loader)
+  for a device locked by a password nobody knows, with someone on site to
+  power-cycle it. The startup-config is only bypassed for one boot, never
+  erased; any stop puts the device back first. Not yet tried on the real
+  equipment, and the browser says so.
+- **Aide** (`#/help`): what each section does, in French and English, and a
+  guided tour at the first sign-in (replayable from the user menu).
+- Settings: none of their own; the device budgets of the checks and of the
+  recovery follow `JOB_TIME_SCALE`.
 
 ## Console tools (v1.1)
 
@@ -352,6 +385,7 @@ src/
   lib/db/                   the database: SQLite adapter, migrations, repositories, import of older files
   lib/drivers/ciscoIos.js   Cisco IOS / IOS XE procedures: prepare, identify, backup,
                             erase and reload, replay script
+  lib/drivers/ciscoRecovery.js  password recovery procedures per device family
   modules/
     index.js                module registry
     auth/                   sign-in: sessions, OpenID Connect, local administrator + TOTP
@@ -362,6 +396,9 @@ src/
     jobs/                   bench jobs (backup, injection, reset, compare), snapshots, TP templates
     scripts/                shared script library (personal, team, published)
     collab/                 device notes, bench chat
+    checks/                 line status, cabling (CDP), ping matrix, interfaces (migration 015)
+    recovery/               guided password recovery (migration 016)
+    overview/               home page and overview of every bench (read only, no table)
     help/                   guided tour, help page, tour progress (migration 017)
     proxmox/                Proxmox client (ticket auth, over the SSH tunnel), service, console proxies
 public/
@@ -373,10 +410,15 @@ public/
   js/modules/infra/         Infrastructure section: VMs, network dialog, admin switches
   js/modules/jobs/          Sauvegardes section: jobs, snapshots, templates, the diagram layer
   js/modules/collab/        device notes, bench chat panel, browser notifications
+  js/modules/checks/        checks dialog and the diagram layers (line badges, cabling, addresses)
+  js/modules/recovery/      the recovery assistant (console tile button) and its diagram badge
+  js/modules/overview/      Accueil and Vue d'ensemble sections
   js/modules/help/          guided tour and the Help section
 scripts/check-diagram.js    diagram linter
 dev/mock-lab.js             fake jump server (telnet, line probe, port forwarding); importable
-dev/fakeIos.js              simulated Cisco IOS / IOS XE (four families, boot, erase, VLANs, slow console)
+dev/fakeIos.js              simulated Cisco IOS / IOS XE (four families, boot, erase, VLANs, slow console,
+                            power cycle, BREAK, ROMMON and boot loader)
+dev/mockCabling.js          the mock lab's cables, from the diagram's links
 dev/mock-proxmox.js         fake Proxmox VE (HTTPS, API, serial + VNC consoles)
 config/infrastructure.json  admin switches
 test/                       node:test unit tests (npm test)

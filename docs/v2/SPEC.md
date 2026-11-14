@@ -553,15 +553,17 @@ backups, recent activity. A guided tour at first sign-in and a help page.
 - Both are read-only views computed from the existing services at each request
   and kept live by the SSE topics those services publish (the jobs module
   adds `jobs:snapshots`, told to a team when its backups change); no new
-  state. The on-demand line check of the checks lot is not read yet (the
-  overview shows the lines the application itself knows: open, refused, silent).
+  state. The lines are those the application itself knows (open, refused,
+  silent) and, since the wave 4 integration, the last line status of the
+  checks lot while it is fresh (see "Wave 4 as integrated").
 - Not done on purpose: no action on the cards (taking, joining, releasing and
   locking stay in the bench bar), no history beyond the last 15 entries, no
   per-team statistics.
 
 *As built (help lot):* contracts in ARCHITECTURE §9f.
-- **Guided tour**: five steps on the real screen (pick a bench, take it with
-  your team, open a console, ask for the keyboard, back up); opens by itself
+- **Guided tour**: six steps on the real screen (the home page, pick a bench,
+  take it with your team, open a console, ask for the keyboard, back up; the
+  home page step was added at the wave 4 integration); opens by itself
   on any page load until it has ended once (so at the first sign-in, and
   again if the tab was closed mid-tour); skippable (button or Escape); replayable
   from the user menu and from the help page. How it ended is kept per person
@@ -573,9 +575,43 @@ backups, recent activity. A guided tour at first sign-in and a help page.
   the ZIP), injection and reset with their safeguards, what is journaled and
   for how long, what to do when a line is busy, a device silent or locked,
   keyboard shortcuts. It describes what exists in this version only; the
-  password recovery of the recovery lot, the checks of the checks lot and the
-  overview of the overview lot are not described until they are merged.
+  sections on the home page and the overview, the bench checks and the
+  password recovery were added at the wave 4 integration.
 - Browser scenario `test/e2e/help.e2e.js`.
+
+### Wave 4 as integrated
+- Migrations: 015 bench checks, 016 password recoveries, 017 guided tour
+  progress (the three lots had all taken 015; the pre-production database
+  had run 001-014 only).
+- Rail: Accueil (the landing page), Consoles, Vue d'ensemble, Équipe, Infra,
+  Administration (admins), Sauvegardes, État du labo, Aide. Tile actions, in
+  order: break, export, inject, send to several consoles, history, device
+  note, password recovery. Sticky SSE topics added: `checks:running`,
+  `recovery:running`.
+- **One thing at a time on a bench's devices**: a check does not start during
+  a job and a job not during a check (the checks lot); a recovery does not
+  start during a job (the recovery lot) **nor during a check**
+  (`recovery.check_running`, added at the integration). A check started
+  during a recovery leaves the device under recovery alone, as any line in
+  use (`checks.line_in_use`). A job started during a recovery fails on that
+  device only (its line is held); the rest of the bench goes on.
+- **The overview reads the line status**: a bench's card shows, while the
+  last line status of the bench is fresh (30 minutes, as the badges of the
+  diagram), how many lines it found free, the silent ones among those nobody
+  has open, and when it ran; what the application knows now (a console open,
+  a line refused) wins. Everyone sees it, as everyone may read the line
+  status; only counts and a time, never a console address.
+- **Help**: new sections "Accueil et vue d'ensemble", "Vérifier la baie" and
+  "Mot de passe perdu : la récupération", in French and English; the
+  troubleshooting section points to the line status and to the recovery
+  assistant (it used to send people to the console's BREAK button). The
+  guided tour starts on the home page, where a sign-in lands, then leads to
+  the consoles.
+- Browser scenario `test/e2e/wave4.e2e.js`: a team runs a cabling check and
+  sees the missing link on the diagram, runs the line status and sees it on
+  the overview's card, then a teammate recovers a locked router from its
+  console tile while the overview shows the task on it and a check run
+  meanwhile leaves that line alone; the help page describes the assistant.
 
 ## Wave 5
 End-to-end scenarios, security review, completeness check against this file,
