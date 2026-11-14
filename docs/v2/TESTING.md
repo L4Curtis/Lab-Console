@@ -85,3 +85,28 @@ appears, which is usually the whole diagnosis.
   `setLanguage(page, 'en')`; both languages must keep working.
 - Run `npm run test:e2e` three times in a row before you commit a scenario:
   a test that fails once in three is broken.
+- **Publish, then act: wait for the page.** A server push (SSE) and a
+  Playwright call travel on different channels. After `events.publish(...)`,
+  wait for what the page shows of it (a toast, a badge) before changing the
+  page's state (`__away`, a route, a click).
+- **Time-driven behaviour of the page**: use `page.clock.install()` and
+  `page.clock.fastForward(ms)` instead of sleeping.
+- **What only the server refuses**: the page already drops a spectator's keys.
+  To test the server, send the frame by hand (`sendInputFrame()`).
+
+## Stress step
+
+A test that passes on an idle machine can still depend on timing. Before you
+commit a change to a test, to the simulators in `dev/` or to anything paced,
+run the changed file five times while the machine is busy, with two CPU
+burners per core:
+
+```sh
+for i in $(seq $(( $(nproc) * 2 ))); do node -e 'const e=Date.now()+600000;for(;Date.now()<e;)for(let i=0;i<1e6;i++)Math.sqrt(i)' & done
+for i in 1 2 3 4 5; do node --test --test-concurrency=1 test/e2e/<file>.e2e.js || break; done
+kill $(jobs -p)
+```
+
+Kill the burners when you are done (`pgrep -af 'Math.sqrt'`). A failure here
+is a flaw in the test or the simulator unless the server's pacing is wrong:
+find out which before touching a timeout.
