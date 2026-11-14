@@ -68,9 +68,13 @@ src/
     events.js               SSE hub, with per-user audiences     (lot: skeleton)
     httpError.js            API error shape: HttpError, sendError (lot: skeleton)
     security.js             headers, origin check, rate limiter, client IP, trusted proxies
+    ssh.js, sshPool.js      the SSH client to the jump server, and the shared connections console lines use
+    sshTunnel.js            the tunnel to the Proxmox API through the jump server
+    safeFetch.js            outgoing requests to an address an administrator typed (the SSO identity provider), guarded against server-side request forgery
     cliAutomation.js        expect-like engine on a console line
     terminalText.js         terminal output as plain text (history search and download)   (lot: terminal)
     drivers/ciscoIos.js     device procedures built on the engine (lot: ios)
+    drivers/ciscoRecovery.js  password-recovery procedures per device family (lot: recovery), see §9e
   modules/
     auth/                   sessions, OIDC, local accounts + TOTP, roles   (lot: auth)
     consoles/               diagram, rooms, console WebSocket    (lot: rooms)
@@ -93,7 +97,8 @@ public/
   js/modules/<section>/     one folder per rail section
   locales/<lang>/<ns>.json  one namespace per module (fr, en); common.json is shared
   css/<module>.css          one stylesheet per module, loaded by the module; shared.css for dialog / tabs
-dev/                        mock-lab.js, fakeIos.js, mock-oidc.js, mock-proxmox.js
+dev/                        mock-lab.js, fakeIos.js, fakeOther.js (devices that are not Cisco IOS), mockCabling.js (CDP and
+                            addresses of the simulated cabling), mock-oidc.js, mock-proxmox.js
 test/                       *.test.js (node:test)   test/e2e/*.e2e.js (browser)
 test/helpers/               app.js (startTestApp), fakes.js (users, fakeAuth, fake req / res), db.js (memoryDatabase)
 docs/v2/                    this file, SPEC.md
@@ -391,7 +396,9 @@ reservations), `accounts` (with their passkeys), `accountLinks` (invitation
 and reset links), `announcements`, `diagrams` (the index of diagram versions
 and the stack of activations), `journalDays` (§9), `jobs`, `snapshots`,
 `templates` (§9b), `scripts` (the script library, §9), `collab` (device
-notes and bench chat, §9 "Group work"). Modules that read their
+notes and bench chat, §9 "Group work"), `checks` (the line status, cabling
+and ping results kept per bench, §9c), `recoveries` (password-recovery runs,
+§9e) and `tour` (what the guided tour remembers per person, §9f). Modules that read their
 state synchronously on every request keep it in memory with
 `createCachedDocument({ fallback, load, save })` (`src/lib/cachedDocument.js`,
 the contract of `store.json()`: serialized updates, nothing changes when the
@@ -592,7 +599,11 @@ the bench's occupants only), `benches:request` (to the person who asked),
 slot; `minutes` is what remains),
 `benches:slot` (the team whose slot starts), `benches:reservations` (a
 calendar changed), `teams:invitation` (the person invited only) and
-`teams:changed` (the members, the people invited, admins). In the browser,
+`teams:changed` (the members, the people invited, admins). Two topics are for
+administrators only and carry `{ what, at }`: `accounts:changed` (the
+directory or the links changed: the Users and Invitations tabs reload) and
+`admin:changed` (sessions, diagram versions, switches: the Sessions and
+Diagram tabs reload). In the browser,
 the rail section `#/team` (`public/js/modules/teams/`: my team, the
 reservation calendar, all teams for admins) and the bench bar
 (`teams/benchBar.js`), which the consoles view mounts above the diagram:
@@ -1735,8 +1746,10 @@ file alone while it runs may miss what is still in the `-wal` file.
   close }`, a migrated in-memory database per test (`t.after(close)`), never
   a shared one. `startTestApp()` uses a real file in its temporary data
   directory.
-- `npm test` runs every `test/**/*.test.js` with `node:test`. It must pass and
-  stay under a minute. (The glob needs Node 22, like the Docker image.)
+- `npm test` runs every `test/**/*.test.js` with `node:test`. It must pass;
+  it takes two to three minutes, most of it in the mock lab and boot
+  simulations (files run in parallel, and a long test uses `JOB_TIME_SCALE`
+  or a fake clock rather than a long sleep). (The glob needs Node 22, like the Docker image.)
 - `npm run test:e2e` runs `test/e2e/*.e2e.js` serially: `playwright-core`
   driving the system Chromium (`CHROMIUM_PATH`, default `/usr/bin/chromium`,
   headless, `--no-sandbox`). Every file goes through the shared harness,
