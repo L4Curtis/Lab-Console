@@ -17,6 +17,7 @@
  * changed in .env only: it sees its sessions and nothing to edit
  */
 import express from 'express';
+import { jsonBody } from '../../lib/bodies.js';
 import { httpError } from '../../lib/httpError.js';
 import { createRateLimiter } from '../../lib/security.js';
 import { hashPassword } from '../auth/password.js';
@@ -28,8 +29,8 @@ import { passwordProblem, defaultPasskeyName } from './publicRoutes.js';
 export function meRoutes(ctx) {
   const { config, auth, audit, directory, links, rp, ceremony, changed, passwordCost, log } = ctx;
   const router = express.Router();
-  const small = express.json({ limit: '4kb' });
-  const large = express.json({ limit: '32kb' });
+  const small = jsonBody('4kb');
+  const large = jsonBody('32kb');
   // Limits are per user (ARCHITECTURE §13): a stolen session must not test passwords at leisure
   const passwordChecks = createRateLimiter({ limit: 5, windowMs: 15 * 60_000 });
   const body = (req) => (req.body !== null && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {});

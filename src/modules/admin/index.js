@@ -35,6 +35,7 @@
  * (confirm.js).
  */
 import express from 'express';
+import { jsonBody, rawBody } from '../../lib/bodies.js';
 import { httpError } from '../../lib/httpError.js';
 import { MAX_DIAGRAM_BYTES } from '../../lib/diagrams.js';
 import { createConfirmations } from './confirm.js';
@@ -52,7 +53,7 @@ export function createAdminModule({ config, logger, events, repos, audit, auth, 
   const stopHealth = settings.on('change', (ns) => { if (ns === 'lab') health.forget(); });
 
   const router = express.Router();
-  const small = express.json({ limit: '32kb' });
+  const small = jsonBody('32kb');
   const body = (req) => (req.body !== null && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {});
   const isAdmin = (req) => req.user?.role === 'admin';
   const tellAdmins = (what) => events?.publish('admin:changed', { what, at: now() }, { audience: (user) => user?.role === 'admin' });
@@ -138,7 +139,7 @@ export function createAdminModule({ config, logger, events, repos, audit, auth, 
       .map((d) => ({ lab: l.name, name: d.name, target: `${d.target.host}:${d.target.port}` })));
   };
   admin.get('/diagrams', (_req, res) => res.set('Cache-Control', 'no-store').json(diagrams.list()));
-  const raw = express.raw({ type: () => true, limit: MAX_DIAGRAM_BYTES + 64 * 1024 });
+  const raw = rawBody(MAX_DIAGRAM_BYTES + 64 * 1024);
   admin.post('/diagrams', (req, res, next) => raw(req, res, (err) => {
     if (err?.status === 413 || err?.type === 'entity.too.large') return next(httpError(413, 'admin.diagram_too_large', 'The diagram is over 5 MB', { max: MAX_DIAGRAM_BYTES }));
     next(err);

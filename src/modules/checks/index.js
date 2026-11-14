@@ -25,6 +25,7 @@
  * Audit: check.<kind> (start), check.<kind>.cancel, check.<kind>.end.
  */
 import express from 'express';
+import { jsonBody } from '../../lib/bodies.js';
 import { httpError } from '../../lib/httpError.js';
 import { createRateLimiter } from '../../lib/security.js';
 import { scaledTimeouts } from '../jobs/runner.js';
@@ -110,7 +111,7 @@ export function createChecksModule({ config, logger, events, repos, audit, infra
   // ── HTTP ──────────────────────────────────────────────────────────────────
 
   const router = express.Router();
-  const json = express.json({ limit: '4kb' });
+  const json = jsonBody('4kb');
   const noStore = (res) => res.set('Cache-Control', 'no-store');
 
   router.get('/latest', (req, res) => {

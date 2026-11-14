@@ -38,6 +38,7 @@
  */
 import fs from 'node:fs';
 import express from 'express';
+import { jsonBody, rawBody } from '../../lib/bodies.js';
 import { httpError } from '../../lib/httpError.js';
 import { dayOf } from '../consoles/journal.js';
 import { Library, templateView } from './library.js';
@@ -256,9 +257,9 @@ export function createJobsModule({ config, logger, events, store, repos, audit, 
   // ── HTTP ──────────────────────────────────────────────────────────────────
 
   const router = express.Router();
-  const json = express.json({ limit: '64kb' });
-  const bigJson = express.json({ limit: '2mb' });
-  const zipBody = express.raw({ type: () => true, limit: `${cfg.importMaxKb}kb` });
+  const json = jsonBody('64kb');
+  const bigJson = jsonBody('2mb');
+  const zipBody = rawBody(`${cfg.importMaxKb}kb`);
   const noStore = (res) => res.set('Cache-Control', 'no-store');
 
   router.get('/benches/:bench', async (req, res) => {

@@ -21,6 +21,7 @@
  *   /ws/proxmox/vnc?node&vmid                   POST …/vncproxy   + vncwebsocket
  */
 import express from 'express';
+import { jsonBody } from '../../lib/bodies.js';
 import { WebSocketServer } from 'ws';
 import { SshTunnel } from '../../lib/sshTunnel.js';
 import { isOriginAllowed } from '../../lib/security.js';
@@ -65,7 +66,7 @@ export function createProxmoxModule({ config, events, logger, settings, auth }) 
     log.error(err.message);
     res.status(status).json(errorBody(UNREACHABLE.code, UNREACHABLE.message));
   });
-  const json = express.json({ limit: '4kb' });
+  const json = jsonBody('4kb');
   const vlanOf = (v) => (v === null || v === undefined || v === '' ? null : Number(v));
 
   router.get('/status', (req, res) => res.json(isAdmin(req.user)

@@ -26,6 +26,7 @@
  * team that held the bench, admins.
  */
 import express from 'express';
+import { jsonBody } from '../../lib/bodies.js';
 import { httpError } from '../../lib/httpError.js';
 import { FAMILIES, STEPS, HANDS_ON, scaledRecoveryTimeouts } from '../../lib/drivers/ciscoRecovery.js';
 import { RecoveryRunner, publicRecovery } from './assistant.js';
@@ -145,7 +146,7 @@ export function createRecoveryModule({ config, logger, events, repos, audit, inf
   // ── HTTP ──────────────────────────────────────────────────────────────────
 
   const router = express.Router();
-  const json = express.json({ limit: '2kb' });
+  const json = jsonBody('2kb');
   const noStore = (res) => res.set('Cache-Control', 'no-store');
 
   router.get('/families', (_req, res) => {

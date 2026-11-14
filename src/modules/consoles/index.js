@@ -35,6 +35,7 @@
  */
 import fs from 'node:fs';
 import express from 'express';
+import { jsonBody } from '../../lib/bodies.js';
 import { WebSocketServer } from 'ws';
 import { LabRegistry } from './labRegistry.js';
 import { RoomManager, targetKey, targetAllowed } from './roomManager.js';
@@ -177,7 +178,7 @@ export function createConsolesModule({ config, events, logger, infra, services =
 
   // ── HTTP API ──────────────────────────────────────────────────────────────
   const router = express.Router();
-  const json = express.json({ limit: '2kb' });
+  const json = jsonBody('2kb');
   router.get('/labs', (_req, res) => {
     const { labs, warnings, version, error } = registry.model;
     res.set('Cache-Control', 'no-store').json({ labs, warnings, version, error, journal: { retentionDays: config.rooms.journal.retentionDays } });

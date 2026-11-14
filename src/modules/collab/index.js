@@ -14,6 +14,7 @@
  * sweepMs (the interval of the cleaning of dissolved teams' chats; 0: none)
  */
 import express from 'express';
+import { jsonBody } from '../../lib/bodies.js';
 import { mountNotes } from './notes.js';
 import { mountChat } from './chat.js';
 import { LIMITS } from './rules.js';
@@ -25,7 +26,7 @@ export function createCollabModule({ logger, events, repos, audit, auth, service
   const now = options.now ?? (() => Date.now());
   const limits = { ...LIMITS, ...options.limits };
   const router = express.Router();
-  const json = express.json({ limit: '16kb' });
+  const json = jsonBody('16kb');
   const ctx = { repos, events, audit, auth, services, json, limits, now };
 
   const notes = mountNotes(router, ctx);

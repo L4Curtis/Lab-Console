@@ -13,6 +13,7 @@
  * `now` and `tickMs` are seams for the tests (a fake clock, no timer)
  */
 import express from 'express';
+import { jsonBody } from '../../lib/bodies.js';
 import { httpError } from '../../lib/httpError.js';
 import { Teams, isInvitee, normalizeUsername } from './teams.js';
 import { Benches } from './benches.js';
@@ -58,7 +59,7 @@ export function createTeamsModules(deps, { now = () => Date.now(), tickMs = TICK
     reservations: (options) => benches.listReservations(options),
   };
 
-  const json = express.json({ limit: '4kb' });
+  const json = jsonBody('4kb');
   const isAdmin = (req) => req.user.role === 'admin';
   const param = (req, name) => String(req.params[name] ?? '');
 

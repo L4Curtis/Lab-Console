@@ -22,6 +22,7 @@
  * creates it and nowhere else
  */
 import express from 'express';
+import { jsonBody } from '../../lib/bodies.js';
 import { httpError, sendError } from '../../lib/httpError.js';
 import { ROLES } from '../auth/user.js';
 import { LINK_TTLS, RESET_TTLS, MAX_USES } from './links.js';
@@ -30,7 +31,7 @@ import { environmentAccount } from './directory.js';
 export function adminRoutes(ctx) {
   const { config, auth, audit, directory, links, sso, rp, changed, linkUrl, log } = ctx;
   const router = express.Router();
-  const small = express.json({ limit: '4kb' });
+  const small = jsonBody('4kb');
   const body = (req) => (req.body !== null && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {});
   const environmentId = `local:${config.auth.localAdmin.username}`;
   const actorOf = (req) => ({ id: req.user.id, username: req.user.username });

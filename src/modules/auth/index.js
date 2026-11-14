@@ -45,6 +45,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
+import { jsonBody } from '../../lib/bodies.js';
 import { sendError } from '../../lib/httpError.js';
 import { requireSameOrigin, createRateLimiter, clientIp } from '../../lib/security.js';
 import { hasRole } from './user.js';
@@ -188,7 +189,7 @@ export async function createAuth({ config, logger, events, repos, audit, service
   const extensions = express.Router(); // routes other modules add with auth.extend(), mounted before the /auth 404
   const describers = [];               // their fields of /auth/me
   const sameOrigin = requireSameOrigin(config.server.allowedOrigins);
-  const json = express.json({ limit: '4kb' });
+  const json = jsonBody('4kb');
   const backToLogin = (res, error) => res.redirect(302, `/login?error=${error}`);
 
   // Nothing about signing in is cached or indexed

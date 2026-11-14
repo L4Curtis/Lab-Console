@@ -21,6 +21,7 @@
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
+import { jsonBody } from '../../lib/bodies.js';
 import { sendError } from '../../lib/httpError.js';
 import { requireSameOrigin, createRateLimiter, clientIp } from '../../lib/security.js';
 import { hashPassword } from '../auth/password.js';
@@ -82,8 +83,8 @@ export function publicRoutes(ctx) {
   const { config, auth, audit, directory, links, rp, ceremony, refusals, changed, exclusive, passwordCost, log } = ctx;
   const router = express.Router();
   const sameOrigin = requireSameOrigin(config.server.allowedOrigins);
-  const small = express.json({ limit: '4kb' });
-  const large = express.json({ limit: '32kb' }); // WebAuthn responses carry keys and signatures
+  const small = jsonBody('4kb');
+  const large = jsonBody('32kb'); // WebAuthn responses carry keys and signatures
   // A classroom shares one public address: generous per address, strict per link
   const linkAttempts = createRateLimiter({ limit: 120, windowMs: WINDOW });
   const signupFailures = createFailureCounter({ limit: 10, windowMs: WINDOW });

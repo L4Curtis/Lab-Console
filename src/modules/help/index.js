@@ -11,12 +11,13 @@
  * never from the request
  */
 import express from 'express';
+import { jsonBody } from '../../lib/bodies.js';
 import { httpError } from '../../lib/httpError.js';
 import { TOUR_STATES } from '../../lib/db/repositories/tour.js';
 
 export function createHelpModule({ repos }) {
   const router = express.Router();
-  const json = express.json({ limit: '1kb' });
+  const json = jsonBody('1kb');
 
   router.get('/tour', async (req, res) => {
     res.set('Cache-Control', 'no-store').json({ state: await repos.tour.get(req.user.id) });

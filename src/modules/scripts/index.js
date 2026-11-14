@@ -14,6 +14,7 @@
  * and the shelf, never the text)
  */
 import express from 'express';
+import { jsonBody } from '../../lib/bodies.js';
 import { httpError } from '../../lib/httpError.js';
 import { ScriptLibrary, LibraryError, LIMITS } from './library.js';
 
@@ -31,7 +32,7 @@ export function createScriptsModule({ repos, audit, services }) {
 
   const router = express.Router();
   // A 64 KB text can double in size once its line breaks are escaped
-  const json = express.json({ limit: `${LIMITS.bodyBytes * 4 / 1024}kb` });
+  const json = jsonBody(`${LIMITS.bodyBytes * 4 / 1024}kb`);
   const body = (req) => (req.body && typeof req.body === 'object' ? req.body : {});
   const details = (s) => ({ id: s.id, title: s.title, scope: s.scope, ...(s.team ? { team: s.team.name, teamId: s.team.id } : {}) });
 
