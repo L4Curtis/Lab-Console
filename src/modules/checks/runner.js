@@ -32,6 +32,7 @@ import { CiscoIos, classifyScreen } from '../../lib/drivers/ciscoIos.js';
 import { scaledTimeouts } from '../jobs/runner.js';
 import { diagramLinks } from './links.js';
 import { compareCabling } from './cabling.js';
+import { canonicalPort } from './ports.js';
 
 export const KINDS = Object.freeze(['lines', 'cabling', 'ping', 'interfaces']);
 const FINAL = new Set(['done', 'failed', 'partial', 'cancelled']);
@@ -334,7 +335,13 @@ export class CheckRunner {
       });
       this.#set(check, d, { state: 'done', step: null });
     });
-    return { devices: check.devices.map((d) => ({ ...deviceReport(d), interfaces: out.get(d.key)?.interfaces ?? null })) };
+    // The diagram's links, each end with what its interface says (the diagram writes these on the links)
+    const at = (end) => {
+      const i = end.port ? (out.get(end.key)?.interfaces ?? []).find((x) => canonicalPort(x.name) === canonicalPort(end.port)) : null;
+      return { key: end.key, name: end.name, port: end.port, ip: i?.ip ?? null, status: i?.status ?? null, protocol: i?.protocol ?? null };
+    };
+    const links = diagramLinks(check.hidden.lab).map((l) => ({ id: l.id, a: at(l.a), b: at(l.b) }));
+    return { devices: check.devices.map((d) => ({ ...deviceReport(d), interfaces: out.get(d.key)?.interfaces ?? null })), links };
   }
 
   // ── Cabling ───────────────────────────────────────────────────────────────

@@ -163,6 +163,11 @@ test('interfaces: addresses and state of every interface', { timeout: 40_000 }, 
   const s1 = by(check.result.devices, 'S1');
   assert.equal(s1.interfaces.find((i) => i.name === 'FastEthernet0/7').status, 'down');
   assert.equal(s1.interfaces.find((i) => i.name === 'FastEthernet0/3').status, 'up');
+  // The diagram's links carry what each labelled end reads: what the diagram writes on them
+  const ends = check.result.links.flatMap((l) => [l.a, l.b]);
+  assert.equal(ends.find((e) => e.name === 'R1' && e.port === 'FastEthernet0/0').status, 'administratively down');
+  assert.equal(ends.find((e) => e.name === 'S1' && e.port === 'FastEthernet0/3').status, 'up');
+  assert.equal(ends.find((e) => e.name === 'S3' && !e.port).status, null, 'an end the diagram does not label reads nothing');
 });
 
 test('cancelling: not by a stranger; by the actor, everything stops where it was', { timeout: 30_000 }, async () => {
