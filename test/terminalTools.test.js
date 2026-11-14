@@ -133,7 +133,8 @@ describe('paste', () => {
     const c = await open('student1', device);
     const script = '! a note\nshow clock\n\n! another\n';
     c.send({ type: 'paste', script });
-    assert.deepEqual([(await c.outcome('paste')).result.total], [4]);
+    const pasted = await c.outcome('paste');
+    assert.deepEqual([pasted.result.total, pasted.result.slow], [4, []]);
     c.send({ type: 'inject', script });
     assert.deepEqual([(await c.outcome('inject')).result.total], [2]);
     await c.close();
@@ -152,8 +153,11 @@ describe('paste', () => {
     assert.equal(sim(device).cfg.hostname, device.name, 'untouched');
     assert.ok(!pilot.frames.some((f) => f.type === 'automation'), 'the pilot was not bothered: the refusal is for the asker alone');
     // The pilot, meanwhile, can
-    pilot.send({ type: 'paste', script: 'show clock\nshow ip interface brief\n' });
-    assert.equal((await pilot.outcome('paste')).state, 'done');
+    // A 24-port switch pages its interfaces: without the pager off, the paste would wait for a prompt behind --More--
+    pilot.send({ type: 'paste', script: 'terminal length 0\nshow ip interface brief\n' });
+    const done = await pilot.outcome('paste');
+    assert.equal(done.state, 'done');
+    assert.deepEqual(done.result.slow, [], 'every line found its prompt in time');
     await pilot.close();
     await watcher.close();
   });

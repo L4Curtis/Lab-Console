@@ -17,6 +17,7 @@
 import { test, before, after, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { startJobsApp, waitFor } from './helpers/jobs.js';
+import { newSetId } from '../src/modules/jobs/configFiles.js';
 import { startTestApp } from './helpers/app.js';
 import { connectConsole } from './helpers/consoleClient.js';
 import { student } from './helpers/fakes.js';
@@ -340,15 +341,21 @@ describe('home: the personal page', () => {
   });
 
   test('the list is capped at five and newest first', async () => {
-    for (let i = 0; i < 5; i += 1) {
-      const r = await api('student1', 'POST', '/api/jobs/benches/B4M/backup', { devices: [j.key('S1')], label: `Sauvegarde ${i}` });
-      assert.equal(r.status, 202, JSON.stringify(r.body));
-      await j.until(r.body.job.id);
+    // Six snapshots of the team a minute apart, newer than the backup above, written in the library's index
+    const teamId = j.services.teams.teamOf(S(1)).id;
+    const base = Date.now() + 60_000;
+    for (const i of [3, 0, 5, 1, 4, 2]) {
+      const at = base + i * 60_000;
+      const id = newSetId('backup', at);
+      await j.app.deps.repos.snapshots.insert({
+        id, bench: 'B4M', teamId, label: `Sauvegarde ${i}`, origin: 'backup', jobId: null, author: { id: S(1).id, username: 'student1', name: 'Student 1' },
+        dir: j.jobs.library.files.snapshotDir('B4M', id), createdAt: new Date(at).toISOString(), bytes: 0, devices: [],
+      });
     }
     const list = (await home('student1')).backups;
     assert.equal(list.length, 5);
     assert.deepEqual(list.map((b) => b.createdAt), [...list.map((b) => b.createdAt)].sort().reverse());
-    assert.equal(list[0].label, 'Sauvegarde 4');
+    assert.deepEqual(list.map((b) => b.label), ['Sauvegarde 5', 'Sauvegarde 4', 'Sauvegarde 3', 'Sauvegarde 2', 'Sauvegarde 1']);
   });
 
   test('a bench changes hands: the new team reads nothing of the old one\'s work', async () => {
