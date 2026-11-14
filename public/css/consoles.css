@@ -133,3 +133,6 @@
 .journal-table th { font-size: 12px; font-weight: 600; color: var(--ink-3); }
 .journal-cut { color: var(--led-amber); font-style: normal; }
 .journal-table .btn .icon { width: 14px; height: 14px; margin-right: 4px; }
+
+/* The script library's button: an icon, so that the header keeps its room for the title */
+.find-btn.icon-only { margin-left: 0; min-width: 0; width: 34px; padding: 0; justify-content: center; }
