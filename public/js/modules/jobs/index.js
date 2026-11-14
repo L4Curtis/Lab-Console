@@ -53,6 +53,7 @@ export async function mount(el, { navigate }) {
   const searchBox = h('input.field', { type: 'search', placeholder: t('jobs.snapshots.searchPlaceholder'), 'aria-label': t('jobs.snapshots.search'), minlength: 2, maxlength: 100 });
   const searchOut = h('div.jobs-search', { hidden: true });
   const importInput = h('input', { type: 'file', accept: '.zip,application/zip', hidden: true, onchange: () => importZip() });
+  const importTemplateInput = h('input', { type: 'file', accept: '.zip,application/zip', hidden: true, onchange: () => importTemplateZip() });
   const tplList = h('div.jobs-templates');
   const histList = h('ol.jobs-history');
   const body = h('div.jobs-view', h('div.panel',
@@ -62,7 +63,9 @@ export async function mount(el, { navigate }) {
       h('button.btn.small', { type: 'button', dataset: { action: 'import' }, onclick: () => importInput.click() }, icon('upload'), tNode('jobs.snapshots.import')), importInput),
     h('p.muted.jobs-not-backup', tNode('jobs.snapshots.notBackup')), searchOut, snapList),
     h('section', h('div.jobs-section-head', h('h2', tNode('jobs.templates.title')),
-      session.isAdmin ? h('button.btn.small', { type: 'button', dataset: { action: 'new-template' }, onclick: () => newTemplate() }, icon('plus'), tNode('jobs.templates.new')) : null), tplList),
+      session.isAdmin ? h('span.jobs-section-actions',
+        h('button.btn.small', { type: 'button', dataset: { action: 'new-template' }, onclick: () => newTemplate() }, icon('plus'), tNode('jobs.templates.new')),
+        h('button.btn.small', { type: 'button', dataset: { action: 'import-template' }, onclick: () => importTemplateInput.click() }, icon('upload'), tNode('jobs.templates.import')), importTemplateInput) : null), tplList),
     h('section', h('h2', tNode('jobs.history.title')), histList)));
   el.append(head, body);
 
@@ -127,16 +130,31 @@ export async function mount(el, { navigate }) {
     if (res) { current = res.job; renderRunning(); }
   }
 
-  async function importZip() {
-    const file = importInput.files?.[0];
-    importInput.value = '';
-    if (!file) return;
-    const res = await fetch(`/api/jobs/snapshots/import?bench=${encodeURIComponent(bench)}&label=${encodeURIComponent(file.name.replace(/\.zip$/i, '').slice(0, 80))}`, {
+  /** Send the ZIP chosen in `input` to `path`; the file's name, without .zip, names what it becomes. → the answer, or null (the error is shown) */
+  async function postZip(input, path) {
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return null;
+    const name = encodeURIComponent(file.name.replace(/\.zip$/i, '').slice(0, 80));
+    const res = await fetch(path(name), {
       method: 'POST', headers: { 'Content-Type': 'application/zip', Accept: 'application/json' }, body: file, credentials: 'same-origin',
     });
     const data = await res.json().catch(() => null);
-    if (!res.ok) { toast(codeText(data?.code, data?.params, data?.error ?? String(res.status)), 'error', 7000); return; }
+    if (!res.ok) { toast(codeText(data?.code, data?.params, data?.error ?? String(res.status)), 'error', 7000); return null; }
+    return data;
+  }
+
+  async function importZip() {
+    const data = await postZip(importInput, (label) => `/api/jobs/snapshots/import?bench=${encodeURIComponent(bench)}&label=${label}`);
+    if (!data) return;
     toast(t('jobs.snapshots.imported', { count: data.snapshot.devices.length }));
+    await load();
+  }
+
+  async function importTemplateZip() {
+    const data = await postZip(importTemplateInput, (name) => `/api/jobs/templates/import?name=${name}`);
+    if (!data) return;
+    toast(t('jobs.templates.published', { name: data.template.name }));
     await load();
   }
 

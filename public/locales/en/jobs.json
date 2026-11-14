@@ -196,6 +196,7 @@
   "templates": {
     "title": "Lab templates",
     "none": "No template published.",
+    "import": "Import a ZIP",
     "new": "New template",
     "newIntro": "A configuration sent to every device (for example the base configuration applied after a reset).",
     "fromSnapshot": "Publish as a lab template",

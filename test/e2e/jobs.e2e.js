@@ -11,8 +11,8 @@
  */
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { unzipSync, strFromU8 } from 'fflate';
-import { useHarness, signInAs } from './harness.js';
+import { unzipSync, zipSync, strFromU8, strToU8 } from 'fflate';
+import { useHarness, signInAs, signInAsAdmin } from './harness.js';
 
 const h = useHarness({ env: { JOB_TIME_SCALE: '0.05', JOB_COUNTDOWN_SECONDS: '4' } });
 
@@ -155,5 +155,26 @@ test('injection: the preview shows the exact script of each device; once the ben
   await section(page).locator('.jobs-current[data-state="done"]').waitFor({ timeout: 90_000 });
   assert.match(await section(page).locator('.jobs-current tr[data-device="S1"]').textContent(), /identique à la source/);
   assert.deepEqual(page.errors, []);
+  await page.context().close();
+});
+
+test('an administrator imports a template from a ZIP; a student has no such button', async () => {
+  const admin = await h.newPage();
+  await signInAsAdmin(admin);
+  await admin.evaluate(() => { location.hash = '#/jobs/B4M'; });
+  await section(admin).locator('button[data-action="import-template"]').waitFor();
+  const zip = zipSync({ 'R1.cfg': strToU8('hostname R1\n logging synchronous\n'), '_any.cfg': strToU8('service password-encryption\n') });
+  await section(admin).locator('input[type="file"]').last().setInputFiles({ name: 'TP-reseau.zip', mimeType: 'application/zip', buffer: Buffer.from(zip) });
+  const row = section(admin).locator('.jobs-template-list li[data-template="TP-reseau"]');
+  await row.waitFor();
+  assert.match(await row.textContent(), /R1/);
+  await admin.screenshot({ path: '/srv/lab-console-dev/tmp/template-import.png' });
+  const listed = await api(admin, 'GET', '/api/jobs/templates');
+  await api(admin, 'DELETE', `/api/jobs/templates/${listed.body.templates.find((x) => x.name === 'TP-reseau').id}`);
+  assert.deepEqual(admin.errors, []);
+  await admin.context().close();
+
+  const page = await aliceOnJobs();
+  assert.equal(await section(page).locator('button[data-action="import-template"]').count(), 0);
   await page.context().close();
 });

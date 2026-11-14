@@ -196,6 +196,7 @@
   "templates": {
     "title": "Modèles de TP",
     "none": "Aucun modèle publié.",
+    "import": "Importer un ZIP",
     "new": "Nouveau modèle",
     "newIntro": "Une configuration envoyée à chaque équipement (par exemple la configuration de base appliquée après une réinitialisation).",
     "fromSnapshot": "Publier comme modèle de TP",

@@ -9,6 +9,7 @@
 .jobs-view h2 { margin: 0; font-size: 15px; font-weight: 600; }
 .jobs-section-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
 .jobs-section-head h2 { margin-right: auto; }
+.jobs-section-actions { display: inline-flex; gap: 8px; flex-wrap: wrap; }
 .jobs-search-form { display: inline-flex; gap: 6px; }
 .jobs-search-form .field { width: 22em; max-width: 60vw; }
 .jobs-search ul { margin: 6px 0 12px; padding: 0; list-style: none; display: grid; gap: 3px; font-size: 12.5px; max-height: 14em; overflow: auto; }
