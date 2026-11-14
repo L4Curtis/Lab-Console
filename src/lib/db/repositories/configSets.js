@@ -17,11 +17,13 @@
  *   templates.update(id, { name, description, updatedAt })
  *   templates.setBase(id | null)   the base configuration (at most one)
  *
- * Device: { device, file, sha256, bytes, vlanFile, vlanSha256, facts: { hostname, model, version, family, kind, configRegister, vtp? } }
+ * Device: { device, file, sha256, bytes, vlanFile, vlanSha256, startupFile, startupSha256, facts: { hostname, model, version, family, kind, configRegister, vtp? } }
+ * (startupFile: the device's startup-config, kept when it differed from its running-config)
  */
 import { toIso, toJson, fromJson, toFlag, fromFlag } from '../values.js';
 
-const DEVICE_COLUMNS = 'device, file, sha256, bytes, vlan_file, vlan_sha256, facts';
+const DEVICE_COLUMNS = 'device, file, sha256, bytes, vlan_file, vlan_sha256, startup_file, startup_sha256, facts';
+const DEVICE_VALUES = '?, ?, ?, ?, ?, ?, ?, ?, ?, ?';
 
 const deviceView = (r) => ({
   device: r.device,
@@ -30,10 +32,12 @@ const deviceView = (r) => ({
   bytes: Number(r.bytes),
   vlanFile: r.vlan_file ?? null,
   vlanSha256: r.vlan_sha256 ?? null,
+  startupFile: r.startup_file ?? null,
+  startupSha256: r.startup_sha256 ?? null,
   facts: fromJson(r.facts, {}),
 });
 
-const deviceParams = (d) => [String(d.device), String(d.file), String(d.sha256), Number(d.bytes) || 0, d.vlanFile ?? null, d.vlanSha256 ?? null, toJson(d.facts ?? {})];
+const deviceParams = (d) => [String(d.device), String(d.file), String(d.sha256), Number(d.bytes) || 0, d.vlanFile ?? null, d.vlanSha256 ?? null, d.startupFile ?? null, d.startupSha256 ?? null, toJson(d.facts ?? {})];
 
 /** Rows of a child table, grouped by their parent's id */
 function grouped(rows, key) {
@@ -76,13 +80,13 @@ export function createSnapshotsRepository(db) {
           [String(s.id), String(s.bench), s.teamId ?? null, String(s.label ?? ''), String(s.origin), s.jobId ?? null,
             toJson(s.author ?? {}), String(s.dir), toIso(s.createdAt), Number(s.bytes) || 0]);
         for (const d of s.devices ?? []) {
-          await tx.run(`INSERT INTO snapshot_devices (snapshot_id, ${DEVICE_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [String(s.id), ...deviceParams(d)]);
+          await tx.run(`INSERT INTO snapshot_devices (snapshot_id, ${DEVICE_COLUMNS}) VALUES (${DEVICE_VALUES})`, [String(s.id), ...deviceParams(d)]);
         }
       });
     },
     async addDevice(id, d, bytes) {
       return db.transaction(async (tx) => {
-        await tx.run(`INSERT INTO snapshot_devices (snapshot_id, ${DEVICE_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [String(id), ...deviceParams(d)]);
+        await tx.run(`INSERT INTO snapshot_devices (snapshot_id, ${DEVICE_COLUMNS}) VALUES (${DEVICE_VALUES})`, [String(id), ...deviceParams(d)]);
         await tx.run('UPDATE snapshots SET bytes = ? WHERE id = ?', [Number(bytes) || 0, String(id)]);
       });
     },
@@ -133,7 +137,7 @@ export function createTemplatesRepository(db) {
         await tx.run(`INSERT INTO templates (${TEMPLATE_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
           [String(t.id), String(t.name), String(t.description ?? ''), toFlag(false), String(t.dir), toJson(t.author ?? {}), toIso(t.createdAt), toIso(t.updatedAt ?? t.createdAt)]);
         for (const d of t.devices ?? []) {
-          await tx.run(`INSERT INTO template_devices (template_id, ${DEVICE_COLUMNS}) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [String(t.id), ...deviceParams(d)]);
+          await tx.run(`INSERT INTO template_devices (template_id, ${DEVICE_COLUMNS}) VALUES (${DEVICE_VALUES})`, [String(t.id), ...deviceParams(d)]);
         }
       });
     },

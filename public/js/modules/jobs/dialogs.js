@@ -271,18 +271,21 @@ export function reportDialog(job) {
     if (r.vlanDat && r.vlanDat !== 'n/a') lines.push(t(`jobs.report.vlanDat.${r.vlanDat}`));
     if (r.base) lines.push(t('jobs.report.base', { name: r.base.name, count: r.base.errors.length }));
     if (Array.isArray(r.errors) && r.errors.length) lines.push(t('jobs.report.errors', { count: r.errors.length }));
+    if (r.startupKept) lines.push(t('jobs.report.startupKept'));
     if (r.saved === true) lines.push(t('jobs.report.saved'));
+    if (r.saved === false) lines.push(t('jobs.report.notSaved'));
     if (r.check) lines.push(t(`jobs.report.check.${r.check.status === 'same' ? 'same' : 'changed'}`, { added: r.check.added ?? 0, removed: r.check.removed ?? 0 }));
     for (const w of r.warnings ?? []) lines.push(t(`jobs.report.warning.${w}`));
     return h('li.jobs-report-device', { dataset: { device: d.name, state: d.state } },
       h('div.jobs-report-head', h('strong', d.name), h('span.jobs-state', { dataset: { state: d.state } }, stateText(d.state))),
       lines.length ? h('ul', lines.map((l) => h('li', l))) : null,
-      r.errors?.length ? h('details', h('summary', t('jobs.report.errorLines')), h('pre.jobs-code', r.errors.map((e) => `${e.line}: ${e.command}\n  ${e.message}`).join('\n'))) : null,
+      r.errors?.length ? h('details', h('summary', t('jobs.report.errorLines')), h('pre.jobs-code', r.errors.map((e) => (e.command === undefined ? `${e.line}: ${e.message}` : `${e.line}: ${e.command}\n  ${e.message}`)).join('\n'))) : null,
       r.check?.patch ? h('details', h('summary', t('jobs.report.diff')), patchView(r.check.patch)) : null,
       r.check?.missing?.length ? h('details', h('summary', t('jobs.report.missing')), h('pre.jobs-code', r.check.missing.join('\n'))) : null,
       d.lastOutput ? h('details', h('summary', t('jobs.report.output')), h('pre.jobs-code', d.lastOutput)) : null);
   });
-  return openDialog(h('div.modal-body.jobs-report', h('p.muted', t('jobs.report.by', { name: job.actor.name, date: fmtDate(job.createdAt), state: stateText(job.state) })), h('ul.jobs-report-list', rows)),
+  return openDialog(h('div.modal-body.jobs-report', h('p.muted', t('jobs.report.by', { name: job.actor.name, date: fmtDate(job.createdAt), state: stateText(job.state) })),
+    job.redacted ? h('p.muted', t('jobs.report.redacted')) : null, h('ul.jobs-report-list', rows)),
     { title: t('jobs.report.title', { kind: kindText(job.kind), bench: job.bench }), wide: true }).closed;
 }
 

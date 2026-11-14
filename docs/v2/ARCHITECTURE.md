@@ -1102,18 +1102,28 @@ every byte: a lock or another team taking the bench stops the device with
 Order enforced in `runner.js`, never in the browser: `prepare` (with
 `room.screen()`), `identify` (not Cisco IOS / IOS XE → `skipped`, `ios.not_ios`,
 nothing more typed), backup (`runningConfig`, and `vlans` with VTP on a
-switch) written to the job's snapshot and indexed, the file read back and
-checked against its SHA-256 and what was read (`verifyBackup`), and only then
+switch; for a reset or an injection also `show startup-config`, kept as
+`<device>.startup.cfg` whenever it is not the running-config, as on a router
+at register 0x2141 that ignores it: an erase destroys it, so a startup-config
+that cannot be read fails the backup, `jobs.startup_unread`) written to the
+job's snapshot and indexed, the files read back and checked against their
+SHA-256 and what was read (`verifyBackup`), and only then
 `eraseAndReload({ backup: { kind: 'snapshot', … }, verifyBackup, facts })`.
 A failed backup leaves the device untouched (`jobs.backup_failed`, `params.cause`)
 unless an admin listed it in `forceErase` (then an `override` proof naming
 them, and the warning `erased_without_backup`). After a reset the base
 configuration (a template marked `base`) is sent and saved unless
-`applyBase: false`. An injection backs up first; in mode `reset` (the
-default) it erases as above, then sends the script with `sendScript`
-(`skipComments: false`, `lineTimeouts`), `copy running-config
-startup-config` unless `save: false`, reads the device again and compares
-(`comparableConfig` + VLANs) with the source.
+`applyBase: false`; a template gone or damaged since the job started is
+skipped with the warning `base_missing` / `base_damaged`, and a base the
+device refused lines of is not saved (`base_not_saved`). An injection backs
+up first; in mode `reset` (the default) it erases as above, then sends the
+script with `sendScript` (`skipComments: false`, `lineTimeouts`), reads the
+device again and compares (`comparableConfig` + VLANs) with the source, and
+only then `copy running-config startup-config` (unless `save: false`): never
+when the device refused a line (the device fails with `jobs.script_errors`,
+`saved: false`, its report kept) nor, in mode `reset`, when it does not read
+back as the source (`jobs.check_differs`). The person reads the report and
+saves by hand.
 
 **Exact scripts.** `POST /benches/:bench/preview` returns, per device, the
 script `planScript()` (= `toReplayScript` on the stored source) produces and
@@ -1132,20 +1142,30 @@ with `jobs.locked` (423, the reason) or `jobs.not_occupant` (403). After a
 release (`services.benches.onRelease`), the team that let the bench go may
 still run a **backup** of it for 30 minutes while it stays free (or theirs)
 and unlocked: the hook answers `{ kind: 'backup', bench, href:
-'#/jobs/<bench>/backup' }`, the bench bar offers it. Seeing a job (report,
-`jobs:job` events): its actor, the members of the team that held the bench,
-the bench's occupants, admins. Cancelling: its actor, the occupants, admins.
+'#/jobs/<bench>/backup' }`, the bench bar offers it. Seeing a job is decided by
+what was true when it ran, never by who holds the bench now: the members of
+the team that held it (`job.teamId`) and admins read the whole report; its
+actor otherwise, and the bench's occupants while it runs (and in its own
+`jobs:job` publications, the last one included), get `redactedJob()`: the
+same report without a configuration line (no `check.patch`, `check.missing`,
+`errors[].command`, `lastOutput`; `redacted: true`). Nobody else sees it
+(`jobs.job_forbidden`). Cancelling: its actor, the occupants, admins
+(`jobs.cancel_forbidden` for anyone else who sees it).
 Shared devices (one console line on several benches) are only touched when
-listed explicitly (the dialogs leave them unticked); admin switches are never
-devices of a job.
+listed explicitly (the dialogs leave them unticked); a reset or an injection
+of one is refused unless every other bench using the line is free and
+unlocked or held by the actor's team (409 `jobs.shared_in_use`, `params.device`,
+`params.bench`; admins are not refused), and asked again before the device
+starts (`jobs.not_allowed`). Admin switches are never devices of a job.
 
 **Snapshots** are owned by the team that held the bench at the time
 (`holder().teamId`; none for an admin on a free bench: admins only) and seen
 by its members and admins, never by guests or other teams (403
 `jobs.snapshot_forbidden`). Files in `data/snapshots/<bench>/<id>/`
-(`manifest.json`, `<device>.cfg`, `<device>.vlan.txt`), index in the tables
-`snapshots` and `snapshot_devices` (migration 012: path, SHA-256, size,
-hostname, model, version, family, kind, register). VLANs and VTP (whose
+(`manifest.json`, `<device>.cfg`, `<device>.vlan.txt`,
+`<device>.startup.cfg`), index in the tables `snapshots` and
+`snapshot_devices` (migration 012: path, SHA-256, size, hostname, model,
+version, family, kind, register; the startup-config's file and SHA-256). VLANs and VTP (whose
 password is a secret of the backup) live in the manifest, not in the
 database. Nothing is deleted automatically. **Templates** (`templates`,
 `template_devices`, `data/templates/<id>/`): admins publish them (typed, from

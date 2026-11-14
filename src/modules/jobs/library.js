@@ -15,7 +15,7 @@
  *   library.snapshot(user, id)                    → the snapshot, or 404 / 403
  *   library.open({ bench, teamId, label, origin, jobId, author })   a new snapshot a job fills
  *   library.add(set, { device, config, vlans, vtp, facts })        → its index row
- *   library.readDevice(set, name) / library.verify(set, row, config)
+ *   library.readDevice(set, name) / library.verify(set, row, config, { startup })
  *   library.importZip(user, bench, buffer, { label, devices })   → snapshot
  *   library.diff(a, b, { device })                → [{ device, status, patch, added, removed }]
  *   library.search(user, text)                    → [{ snapshot, bench, device, line, text }]
@@ -52,7 +52,7 @@ export function snapshotView(s, { teamName = null } = {}) {
     author: { name: s.author?.name ?? '', username: s.author?.username ?? '' },
     createdAt: s.createdAt,
     bytes: s.bytes,
-    devices: s.devices.map((d) => ({ device: d.device, bytes: d.bytes, sha256: d.sha256, vlans: Boolean(d.vlanFile), facts: d.facts })),
+    devices: s.devices.map((d) => ({ device: d.device, bytes: d.bytes, sha256: d.sha256, vlans: Boolean(d.vlanFile), startup: Boolean(d.startupFile), facts: d.facts })),
   };
 }
 
@@ -149,8 +149,13 @@ export class Library {
     return { row, ...(await this.files.readDevice(set, row)) };
   }
 
-  verify(set, row, config) {
-    return this.files.verify(set, row, config);
+  verify(set, row, config, options) {
+    return this.files.verify(set, row, config, options);
+  }
+
+  /** A device's startup-config kept in a snapshot, or null */
+  readStartup(set, row) {
+    return this.files.readStartup(set, row);
   }
 
   async removeSnapshot(user, id) {
@@ -218,7 +223,7 @@ export class Library {
       }
     }
     for (const file of entries.keys()) {
-      if (file === MANIFEST || /\.vlan\.txt$/.test(file)) continue;
+      if (file === MANIFEST || /\.vlan\.txt$/.test(file) || /\.startup\.cfg$/.test(file)) continue;
       const name = file === '_any.cfg' ? ANY_DEVICE : file.replace(/\.cfg$/, '');
       if (!/\.cfg$/.test(file) || !known(name)) { if (!found.some((f) => f.device === name)) ignored.push(file); continue; }
       take(name, file);

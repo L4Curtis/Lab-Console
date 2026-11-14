@@ -10,7 +10,9 @@
  *                      the per-device report once it ends
  *   snapshots          a set of configurations of one bench, owned by the
  *                      team that held the bench (team_id null: admins only)
- *   snapshot_devices   one device of a snapshot: its files, hashes and facts
+ *   snapshot_devices   one device of a snapshot: its files, hashes and facts;
+ *                      startup_file: the startup-config, kept when it was not
+ *                      the running-config (a reset erases it)
  *   templates          TP templates published by admins; `base` marks the
  *                      base configuration applied after a reset
  *   template_devices   one device (or '*': every device) of a template
@@ -54,6 +56,8 @@ export async function up(tx) {
     bytes BIGINT NOT NULL,
     vlan_file TEXT,
     vlan_sha256 TEXT,
+    startup_file TEXT,
+    startup_sha256 TEXT,
     facts TEXT NOT NULL,
     PRIMARY KEY (snapshot_id, device)
   )`);
@@ -78,6 +82,8 @@ export async function up(tx) {
     bytes BIGINT NOT NULL,
     vlan_file TEXT,
     vlan_sha256 TEXT,
+    startup_file TEXT,
+    startup_sha256 TEXT,
     facts TEXT NOT NULL,
     PRIMARY KEY (template_id, device)
   )`);

@@ -25,15 +25,21 @@
  * of an unlocked bench, and admins); after a release, the team that released
  * may still back the bench up for a while (the offer). One job per bench.
  * SSE: 'jobs:running' (sticky, everyone: which bench runs what, device by
- * device), 'jobs:job' (the whole job, to those who may see it: its actor,
- * the team that held the bench, the occupants, admins).
+ * device), 'jobs:job' (the job, to those who may see it).
+ *
+ * Seeing a job is decided by what was true when it ran, never by who holds
+ * the bench now: the members of the team that held it (job.teamId) and the
+ * admins read the whole report, which carries configuration lines (diffs,
+ * refused commands, console output). Its actor, when not one of them, and
+ * the bench's occupants while the job runs, see it without those lines
+ * (redactedJob); nobody else sees it.
  */
 import fs from 'node:fs';
 import express from 'express';
 import { httpError } from '../../lib/httpError.js';
 import { dayOf } from '../consoles/journal.js';
 import { Library, templateView } from './library.js';
-import { JobRunner, scaledTimeouts, planScript, publicJob } from './runner.js';
+import { JobRunner, scaledTimeouts, planScript, publicJob, redactedJob } from './runner.js';
 import { makeZip, vlanText, ANY_DEVICE } from './configFiles.js';
 
 const OFFER_MS = 30 * 60_000;
@@ -51,6 +57,8 @@ const DROPPED = {
 };
 const RSA_MODULI = [512, 768, 1024, 2048, 4096];
 const KINDS = ['backup', 'reset', 'inject', 'compare'];
+const MUTATING = new Set(['reset', 'inject']);
+const LIVE = new Set(['pending', 'running']);
 
 const isAdmin = (u) => u?.role === 'admin';
 const targetKey = (t) => `${t.host}:${t.port}`;
@@ -90,24 +98,38 @@ export function createJobsModule({ config, logger, events, store, repos, audit, 
     return httpError(403, 'jobs.not_occupant', 'Only the occupants of this bench (and admins) run jobs on it.', { bench });
   }
 
-  /** A job goes on device after device only while its actor may still run it */
-  function mayGoOn(job) {
+  /** A job goes on device after device only while its actor may still run it (and, erasing or writing, touch a shared line) */
+  function mayGoOn(job, device) {
     const user = job.hidden.actorUser;
+    if (MUTATING.has(job.kind) && device?.shared && sharedConflict(user, job.bench, [device])) return false;
     if (isAdmin(user)) return true;
     if (benches()?.canOperate?.(user, job.bench)) return true;
     return Boolean(job.options.offer && offerFor(user, job.bench));
   }
 
-  /** The job's actor, the team that held the bench, its occupants now, admins */
-  function canSee(user, job) {
-    if (!user?.id) return false;
-    if (isAdmin(user) || job.actor?.id === user.id) return true;
-    if (isMember(user, job.teamId)) return true;
-    return Boolean(benches()?.isOccupant?.(user, job.bench));
+  /**
+   * What `user` may see of `job`: 'full' (the members of the team that held
+   * the bench when it ran, admins), 'summary' (its actor otherwise; the
+   * bench's occupants while it runs, or in its own publications), or null
+   */
+  function viewOf(user, job, { live = false } = {}) {
+    if (!user?.id) return null;
+    if (isAdmin(user) || library.canSee(user, { teamId: job.teamId })) return 'full';
+    if (job.actor?.id === user.id) return 'summary';
+    if ((live || LIVE.has(job.state)) && benches()?.isOccupant?.(user, job.bench)) return 'summary';
+    return null;
+  }
+
+  /** The job as `user` may see it, or null */
+  function jobFor(user, job, options) {
+    const view = viewOf(user, job, options);
+    if (view === 'full') return job.hidden ? publicJob(job) : job;
+    if (view === 'summary') return redactedJob(job);
+    return null;
   }
 
   const runner = new JobRunner({
-    services, events, audit, repos, library, logger: log, canSee, mayGoOn,
+    services, events, audit, repos, library, logger: log, viewOf, mayGoOn,
     options: {
       devicesAtOnce: options.devicesAtOnce ?? cfg.devicesAtOnce,
       countdownMs: options.countdownMs ?? cfg.countdownSeconds * 1000,
@@ -134,6 +156,28 @@ export function createJobsModule({ config, logger, events, store, repos, audit, 
       .filter((d) => d.target && !admin.has(targetKey(d.target)))
       // The registry's own device (with its bench): what the consoles open, journal and decide on
       .map((d) => ({ ...(registry?.getDevice?.(d.key) ?? d), labName: bench, shared: shared.has(targetKey(d.target)) }));
+  }
+
+  /**
+   * A shared device erased or written while another bench using its line is
+   * not free, or held by another team, or locked: the refusal, or null. Admins
+   * are never refused
+   */
+  function sharedConflict(user, bench, devices) {
+    if (isAdmin(user)) return null;
+    const mine = teamOf(user)?.id ?? null;
+    const labs = services.consoles?.registry?.model?.labs ?? [];
+    for (const d of devices.filter((x) => x.shared)) {
+      const key = targetKey(d.target);
+      for (const other of labs) {
+        if (other.name === bench || !other.devices?.some((x) => x.target && targetKey(x.target) === key)) continue;
+        const holder = benches()?.holder?.(other.name);
+        if (benches()?.lock?.(other.name) || (holder && holder.teamId !== mine)) {
+          return httpError(409, 'jobs.shared_in_use', 'This device shares its console line with a bench another team holds: it is left alone.', { device: d.name, bench: other.name });
+        }
+      }
+    }
+    return null;
   }
 
   /** The devices asked for (keys), all of them of this bench; by default every device not shared with another bench */
@@ -228,7 +272,7 @@ export function createJobsModule({ config, logger, events, store, repos, audit, 
         const summary = room?.summary();
         return { key: d.key, name: d.name, shared: d.shared, open: Boolean(room), people: summary?.users?.map((u) => u.name) ?? [], pilot: summary?.pilot?.name ?? null };
       }),
-      running: running ? (canSee(req.user, running) ? publicJob(running) : runner.summary().jobs.find((j) => j.id === running.id)) : null,
+      running: running ? (jobFor(req.user, running) ?? runner.summary().jobs.find((j) => j.id === running.id)) : null,
       base: base ? { id: base.id, name: base.name } : null,
       countdownSeconds: Math.round(runner.countdownMs / 1000),
     });
@@ -248,6 +292,8 @@ export function createJobsModule({ config, logger, events, store, repos, audit, 
     if (no) throw no;
     if (req.body?.confirm !== bench) throw httpError(400, 'jobs.confirm_bench', 'Type the name of the bench to confirm the reset.', { bench });
     const devices = pick(bench, req.body?.devices);
+    const shared = sharedConflict(req.user, bench, devices);
+    if (shared) throw shared;
     const forceErase = Array.isArray(req.body?.forceErase) ? req.body.forceErase.filter((k) => typeof k === 'string') : [];
     if (forceErase.length && !isAdmin(req.user)) throw httpError(403, 'jobs.force_admin_only', 'Only an admin may erase a device whose backup failed.');
     if (forceErase.some((k) => !devices.some((d) => d.key === k))) throw httpError(400, 'jobs.unknown_device', 'One of these devices is not on this bench.');
@@ -281,6 +327,8 @@ export function createJobsModule({ config, logger, events, store, repos, audit, 
     if (!['reset', 'merge'].includes(mode)) throw httpError(400, 'jobs.bad_mode', 'The mode is "reset" (then inject) or "merge".');
     if (mode === 'reset' && req.body?.confirm !== bench) throw httpError(400, 'jobs.confirm_bench', 'Type the name of the bench to confirm: its devices are erased first.', { bench });
     const p = await plan(req.user, bench, req.body);
+    const shared = sharedConflict(req.user, bench, p.devices);
+    if (shared) throw shared;
     if (p.missing.length) throw httpError(400, 'jobs.not_in_source', 'Some devices have no configuration in this source.', { devices: p.missing.map((m) => m.name).join(', ') });
     const seen = req.body?.scripts && typeof req.body.scripts === 'object' ? req.body.scripts : {};
     const stale = p.devices.filter((d) => seen[d.key] !== p.plans.get(d.key).sha256);
@@ -311,6 +359,10 @@ export function createJobsModule({ config, logger, events, store, repos, audit, 
       const d = await library.readDevice(set, row.device);
       entries[`${root}/configurations/${row.file}`] = d.config;
       if (row.vlanFile) entries[`${root}/configurations/${row.vlanFile}`] = vlanText(d.vlans ?? []);
+      if (row.startupFile) {
+        const startup = await library.readStartup(set, row).catch(() => null);
+        if (startup) entries[`${root}/configurations/${row.startupFile}`] = startup.text;
+      }
     }
     const journal = services.consoles?.journal;
     const teamOfUser = (u) => teamOf(u)?.id ?? null;
@@ -327,7 +379,7 @@ export function createJobsModule({ config, logger, events, store, repos, audit, 
       }
     }
     entries[`${root}/README.txt`] = `Lab Console - ${bench} - ${day}\nSnapshot ${set.id}${set.label ? ` (${set.label})` : ''}, ${set.createdAt}\n`
-      + `configurations/: one running-config per device\njournals/: what the consoles printed that day (${read.length} sessions)\n`;
+      + `configurations/: one running-config per device (and its startup-config when it was another)\njournals/: what the consoles printed that day (${read.length} sessions)\n`;
     audit.log(req, 'job.folder.download', { bench, snapshot: set.id, journals: read.length });
     sendZip(res, makeZip(entries), `${root}.zip`);
   });
@@ -338,33 +390,34 @@ export function createJobsModule({ config, logger, events, store, repos, audit, 
     if (typeof id !== 'string' || !/^[0-9a-f-]{36}$/.test(id)) throw httpError(404, 'jobs.no_job', 'There is no such job.');
     const job = runner.get(id) ?? await repos.jobs.get(id);
     if (!job) throw httpError(404, 'jobs.no_job', 'There is no such job.');
-    if (!canSee(user, job)) throw httpError(403, 'jobs.job_forbidden', 'This job belongs to another team.');
-    return job;
+    const view = jobFor(user, job);
+    if (!view) throw httpError(403, 'jobs.job_forbidden', 'This job belongs to another team.');
+    return { job, view };
   }
 
   router.get('/runs', async (req, res) => {
     const bench = req.query.bench === undefined ? undefined : lab(String(req.query.bench)).name;
     const stored = await repos.jobs.list({ bench, limit: 50 });
-    const live = new Map(runner.recent(bench).map((j) => [j.id, publicJob(j)]));
-    const all = [...live.values(), ...stored.filter((j) => !live.has(j.id))].filter((j) => canSee(req.user, j))
+    const live = new Map(runner.recent(bench).map((j) => [j.id, j]));
+    const all = [...live.values(), ...stored.filter((j) => !live.has(j.id))].map((j) => jobFor(req.user, j)).filter(Boolean)
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 50);
     noStore(res).json({ jobs: all.map((j) => ({ ...j, devices: j.devices.map(({ lastOutput: _output, ...d }) => d) })) });
   });
 
   router.get('/runs/:id', async (req, res) => {
-    const job = await jobOf(req.user, req.params.id);
-    noStore(res).json({ job: job.hidden ? publicJob(job) : job });
+    const { view } = await jobOf(req.user, req.params.id);
+    noStore(res).json({ job: view });
   });
 
   router.post('/runs/:id/cancel', async (req, res) => {
-    const job = await jobOf(req.user, req.params.id);
+    const { job } = await jobOf(req.user, req.params.id);
     const live = runner.get(job.id);
     if (!live || !['pending', 'running'].includes(live.state)) throw httpError(409, 'jobs.not_running', 'This job is over.');
     if (!(isAdmin(req.user) || live.actor.id === req.user.id || benches()?.canOperate?.(req.user, live.bench))) {
       throw httpError(403, 'jobs.cancel_forbidden', 'Only the person who started the job, the occupants of the bench and admins may stop it.');
     }
     runner.cancel(live, req.user);
-    res.json({ job: publicJob(live) });
+    res.json({ job: jobFor(req.user, live, { live: true }) });
   });
 
   // ── Snapshots ─────────────────────────────────────────────────────────────
@@ -397,7 +450,8 @@ export function createJobsModule({ config, logger, events, store, repos, audit, 
     const set = await library.snapshot(req.user, req.params.id);
     const d = await library.readDevice(set, req.params.device);
     if (!d) throw httpError(404, 'jobs.no_device', 'This device is not in the snapshot.');
-    noStore(res).json({ device: d.row.device, config: d.config, vlans: d.vlans, facts: d.facts, intact: d.intact, sha256: d.row.sha256 });
+    const startup = await library.readStartup(set, d.row).catch(() => null);
+    noStore(res).json({ device: d.row.device, config: d.config, vlans: d.vlans, facts: d.facts, intact: d.intact, sha256: d.row.sha256, startup: startup?.text ?? null });
   });
 
   router.get('/snapshots/:id/zip', async (req, res) => {
@@ -492,8 +546,8 @@ export function createJobsModule({ config, logger, events, store, repos, audit, 
   services.jobs = {
     /** The job holding a bench (pending or running), as everyone may see it, or null */
     running: (labName) => runner.summary().jobs.find((j) => j.bench === labName) ?? null,
-    /** Recent jobs (in memory), newest first */
-    list: ({ bench } = {}) => runner.recent(bench).map(publicJob),
+    /** Recent jobs (in memory), newest first, without a line of configuration (redactedJob) */
+    list: ({ bench } = {}) => runner.recent(bench).map(redactedJob),
     kinds: KINDS,
   };
 

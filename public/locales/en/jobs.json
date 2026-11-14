@@ -266,8 +266,14 @@
     "warning": {
       "erased_without_backup": "erased without a backup (ticked by an admin)",
       "register_unusual": "unusual configuration register",
-      "pnp_not_stopped": "Plug-and-Play discovery did not stop"
-    }
+      "pnp_not_stopped": "Plug-and-Play discovery did not stop",
+      "base_missing": "base configuration not applied: its template is gone",
+      "base_damaged": "base configuration not applied: its file is damaged",
+      "base_not_saved": "base configuration not saved: the device refused lines"
+    },
+    "startupKept": "startup-config backed up too (it was not the running-config)",
+    "notSaved": "not saved: the startup-config was left as it was",
+    "redacted": "The configuration lines of this report are for the team that held the bench and for admins."
   },
   "layer": {
     "tooltip": "{kind} by {name}: {state}"
@@ -316,7 +322,11 @@
     "not_allowed": "The bench is no longer yours (locked, or taken by another team): device not processed.",
     "cancelled": "Stopped.",
     "interrupted": "The server restarted during the job: check the device on its console.",
-    "device_failed": "The device could not be processed."
+    "device_failed": "The device could not be processed.",
+    "shared_in_use": "{device} shares its console line with {bench}, held by another team: it is left alone.",
+    "script_errors": "The device refused {count} line(s): nothing was saved. Read the refused lines, then save by hand if you wish.",
+    "check_differs": "The device does not read back as the source (+{added} / −{removed}): nothing was saved.",
+    "startup_unread": "The startup configuration could not be read."
   },
   "audit": {
     "backup": "{who} started a backup ({device})",

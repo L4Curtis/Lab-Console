@@ -266,8 +266,14 @@
     "warning": {
       "erased_without_backup": "effacé sans sauvegarde (coché par un administrateur)",
       "register_unusual": "registre de configuration inhabituel",
-      "pnp_not_stopped": "la découverte Plug-and-Play ne s’est pas arrêtée"
-    }
+      "pnp_not_stopped": "la découverte Plug-and-Play ne s’est pas arrêtée",
+      "base_missing": "configuration de base non appliquée : son modèle a disparu",
+      "base_damaged": "configuration de base non appliquée : son fichier est abîmé",
+      "base_not_saved": "configuration de base non enregistrée : l’équipement a refusé des lignes"
+    },
+    "startupKept": "startup-config sauvegardée aussi (ce n’était pas la running-config)",
+    "notSaved": "non enregistré : la startup-config est restée telle quelle",
+    "redacted": "Les lignes de configuration de ce rapport sont réservées à l’équipe qui tenait la baie et aux administrateurs."
   },
   "layer": {
     "tooltip": "{kind} par {name} : {state}"
@@ -316,7 +322,11 @@
     "not_allowed": "La baie n’est plus à vous (verrouillée ou prise par une autre équipe) : équipement non traité.",
     "cancelled": "Arrêté.",
     "interrupted": "Le serveur a redémarré pendant la tâche : vérifiez l’équipement sur sa console.",
-    "device_failed": "L’équipement n’a pas pu être traité."
+    "device_failed": "L’équipement n’a pas pu être traité.",
+    "shared_in_use": "{device} partage sa ligne console avec {bench}, tenue par une autre équipe : il n’est pas touché.",
+    "script_errors": "L’équipement a refusé {count} ligne(s) : rien n’a été enregistré. Lisez les lignes refusées, puis enregistrez à la main si vous le souhaitez.",
+    "check_differs": "L’équipement ne se relit pas comme la source (+{added} / −{removed}) : rien n’a été enregistré.",
+    "startup_unread": "La configuration de démarrage n’a pas pu être lue."
   },
   "audit": {
     "backup": "{who} a lancé une sauvegarde ({device})",

@@ -12,12 +12,18 @@
  *   1. prepare (privileged EXEC) and identify: a device that does not run
  *      Cisco IOS / IOS XE is left untouched (skipped);
  *   2. backup: running-config (and VLANs, VTP on a switch) written to the
- *      job's snapshot, indexed with its SHA-256;
+ *      job's snapshot, indexed with its SHA-256; before an erase or an
+ *      injection, the startup-config too whenever it is not the running one
+ *      (a router at register 0x2141 ignores it: that is what an erase loses);
  *   3. the backup is read back from disk and checked against the index and
  *      against what was just read (eraseAndReload's verifyBackup);
  *   4. only then erase and reload. A device whose backup failed is not
  *      erased, unless an admin ticked it by hand (an 'override' proof that
  *      names them).
+ *
+ * An injection is saved (copy running-config startup-config) only when the
+ * device took every line and, after a reset, reads back as the source: the
+ * startup-config is never overwritten with half a configuration.
  *
  * Enable and console-line passwords come with the request, live in this
  * job's memory while it runs, and are never saved, logged or sent back (the
@@ -33,13 +39,15 @@
  */
 import { newId } from '../../lib/db/values.js';
 import { CiscoIos, TIMEOUTS, toReplayScript, comparableConfig } from '../../lib/drivers/ciscoIos.js';
-import { patterns, screenTail } from '../../lib/cliAutomation.js';
+import { patterns, screenTail, escapeRe } from '../../lib/cliAutomation.js';
 import { comparable, compareConfigs } from './library.js';
 import { sha256 } from './configFiles.js';
 
 const FINAL = new Set(['done', 'failed', 'cancelled', 'partial']);
 const KEPT_PER_BENCH = 20;
 const PACING = { delayMs: 50, chunkBytes: 32, chunkDelayMs: 40, lineTimeoutMs: 8000 };
+/** Jobs that erase or write a device: they need its startup-config backed up too */
+const MUTATING = new Set(['reset', 'inject']);
 
 /** A device stops here; `outcome` is 'failed' or 'skipped' */
 class DeviceStop extends Error {
@@ -50,6 +58,7 @@ class DeviceStop extends Error {
     this.params = r?.params ?? {};
     this.stage = r?.stage ?? extra.stage ?? null;
     this.lastOutput = r?.lastOutput ?? null;
+    this.result = extra.result ?? null; // what the device did before it stopped (the report keeps it)
   }
 }
 const failed = (r, extra) => new DeviceStop('failed', r, extra);
@@ -71,17 +80,21 @@ export class JobRunner {
   /**
    * @param services  the module services (consoles, benches, teams)
    * @param library   the snapshots and templates (library.js)
-   * @param mayGoOn   (job) => boolean: may this job's actor still run it (asked before each device)
+   * @param mayGoOn   (job, device) => boolean: may this job's actor still run it on this device (asked before each device)
    * @param options   { devicesAtOnce, countdownMs, timeouts, pacing, now }
    */
-  constructor({ services, events, audit, repos, library, logger, canSee, mayGoOn = () => true, options = {} }) {
+  /**
+   * @param viewOf    (user, job, { live }) => 'full' | 'summary' | null: what this user may see of the job
+   *                  (live: the job's own publications, which reach whoever follows it until its end)
+   */
+  constructor({ services, events, audit, repos, library, logger, viewOf, mayGoOn = () => true, options = {} }) {
     this.services = services;
     this.events = events;
     this.audit = audit;
     this.repos = repos;
     this.library = library;
     this.log = logger;
-    this.canSee = canSee;
+    this.viewOf = viewOf;
     this.mayGoOn = mayGoOn;
     this.devicesAtOnce = options.devicesAtOnce ?? 5;
     this.countdownMs = options.countdownMs ?? 10_000;
@@ -235,10 +248,10 @@ export class JobRunner {
   async #device(job, d) {
     const signal = job.hidden.abort.signal;
     if (signal.aborted) return this.#set(job, d, { state: 'cancelled', code: 'jobs.cancelled' });
-    if (!this.mayGoOn(job)) {
+    const device = job.hidden.devices.get(d.key);
+    if (!this.mayGoOn(job, device)) {
       return this.#set(job, d, { state: 'failed', code: 'jobs.not_allowed', message: 'The bench is no longer yours to run jobs on.' });
     }
-    const device = job.hidden.devices.get(d.key);
     const started = this.now();
     this.#set(job, d, { state: 'waiting', step: 'jobs.steps.keyboard' });
     let room;
@@ -263,7 +276,8 @@ export class JobRunner {
       this.#set(job, d, { state: 'done', step: null, stage: null, result: { ...result, seconds: Math.round((this.now() - started) / 1000) } });
     } catch (err) {
       if (err instanceof DeviceStop) {
-        this.#set(job, d, { state: err.outcome, code: err.code, params: err.params, message: err.message, stage: err.stage ?? d.stage, lastOutput: err.lastOutput });
+        const result = err.result ? { ...err.result, seconds: Math.round((this.now() - started) / 1000) } : d.result;
+        this.#set(job, d, { state: err.outcome, code: err.code, params: err.params, message: err.message, stage: err.stage ?? d.stage, lastOutput: err.lastOutput, result });
       } else if (err.cancelled || (signal.aborted && err.code === 'automation.stopped')) {
         this.#set(job, d, { state: 'cancelled', code: 'jobs.cancelled', stage: err.stage ?? d.stage });
       } else {
@@ -275,8 +289,12 @@ export class JobRunner {
 
   // ── The procedures ────────────────────────────────────────────────────────
 
-  /** prepare → identify → running-config (+ VLANs, VTP on a switch) */
-  async #read(ctx, { purpose = 'backup' } = {}) {
+  /**
+   * prepare → identify → running-config (+ VLANs, VTP on a switch); with
+   * `startup`, the startup-config too, kept (as `startup`) only when it is not
+   * the running-config
+   */
+  async #read(ctx, { purpose = 'backup', startup = false } = {}) {
     const { job, d, ios, room } = ctx;
     const { enablePasswords, linePasswords } = job.hidden.secrets;
     const p = await ios.prepare({ enablePasswords, linePasswords, screen: room.screen() });
@@ -299,7 +317,42 @@ export class JobRunner {
       vlans = v.supported ? v.vlans : null;
       vtp = v.vtp ?? null;
     }
-    return { hostname: rc.hostname, config: rc.config, vlans, vtp, facts: id };
+    let kept = null;
+    if (startup) {
+      const text = await this.#startupConfig(ctx, purpose);
+      if (text !== null && comparableConfig(text) !== comparableConfig(rc.config)) kept = text;
+    }
+    return { hostname: rc.hostname, config: rc.config, vlans, vtp, facts: id, startup: kept };
+  }
+
+  /**
+   * show startup-config → its text, or null when the device has none.
+   * An erase destroys it: when it cannot be read, the backup has failed.
+   */
+  async #startupConfig(ctx, stage) {
+    const { cli } = ctx;
+    const refused = (detail, lastOutput = null) => failed({ reason: 'jobs.startup_unread', message: `The startup configuration could not be read: ${detail}`, params: {}, lastOutput }, { stage });
+    let p;
+    try {
+      cli.reset();
+      p = await cli.findPrompt({ timeout: this.timeouts.promptMs });
+    } catch (err) {
+      if (err.cancelled) throw err;
+      throw refused(err.message);
+    }
+    const promptAtEnd = new RegExp(`(?:^|\\n)${escapeRe(p.host)}# ?$`);
+    const atPrompt = (b) => promptAtEnd.test(screenTail(b));
+    const quick = { until: atPrompt, paging: false, timeout: this.timeouts.promptMs, idle: Infinity, settle: 80 };
+    const off = await cli.command('terminal length 0', quick);
+    const r = await cli.command('show startup-config', { until: atPrompt, paging: true, timeout: this.timeouts.commandMs, idle: Math.min(this.timeouts.commandMs, 60_000), settle: this.timeouts.settleMs });
+    if (off.complete && !patterns.DEVICE_ERROR.test(off.output)) await cli.command('terminal length 24', quick);
+    if (!r.complete) throw refused('the device stopped answering', r.output.slice(-600));
+    const text = startupText(r.output, promptAtEnd);
+    // What the device answers instead of a configuration is its first line
+    if (/^(%\s*)?(startup-config is not present|Non-volatile configuration memory is not present|NVRAM[^\n]*(empty|invalid))/i.test(text)) return null;
+    if (/^% ?(Invalid input|Incomplete command|Ambiguous command|Unknown command)/.test(text)) throw refused(text.split('\n')[0]);
+    if (!/^(version|hostname|end)\b/m.test(text)) throw refused('the output does not look like a configuration', r.output.slice(-600));
+    return text;
   }
 
   /** The job's snapshot, opened once the first device has something to put in it */
@@ -316,20 +369,24 @@ export class JobRunner {
     return job.hidden.snapshotOpening;
   }
 
-  /** Read the device, write it to the job's snapshot, read the file back: → { set, row, data } */
+  /**
+   * Read the device, write it to the job's snapshot, read the files back:
+   * → { set, row, data }. A job that erases or writes the device keeps its
+   * startup-config too when it differs from the running one
+   */
   async #backup(ctx, origin) {
     const { job, d } = ctx;
-    const data = await this.#read(ctx);
+    const data = await this.#read(ctx, { startup: MUTATING.has(job.kind) });
     let set;
     let row;
     try {
       set = await this.#snapshot(job, origin);
-      row = await this.library.add(set, { device: d.name, config: data.config, vlans: data.vlans, vtp: data.vtp, facts: data.facts });
+      row = await this.library.add(set, { device: d.name, config: data.config, vlans: data.vlans, vtp: data.vtp, facts: data.facts, startup: data.startup });
     } catch (err) {
       throw failed({ reason: 'jobs.backup_not_written', message: `The backup could not be written: ${err.message}`, params: {} }, { stage: 'backup' });
     }
     this.#set(job, d, { step: 'jobs.steps.verify', stage: 'verify' });
-    if (!(await this.library.verify(set, row, data.config))) {
+    if (!(await this.library.verify(set, row, data.config, { startup: data.startup }))) {
       throw failed({ reason: 'jobs.backup_unverified', message: 'The backup written does not read back as it was taken.', params: {} }, { stage: 'verify' });
     }
     return { set, row, data };
@@ -350,7 +407,7 @@ export class JobRunner {
     let verifyBackup = null;
     if (backup) {
       proof = { kind: 'snapshot', snapshotId: backup.set.id, config: backup.data.config, hostname: backup.data.hostname };
-      verifyBackup = () => this.library.verify(backup.set, backup.row, backup.data.config);
+      verifyBackup = () => this.library.verify(backup.set, backup.row, backup.data.config, { startup: backup.data.startup });
     } else {
       const forced = job.hidden.options.forceErase?.includes(d.key) && job.hidden.actorUser?.role === 'admin';
       if (!forced || backupError.outcome === 'skipped' || !ctx.facts) {
@@ -377,19 +434,45 @@ export class JobRunner {
       backupError = err;
     }
     const r = await this.#erase(ctx, backup, backupError);
-    const result = { snapshot: backup?.set.id ?? null, hostname: r.hostname, register: r.register, vlanDat: r.vlanDat, warnings: [...(d.warnings ?? []), ...(r.warnings ?? [])], bootSeconds: r.bootSeconds };
+    const result = {
+      snapshot: backup?.set.id ?? null, startupKept: Boolean(backup?.data.startup), hostname: r.hostname, register: r.register, vlanDat: r.vlanDat,
+      warnings: [...(d.warnings ?? []), ...(r.warnings ?? [])], bootSeconds: r.bootSeconds,
+    };
     const base = job.hidden.options.base;
-    if (base) {
-      const entry = await this.library.readDevice(base, d.name, { fallback: true });
-      if (entry) {
-        this.#set(job, d, { step: 'jobs.steps.base', stage: 'base' });
-        const { script, lineTimeouts } = toReplayScript(entry.config, { vlans: entry.vlans, vtp: entry.vtp, facts: { kind: ctx.facts.kind } });
-        const sent = await this.#send(ctx, script, lineTimeouts);
-        result.base = { template: base.id, name: base.name, lines: sent.total, errors: sent.errors };
-        if (job.hidden.options.save !== false) result.base.saved = await this.#save(ctx);
-      }
-    }
+    if (base) await this.#applyBase(ctx, base, result);
     return result;
+  }
+
+  /**
+   * The base configuration after a reset. The device is already erased: a
+   * template gone or damaged since the job started is a warning, not a
+   * failure, and a base the device refused lines of is not saved
+   */
+  async #applyBase(ctx, base, result) {
+    const { job, d } = ctx;
+    let entry;
+    try {
+      entry = await this.library.readDevice(base, d.name, { fallback: true });
+    } catch {
+      result.warnings.push('base_missing');
+      return;
+    }
+    if (!entry) return;
+    if (!entry.intact) {
+      result.warnings.push('base_damaged');
+      return;
+    }
+    this.#set(job, d, { step: 'jobs.steps.base', stage: 'base' });
+    const { script, lineTimeouts } = toReplayScript(entry.config, { vlans: entry.vlans, vtp: entry.vtp, facts: { kind: ctx.facts.kind } });
+    const sent = await this.#send(ctx, script, lineTimeouts);
+    result.base = { template: base.id, name: base.name, lines: sent.total, errors: sent.errors };
+    if (job.hidden.options.save === false) return;
+    if (sent.errors.length) {
+      result.base.saved = false;
+      result.warnings.push('base_not_saved');
+      return;
+    }
+    result.base.saved = await this.#save(ctx);
   }
 
   async #injectDevice(ctx) {
@@ -410,9 +493,8 @@ export class JobRunner {
 
     this.#set(job, d, { step: 'jobs.steps.inject', stage: 'inject' });
     const sent = await this.#send(ctx, plan.script, plan.lineTimeouts);
-    const saved = job.hidden.options.save ? await this.#save(ctx) : null;
 
-    // Read again and compare with what was injected
+    // Read again and compare with what was injected, before anything is saved
     this.#set(job, d, { step: 'jobs.steps.check', stage: 'check' });
     const after = await this.#read(ctx, { purpose: 'check' });
     const expected = comparable({ config: plan.source.config, vlans: plan.source.vlans });
@@ -425,16 +507,29 @@ export class JobRunner {
       const missing = comparableConfig(plan.source.config).split('\n').filter((l) => l.trim() && !have.has(l));
       check = { status: missing.length ? 'changed' : 'same', missing: missing.slice(0, 200), added: 0, removed: missing.length };
     }
-    return {
+    const result = {
       snapshot: backup?.set.id ?? null,
+      startupKept: Boolean(backup?.data.startup),
       sha256: plan.sha256,
       lines: sent.total,
       errors: sent.errors,
       slow: sent.slow,
-      saved,
+      saved: null,
       reset: reset ? { hostname: reset.hostname, register: reset.register, warnings: reset.warnings } : null,
       check,
     };
+    // Lines refused, or a reset that does not read back as the source: the
+    // startup-config is left as it was, the person reads the report and saves by hand
+    if (sent.errors.length) {
+      if (job.hidden.options.save) result.saved = false;
+      throw failed({ reason: 'jobs.script_errors', message: `The device refused ${sent.errors.length} line(s): nothing was saved.`, params: { count: sent.errors.length } }, { stage: 'inject', result });
+    }
+    if (mode === 'reset' && check.status !== 'same') {
+      if (job.hidden.options.save) result.saved = false;
+      throw failed({ reason: 'jobs.check_differs', message: 'The device does not read back as the source: nothing was saved.', params: { added: check.added, removed: check.removed } }, { stage: 'check', result });
+    }
+    if (job.hidden.options.save) result.saved = await this.#save(ctx);
+    return result;
   }
 
   async #compareDevice(ctx) {
@@ -493,7 +588,9 @@ export class JobRunner {
     this.#publishQueued.add(job.id);
     queueMicrotask(() => {
       this.#publishQueued.delete(job.id);
-      this.events.publish('jobs:job', publicJob(job), { audience: (u) => this.canSee(u, job) });
+      // Two copies: the whole report for those who may read the bench's configurations, the report without them for the others
+      this.events.publish('jobs:job', publicJob(job), { audience: (u) => this.viewOf(u, job, { live: true }) === 'full' });
+      this.events.publish('jobs:job', redactedJob(job), { audience: (u) => this.viewOf(u, job, { live: true }) === 'summary' });
       this.events.publish('jobs:running', this.summary(), { sticky: true });
     });
   }
@@ -520,6 +617,43 @@ export class JobRunner {
 }
 
 const FINAL_DEVICE = new Set(['done', 'failed', 'skipped', 'cancelled']);
+
+/**
+ * What people who may not read the bench's configurations see of a job: the
+ * same report without a line of configuration (no diff, no missing lines,
+ * no refused command, no console output)
+ */
+export function redactedJob(job) {
+  const pub = job.hidden ? publicJob(job) : { ...job, devices: job.devices.map((d) => ({ ...d })) };
+  pub.redacted = true;
+  pub.devices = pub.devices.map(({ lastOutput: _output, ...d }) => ({ ...d, result: redactResult(d.result) }));
+  return pub;
+}
+
+function redactResult(r) {
+  if (!r || typeof r !== 'object') return r ?? null;
+  const out = { ...r };
+  if (out.check) {
+    const { patch: _patch, missing: _missing, ...check } = out.check;
+    out.check = check;
+  }
+  if (Array.isArray(out.errors)) out.errors = out.errors.map(({ command: _command, ...e }) => e);
+  if (out.base && Array.isArray(out.base.errors)) out.base = { ...out.base, errors: out.base.errors.map(({ command: _command, ...e }) => e) };
+  return out;
+}
+
+/** Captured `show startup-config` → its text: no echo, no "Using … bytes", no prompt, no pager marks, no syslog */
+function startupText(captured, promptAtEnd) {
+  let lines = captured.split('\n');
+  const echo = lines.findIndex((l) => /\bsh(ow)?\s+star/i.test(l));
+  if (echo >= 0) lines = lines.slice(echo + 1);
+  lines = lines.map((l) => l.replace(/\s*--More--\s*/g, '').replace(/\s+$/, '')).filter((l) => !patterns.SYSLOG_LINE.test(l));
+  while (lines.length && !lines.at(-1).trim()) lines.pop();
+  if (lines.length && promptAtEnd.test(`\n${lines.at(-1)}`)) lines.pop();
+  while (lines.length && (!lines[0].trim() || /^Using \d+ out of \d+ bytes/i.test(lines[0]))) lines.shift();
+  while (lines.length && !lines.at(-1).trim()) lines.pop();
+  return `${lines.join('\n')}\n`;
+}
 
 /** What may be shown of a job (the published copy): no secret, no user object, no script */
 export function publicJob(job) {

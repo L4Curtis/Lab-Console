@@ -4,6 +4,8 @@
  *   data/snapshots/<bench>/<id>/manifest.json      what the set holds (devices, facts, VLANs, VTP)
  *   data/snapshots/<bench>/<id>/<device>.cfg       one running-config per device
  *   data/snapshots/<bench>/<id>/<device>.vlan.txt  its VLANs as `show vlan brief` prints them (switches)
+ *   data/snapshots/<bench>/<id>/<device>.startup.cfg  its startup-config, when a job about to erase or
+ *                                                  save found it different from the running-config
  *   data/templates/<id>/...                        the same layout; device '*' (file _any.cfg) is for every device
  *
  * They stay files because people download and diff them; the database
@@ -142,10 +144,11 @@ export class ConfigFiles {
   }
 
   /**
-   * Write one device of a set: its .cfg, its VLAN listing, the manifest again.
-   * → the index row { device, file, sha256, bytes, vlanFile, vlanSha256, facts }
+   * Write one device of a set: its .cfg, its VLAN listing, its startup-config
+   * when given (`startup`: text), the manifest again.
+   * → the index row { device, file, sha256, bytes, vlanFile, vlanSha256, startupFile, startupSha256, facts }
    */
-  async addDevice(dir, { device, config, vlans = null, vtp = null, facts = {} }) {
+  async addDevice(dir, { device, config, vlans = null, vtp = null, facts = {}, startup = null }) {
     const state = this.#manifests.get(dir);
     if (!state) throw new Error(`set ${dir} is not open`);
     const run = state.queue.then(async () => {
@@ -164,7 +167,15 @@ export class ConfigFiles {
         vlanSha = sha256(text);
         await writeFileAtomic(path.join(abs, vlanFile), text);
       }
-      const row = { device, file, sha256: sha256(config), bytes: Buffer.byteLength(config), vlanFile, vlanSha256: vlanSha, facts: factsOf(facts) };
+      let startupFile = null;
+      let startupSha = null;
+      if (typeof startup === 'string') {
+        startupFile = `${base}.startup.cfg`;
+        startupSha = sha256(startup);
+        await writeFileAtomic(path.join(abs, startupFile), startup);
+      }
+      const bytes = Buffer.byteLength(config) + (startupFile ? Buffer.byteLength(startup) : 0);
+      const row = { device, file, sha256: sha256(config), bytes, vlanFile, vlanSha256: vlanSha, startupFile, startupSha256: startupSha, facts: factsOf(facts) };
       state.manifest.devices.push({ ...row, vlans: vlans ?? null, vtp: vtp ?? null });
       await writeFileAtomic(path.join(abs, MANIFEST), `${JSON.stringify(state.manifest, null, 2)}\n`);
       return row;
@@ -204,11 +215,27 @@ export class ConfigFiles {
     return { config, vlans, vtp: cleanVtp(entry?.vtp), facts: row.facts ?? {}, intact };
   }
 
-  /** The proof a reset waits for: the file on disk is the configuration just read, as recorded */
-  async verify(set, row, config) {
+  /** A device's startup-config as kept in a set (null when none was kept); throws when the file is gone */
+  async readStartup(set, row) {
+    if (!row.startupFile) return null;
+    const text = await fs.promises.readFile(path.join(this.abs(set.dir), row.startupFile), 'utf8');
+    return { text, intact: sha256(text) === row.startupSha256 };
+  }
+
+  /**
+   * The proof a reset waits for: the files on disk are the configurations
+   * just read, as recorded (the running-config, and the startup-config when
+   * one was kept: `startup` is its text, null when none had to be)
+   */
+  async verify(set, row, config, { startup = null } = {}) {
     try {
-      const onDisk = await fs.promises.readFile(path.join(this.abs(set.dir), row.file), 'utf8');
-      return onDisk === config && sha256(onDisk) === row.sha256;
+      const abs = this.abs(set.dir);
+      const onDisk = await fs.promises.readFile(path.join(abs, row.file), 'utf8');
+      if (onDisk !== config || sha256(onDisk) !== row.sha256) return false;
+      if (startup === null) return !row.startupFile;
+      if (!row.startupFile) return false;
+      const saved = await fs.promises.readFile(path.join(abs, row.startupFile), 'utf8');
+      return saved === startup && sha256(saved) === row.startupSha256;
     } catch {
       return false;
     }

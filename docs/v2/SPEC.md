@@ -349,6 +349,16 @@ where the text above leaves room:
   stop it, and nothing has been typed until then.
 - **A merge backs up first too**, and is refused on a device whose backup
   failed: it overwrites lines.
+- **What a reset erases is backed up**: the startup-config too, when it is
+  not the running-config (a router at 0x2141 ignores it at boot).
+- **An injection is saved only when it took**: no `copy run start` after a
+  refused line, nor after a reset that does not read back as the source; the
+  device is reported failed with what was sent and refused.
+- **Shared lines**: a reset or an injection of a shared device is refused
+  while another bench using the line is locked or held by another team.
+- **Who sees a job's report** is decided by when it ran: the team that held
+  the bench and admins read it all; the actor otherwise, and the occupants
+  while it runs, read it without a line of configuration.
 - **Snapshot against live** is a job (`compare`): it takes the keyboard to
   read the devices, changes nothing, and reports a diff per device.
 - **The release offer** is a backup only, for the team that released, for
