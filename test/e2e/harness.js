@@ -42,6 +42,7 @@ import { chromium } from 'playwright-core';
 import { startTestApp, adminCode, TEST_ADMIN, repoRoot } from '../helpers/app.js';
 import { startMockOidc, DEFAULT_USERS } from '../../dev/mock-oidc.js';
 import { startMockLab } from '../../dev/mock-lab.js';
+import { cablesFromLabs } from '../../dev/mockCabling.js';
 import { parseDrawio } from '../../src/modules/consoles/drawio.js';
 
 export { TEST_ADMIN };
@@ -63,12 +64,12 @@ export function person(who) {
   return user;
 }
 
-/** Device hostnames per console line, read from the diagram the application serves */
-function diagramNames(file) {
+/** Device hostnames per console line, and the cables between them, read from the diagram the application serves */
+function diagramLab(file) {
   const names = new Map();
   const { labs } = parseDrawio(fs.readFileSync(file, 'utf8'), { networkPrefix: '10.22.9' });
   for (const l of labs) for (const d of l.devices) names.set(`${d.target.host}:${d.target.port}`, d.name);
-  return names;
+  return { names, links: cablesFromLabs(labs) };
 }
 
 // ── Process-wide safety net ────────────────────────────────────────────────
@@ -153,7 +154,7 @@ export async function startHarness({ oidc = true, mockLab = true, env = {}, publ
       h.lab = await startMockLab({
         port: 0,
         ssh: MOCK_SSH,
-        names: diagramNames(path.join(repoRoot, 'diagrams', 'diagram.drawio')),
+        ...diagramLab(path.join(repoRoot, 'diagrams', 'diagram.drawio')),
         ...options,
       });
       Object.assign(appEnv, {

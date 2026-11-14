@@ -354,7 +354,8 @@ export class FakeIos {
    * @param username / password   a device login for the 'user' / 'pass' states (engine tests)
    * @param termLengthSupported   false: `terminal length` is refused, the pager stays on
    * @param slowConsole   { bufferBytes, commandMs }: 9600-baud-like input
-   * @param cdp           neighbours for `show cdp neighbors detail`
+   * @param cdp           neighbours for `show cdp neighbors detail`, or a function returning them
+   *                      (the mock lab works them out from its cables)
    * @param confReg       configuration register (routers), e.g. '0x2141'
    * @param serial        board serial number (derived from the model and hostname by default)
    * @param pnpEveryMs    IOS XE first boot: how often Plug-and-Play lines are printed (real ms)
@@ -1289,12 +1290,15 @@ export class FakeIos {
   #showCdp() {
     const xe = this.profile.family === 'iosxe';
     const out = [];
-    for (const n of this.cdp) {
-      out.push('-------------------------', `Device ID: ${n.deviceId}`, 'Entry address(es): ', `  IP address: ${n.ip}`, `Platform: cisco ${n.platform},  Capabilities: ${n.capabilities || 'Router Switch IGMP'} `,
+    const neighbours = typeof this.cdp === 'function' ? this.cdp() : this.cdp;
+    for (const n of neighbours) {
+      // A neighbour with no address yet lists none ("Entry address(es): " alone)
+      const ip = n.ip ? [`  IP address: ${n.ip}`] : [];
+      out.push('-------------------------', `Device ID: ${n.deviceId}`, 'Entry address(es): ', ...ip, `Platform: cisco ${n.platform},  Capabilities: ${n.capabilities || 'Router Switch IGMP'} `,
         `Interface: ${n.localInterface},  Port ID (outgoing port): ${n.remoteInterface}`, 'Holdtime : 152 sec', '', 'Version :', ...(n.version || 'Cisco IOS Software').split('\n'), '',
-        'advertisement version: 2', 'VTP Management Domain: \'\'', `Native VLAN: ${n.nativeVlan ?? 1}`, 'Duplex: full', 'Management address(es): ', `  IP address: ${n.ip}`, '');
+        'advertisement version: 2', 'VTP Management Domain: \'\'', `Native VLAN: ${n.nativeVlan ?? 1}`, 'Duplex: full', 'Management address(es): ', ...ip, '');
     }
-    if (xe) out.push('', `Total cdp entries displayed : ${this.cdp.length}`);
+    if (xe) out.push('', `Total cdp entries displayed : ${neighbours.length}`);
     return out;
   }
 
@@ -1302,10 +1306,35 @@ export class FakeIos {
     const rows = ['Interface              IP-Address      OK? Method Status                Protocol'];
     for (const [n, i] of this.cfg.interfaces) {
       const ip = (i.lines.find((l) => l.startsWith('ip address ')) || '').split(' ')[2] || 'unassigned';
-      const status = i.shutdown ? 'administratively down' : 'up';
-      rows.push(`${n.padEnd(23)}${ip.padEnd(16)}YES ${ip === 'unassigned' ? 'unset ' : 'manual'} ${status.padEnd(22)}${i.shutdown ? 'down' : 'up'}`);
+      const carrier = this.carrier(n);
+      const status = i.shutdown ? 'administratively down' : carrier ? 'up' : 'down';
+      rows.push(`${n.padEnd(23)}${ip.padEnd(16)}YES ${ip === 'unassigned' ? 'unset ' : 'manual'} ${status.padEnd(22)}${i.shutdown || !carrier ? 'down' : 'up'}`);
     }
     return rows;
+  }
+
+  /**
+   * Is something plugged in and alive at the other end of this interface? A
+   * mock lab that knows the cables sets `lineProtocol(name) → boolean`; alone,
+   * every interface that is not shut has its carrier (the tests' simple device)
+   */
+  carrier(name) {
+    const i = this.cfg.interfaces.get(name);
+    if (!i?.physical || typeof this.lineProtocol !== 'function') return true;
+    return Boolean(this.lineProtocol(name));
+  }
+
+  /** Interfaces up with their address: [{ name, ip, mask }] (what a neighbour's ping can reach) */
+  addresses() {
+    return [...this.cfg.interfaces].filter(([n, i]) => !i.shutdown && this.carrier(n))
+      .map(([name, i]) => [name, (i.lines.find((l) => /^ip address \S+ \S+$/.test(l)) || '').split(' ').slice(2)])
+      .filter(([, a]) => a.length === 2).map(([name, [ip, mask]]) => ({ name, ip, mask }));
+  }
+
+  /** Is this interface (any spelling IOS accepts) there and not shut? */
+  interfaceUp(name) {
+    const i = this.cfg.interfaces.get(name);
+    return i ? !i.shutdown : null;
   }
 
   #dir() {
@@ -1323,7 +1352,7 @@ export class FakeIos {
     if (!isIp(target)) { this.#say('% Unrecognized host or address, or protocol not running.\r\n'); return this.#prompt(); }
     const repeat = Math.min(Number(args[args.indexOf('repeat') + 1]) || 5, 100);
     if (args.includes('repeat') && !/^\d+$/.test(args[args.indexOf('repeat') + 1] || '')) return this.#invalid(raw, args.indexOf('repeat') + 2);
-    const mine = [...this.cfg.interfaces.values()].filter((i) => !i.shutdown).map((i) => (i.lines.find((l) => /^ip address \S+ \S+$/.test(l)) || '').split(' ').slice(2)).filter((a) => a.length === 2);
+    const mine = [...this.cfg.interfaces].filter(([n, i]) => !i.shutdown && this.carrier(n)).map(([, i]) => (i.lines.find((l) => /^ip address \S+ \S+$/.test(l)) || '').split(' ').slice(2)).filter((a) => a.length === 2);
     const own = mine.some(([ip]) => ip === target);
     const connected = mine.some(([ip, mask]) => ((ipToInt(ip) & ipToInt(mask)) >>> 0) === ((ipToInt(target) & ipToInt(mask)) >>> 0));
     const reachable = own || (connected && (this.reachable ? this.reachable(target) : true));
