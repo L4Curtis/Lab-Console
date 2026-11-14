@@ -9,7 +9,7 @@
   },
   "scripts": {
     "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
+    "dev": "node --watch-path=src --watch-path=public src/server.js",
     "gen-config-doc": "node scripts/gen-config-doc.js",
     "check-diagram": "node scripts/check-diagram.js",
     "setup-admin": "node scripts/setup-admin.js",

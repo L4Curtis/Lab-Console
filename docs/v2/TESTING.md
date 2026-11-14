@@ -107,6 +107,10 @@ works. A new section loads its data through `getJson` and shows `loading()` /
   page's state (`__away`, a route, a click).
 - **Time-driven behaviour of the page**: use `page.clock.install()` and
   `page.clock.fastForward(ms)` instead of sleeping.
+- **Reaching into the page's modules**: `await window.appModule('/js/shared/workspace.js')`
+  inside `page.evaluate`, never `import('/js/…')`. The page loads its files
+  under `/v/<build id>/`; a plain import would give a second copy of the
+  module, with its own state (ARCHITECTURE §4, "Caching of the front end").
 - **What only the server refuses**: the page already drops a spectator's keys.
   To test the server, send the frame by hand (`sendInputFrame()`).
 

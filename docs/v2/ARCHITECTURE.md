@@ -67,6 +67,7 @@ src/
     infrastructure.js       the admin switches list (shipped file, then the database)    (lot: admin)
     events.js               SSE hub, with per-user audiences     (lot: skeleton)
     httpError.js            API error shape: HttpError, sendError (lot: skeleton)
+    assets.js               build id of public/, versioned addresses /v/<id>/…, pages served rewritten (§4)
     security.js             headers, origin check, rate limiter, client IP, trusted proxies, noStore
     consoleTarget.js        targetKey(): a console line's `host:port`
     ssh.js, sshPool.js      the SSH client to the jump server, and the shared connections console lines use
@@ -170,7 +171,10 @@ Every new variable is documented in `.env.example`. Secrets never get defaults.
 is run directly (`node src/server.js`). Order inside `createApp`:
 
 1. `securityHeaders` (CSP, nosniff, Referrer-Policy, COOP, Permissions-Policy;
-   HSTS when `PUBLIC_URL` is https)
+   HSTS when `PUBLIC_URL` is https), then `assets.middleware`
+   (`src/lib/assets.js`, see "Caching of the front end" below): a versioned
+   address `/v/<build id>/…` is rewritten to the plain one, any other `/v/`
+   address is a 404
 2. public static assets: `/css`, `/vendor` (`/vendor/simplewebauthn` is the
    WebAuthn browser library), `/locales`, `/js/core`, `/favicon.svg` (also
    answered on `/favicon.ico`). A missing public file is a 404, never a
@@ -188,9 +192,54 @@ is run directly (`node src/server.js`). Order inside `createApp`:
    the existing same-origin check: `requireSameOrigin(allowedOrigins)` from
    `src/lib/security.js`. Routes mounted **above** the gate are not covered:
    the auth lot applies the same middleware to its own POST routes.
-7. app shell and remaining static files
+7. app shell (the pages `/`, `/index.html`, `/404.html`… from memory, see
+   below) and remaining static files
 8. `/api/events` (SSE), `/api/modules`, then each module router at `/api/<id>`
 9. JSON 404 for `/api/*` and the error handler
+
+**Caching of the front end** (`src/lib/assets.js`). `createApp({ assets })`
+reads `public/` once at start-up (`appAssets()` by default): `assets.buildId`
+is the first 12 hex characters of a SHA-256 over every file's path and
+contents, so it changes exactly when a file of `public/` changes and is the
+same across restarts of one release; `assets.prefix` is `/v/<buildId>`.
+The object is in `deps.assets` and returned by `createApp`.
+- Every file under `/js`, `/css` and `/locales` is also served as
+  `/v/<buildId>/<same path>` (scripts, stylesheets and dictionaries only:
+  `.js`, `.css`, `.json`, GET and HEAD, no dot segment). The middleware only
+  rewrites `req.url` before anything else runs, so the request goes down the
+  same pipeline as the plain address: a public file stays public, a gated one
+  meets the gate (`/login?next=` keeps the original versioned address), a
+  missing one is the usual 404. `test/routeWalk.test.js` checks every file of
+  `public/` both ways.
+- `Cache-Control` of a versioned answer is decided when its status is known:
+  `private, max-age=31536000, immutable` for 200 / 206 / 304, `no-store` for
+  anything else (a redirect to sign in, a refusal or a 404 is never kept).
+  Plain addresses of the application's files keep `private, no-cache`;
+  `/vendor` keeps `public, max-age=604800, immutable`. `private` because
+  Cloudflare rewrites a public `max-age` into its Browser Cache TTL and would
+  keep gated files at its edge.
+- **Stale id: 404**, `no-store`, whatever the session. A redirect to the
+  current id would hand an old page the new file: the module graph would then
+  mix two releases and load second copies of modules the page already holds
+  (`core/session.js`, `core/i18n.js` state). A section whose code fails to
+  load shows a "reload the page" block instead (`main.js` `mountSection`).
+- **Pages.** Every `public/*.html` is read once and its references
+  `src|href="/js|css|locales/…"` rewritten to the prefix; they are served
+  from memory with `assets.sendPage(res, name, status)` (ETag and 304 by
+  Express; `private, no-cache` unless the route set a header, e.g. the
+  `no-store` of `/login`, `/join`, `/reset`). The auth and accounts modules
+  receive `assets` in their deps. No inline script is added: the CSP is
+  unchanged.
+- Modules imported relatively inherit the prefix; the two places that build
+  an address themselves (`fetch` of a dictionary in `core/i18n.js`,
+  `loadCss()` in `core/dom.js`) derive it from `import.meta.url`. Front-end
+  code must never write `'/js/…'`, `'/css/…'` or `'/locales/…'` itself:
+  importing `/js/x.js` beside `/v/<id>/js/x.js` gives two instances of the
+  module. Browser scenarios reach the page's modules with
+  `window.appModule('/js/…')` (test/e2e/harness.js).
+- `npm run dev` restarts on a change under `src/` or `public/`: the build id
+  is computed at start-up, so an edited front-end file needs a restart to get
+  a new address.
 
 WebSocket upgrades are handled in this order: same-origin check (403), then
 `await auth.authenticateUpgrade(req)` — a missing user ends the socket with
@@ -932,9 +981,17 @@ services.collab = {                            // lot collab
     → `{ el, close(value), closed }` for anything else (a countdown, a report).
   - All three trap Tab, close on Escape (unless `dismissible: false`), name
     the dialog for screen readers and give the focus back on close.
+- **Addresses of the front end's own files.** The pages load scripts and
+  stylesheets under `/v/<build id>/` (§4, "Caching of the front end"). Import
+  modules relatively (`./x.js`, `../core/dom.js`); a file that needs the
+  address of another one derives it from `import.meta.url`
+  (`new URL('../../locales/…', import.meta.url)`), never from a literal
+  `'/js/'`, `'/css/'` or `'/locales/'`. `/vendor/…` addresses stay absolute.
+  When a section's code cannot be loaded (a tab opened before a release),
+  `main.js` shows `common.shell.loadFailed` with a reload button.
 - **Styles.** A module ships `public/css/<module>.css` and loads it with
   `loadCss('<module>')` from `core/dom.js` (once per page; resolves when the
-  rules apply). Use the existing custom properties
+  rules apply; the address follows the prefix of `dom.js` itself). Use the existing custom properties
   (`--surface`, `--ink`, `--console`, `--led-green`…) so both themes work.
 - **DOM.** Build nodes with `h()`. Never assign user-controlled data to
   `innerHTML`. Add icons to the `ICONS` map in `core/dom.js`.

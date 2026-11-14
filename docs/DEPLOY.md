@@ -151,6 +151,35 @@ Check it from outside: `curl -sI https://lab.example.org/login` must answer
 `Cache-Control: no-store`, and `curl -s https://lab.example.org/api/modules`
 without a session must answer 401, never data.
 
+### Caching, and a CDN in front
+
+The application decides how long a browser keeps each of its answers; leave
+caching rules at the proxy and the CDN at their defaults (no "cache
+everything" rule, no override of `Cache-Control`).
+
+| what | Cache-Control |
+|---|---|
+| the pages (`/`, `/login`, `/join`, `/reset`) and the API | `no-store` or `private, no-cache` |
+| `/v/<build id>/js/…`, `/v/<build id>/css/…`, `/v/<build id>/locales/…`: what the pages load | `private, max-age=31536000, immutable` |
+| the same files without the prefix (`/js/main.js`…), for old tabs and bookmarks | `private, no-cache` |
+| `/vendor/…` (xterm, noVNC, fonts) | `public, max-age=604800, immutable` |
+
+The build id is a short hash of the contents of `public/`, computed when the
+application starts: it changes exactly when a release changes one of those
+files. The pages are always revalidated and name the files of the running
+release, so a browser keeps the files for a year and still gets the new ones
+the moment an upgrade is deployed, with one request per page load instead of
+one per file. An id that is not the current one answers 404, never the new
+file. Every answer is `private`, which matters behind Cloudflare: it replaces
+a public `max-age` with its own Browser Cache TTL (4 hours by default) and
+would cache public files at its edge, but leaves private responses alone.
+
+Check it: `curl -sI https://lab.example.org/login | grep -i cache-control`
+answers `no-store`; the address of `app.css` in that page,
+`curl -s https://lab.example.org/login | grep -o '/v/[0-9a-f]*/css/app.css'`,
+answers 200 with `private, max-age=31536000, immutable`; behind Cloudflare,
+`cf-cache-status` says `BYPASS` or `DYNAMIC`, never `HIT`.
+
 ## 5. First sign-in with the local administrator
 
 1. Open `https://lab.example.org/login`, open **Local account** (the server administrator signs in there) and type
@@ -233,7 +262,10 @@ the ZIP of a backup right away: the server's copy is not their backup.
 - **Upgrade**: back up, `git pull` (or copy the new release), read the
   CHANGELOG, then `docker compose up -d --build`. The database migrates
   itself at the start. Rolling back to an older image after a migration is
-  not supported: restore the backup taken before.
+  not supported: restore the backup taken before. Tabs left open across the
+  upgrade keep working with the files they already hold; a section they had
+  not opened yet says a new version may have been released and offers to
+  reload the page (its old files are no longer served).
 - **Sessions** survive a restart (they are in the database). Changing the
   local administrator's credentials ends its sessions.
 - **Logs**: `docker compose logs`. Errors shown to users carry no version or

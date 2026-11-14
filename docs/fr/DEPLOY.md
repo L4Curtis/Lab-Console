@@ -153,6 +153,37 @@ répondre 200 avec `Strict-Transport-Security`, `X-Robots-Tag: noindex` et
 `Cache-Control: no-store`, et `curl -s https://lab.example.org/api/modules` sans
 session doit répondre 401, jamais des données.
 
+### Cache, et un CDN devant
+
+C'est l'application qui décide combien de temps un navigateur garde chacune
+de ses réponses ; laissez le proxy et le CDN à leurs réglages par défaut (pas
+de règle « tout mettre en cache », pas de réécriture de `Cache-Control`).
+
+| quoi | Cache-Control |
+|---|---|
+| les pages (`/`, `/login`, `/join`, `/reset`) et l'API | `no-store` ou `private, no-cache` |
+| `/v/<build id>/js/…`, `/v/<build id>/css/…`, `/v/<build id>/locales/…` : ce que chargent les pages | `private, max-age=31536000, immutable` |
+| les mêmes fichiers sans le préfixe (`/js/main.js`…), pour les vieux onglets et les favoris | `private, no-cache` |
+| `/vendor/…` (xterm, noVNC, polices) | `public, max-age=604800, immutable` |
+
+Le build id est une empreinte courte du contenu de `public/`, calculée au
+démarrage de l'application : il change exactement quand une version modifie
+l'un de ces fichiers. Les pages sont toujours revalidées et nomment les
+fichiers de la version en service : le navigateur garde les fichiers un an et
+reçoit pourtant les nouveaux dès qu'une mise à jour est déployée, avec une
+requête par chargement de page au lieu d'une par fichier. Un id qui n'est pas
+celui en service répond 404, jamais le nouveau fichier. Toutes les réponses
+sont `private`, ce qui compte derrière Cloudflare : il remplace un `max-age`
+public par son propre Browser Cache TTL (4 heures par défaut) et mettrait les
+fichiers publics en cache à sa périphérie, mais laisse les réponses privées
+tranquilles.
+
+Pour vérifier : `curl -sI https://lab.example.org/login | grep -i cache-control`
+répond `no-store` ; l'adresse de `app.css` dans cette page,
+`curl -s https://lab.example.org/login | grep -o '/v/[0-9a-f]*/css/app.css'`,
+répond 200 avec `private, max-age=31536000, immutable` ; derrière Cloudflare,
+`cf-cache-status` vaut `BYPASS` ou `DYNAMIC`, jamais `HIT`.
+
 ## 5. Première connexion avec l'administrateur local
 
 1. Ouvrez `https://lab.example.org/login`, ouvrez **Compte local** (l'administrateur du serveur s'y connecte) et
@@ -238,7 +269,11 @@ pas leur sauvegarde.
 - **Mise à jour** : sauvegardez, `git pull` (ou copiez la nouvelle version),
   lisez le CHANGELOG, puis `docker compose up -d --build`. La base migre
   toute seule au démarrage. Revenir à une image plus ancienne après une
-  migration n'est pas pris en charge : restaurez la sauvegarde d'avant.
+  migration n'est pas pris en charge : restaurez la sauvegarde d'avant. Les
+  onglets restés ouverts pendant la mise à jour continuent de fonctionner avec
+  les fichiers qu'ils ont déjà ; une section qu'ils n'avaient pas encore
+  ouverte indique qu'une nouvelle version a peut-être été publiée et propose
+  de recharger la page (ses anciens fichiers ne sont plus servis).
 - **Sessions** : elles survivent à un redémarrage (elles sont dans la base).
   Changer les identifiants de l'administrateur local met fin à ses sessions.
 - **Journaux** : `docker compose logs`. Les erreurs montrées aux utilisateurs
