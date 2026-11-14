@@ -311,13 +311,13 @@ test('notifications: the bell, then a request for the keyboard, a free line and 
   assert.equal((await tagsOf(alice)).includes(`free:${r2.target}`), false, 'looking at the page, or expired: no notification');
   const free = (await shown(alice)).find((n) => n.tag === `free:${s1.target}`);
   assert.equal(free.title, 'S1 est libre');
-  assert.equal(free.body, 'La ligne de S1 (baie B4M) est libre : vous pouvez l’ouvrir.');
+  assert.equal(free.body, 'La ligne de S1 (baie B4M) est libre\u00a0: vous pouvez l’ouvrir.');
   // The line was opened in the app by someone else: it can be joined, which ends the watch just as well
   events.toUser(aliceId, 'consoles:free', { ...r2, state: 'open' });
   await waitForTag(alice, `free:${r2.target}`);
   const joinable = (await shown(alice)).find((n) => n.tag === `free:${r2.target}`);
   assert.equal(joinable.title, 'R2 est ouverte');
-  assert.equal(joinable.body, 'La console de R2 (baie B4M) est ouverte dans Lab Console : vous pouvez la rejoindre.');
+  assert.equal(joinable.body, 'La console de R2 (baie B4M) est ouverte dans Lab Console\u00a0: vous pouvez la rejoindre.');
 
   // 3. a job of her bench is over; a job of another bench is not hers
   const bench = (name) => (u) => h.app.deps.services.benches.isOccupant(u, name);
@@ -330,15 +330,15 @@ test('notifications: the bell, then a request for the keyboard, a free line and 
   assert.equal(tags.includes('job:other-bench'), false, 'not her bench');
   const ok = (await shown(alice)).find((n) => n.tag === 'job:j-ok');
   assert.equal(ok.title, 'Tâche terminée sur B4M');
-  assert.equal(ok.body, 'Tâche « Sauvegarde » terminée sur la baie B4M.');
+  assert.equal(ok.body, 'Tâche «\u00a0Sauvegarde\u00a0» terminée sur la baie B4M.');
   const ko = (await shown(alice)).find((n) => n.tag === 'job:j-ko');
   assert.equal(ko.title, 'Tâche en échec sur B4M');
   assert.match(ko.body, /Injection/);
 
-  // Clicking a notification brings her back to the bench
+  // Clicking a job's notification brings her to the bench's jobs, where the report is
   await alice.evaluate(() => { location.hash = '#/team'; });
   await alice.evaluate(() => window.__notes.find((n) => n.options.tag === 'job:j-ok').onclick());
-  await alice.waitForFunction(() => location.hash === '#/consoles/B4M');
+  await alice.waitForFunction(() => location.hash === '#/jobs/B4M');
 
   // Turned off, the bell keeps quiet, and the choice survives a reload
   await bell.click();

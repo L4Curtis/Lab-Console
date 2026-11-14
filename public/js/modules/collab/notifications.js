@@ -4,7 +4,7 @@
  *
  *   - someone asks for the keyboard of a console you pilot   (SSE consoles:activity + consoles:rooms)
  *   - a line you waited for is free or can be joined           (SSE consoles:free, state free | open)
- *   - a job finished on your bench                             (SSE jobs:done { bench, jobId, kind, ok })
+ *   - a job finished on your bench                             (SSE jobs:done { bench, jobId, kind, ok, state })
  *
  * Nothing new travels from the server: these are events the page already
  * receives, turned into notifications. They are shown only when this window
@@ -115,13 +115,15 @@ export function startNotifications() {
   });
 
   // A job of my bench is over (the jobs lot publishes it to the bench's occupants; checked again here)
+  // A cancelled job is not ok, but it did not fail: it says so. The click opens the job's report
   live.on('jobs:done', (job) => {
     if (!job || !isOccupant(benchSummary(job.bench))) return;
+    const how = job.ok ? 'Ok' : job.state === 'cancelled' ? 'Cancelled' : 'Failed';
     notify({
-      title: t(job.ok ? 'collab.notify.job.titleOk' : 'collab.notify.job.titleFailed', { bench: job.bench }),
-      body: t(job.ok ? 'collab.notify.job.bodyOk' : 'collab.notify.job.bodyFailed', { kind: kindName(job.kind), bench: job.bench }),
+      title: t(`collab.notify.job.title${how}`, { bench: job.bench }),
+      body: t(`collab.notify.job.body${how}`, { kind: kindName(job.kind), bench: job.bench }),
       tag: `job:${job.jobId}`,
-      href: benchHref(job.bench),
+      href: `#/jobs/${encodeURIComponent(job.bench)}`,
     });
   });
 }

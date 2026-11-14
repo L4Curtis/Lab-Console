@@ -68,13 +68,16 @@
       "titleOk": "Tâche terminée sur {bench}",
       "titleFailed": "Tâche en échec sur {bench}",
       "bodyOk": "Tâche « {kind} » terminée sur la baie {bench}.",
-      "bodyFailed": "Tâche « {kind} » en échec sur la baie {bench} : consultez le rapport."
+      "bodyFailed": "Tâche « {kind} » en échec sur la baie {bench} : consultez le rapport.",
+      "titleCancelled": "Tâche annulée sur {bench}",
+      "bodyCancelled": "Tâche « {kind} » annulée sur la baie {bench}."
     }
   },
   "jobKinds": {
     "backup": "Sauvegarde",
     "inject": "Injection",
-    "reset": "Réinitialisation"
+    "reset": "Réinitialisation",
+    "compare": "Comparaison"
   },
   "errors": {
     "unknown_device": "Cet équipement n’existe plus dans le schéma.",

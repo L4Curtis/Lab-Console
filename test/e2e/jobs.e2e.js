@@ -119,7 +119,7 @@ test('reset: the dialog says what is erased and who is connected; the bench name
   assert.equal(r1.startup, null, 'no startup-config any more');
   await section(page).locator('.jobs-current button[data-action="report"]').click();
   await dialog(page).locator('.jobs-report-device[data-device="R1"][data-state="done"]').waitFor();
-  assert.match(await dialog(page).textContent(), /registre de configuration : 0x2102/);
+  assert.match(await dialog(page).textContent(), /registre de configuration\u00a0: 0x2102/);
   await page.keyboard.press('Escape');
   assert.deepEqual(page.errors, []);
   await page.context().close();

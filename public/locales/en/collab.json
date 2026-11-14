@@ -68,13 +68,16 @@
       "titleOk": "Job finished on {bench}",
       "titleFailed": "Job failed on {bench}",
       "bodyOk": "Job “{kind}” finished on bench {bench}.",
-      "bodyFailed": "Job “{kind}” failed on bench {bench}: see the report."
+      "bodyFailed": "Job “{kind}” failed on bench {bench}: see the report.",
+      "titleCancelled": "Job cancelled on {bench}",
+      "bodyCancelled": "Job “{kind}” cancelled on bench {bench}."
     }
   },
   "jobKinds": {
     "backup": "Backup",
     "inject": "Injection",
-    "reset": "Reset"
+    "reset": "Reset",
+    "compare": "Comparison"
   },
   "errors": {
     "unknown_device": "This device is no longer in the diagram.",
