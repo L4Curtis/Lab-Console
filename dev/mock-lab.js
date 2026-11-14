@@ -26,7 +26,8 @@
  *   MOCK_SLOW_CONSOLE=1         # old devices: ~1 char/ms, 64-byte input buffer,
  *                               # 40 ms per command; overflowing input is dropped
  *   MOCK_MODELS=2001=2811,2002=c9300l   # model per console port (default: 2811 for
- *                               # names starting with R, 2960 otherwise); see MODELS
+ *                               # names starting with R, 2960 otherwise); see MODELS, and
+ *                               # 'aruba': a switch that does not run Cisco IOS (dev/fakeOther.js)
  *   MOCK_STATES=2005=linepass,2006=dialog,2007=rommon,2008=silent
  *                               # starting state per console port (default: user EXEC)
  *   MOCK_ENABLE_SECRET=class    # enable secret of every device (default: none)
@@ -55,6 +56,7 @@ import net from 'node:net';
 import { pathToFileURL } from 'node:url';
 import ssh2 from 'ssh2';
 import { FakeIos, MODELS } from './fakeIos.js';
+import { FakeOther } from './fakeOther.js';
 
 const TELNET_ESCAPE = '\x1d';
 const TARGET = /^([\w.-]{1,253}) (\d{1,5})$/;
@@ -109,8 +111,10 @@ export function startMockLab({
       // IOS XE keeps printing syslog lines at the prompt
       const chatter = MODELS[model]?.family === 'iosxe' ? { chatterMs: 45_000 } : {};
       const opts = { hostname: name, timeScale: 0.02, ...chatter, ...defaults, ...devices[key], model };
-      if (opts.model && !MODELS[opts.model]) throw new Error(`Unknown model "${opts.model}" for ${key}`);
-      const dev = new FakeIos({ ...opts, slowConsole: slowConsole ? { bufferBytes: 64, commandMs: 40 } : null });
+      if (opts.model && !MODELS[opts.model] && opts.model !== 'aruba') throw new Error(`Unknown model "${opts.model}" for ${key}`);
+      // 'aruba': a switch that does not run Cisco IOS (dev/fakeOther.js), which the jobs leave untouched
+      const dev = opts.model === 'aruba' ? new FakeOther({ hostname: opts.hostname })
+        : new FakeIos({ ...opts, slowConsole: slowConsole ? { bufferBytes: 64, commandMs: 40 } : null });
       dev.out = () => {};
       fleet.set(key, dev);
     }

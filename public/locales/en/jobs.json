@@ -1,0 +1,349 @@
+{
+  "title": "Backups and jobs",
+  "subtitle": "Back up, inject again or reset the devices of a bench",
+  "bench": "Bench",
+  "actions": {
+    "backup": "Back up",
+    "inject": "Inject…",
+    "compare": "Compare with live…",
+    "reset": "Reset…"
+  },
+  "notice": {
+    "locked": "Bench locked ({reason}): only admins run jobs on it.",
+    "offer": "Your team has just released {bench}: you can still back up its configurations.",
+    "otherTeam": "Team {team} holds this bench: you see your backups, but only its occupants run jobs.",
+    "takeFirst": "Take the bench for your team (Consoles) before you run a job.",
+    "base": "Base configuration applied after a reset: {name}."
+  },
+  "kind": {
+    "backup": "Backup",
+    "reset": "Reset",
+    "inject": "Injection",
+    "compare": "Comparison"
+  },
+  "state": {
+    "pending": "countdown",
+    "running": "running",
+    "queued": "queued",
+    "waiting": "waiting for the keyboard",
+    "done": "done",
+    "failed": "failed",
+    "skipped": "skipped",
+    "cancelled": "stopped",
+    "partial": "partly done"
+  },
+  "origin": {
+    "backup": "backup",
+    "reset": "before a reset",
+    "inject": "before an injection",
+    "import": "imported",
+    "template": "template"
+  },
+  "size": {
+    "bytes": "{n} B",
+    "kb": "{n} KB"
+  },
+  "steps": {
+    "keyboard": "Taking the keyboard",
+    "start": "Starting",
+    "identify": "Identifying (show version)",
+    "backup": "Backing up the configuration",
+    "read": "Reading the configuration again",
+    "verify": "Checking the backup",
+    "erase": "Erasing and reloading",
+    "base": "Base configuration",
+    "inject": "Sending the script",
+    "check": "Reading back and comparing",
+    "save": "copy running-config startup-config"
+  },
+  "devices": {
+    "legend": "Devices",
+    "shared": "shared with another bench",
+    "toggleAll": "Tick / untick all"
+  },
+  "passwords": {
+    "title": "Device passwords (if needed)",
+    "hint": "Used during this job only: never stored nor logged.",
+    "enable": "Enable secret",
+    "line": "Console line password"
+  },
+  "backup": {
+    "title": "Back up {bench}",
+    "intro": "The running-config of each ticked device is read (and the VLANs on switches), then kept in a backup of your team.",
+    "label": "Name of the backup",
+    "labelPlaceholder": "End of lab 3",
+    "go": "Start the backup"
+  },
+  "reset": {
+    "title": "Reset {bench}",
+    "intro": "Each ticked device goes back to its factory configuration. In this order, for each of them:",
+    "erased": {
+      "backup": "its configuration is backed up first, then read back from the disk to check the backup;",
+      "startup": "the startup-config is erased (erase startup-config);",
+      "vlan": "on a switch, flash:vlan.dat is deleted: every VLAN goes;",
+      "register": "on a router, the configuration register is set back to 0x2102;",
+      "reload": "it reloads without saving: the running-config is lost;",
+      "refuse": "if its backup fails, it is not erased."
+    },
+    "nobody": "nobody on the console",
+    "force": "erase even if the backup fails",
+    "base": "Then apply the base configuration \"{name}\"",
+    "typeBench": "Type {bench} to confirm",
+    "countdown": {
+      "one": "The job starts {count} second later: you (and whoever follows it) can still stop it.",
+      "other": "The job starts {count} seconds later: you (and whoever follows it) can still stop it."
+    },
+    "go": "Reset"
+  },
+  "inject": {
+    "title": "Inject on {bench}",
+    "intro": "Choose a backup or a lab template: you will see the exact script each device receives before anything starts.",
+    "source": "Source",
+    "snapshots": "Backups",
+    "templates": "Lab templates",
+    "mode": "Mode",
+    "modeReset": "Reset, then inject (recommended)",
+    "modeMerge": "Merge with the current configuration",
+    "save": "Save afterwards (copy run start)",
+    "rsa": "RSA keys (SSH)",
+    "rsaNone": "Do not generate any",
+    "rsaBits": "{n} bits",
+    "preview": "Preview",
+    "back": "Change",
+    "previewReset": "Each device is backed up, erased and reloaded, then receives this script from \"{source}\". It is then read back and compared.",
+    "previewMerge": "Each device is backed up, then receives this script from \"{source}\" without being erased.",
+    "missing": "No configuration for: {devices}.",
+    "lines": {
+      "one": "{count} line",
+      "other": "{count} lines"
+    },
+    "dropped": {
+      "one": "{count} line that cannot be replayed removed",
+      "other": "{count} lines that cannot be replayed removed"
+    },
+    "go": {
+      "one": "Inject on {count} device",
+      "other": "Inject on {count} devices"
+    }
+  },
+  "dropped": {
+    "version": "set by the software image",
+    "boot_marker": "boot marker",
+    "licence": "licence tied to the chassis, not replayable",
+    "xe_default": "factory default of IOS XE",
+    "certificate": "certificate generated by the device itself",
+    "computed": "computed by the device",
+    "smart_licensing": "factory default (Smart Licensing)",
+    "xe_policy": "system policy of IOS XE",
+    "banner": "the banner uses every possible delimiter",
+    "other": "not replayable"
+  },
+  "compare": {
+    "title": "Compare {bench} with a backup",
+    "intro": "The current running-config of each device is read (nothing is changed) and compared with the backup.",
+    "snapshot": "Backup",
+    "go": "Compare"
+  },
+  "current": {
+    "title": "{kind} of {bench}",
+    "by": "started by {name}",
+    "progress": "{done} / {total} devices",
+    "countdown": {
+      "one": "Starts in {count} second",
+      "other": "Starts in {count} seconds"
+    },
+    "stop": "Stop",
+    "report": "Report",
+    "saved": "backed up ({size})"
+  },
+  "download": {
+    "title": "Download this backup now.",
+    "body": "The server is not a backup: it may be wiped between two sessions. Keep the ZIP yourself.",
+    "button": "Download the ZIP"
+  },
+  "snapshots": {
+    "title": "Team backups",
+    "notBackup": "The server is not a backup: download your ZIPs and keep them.",
+    "none": "No backup yet.",
+    "import": "Import a ZIP",
+    "imported": {
+      "one": "Backup imported ({count} device).",
+      "other": "Backup imported ({count} devices)."
+    },
+    "search": "Search",
+    "searchPlaceholder": "Search the configurations (e.g. 192.168.10.1)",
+    "hits": {
+      "one": "{count} line contains \"{q}\"",
+      "other": "{count} lines contain \"{q}\""
+    },
+    "col": {
+      "date": "Date",
+      "label": "Backup",
+      "devices": "Devices",
+      "by": "By",
+      "actions": "Actions"
+    },
+    "view": "View",
+    "zip": "ZIP",
+    "diff": "Differences…",
+    "live": "Compare with live",
+    "inject": "Inject",
+    "folder": "Lab folder",
+    "delete": "Delete",
+    "deleteTitle": "Delete this backup?",
+    "deleteBody": "The backup of {date} is deleted from the server. Without its ZIP, it is lost."
+  },
+  "templates": {
+    "title": "Lab templates",
+    "none": "No template published.",
+    "new": "New template",
+    "newIntro": "A configuration sent to every device (for example the base configuration applied after a reset).",
+    "fromSnapshot": "Publish as a lab template",
+    "fromSnapshotIntro": "The configurations of this backup ({devices}) become a template anyone may inject on their bench.",
+    "name": "Name",
+    "description": "Description",
+    "config": "Configuration for every device",
+    "configPlaceholder": "no ip domain-lookup\nline con 0\n logging synchronous",
+    "base": "This is the base configuration applied after a reset",
+    "publish": "Publish",
+    "published": "Template \"{name}\" published.",
+    "baseBadge": "base configuration",
+    "setBase": "Make it the base",
+    "unsetBase": "No longer the base",
+    "every": "every device",
+    "delete": "Delete",
+    "deleteTitle": "Delete the template \"{name}\"?",
+    "deleteBody": "Nobody will be able to inject it any more."
+  },
+  "history": {
+    "title": "Recent jobs of the bench",
+    "none": "No job yet.",
+    "line": {
+      "one": "{kind} by {name}, {count} device",
+      "other": "{kind} by {name}, {count} devices"
+    }
+  },
+  "view": {
+    "device": "Device",
+    "register": "register {value}",
+    "damaged": "file changed since the backup"
+  },
+  "diff": {
+    "title": "Differences with \"{a}\"",
+    "with": "Compare with",
+    "none": "No other backup to compare with.",
+    "same": "identical",
+    "changed": "+{added} / −{removed} lines",
+    "onlyA": "only in the first one",
+    "onlyB": "only in the second one"
+  },
+  "report": {
+    "title": "{kind} of {bench}",
+    "by": "Started by {name} on {date}: {state}.",
+    "cancelledAt": "stopped during \"{stage}\"",
+    "register": "configuration register: {value}",
+    "vlanDat": {
+      "deleted": "flash:vlan.dat deleted",
+      "absent": "no flash:vlan.dat"
+    },
+    "base": {
+      "one": "base configuration \"{name}\" applied ({count} error)",
+      "other": "base configuration \"{name}\" applied ({count} errors)"
+    },
+    "errors": {
+      "one": "{count} line refused by the device",
+      "other": "{count} lines refused by the device"
+    },
+    "errorLines": "Refused lines",
+    "saved": "saved (copy run start)",
+    "check": {
+      "same": "read back: identical to the source",
+      "changed": "read back: differences with the source (+{added} / −{removed})"
+    },
+    "diff": "Differences",
+    "missing": "Lines missing after the merge",
+    "output": "What the console showed",
+    "warning": {
+      "erased_without_backup": "erased without a backup (ticked by an admin)",
+      "register_unusual": "unusual configuration register",
+      "pnp_not_stopped": "Plug-and-Play discovery did not stop",
+      "base_missing": "base configuration not applied: its template is gone",
+      "base_damaged": "base configuration not applied: its file is damaged",
+      "base_not_saved": "base configuration not saved: the device refused lines"
+    },
+    "startupKept": "startup-config backed up too (it was not the running-config)",
+    "notSaved": "not saved: the startup-config was left as it was",
+    "redacted": "The configuration lines of this report are for the team that held the bench and for admins."
+  },
+  "layer": {
+    "tooltip": "{kind} by {name}: {state}"
+  },
+  "errors": {
+    "unknown_bench": "This bench does not exist.",
+    "not_occupant": "Only the occupants of this bench (and admins) run jobs on it.",
+    "locked": "Bench locked: {reason}",
+    "bench_busy": "Another job is already running on this bench ({name}).",
+    "bad_devices": "Invalid list of devices.",
+    "unknown_device": "One of these devices is not on this bench.",
+    "no_devices": "Tick at least one device.",
+    "bad_passwords": "Three passwords at most, 64 characters at most.",
+    "confirm_bench": "Type the name of the bench ({bench}) to confirm.",
+    "force_admin_only": "Only an admin may erase a device whose backup failed.",
+    "no_source": "Choose a backup or a template to inject.",
+    "bad_rsa": "RSA keys: 512, 768, 1024, 2048 or 4096 bits.",
+    "bad_mode": "The mode is \"reset, then inject\" or \"merge\".",
+    "not_in_source": "No configuration for: {devices}.",
+    "preview_stale": "What would be sent is no longer what you saw ({devices}): look at the preview again.",
+    "no_snapshot": "There is no such backup.",
+    "snapshot_forbidden": "This backup belongs to another team.",
+    "no_template": "There is no such template.",
+    "no_device": "This device is not in the backup.",
+    "no_job": "There is no such job.",
+    "job_forbidden": "This job is another team's.",
+    "not_running": "This job is over.",
+    "cancel_forbidden": "Only the person who started it, the occupants of the bench and admins may stop it.",
+    "bad_search": "Search for 2 to 100 characters.",
+    "other_bench": "This backup is of another bench.",
+    "no_team": "You need a team to keep backups.",
+    "zip_invalid": "This file is not a readable ZIP archive.",
+    "zip_unsafe": "The archive holds a file whose name leaves its folder ({name}): nothing was imported.",
+    "zip_too_large": "The archive is too large once unpacked (more than {max} MB): nothing was imported.",
+    "zip_empty": "No configuration of this bench's devices in the archive.",
+    "bad_template": "A template needs a name (80 characters at most) and at least one configuration.",
+    "template_exists": "A template is already named \"{name}\".",
+    "bad_device_name": "Invalid device name: {name}.",
+    "config_empty": "The configuration of {device} is empty.",
+    "config_too_large": "The configuration of {device} is too large.",
+    "config_binary": "The configuration of {device} is not text.",
+    "config_not_a_config": "The file of {device} does not look like a configuration.",
+    "backup_failed": "The backup failed, the device was not erased: {cause}",
+    "backup_not_written": "The backup could not be written on the server.",
+    "backup_unverified": "The backup written does not read back as it was taken.",
+    "not_allowed": "The bench is no longer yours (locked, or taken by another team): device not processed.",
+    "cancelled": "Stopped.",
+    "interrupted": "The server restarted during the job: check the device on its console.",
+    "device_failed": "The device could not be processed.",
+    "shared_in_use": "{device} shares its console line with {bench}, held by another team: it is left alone.",
+    "script_errors": "The device refused {count} line(s): nothing was saved. Read the refused lines, then save by hand if you wish.",
+    "check_differs": "The device does not read back as the source (+{added} / −{removed}): nothing was saved.",
+    "startup_unread": "The startup configuration could not be read."
+  },
+  "audit": {
+    "backup": "{who} started a backup ({device})",
+    "backup_end": "Backup started by {who} over",
+    "backup_cancel": "{who} stopped a backup",
+    "reset": "{who} started a reset ({device})",
+    "reset_end": "Reset started by {who} over",
+    "reset_cancel": "{who} stopped a reset",
+    "inject": "{who} started an injection ({device})",
+    "inject_end": "Injection started by {who} over",
+    "inject_cancel": "{who} stopped an injection",
+    "compare": "{who} compared the bench with a backup ({device})",
+    "compare_end": "Comparison started by {who} over",
+    "compare_cancel": "{who} stopped a comparison",
+    "snapshot_import": "{who} imported a backup ({device})",
+    "snapshot_download": "{who} downloaded a backup",
+    "snapshot_delete": "{who} deleted a backup",
+    "folder_download": "{who} downloaded the lab folder"
+  }
+}

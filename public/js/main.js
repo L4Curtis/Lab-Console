@@ -25,6 +25,8 @@ const MODULES = [
   // Administration: the accounts lot's tabs (users, invitations, SSO); the admin lot adds its own
   { id: 'accounts', path: 'admin', titleKey: 'common.shell.admin', icon: 'shield', when: () => session.isAdmin, load: () => import('./modules/admin/index.js') },
   { id: 'accounts', path: 'account', titleKey: 'common.shell.account', icon: 'user', rail: false, load: () => import('./modules/account/index.js') },
+  // Backups, injection, reset of a bench; snapshots and TP templates
+  { id: 'jobs', path: 'jobs', titleKey: 'common.shell.jobs', icon: 'archive', load: () => import('./modules/jobs/index.js') },
   // Lab status (health, what is journaled): everyone; the admin lot's server module answers it
   { id: 'admin', path: 'status', titleKey: 'common.shell.status', icon: 'pulse', load: () => import('./modules/status/index.js') },
 ];
@@ -48,6 +50,8 @@ async function init() {
   bindLanguageSwitch();
   mountUserMenu();
   mountAnnouncement(document.querySelector('.views'));
+  // Bench jobs drawn on the diagram, whichever section is on screen
+  import('./modules/jobs/layer.js').then((m) => m.start()).catch(() => {});
 
   // The backend says which modules are live; disabled ones show a "soon" tag
   let status = [];

@@ -135,6 +135,7 @@ describe('signed in: the application behaves as upstream', () => {
       { id: 'proxmox', title: 'Infrastructure', enabled: true },
       { id: 'accounts', title: 'Accounts', enabled: true },
       { id: 'admin', title: 'Administration', enabled: true },
+      { id: 'jobs', title: 'Bench jobs', enabled: true },
     ]);
     const labs = await (await get(lab, '/api/consoles/labs')).json();
     // The upstream keys, plus how long console journals are kept (for the journal notice)
@@ -198,8 +199,9 @@ describe('signed in: the application behaves as upstream', () => {
     const res = await get(lab, '/api/events');
     assert.equal(res.status, 200);
     assert.ok(res.headers.get('content-type').startsWith('text/event-stream'));
-    const events = await readEvents(res, 5);
-    assert.deepEqual(events.map((e) => e.topic).sort(), ['admin:announcement', 'benches:state', 'consoles:busy', 'consoles:rooms', 'labs:version']);
+    const events = await readEvents(res, 6);
+    assert.deepEqual(events.map((e) => e.topic).sort(), ['admin:announcement', 'benches:state', 'consoles:busy', 'consoles:rooms', 'jobs:running', 'labs:version']);
+    assert.deepEqual(events.find((e) => e.topic === 'jobs:running').data, { jobs: [] });
     assert.equal(events.find((e) => e.topic === 'admin:announcement').data, null, 'no announcement yet');
     assert.deepEqual(events.find((e) => e.topic === 'consoles:busy').data, []);
     assert.deepEqual(events.find((e) => e.topic === 'consoles:rooms').data, []);

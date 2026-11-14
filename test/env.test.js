@@ -103,7 +103,8 @@ test('config: defaults of the global keys, and the upstream sections unchanged',
   assert.equal('trustProxy' in config.server, false, 'the upstream switch is gone');
   assert.ok(path.isAbsolute(config.dataDir));
   assert.deepEqual(Object.keys(config).sort(),
-    ['appSecret', 'auth', 'benches', 'consoles', 'dataDir', 'defaultLocale', 'diagramPath', 'infraConfigPath', 'limits', 'proxmox', 'rooms', 'server', 'ssh', 'telnet']);
+    ['appSecret', 'auth', 'benches', 'consoles', 'dataDir', 'defaultLocale', 'diagramPath', 'infraConfigPath', 'jobs', 'limits', 'proxmox', 'rooms', 'server', 'ssh', 'telnet']);
+  assert.deepEqual(config.jobs, { devicesAtOnce: 5, countdownSeconds: 10, importMaxKb: 2048, timeScale: 1 });
   assert.equal(config.appSecret, '', 'optional: secrets saved from the administration pages are then kept in clear (mode 600)');
   assert.deepEqual(config.consoles, { networkPrefix: '10.22.9', allowedHosts: ['10.22.9.211', '10.22.9.212'], portRange: { min: 2000, max: 2099 } });
   assert.equal(config.limits.maxSessions, 40);
@@ -115,6 +116,15 @@ test('config: the journal and the SSH pool can be tuned, and nonsense is refused
   const config = await loadTestConfig({ JOURNAL_RETENTION_DAYS: '30', JOURNAL_MAX_KB_PER_DAY: '1024', JOURNAL_MAX_TOTAL_MB: '200', SSH_CHANNELS_PER_CONNECTION: '4' });
   assert.deepEqual(config.rooms, { journal: { retentionDays: 30, maxBytesPerDay: 1024 * 1024, maxTotalBytes: 200 * 1024 * 1024 }, channelsPerConnection: 4 });
   for (const [name, value] of [['JOURNAL_RETENTION_DAYS', '0'], ['JOURNAL_MAX_KB_PER_DAY', 'lots'], ['JOURNAL_MAX_TOTAL_MB', '0'], ['SSH_CHANNELS_PER_CONNECTION', '0']]) {
+    const err = await loadTestConfig({ [name]: value }).then(() => null, (e) => e);
+    assert.ok(err?.problems?.some((p) => p.startsWith(name)), `${name}=${value} is refused`);
+  }
+});
+
+test('config: the bench jobs can be tuned, and nonsense is refused', async () => {
+  const config = await loadTestConfig({ JOB_DEVICES_AT_ONCE: '3', JOB_COUNTDOWN_SECONDS: '15', JOB_IMPORT_MAX_KB: '512', JOB_TIME_SCALE: '0.05' });
+  assert.deepEqual(config.jobs, { devicesAtOnce: 3, countdownSeconds: 15, importMaxKb: 512, timeScale: 0.05 });
+  for (const [name, value] of [['JOB_DEVICES_AT_ONCE', '0'], ['JOB_COUNTDOWN_SECONDS', 'soon'], ['JOB_IMPORT_MAX_KB', '1'], ['JOB_TIME_SCALE', '2'], ['JOB_TIME_SCALE', 'fast']]) {
     const err = await loadTestConfig({ [name]: value }).then(() => null, (e) => e);
     assert.ok(err?.problems?.some((p) => p.startsWith(name)), `${name}=${value} is refused`);
   }

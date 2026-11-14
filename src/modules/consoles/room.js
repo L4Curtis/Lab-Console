@@ -15,6 +15,7 @@
  *   room.takeControl(admin)    / setShared(user, on) / hangUp(user)
  *   room.runExclusive(actor, label, async (cli) => …, { signal })   automation takes the keyboard
  *   room.summary()             what the live panel and the diagram show
+ *   room.screen(maxBytes)      the end of the recent output, as text (a job's driver reads it first)
  *
  * Handover rule (SPEC "Lot rooms"), the same for a person and for a task:
  *   - nobody pilots → the requester gets the keyboard at once;
@@ -110,6 +111,18 @@ export class ConsoleRoom extends EventEmitter {
   get shared() { return this.#shared; }
   get task() { return this.#task ? { label: this.#task.label, by: this.#task.actor, state: this.#task.state } : null; }
   get closed() { return this.#closed; }
+  /**
+   * The end of what the console printed lately (the scrollback), as text: a
+   * job hands it to the driver's prepare() so that it reads the screen
+   * before typing anything (a "[confirm]" left on screen must not get an Enter)
+   */
+  screen(maxBytes = 4096) {
+    const all = Buffer.concat(this.#scroll);
+    // As the automation engine reads the console: no escape sequences, no carriage returns
+    return all.subarray(Math.max(0, all.length - maxBytes)).toString('latin1')
+      .replace(/\x1b\[[0-9;?]*[A-Za-z]|\x1b[()][A-Z0-9]|\x1b[=>]/g, '').replace(/[\r\0\x07]/g, '');
+  }
+
   /** People attached (one entry per user, whatever their number of tabs) */
   get users() { return [...this.#people.values()].map((p) => p.user); }
   /** Users counted against their per-user limit (a bench wall tile does not count) */
