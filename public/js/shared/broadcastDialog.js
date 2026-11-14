@@ -109,7 +109,8 @@ export async function openBroadcastDialog({ from }) {
     const script = textarea.value;
     const lines = linesOf(script);
     if (!chosen.length || !lines.length || lines.length > MAX_LINES) return;
-    const options = { waitForPrompt: saved.waitForPrompt !== false, delayMs: saved.delayMs ?? 50, stopOnError: stopOnError.checked, skipComments: true };
+    // The pacing is the server's (it waits for each prompt): the injection dialog's choices do not apply here
+    const options = { stopOnError: stopOnError.checked, skipComments: true };
     prefs.set('injectOptions', { ...saved, stopOnError: stopOnError.checked });
     const batch = `bc-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     rows = chosen.map(({ pane }) => ({ pane, state: 'waiting', last: null }));

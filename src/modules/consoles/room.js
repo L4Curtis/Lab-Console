@@ -38,6 +38,7 @@
  * Events: 'change' (presence, control, task, state), 'activity' ({ kind, user, detail }), 'close' (info)
  */
 import { EventEmitter } from 'node:events';
+import { DEFAULT_TYPING } from '../../lib/cliAutomation.js';
 
 const DEFAULTS = {
   scrollbackBytes: 200 * 1024,
@@ -45,6 +46,11 @@ const DEFAULTS = {
   controlTimeoutMs: 30_000,
   pilotIdleMs: 2 * 60_000,
   idleTimeoutMs: 60 * 60_000,
+  // What a person types or pastes reaches the device in small chunks, like an injection does: a long
+  // line pasted at once would overrun the input buffer of a slow console. Beyond `typeQueueBytes` waiting, input is refused
+  typeChunkChars: DEFAULT_TYPING.chunkBytes,
+  typeChunkDelayMs: DEFAULT_TYPING.chunkDelayMs,
+  typeQueueBytes: 64 * 1024,
 };
 
 // A completed line on screen that is a prompt followed by what was typed: R1#show run, S1(config-if)#no shut
@@ -57,6 +63,19 @@ export class RoomError extends Error {
     this.code = code;
     this.params = params;
   }
+}
+
+/** `text` in pieces of at most `size` characters, never cutting a surrogate pair */
+function chunksOf(text, size) {
+  const out = [];
+  for (let i = 0; i < text.length;) {
+    let end = Math.min(text.length, i + size);
+    const last = text.charCodeAt(end - 1);
+    if (end < text.length && last >= 0xd800 && last <= 0xdbff) end += 1;
+    out.push(text.slice(i, end));
+    i = end;
+  }
+  return out;
 }
 
 const who = (u) => (u ? { id: u.id, name: u.name || u.username || u.id, initials: u.initials ?? '', color: u.color ?? '' } : null);
@@ -75,6 +94,7 @@ export class ConsoleRoom extends EventEmitter {
   #graceTimer = null;
   #closed = false;
   #echo = { line: '', crAt: 0 };
+  #typing = { queue: [], bytes: 0, timer: null }; // chunks of a long input still to reach the device, in order
 
   /**
    * @param device    the registry's device: { key, name, labName, target }
@@ -214,14 +234,48 @@ export class ConsoleRoom extends EventEmitter {
     return this.#shared && this.#mayDrive(user);
   }
 
-  /** Keystrokes of `user`: ignored unless they hold the keyboard (or it is shared) */
+  /**
+   * Keystrokes of `user`: ignored unless they hold the keyboard (or it is shared).
+   * A keystroke or a short text goes straight to the device; a long one (a pasted line) is cut in
+   * chunks sent `typeChunkDelayMs` apart, what a slow console's input buffer can swallow. The rest
+   * is dropped if the person stops being allowed to type meanwhile (a task starts, the keyboard
+   * moves, a break is sent). → false when nothing was accepted
+   */
   write(user, data) {
     if (typeof data !== 'string' || !this.mayType(user)) return false;
     const p = this.#people.get(user.id);
     if (p) p.lastInput = this.now();
-    if (data.includes('\r')) this.#echo.crAt = this.now();
     this.lastActivity = this.now();
+    const chunks = chunksOf(data, this.options.typeChunkChars);
+    const t = this.#typing;
+    if (chunks.length <= 1 && !t.timer) return this.#put(data);
+    if (t.bytes + data.length > this.options.typeQueueBytes) return false;
+    for (const chunk of chunks) t.queue.push({ user, chunk });
+    t.bytes += data.length;
+    if (!t.timer) this.#drainTyping();
+    return true;
+  }
+
+  #put(data) {
+    if (data.includes('\r')) this.#echo.crAt = this.now();
     return this.session.write(data) !== false;
+  }
+
+  #drainTyping() {
+    const t = this.#typing;
+    const next = t.queue.shift();
+    t.timer = null;
+    if (!next) { t.bytes = 0; return; }
+    t.bytes -= next.chunk.length;
+    if (!this.mayType(next.user)) { this.#clearTyping(); return; }
+    this.#put(next.chunk);
+    t.timer = setTimeout(() => this.#drainTyping(), this.options.typeChunkDelayMs);
+    t.timer.unref?.();
+  }
+
+  #clearTyping() {
+    clearTimeout(this.#typing.timer);
+    this.#typing = { queue: [], bytes: 0, timer: null };
   }
 
   /** The terminal size follows the pilot's window */
@@ -233,6 +287,7 @@ export class ConsoleRoom extends EventEmitter {
 
   sendBreak(user) {
     if (!this.mayType(user)) return false;
+    this.#clearTyping();
     this.session.sendBreak();
     return true;
   }
@@ -379,6 +434,7 @@ export class ConsoleRoom extends EventEmitter {
       if (this.#closed) throw new RoomError('This console has closed.', 'consoles.room_closed');
       if (!mayGoOn()) throw notAllowed();
       task.state = 'running';
+      this.#clearTyping();
       task.abort = () => this.cli.cancel();
       this.journal?.mark(`task ${task.label} by ${task.actor.name}`);
       this.#changed();
@@ -671,6 +727,7 @@ export class ConsoleRoom extends EventEmitter {
     this.#closeReason = reason;
     this.#closeCode = info?.code ?? 'consoles.session_closed';
     clearTimeout(this.#graceTimer);
+    this.#clearTyping();
     this.cli.cancel();
     this.#task?.abort?.();
     if (this.#pending) {

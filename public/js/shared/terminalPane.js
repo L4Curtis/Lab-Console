@@ -16,7 +16,7 @@
  */
 import { Terminal } from '/vendor/xterm/lib/xterm.mjs';
 import { FitAddon } from '/vendor/xterm-addon-fit/lib/addon-fit.mjs';
-import { icon, h, toast, loadCss, prefs } from '../core/dom.js';
+import { icon, h, toast, loadCss } from '../core/dom.js';
 import { request } from '../core/api.js';
 import { t, tAttr, tNode, setTAttr } from '../core/i18n.js';
 import { BasePane } from './pane.js';
@@ -243,7 +243,8 @@ export class TerminalPane extends BasePane {
    * A paste of several lines: not typed key by key (a console takes a few
    * hundred characters a second, and drops the rest) but handed to the server,
    * which sends the lines one at a time. One line, or a console that is only
-   * watched, is left to the terminal, which does what a keystroke does
+   * watched, is left to the terminal, which does what a keystroke does (the
+   * room cuts a long line into small chunks, see room.write)
    */
   #onPaste(event) {
     const text = event.clipboardData?.getData('text/plain') ?? '';
@@ -256,9 +257,8 @@ export class TerminalPane extends BasePane {
       return;
     }
     if (new Blob([text]).size > MAX_PASTE_BYTES) { toast(t('terminal.paste.tooLarge'), 'warn', 6000); return; }
-    const saved = prefs.get('injectOptions', {});
-    const options = { waitForPrompt: saved.waitForPrompt !== false, delayMs: saved.delayMs ?? 50, stopOnError: Boolean(saved.stopOnError) };
-    if (!this.#send({ type: 'paste', script: text, options })) return;
+    // The pacing is the server's (it waits for each prompt): the injection dialog's choices do not apply to a paste
+    if (!this.#send({ type: 'paste', script: text })) return;
     this.task.update({ state: 'running', key: 'terminal.task.startingPaste' });
     this.#renderActions();
   }

@@ -17,8 +17,25 @@ export const HISTORY_LIMITS = Object.freeze({
   query: 200,
   matches: 200,
   // The journal text one search reads at most (a day is capped at 5 MB by default)
-  scanBytes: 32 * 1024 * 1024,
+  scanBytes: 16 * 1024 * 1024,
+  // Replayed as plain text this much at a time, the server doing its other work between two pieces
+  pieceBytes: 1024 * 1024,
 });
+
+const yieldToLoop = () => new Promise((resolve) => setImmediate(resolve));
+
+/** `raw` in pieces of about `size` bytes, each ending at a line feed (the plain-text replay starts a line afresh) */
+function* pieces(raw, size) {
+  for (let from = 0; from < raw.length;) {
+    let to = Math.min(raw.length, from + size);
+    if (to < raw.length) {
+      const feed = raw.indexOf(0x0a, to - 1);
+      to = feed === -1 ? raw.length : feed + 1;
+    }
+    yield raw.subarray(from, to);
+    from = to;
+  }
+}
 
 const dayKey = (d) => `${d.benchDir}/${d.deviceDir}/${d.day}`;
 
@@ -52,8 +69,12 @@ const logFile = (journal, s) => journal.paths(s.benchDir, s.deviceDir, s.day, s.
  * Search the sessions (newest first) for `query`.
  * → { matches: [{ id, day, session, from, n, text }], total, truncated, searched }
  * `id` is the session's path in the journal API (bench/device/day/session)
+ * The replay of a session is synchronous and slow (about 40 ms a MB): it is done a piece at a time with
+ * the event loop given back in between, or a search over a big journal would stall every console
  */
-export async function searchSessions(journal, sessions, query, { matchCase = false, limit = HISTORY_LIMITS.matches, maxBytes = HISTORY_LIMITS.scanBytes } = {}) {
+export async function searchSessions(journal, sessions, query, {
+  matchCase = false, limit = HISTORY_LIMITS.matches, maxBytes = HISTORY_LIMITS.scanBytes, pieceBytes = HISTORY_LIMITS.pieceBytes,
+} = {}) {
   const matches = [];
   let total = 0;
   let scanned = 0;
@@ -69,9 +90,15 @@ export async function searchSessions(journal, sessions, query, { matchCase = fal
     }
     scanned += raw.length;
     searched += 1;
-    const found = searchLines(plainLines(raw), query, { matchCase, limit: Math.max(0, limit - matches.length) });
-    total += found.total;
-    for (const m of found.matches) matches.push({ id: `${s.benchDir}/${s.deviceDir}/${s.day}/${s.session}`, day: s.day, session: s.session, from: s.from, ...m });
+    let lineOffset = 0;
+    for (const piece of pieces(raw, pieceBytes)) {
+      await yieldToLoop();
+      const lines = plainLines(piece);
+      const found = searchLines(lines, query, { matchCase, limit: Math.max(0, limit - matches.length) });
+      total += found.total;
+      for (const m of found.matches) matches.push({ id: `${s.benchDir}/${s.deviceDir}/${s.day}/${s.session}`, day: s.day, session: s.session, from: s.from, ...m, n: m.n + lineOffset });
+      lineOffset += lines.length;
+    }
   }
   return { matches, total, truncated: truncated || total > matches.length, searched };
 }

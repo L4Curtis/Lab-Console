@@ -976,7 +976,13 @@ exported file and the refusals only to the person who asked.
 text over instead of typing it key by key, and the room sends it line by line
 like an injection (comments and blank lines included, since it is what was
 copied); it needs the keyboard (`consoles.paste_not_allowed` otherwise, for a
-spectator too). `{type:'broadcast', batch, script, options}` is the same
+spectator too). A paste and a broadcast always wait for each prompt, 50 ms
+between lines: the `waitForPrompt` and `delayMs` of their options are ignored
+(they belong to the injection dialog, which neither shows), only `stopOnError`
+is read. A paste of a single line stays a keystroke frame (`{type:'input'}`):
+`room.write` cuts any input longer than 32 characters into chunks sent 40 ms
+apart (the typing pace of an injection), in order, and drops what is left if
+the person may not type any more (a task starts, the keyboard moves, a break). `{type:'broadcast', batch, script, options}` is the same
 lines for several consoles: the browser sends it on the socket of each
 console the person ticked, and each room decides for itself; it needs to be
 the pilot of that very console (`consoles.broadcast_not_pilot`: typing on a
@@ -1009,7 +1015,9 @@ attached to it only; `journal` is searched for the days the journal's rule
 lets this person read (`canReadDay`), and says `allowed: false` otherwise.
 A search is plain text (no pattern, no case unless asked), over what the
 screen showed (`src/lib/terminalText.js` replays the stream: escape codes
-dropped, a carriage return rewrites the line). `GET /history/download?device=<key>`
+dropped, a carriage return rewrites the line). The replay is synchronous, so a
+journal is read at most 16 MB per search and replayed 1 MB at a time with the
+event loop given back between two pieces. `GET /history/download?device=<key>`
 is the room's output as a text file (people attached only,
 `console.history.download` audited), `&day=<yyyy-mm-dd>` a whole day of that
 console's journal as one text file (`console.journal.download`).

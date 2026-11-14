@@ -61,6 +61,18 @@ const CONFIG = [
   ' no shutdown', 'exit', 'interface loopback 11', ' description second', ' ip address 10.10.11.1 255.255.255.255', ' no shutdown', 'end',
 ].join('\n');
 
+/** Eight loopbacks with a long description each (the end of the script is what a slow console loses first) */
+function longScript(first) {
+  const lines = ['enable', 'configure terminal'];
+  for (let i = first; i < first + 8; i++) lines.push(`interface loopback ${i}`, ` description Student group ${i} uplink towards the distribution switch of bay 5`, ` ip address 10.${i}.0.1 255.255.255.255`);
+  lines.push('end');
+  return lines.join('\n');
+}
+const loopbacks = (device, first) => [...device.cfg.interfaces].filter(([name, i]) => {
+  const n = Number(name.replace('Loopback', ''));
+  return n >= first && n < first + 8 && i.lines.some((l) => l.startsWith('ip address'));
+}).length;
+
 describe('paste', () => {
   test('a multi-line paste is paced like an injection: the device gets every line, where the same text typed as keystrokes overruns its input buffer', async () => {
     const [first, second] = bench('B4M');
@@ -82,6 +94,37 @@ describe('paste', () => {
     assert.ok(!sim(second).cfg.interfaces.has('Loopback11'), 'the unpaced paste lost its end');
     await paced.close();
     await raw.close();
+  });
+
+  test('a paste is paced whatever the person chose for an injection: unticking "wait for the prompt" and a zero delay do not make it drop lines', async () => {
+    const device = bench('B4M')[7];
+    const c = await open('student1', device);
+    const script = longScript(20);
+    // The options of an injection sent along (an older tab, a hand-made frame): the server does not take them for a paste
+    c.send({ type: 'paste', script, options: { waitForPrompt: false, delayMs: 0 } });
+    const done = await c.outcome('paste');
+    assert.equal(done.state, 'done', done.message);
+    assert.deepEqual([done.result.sent, done.result.total, done.result.errors.length], [script.split('\n').length, script.split('\n').length, 0]);
+    assert.equal(sim(device).dropped, 0);
+    assert.equal(loopbacks(sim(device), 20), 8, 'every interface, the last one too');
+    await c.close();
+  });
+
+  test('a long line typed or pasted in one piece reaches a slow console in small chunks: nothing is dropped, and what follows keeps its place', async () => {
+    const device = bench('B4M')[8];
+    const c = await open('student1', device);
+    for (const [line, prompt] of [['enable', /#$/], ['configure terminal', /\(config\)#$/], ['interface loopback 60', /\(config-if\)#$/]]) {
+      c.type(`${line}\r`);
+      await c.see(prompt);
+    }
+    const long = `description ${'abcdefghij'.repeat(15)}`;
+    c.type(`${long}\r`);
+    c.type('ip address 10.60.60.1 255.255.255.255\r');
+    await until(() => sim(device).cfg.interfaces.get('Loopback60')?.lines.length >= 2 || sim(device).dropped > 0, 'both lines arrived');
+    await idle(device);
+    assert.equal(sim(device).dropped, 0);
+    assert.deepEqual(sim(device).cfg.interfaces.get('Loopback60')?.lines, [long, 'ip address 10.60.60.1 255.255.255.255'], 'whole, in order');
+    await c.close();
   });
 
   test('a paste sends the lines as copied, comments and blank lines included, where an injection skips the comments', async () => {
@@ -194,6 +237,25 @@ describe('broadcast', () => {
       await c.see(/show ip interface brief[\s\S]*Serial0\/0\/1/);
     }
     assert.ok(one.frames.some((f) => f.task === 'broadcast' && f.state === 'running' && f.batch === 'run-1'), 'progress carries the batch too');
+    await one.close();
+    await two.close();
+  });
+
+  test('a broadcast is paced whatever the person chose for an injection: the options of the injection dialog do not reach it', async () => {
+    const [a, b] = bench('B4H').slice(3, 5);
+    const one = await open('student1', a);
+    const two = await open('student1', b);
+    const script = longScript(30);
+    for (const c of [one, two]) c.send({ type: 'broadcast', batch: 'fast', script, options: { waitForPrompt: false, delayMs: 0 } });
+    for (const c of [one, two]) {
+      const outcome = await c.outcome('broadcast', undefined, 'fast');
+      assert.equal(outcome.state, 'done', outcome.message);
+      assert.equal(outcome.result.sent, outcome.result.total);
+    }
+    for (const d of [a, b]) {
+      assert.equal(sim(d).dropped, 0, d.name);
+      assert.equal(loopbacks(sim(d), 30), 8, d.name);
+    }
     await one.close();
     await two.close();
   });

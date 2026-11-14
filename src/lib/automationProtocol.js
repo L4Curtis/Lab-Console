@@ -6,6 +6,8 @@
  *                      {"type":"inject","script":"…","options":{waitForPrompt,delayMs,stopOnError,skipComments}}
  *                      {"type":"paste","script":"…","options":{…}}       a multi-line paste, paced like an injection;
  *                                                                        every line is sent as typed (comments included)
+ *                                                                        (`paste` and `broadcast` always wait for the prompt, 50 ms
+ *                                                                        between lines: only `stopOnError` is read from their options)
  *                      {"type":"broadcast","batch":"…","script":"…","options":{…}}   the same lines sent to several
  *                                                                        consoles: the browser sends this frame on each of
  *                                                                        its console sockets, each room decides for itself
@@ -71,9 +73,12 @@ export function createAutomationHandler({
       const maxLines = task === 'broadcast' ? MAX_BROADCAST_LINES : MAX_SCRIPT_LINES;
       if (script.split('\n').length > maxLines) return refuse(`The script has more than ${maxLines} lines.`, 'automation.script_too_long', { max: maxLines });
       const o = msg.options || {};
+      // A paste and a broadcast show no pacing options: whatever the person chose for an injection once
+      // (no wait for the prompt, no delay) must not make them drop characters on a slow console
+      const careful = task === 'paste' || task === 'broadcast';
       const options = {
-        waitForPrompt: o.waitForPrompt !== false,
-        delayMs: clamp(o.delayMs, 0, 5000, 50),
+        waitForPrompt: careful || o.waitForPrompt !== false,
+        delayMs: careful ? 50 : clamp(o.delayMs, 0, 5000, 50),
         stopOnError: Boolean(o.stopOnError),
         // A paste is what the person copied, "!" lines included (a banner's text may start with one)
         skipComments: task === 'paste' ? false : o.skipComments !== false,
