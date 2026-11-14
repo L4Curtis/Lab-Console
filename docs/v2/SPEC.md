@@ -470,7 +470,8 @@ backups, recent activity. A guided tour at first sign-in and a help page.
 *As built (help lot):* contracts in ARCHITECTURE §9c.
 - **Guided tour**: five steps on the real screen (pick a bench, take it with
   your team, open a console, ask for the keyboard, back up); opens by itself
-  at a person's first sign-in only; skippable (button or Escape); replayable
+  on any page load until it has ended once (so at the first sign-in, and
+  again if the tab was closed mid-tour); skippable (button or Escape); replayable
   from the user menu and from the help page. How it ended is kept per person
   in the database (`tour_progress`, migration 015), so it follows the person
   from one browser to the next.

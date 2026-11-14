@@ -106,7 +106,7 @@ test('a session revoked by an administrator sends the page back to the login pag
   const from = failedRequests.length;
   h.app.deps.auth.sessions.revoke(id);
   // The next API call meets the gate
-  page.evaluate(() => import('/js/core/api.js').then(({ getJson }) => getJson('/api/modules')).catch(() => {}));
+  page.evaluate(() => import('/js/core/api.js').then(({ getJson }) => getJson('/api/modules')).catch(() => {})).catch(() => {}); // the page leaves while this runs
   await page.waitForURL(/\/login#\/consoles/); // the screen keeps its own route (#/consoles/<bench>)
   failedRequests.splice(from); // the refused calls that led here
   await page.waitForSelector('#sso-button:visible');

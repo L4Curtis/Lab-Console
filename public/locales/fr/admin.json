@@ -330,7 +330,7 @@
     },
     "consoles": {
       "title": "Journal des consoles",
-      "what": "Ce que les équipements affichent sur les consoles ouvertes depuis la plateforme, avec qui avait le clavier. Jamais ce que vous tapez.",
+      "what": "Ce que les équipements affichent sur les consoles ouvertes depuis la plateforme, avec qui avait le clavier. Aucune frappe n’est gardée comme telle, mais ce que l’équipement renvoie en écho, donc vos commandes, y figure ; un mot de passe tapé sans écho n’y figure jamais.",
       "kept": {
         "one": "Gardé {count} jour. La lecture couvre toute la journée d’une console : qui y est passé ce jour-là avec le droit de la piloter, même une minute (regarder seulement ne compte pas), et les équipes qui avaient sa baie ce jour-là relisent toutes les sessions de ce jour ; les administrateurs lisent tout.",
         "other": "Gardé {count} jours. La lecture couvre toute la journée d’une console : qui y est passé ce jour-là avec le droit de la piloter, même une minute (regarder seulement ne compte pas), et les équipes qui avaient sa baie ce jour-là relisent toutes les sessions de ce jour ; les administrateurs lisent tout."
@@ -349,7 +349,7 @@
     },
     "never": {
       "title": "Jamais gardé",
-      "what": "Vos mots de passe (seulement une empreinte), les codes à usage unique, ce que vous tapez dans les consoles."
+      "what": "Vos mots de passe (seulement une empreinte), les codes à usage unique, ce que vous tapez sans écho dans les consoles (un mot de passe). Les commandes renvoyées en écho par l’équipement figurent bien dans le journal des consoles."
     }
   },
   "errors": {

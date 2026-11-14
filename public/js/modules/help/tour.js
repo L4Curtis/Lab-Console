@@ -8,8 +8,9 @@
  * It is a card next to what it talks about, not a modal: the page behind
  * stays usable and no key is taken from a terminal. Escape, or "Skip the
  * tour", ends it. How it ended ('done' or 'skipped') is kept on the server,
- * per person (GET / PUT /api/help/tour), so the first sign-in is the only
- * one that opens it by itself; a replay changes nothing but that record
+ * per person (GET / PUT /api/help/tour), so it opens by itself on any page
+ * load until a record exists (the first sign-in in practice; a tab closed
+ * mid-tour brings it back); a replay changes nothing but that record
  */
 import { h, loadCss } from '../../core/dom.js';
 import { request, getJson } from '../../core/api.js';
@@ -147,7 +148,7 @@ export async function startTour() {
   return done;
 }
 
-/** At start-up: a person who has never been through the tour sees it once */
+/** At start-up: opens the tour while no record exists (it is written when the tour ends) */
 export async function maybeStartTour() {
   let state;
   try { ({ state } = await getJson('/api/help/tour')); } catch { return; } // no tour rather than a broken start

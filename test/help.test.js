@@ -134,4 +134,12 @@ describe('the help text', () => {
     assert.match(read('fr').s.journal.never, /sans écho/);
     assert.match(read('en').s.journal.never, /without echo/);
   });
+  test('the administration page does not claim that what you type is never journaled', () => {
+    for (const lang of ['fr', 'en']) {
+      const a = JSON.parse(fs.readFileSync(path.join(repoRoot, 'public/locales', lang, 'admin.json'), 'utf8')).journaling;
+      assert.doesNotMatch(a.consoles.what, /Jamais ce que vous tapez|Never what you type/);
+      assert.match(a.consoles.what, lang === 'fr' ? /écho/ : /echo/);
+      assert.match(a.never.what, lang === 'fr' ? /sans écho/ : /without echo/);
+    }
+  });
 });
