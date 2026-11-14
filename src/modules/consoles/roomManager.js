@@ -44,15 +44,17 @@ export class RoomManager extends EventEmitter {
    * @param pool       SshPool shared by every line
    * @param limits     { maxSessions, maxSessionsPerClient, idleTimeoutMs }
    * @param canPilot   (user, device) => boolean: the single permission call
+   * @param lockOf     (device) => { bench, reason } | null: the lock that keeps non-admins away from a device
    * @param journal    ConsoleJournal or null
    * @param options    room timings ({ graceMs, controlTimeoutMs, pilotIdleMs, scrollbackBytes, silentMs })
    */
-  constructor({ settings, pool, limits, canPilot = () => true, journal = null, options = {}, now = () => Date.now(), logger }) {
+  constructor({ settings, pool, limits, canPilot = () => true, lockOf = () => null, journal = null, options = {}, now = () => Date.now(), logger }) {
     super();
     this.settings = settings;
     this.pool = pool;
     this.limits = limits;
     this.canPilot = canPilot;
+    this.lockOf = lockOf;
     this.journal = journal;
     this.options = options;
     this.now = now;
@@ -92,6 +94,10 @@ export class RoomManager extends EventEmitter {
     if (!room) {
       if (readOnly) return { ok: false, code: 'consoles.room_gone', params: { name: device.name }, message: `Nobody has ${device.name}'s console open any more.` };
       if (!this.canPilot(user, device)) {
+        const lock = this.lockOf(device);
+        if (lock) {
+          return { ok: false, code: 'consoles.open_locked', params: { name: device.name, bench: lock.bench, reason: lock.reason }, message: `${device.name}'s bench ${lock.bench} is locked by an administrator: ${lock.reason}` };
+        }
         return { ok: false, code: 'consoles.open_not_allowed', params: { name: device.name }, message: `${device.name} belongs to a bench taken by another team: you can watch its console once they open it.` };
       }
       if (this.#rooms.size >= this.limits.maxSessions) {

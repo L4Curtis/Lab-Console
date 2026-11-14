@@ -151,7 +151,9 @@ test('the consoles ask the real bench rule: a member pilots, an outsider watches
   alice.send({ type: 'control', action: 'share' });
   assert.equal((await alice.frame((f) => f.type === 'control-refused', 'share refused')).code, 'consoles.control_not_pilot');
   const another = connect('student1', r2);
-  assert.equal((await another.frame((f) => f.type === 'error', 'locked bench')).code, 'consoles.open_not_allowed');
+  const lockedAnswer = await another.frame((f) => f.type === 'error', 'locked bench');
+  assert.equal(lockedAnswer.code, 'consoles.open_locked', 'a lock is not "taken by another team"');
+  assert.deepEqual([lockedAnswer.params.bench, lockedAnswer.params.reason], ['B4M', 'Exam']);
 
   assert.equal((await api('admin', 'DELETE', '/api/benches/B4M/lock')).status, 200);
   alice.type('show users\r');

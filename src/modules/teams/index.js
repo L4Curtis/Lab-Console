@@ -54,6 +54,7 @@ export function createTeamsModules(deps, { now = () => Date.now(), tickMs = TICK
     canOperate: (user, labName) => benches.canOperate(user, labName),
     canPilot: (user, device) => benches.canPilot(user, device),
     lock: (labName) => benches.lock(labName),
+    lockOfDevice: (device) => benches.lockOfDevice(device),
     touch: (labName) => benches.touch(labName),
     onRelease: (fn) => benches.onRelease(fn),
     detail: (labName, user) => benches.detail(labName, user),

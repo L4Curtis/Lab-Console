@@ -137,6 +137,7 @@
       "line_refused": "Le serveur de consoles refuse la ligne de {name} ({target}) : quelqu’un y est connecté en dehors de Lab Console, ou la ligne est hors service.",
       "console_server_unreachable": "Le serveur de rebond n’arrive pas à joindre le serveur de consoles {host}.",
       "device_silent": "{name} ne répond pas : le serveur de consoles a bien ouvert la ligne, mais rien ne revient {seconds} s après Entrée. Vérifiez sur place que l’équipement est allumé et que son câble console est branché.",
+      "open_locked": "{name} est sur la baie {bench}, verrouillée par un administrateur : {reason}",
       "open_not_allowed": "{name} fait partie d’une baie prise par une autre équipe : vous pourrez regarder sa console quand elle l’aura ouverte.",
       "room_gone": "Plus personne n’a la console de {name} ouverte.",
       "room_closed": "Cette console vient de se fermer.",

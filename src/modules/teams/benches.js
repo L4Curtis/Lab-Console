@@ -158,6 +158,15 @@ export class Benches {
     return this.#locks.get()[name] ?? null;
   }
 
+  /** The first lock on a bench this device belongs to: { bench, reason } or null */
+  lockOfDevice(device) {
+    for (const bench of this.benchesOfDevice(device)) {
+      const lock = this.lock(bench);
+      if (lock) return { bench, reason: lock.reason };
+    }
+    return null;
+  }
+
   /** Run jobs, take the keyboard for automation: occupants of an unlocked bench, and admins */
   canOperate(user, name) {
     if (!user) return false;
@@ -179,8 +188,8 @@ export class Benches {
     if (!user?.id || !device) return false;
     if (String(device.key ?? '').startsWith('admin:')) return true;
     if (isAdmin(user)) return true;
+    if (this.lockOfDevice(device)) return false;
     const names = this.benchesOfDevice(device);
-    if (names.some((name) => this.lock(name))) return false;
     return names.some((name) => !this.#occupancy(name) || this.isOccupant(user, name));
   }
 

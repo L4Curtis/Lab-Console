@@ -137,6 +137,7 @@
       "line_refused": "The console server refuses the line of {name} ({target}): someone outside Lab Console is connected to it, or the line is out of order.",
       "console_server_unreachable": "The jump server cannot reach the console server {host}.",
       "device_silent": "{name} does not answer: the console server opened the line, but nothing comes back {seconds} s after Enter. Check on site that the device is powered on and that its console cable is plugged in.",
+      "open_locked": "{name} is on bench {bench}, locked by an administrator: {reason}",
       "open_not_allowed": "{name} belongs to a bench taken by another team: you can watch its console once they open it.",
       "room_gone": "Nobody has the console of {name} open any more.",
       "room_closed": "This console has just closed.",

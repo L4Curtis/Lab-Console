@@ -96,7 +96,7 @@ export function createConsolesModule({ config, events, logger, infra, services =
     logger: log,
   });
   const rooms = new RoomManager({
-    settings, pool, journal, limits: config.limits, canPilot: mayPilot, options: options.rooms ?? {}, now, logger: log,
+    settings, pool, journal, limits: config.limits, canPilot: mayPilot, lockOf: (device) => services.benches?.lockOfDevice?.(device) ?? null, options: options.rooms ?? {}, now, logger: log,
   });
   const probe = sshProbe({ pool, settings });
   const watch = new LineWatch({

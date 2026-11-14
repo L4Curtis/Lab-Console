@@ -127,7 +127,7 @@ test('server messages: the placeholders of a translation are the params the serv
   const sent = {
     'consoles.status_ssh': ['host'], 'consoles.status_telnet': ['target'], 'consoles.telnet_failed': ['detail'], 'consoles.closed_exit': ['code'],
     'consoles.idle_timeout': ['minutes', 'name'], 'consoles.line_refused': ['name', 'target'], 'consoles.console_server_unreachable': ['host'], 'consoles.device_silent': ['name', 'seconds'],
-    'consoles.open_not_allowed': ['name'], 'consoles.room_gone': ['name'], 'consoles.control_not_allowed': ['name'], 'consoles.control_pending': ['name'],
+    'consoles.open_not_allowed': ['name'], 'consoles.open_locked': ['name', 'bench', 'reason'], 'consoles.room_gone': ['name'], 'consoles.control_not_allowed': ['name'], 'consoles.control_pending': ['name'],
     'consoles.control_refused': ['name'], 'consoles.task_running': ['task'], 'consoles.freed': ['name', 'device'], 'consoles.too_many_watches': ['max'],
     'consoles.client_full': ['max'], 'consoles.not_allowed': ['name'], 'consoles.ssh_refused': ['host', 'port'], 'consoles.ssh_timeout': ['host'],
     'consoles.ssh_unreachable': ['host'], 'consoles.ssh_error': ['detail'], 'consoles.invalid_target': ['detail'],
