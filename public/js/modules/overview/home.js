@@ -15,8 +15,9 @@ import { session } from '../../core/session.js';
 import { followApi, roomsSignature, checksSignature } from './live.js';
 import { benchCard } from './benchCard.js';
 import { replaceKeepingFocus } from './keepFocus.js';
-import { fmtDateTime, fmtSlot, historyText } from '../teams/data.js';
-import { fmtDate } from '../jobs/text.js';
+import { fmtSlot, historyText } from '../teams/data.js';
+import { fmtShort } from '../../core/format.js';
+import { fmtDateTime } from '../../core/format.js';
 
 // Console lines tell their own story; everything else the bench history knows how to say
 const CONSOLE_ACTIONS = {
@@ -97,7 +98,7 @@ export async function mount(el) {
         ? h('ul.ov-list', d.backups.map((s) => h('li', { dataset: { snapshot: s.id } },
           h('a', { href: `#/jobs/${encodeURIComponent(s.bench)}` }, h('strong', s.label || origin(s.origin))),
           h('span.muted', `${s.bench} · ${t('overview.home.backups.devices', { count: s.devices })} · ${s.author}`),
-          h('time.muted', { datetime: s.createdAt }, fmtDate(s.createdAt)))))
+          h('time.muted', { datetime: s.createdAt }, fmtShort(s.createdAt)))))
         : h('p.muted', t('overview.home.backups.empty')),
       h('div.ov-actions', link(bench ? `#/jobs/${encodeURIComponent(bench)}` : '#/jobs', t('overview.home.backups.all'), 'backups')));
   }

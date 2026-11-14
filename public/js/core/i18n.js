@@ -93,14 +93,17 @@ export function has(key) {
 /**
  * The message for an API error (ARCHITECTURE §4). The code `module.reason`
  * is looked up as `<module>.errors.<reason>` in the module's own namespace,
- * then as `common.errors.<module>.<reason>`; unknown codes keep the server's
- * English sentence
+ * then as `common.errors.<module>.<reason>`, then as the terminal says it
+ * (`terminal.server.<code>`: the consoles.* and automation.* refusals a job
+ * or a recovery reports); unknown codes keep the server's English sentence.
+ * A `cause` parameter that is itself a code is translated first
  */
 export function tError(code, params, fallback) {
   if (code) {
+    const p = params?.cause ? { ...params, cause: tError(params.cause, {}, params.cause) } : params;
     const [module, ...reason] = String(code).split('.');
-    for (const key of [`${module}.errors.${reason.join('.')}`, `common.errors.${code}`]) {
-      if (has(key)) return t(key, params);
+    for (const key of [`${module}.errors.${reason.join('.')}`, `common.errors.${code}`, `terminal.server.${code}`]) {
+      if (has(key)) return t(key, p);
     }
   }
   return fallback ?? String(code ?? '');

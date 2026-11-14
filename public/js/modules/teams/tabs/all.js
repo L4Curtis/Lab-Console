@@ -4,10 +4,10 @@
  * anyone else, whatever this screen shows
  */
 import { h, icon } from '../../../core/dom.js';
-import { live, request } from '../../../core/api.js';
+import { live, request, callOrToast } from '../../../core/api.js';
 import { t, onLocaleChange } from '../../../core/i18n.js';
 import { confirmDialog, formDialog } from '../../../shared/dialog.js';
-import { call, teamUrl, onBenches } from '../data.js';
+import { teamUrl, onBenches } from '../data.js';
 
 export function mount(el) {
   const body = h('tbody');
@@ -19,7 +19,7 @@ export function mount(el) {
   let visible = false;
 
   async function load() {
-    const data = await call('GET', '/api/teams', undefined, { quiet: true });
+    const data = await callOrToast('GET', '/api/teams', undefined, { quiet: true });
     teams = data?.teams ?? [];
     render();
   }
@@ -39,12 +39,12 @@ export function mount(el) {
 
   async function dissolve(team) {
     const ok = await confirmDialog({ title: t('teams.all.dissolveTitle', { team: team.name }), body: t('teams.all.dissolveBody'), confirmLabel: t('teams.all.dissolve'), danger: true, requireText: team.name });
-    if (ok && await call('DELETE', teamUrl(team.id))) await load();
+    if (ok && await callOrToast('DELETE', teamUrl(team.id))) await load();
   }
 
   async function removeMember(team, person) {
     const ok = await confirmDialog({ title: t('teams.all.removeTitle', { name: person.name, team: team.name }), body: t('teams.all.removeBody'), confirmLabel: t('teams.all.remove'), danger: true });
-    if (ok && await call('DELETE', teamUrl(team.id, `/members/${encodeURIComponent(person.id)}`))) await load();
+    if (ok && await callOrToast('DELETE', teamUrl(team.id, `/members/${encodeURIComponent(person.id)}`))) await load();
   }
 
   function render() {

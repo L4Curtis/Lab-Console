@@ -11,7 +11,7 @@
  * A summary made of several sentences carries them as `parts`
  * ([{ code, params }]); they are joined with ". "
  */
-import { t, has } from '../core/i18n.js';
+import { t, has, tError } from '../core/i18n.js';
 
 const PREFIX = 'terminal.server.';
 
@@ -25,10 +25,11 @@ export function serverText(msg) {
   return one(msg);
 }
 
+/** A code of the server (a job's, a recovery's, a check's: jobs.*, ios.*, consoles.*…) in the user's language, `fallback` when unknown */
+export const codeText = (code, params = {}, fallback = '') => (code ? tError(code, params, fallback || code) : fallback);
+
 /** An API error thrown by core/api.js (status, code, params, serverMessage), in the user's language */
-export function errorText(err) {
-  return serverText({ code: err?.code, params: err?.params ?? {}, message: err?.serverMessage ?? err?.message ?? '' });
-}
+export const errorText = (err) => codeText(err?.code, err?.params ?? {}, err?.serverMessage ?? err?.message ?? '');
 
 /**
  * A task's name as people read it: 'inject' → "injection". The server names its

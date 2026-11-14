@@ -1,7 +1,4 @@
 {
-  "common": {
-    "failed": "The operation failed. Try again."
-  },
   "states": {
     "active": "Active",
     "pending": "Pending",

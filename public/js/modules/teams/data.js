@@ -9,10 +9,10 @@
  * The server decides every permission again; what is computed here only
  * hides buttons
  */
-import { toast } from '../../core/dom.js';
-import { request, live } from '../../core/api.js';
-import { getLocale, t, has } from '../../core/i18n.js';
+import { live } from '../../core/api.js';
+import { t, has } from '../../core/i18n.js';
 import { session } from '../../core/session.js';
+import { fmtDay, fmtTime } from '../../core/format.js';
 
 let summaries = new Map(); // bench → summary
 const listeners = new Set();
@@ -49,25 +49,11 @@ export function mayPilot(device, benchNames) {
   });
 }
 
-/** A JSON call; on failure shows the translated error and resolves to null */
-export async function call(method, url, body, { quiet = false } = {}) {
-  try {
-    return await request(method, url, body);
-  } catch (err) {
-    if (!quiet) toast(err.message, 'error', 6000);
-    return null;
-  }
-}
-
 export const benchUrl = (name, rest = '') => `/api/benches/${encodeURIComponent(name)}${rest}`;
 export const teamUrl = (id, rest = '') => `/api/teams/${encodeURIComponent(id)}${rest}`;
 
 // ── Dates, in the language of the page ─────────────────────────────────────
 
-const fmt = (options) => (value) => new Intl.DateTimeFormat(getLocale(), options).format(new Date(value));
-export const fmtTime = fmt({ hour: '2-digit', minute: '2-digit' });
-export const fmtDay = fmt({ weekday: 'short', day: 'numeric', month: 'short' });
-export const fmtDateTime = (value) => `${fmtDay(value)} ${fmtTime(value)}`;
 export const fmtSlot = (r) => `${fmtDay(r.start)} ${fmtTime(r.start)}–${fmtTime(r.end)}`;
 
 // ── The story of a bench, from its audit trail ─────────────────────────────

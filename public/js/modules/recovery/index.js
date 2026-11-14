@@ -23,10 +23,10 @@
  */
 import { h, icon, loadCss } from '../../core/dom.js';
 import { request, live } from '../../core/api.js';
-import { t, tError, has, loadNamespace } from '../../core/i18n.js';
+import { t, has, loadNamespace } from '../../core/i18n.js';
 import { session } from '../../core/session.js';
 import { openDialog, confirmDialog } from '../../shared/dialog.js';
-import { serverText } from '../../shared/serverText.js';
+import { codeText } from '../../shared/serverText.js';
 import { registerPaneAction } from '../../shared/paneActions.js';
 import { registerDiagramLayer, refreshDiagram } from '../../shared/diagramLayers.js';
 
@@ -62,14 +62,6 @@ export async function startRecovery() {
     when: (s) => s.kind === 'console' && typeof s.device === 'string' && !s.device.startsWith('admin:'),
     run: (pane) => openRecoveryDialog(pane.session.device),
   });
-}
-
-/** A server code in the user's language: recovery.* here, consoles.* and automation.* as the terminal says them */
-function codeText(code, params = {}, fallback = '') {
-  if (!code) return fallback;
-  const [mod] = String(code).split('.');
-  if (mod === 'consoles' || mod === 'automation') return serverText({ code, params, message: fallback || code });
-  return tError(code, params, fallback || code);
 }
 
 /** recovery.progress.<name>, the driver's account of what the device is doing */

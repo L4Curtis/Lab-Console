@@ -17,8 +17,9 @@ import { request, getJson, live } from '../../../core/api.js';
 import { t, onLocaleChange } from '../../../core/i18n.js';
 import { session } from '../../../core/session.js';
 import { confirmDialog, formDialog } from '../../../shared/dialog.js';
-import { formatDate, errorText, showLink } from '../common.js';
+import { showLink } from '../common.js';
 import { withConfirmation } from '../confirm.js';
+import { fmtLong } from '../../../core/format.js';
 
 export function mount(el) {
   const filter = h('input.field.filter', { type: 'search', placeholder: t('accounts.users.filter'), 'aria-label': t('accounts.users.filter') });
@@ -39,7 +40,7 @@ export function mount(el) {
       ({ users, passkeysAvailable } = await getJson('/api/accounts/users'));
       notice.textContent = '';
     } catch (err) {
-      notice.textContent = errorText(err);
+      notice.textContent = err.message;
     }
     render();
   }
@@ -82,7 +83,7 @@ export function mount(el) {
       if ((await fn()) === null) onError?.(); // not confirmed: nothing changed
       else if (doneKey) toast(t(doneKey));
     } catch (err) {
-      toast(errorText(err), 'error', 7000);
+      toast(err.message, 'error', 7000);
       onError?.();
     }
     await load();
@@ -128,7 +129,7 @@ export function mount(el) {
             fields: [{ name: 'ttl', label: t('accounts.links.validity'), type: 'select', value: '1h', options: [{ value: '1h', label: t('accounts.links.ttl.1h') }, { value: '24h', label: t('accounts.links.ttl.24h') }] }],
             submitLabel: t('accounts.users.resetCreate'),
             onSubmit: (values) => request('POST', `${path}/reset-link`, { ttl: values.ttl }),
-          }).catch((err) => { toast(errorText(err), 'error'); return null; });
+          }).catch((err) => { toast(err.message, 'error'); return null; });
           if (created) await showLink({ title: t('accounts.users.resetTitle'), intro: t('accounts.users.resetShare', { name: user.name }), url: created.url, expiresAt: created.expiresAt });
         },
       }, icon('link'), t('accounts.users.reset')));
@@ -157,7 +158,7 @@ export function mount(el) {
       h('td', roleControl(user)),
       h('td', h('span.state-pill', { dataset: { state: user.state } }, t(`accounts.states.${user.state}`))),
       h('td', user.via === 'local' && !user.environment ? String(user.passkeys) : '—'),
-      h('td', formatDate(user.lastSignInAt)),
+      h('td', fmtLong(user.lastSignInAt)),
       h('td.right', actions(user)));
   }
 

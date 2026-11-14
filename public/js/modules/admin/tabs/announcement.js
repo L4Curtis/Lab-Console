@@ -6,7 +6,7 @@
 import { h, toast } from '../../../core/dom.js';
 import { request, getJson } from '../../../core/api.js';
 import { t, onLocaleChange } from '../../../core/i18n.js';
-import { formatDate, errorText } from '../common.js';
+import { fmtLong } from '../../../core/format.js';
 
 export function mount(el) {
   const text = h('textarea.field', { id: 'announcement-text', rows: 3, maxlength: 500 });
@@ -36,7 +36,7 @@ export function mount(el) {
     remove.disabled = !shown;
     current.replaceChildren(shown
       ? h('p.notice', { dataset: { level: shown.level } }, h('strong', t('admin.announcement.current')), ' ', shown.text, ' ',
-        h('span.muted', shown.expiresAt ? t('admin.announcement.until', { date: formatDate(shown.expiresAt) }) : t('admin.announcement.noEnd')))
+        h('span.muted', shown.expiresAt ? t('admin.announcement.until', { date: fmtLong(shown.expiresAt) }) : t('admin.announcement.noEnd')))
       : h('p.muted.small-note', t('admin.announcement.nothing')));
   }
 
@@ -46,7 +46,7 @@ export function mount(el) {
       if (shown) { text.value = shown.text; level.value = shown.level; }
       status.textContent = '';
     } catch (err) {
-      status.textContent = errorText(err);
+      status.textContent = err.message;
     }
     render();
   }
@@ -59,7 +59,7 @@ export function mount(el) {
       ({ announcement: shown } = await request('PUT', '/api/admin/announcement', { text: text.value, level: level.value, hours: hours.value || null }));
       toast(t('admin.announcement.published'));
     } catch (err) {
-      status.textContent = errorText(err);
+      status.textContent = err.message;
     } finally {
       publish.disabled = false;
       render();
@@ -72,7 +72,7 @@ export function mount(el) {
       text.value = '';
       toast(t('admin.announcement.removed'));
     } catch (err) {
-      status.textContent = errorText(err);
+      status.textContent = err.message;
     }
     render();
   });

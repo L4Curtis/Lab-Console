@@ -11,7 +11,7 @@ import { getJson } from '../../core/api.js';
 import { t, has, tNode, tError, loadNamespace, onLocaleChange } from '../../core/i18n.js';
 import { session } from '../../core/session.js';
 import { mountTabs } from '../../shared/tabs.js';
-import { formatDate, errorText } from '../admin/common.js';
+import { fmtLong } from '../../core/format.js';
 
 export async function mount(el, { navigate }) {
   await Promise.all([loadNamespace('admin', 'accounts'), loadCss('accounts'), loadCss('admin')]);
@@ -43,7 +43,7 @@ function mountHealth(el) {
     for (const node of el.querySelectorAll('[data-text]')) node.textContent = t(`admin.status.${node.dataset.text}`);
     refresh.querySelector('.lbl').textContent = t('admin.status.refresh');
     if (!data) return;
-    meta.textContent = t('admin.status.checkedAt', { date: formatDate(data.checkedAt) });
+    meta.textContent = t('admin.status.checkedAt', { date: fmtLong(data.checkedAt) });
     const cs = data.consoleServers;
     const csState = cs.total === 0 ? 'unknown' : cs.ok === cs.total ? 'ok' : cs.ok === 0 ? 'down' : 'partial';
     cards.replaceChildren(
@@ -78,7 +78,7 @@ function mountHealth(el) {
       data = await getJson(`/api/admin/health${fresh ? '?fresh=1' : ''}`);
       notice.textContent = '';
     } catch (err) {
-      notice.textContent = errorText(err);
+      notice.textContent = err.message;
     } finally {
       refresh.disabled = false;
     }
@@ -113,7 +113,7 @@ function mountJournaling(el) {
       block('never'));
   }
   async function load() {
-    try { data = await getJson('/api/admin/journaling'); } catch (err) { list.replaceChildren(h('p.form-error', errorText(err))); return; }
+    try { data = await getJson('/api/admin/journaling'); } catch (err) { list.replaceChildren(h('p.form-error', err.message)); return; }
     render();
   }
   onLocaleChange(render);

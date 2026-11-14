@@ -1,5 +1,6 @@
 /** HTTP + live-event access to the backend. */
 import { tError } from './i18n.js';
+import { toast } from './dom.js';
 
 let leaving = false;
 
@@ -16,12 +17,16 @@ export async function getJson(url) {
  * JSON request; errors carry the HTTP status and the server's `code` and
  * `params`. The message is the translation of `code` when the dictionaries
  * know it, else the server's own sentence (kept in `serverMessage`).
+ * A Blob or File body is sent as it is, with `type` as its Content-Type
+ * (an upload: `request('POST', url, file, { type: 'application/zip' })`).
  */
-export async function request(method, url, body) {
+export async function request(method, url, body, { type } = {}) {
+  const raw = body instanceof Blob;
+  const contentType = raw ? (type ?? (body.type || 'application/octet-stream')) : 'application/json';
   const res = await fetch(url, {
     method,
-    headers: { Accept: 'application/json', ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
+    headers: { Accept: 'application/json', ...(body !== undefined ? { 'Content-Type': contentType } : {}) },
+    body: body === undefined ? undefined : raw ? body : JSON.stringify(body),
     credentials: 'same-origin',
   });
   let data = null;
@@ -41,6 +46,19 @@ export async function request(method, url, body) {
     throw err;
   }
   return data;
+}
+
+/**
+ * A request whose failure is only shown: on failure the translated error as
+ * a toast (unless `quiet`), and null. `type`: as for request()
+ */
+export async function callOrToast(method, url, body, { quiet = false, type } = {}) {
+  try {
+    return await request(method, url, body, { type });
+  } catch (err) {
+    if (!quiet) toast(err.message, 'error', 7000);
+    return null;
+  }
 }
 
 /**

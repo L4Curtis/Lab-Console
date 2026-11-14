@@ -12,8 +12,9 @@ import { h, icon, toast } from '../../../core/dom.js';
 import { request, getJson, live } from '../../../core/api.js';
 import { t, onLocaleChange } from '../../../core/i18n.js';
 import { confirmDialog, formDialog } from '../../../shared/dialog.js';
-import { formatDate, errorText, showLink } from '../common.js';
+import { showLink } from '../common.js';
 import { withConfirmation } from '../confirm.js';
+import { fmtLong } from '../../../core/format.js';
 
 export function mount(el) {
   const create = h('button.btn.primary', { type: 'button', dataset: { action: 'create' } }, icon('plus'), h('span.create-label'));
@@ -37,7 +38,7 @@ export function mount(el) {
       ({ invitations, passkeysAvailable } = await getJson('/api/accounts/invitations'));
       notice.textContent = '';
     } catch (err) {
-      notice.textContent = errorText(err);
+      notice.textContent = err.message;
     }
     render();
   }
@@ -79,7 +80,7 @@ export function mount(el) {
       await request('DELETE', `/api/accounts/invitations/${encodeURIComponent(invitation.id)}`);
       toast(t('accounts.invitations.revoked'));
     } catch (err) {
-      toast(errorText(err), 'error');
+      toast(err.message, 'error');
     }
     await load();
   }
@@ -91,7 +92,7 @@ export function mount(el) {
       h('td', t(`auth.menu.roles.${invitation.role}`)),
       h('td', t('accounts.invitations.used', { uses: invitation.uses, max: invitation.maxUses }),
         invitation.maxUses > 1 ? h('span.vm-meta', ` · ${t('accounts.invitations.withApproval')}`) : null),
-      h('td', formatDate(invitation.expiresAt)),
+      h('td', fmtLong(invitation.expiresAt)),
       h('td', invitation.createdBy?.username ?? '—'),
       h('td', h('span.state-pill', { dataset: { state: invitation.state } }, t(`accounts.invitations.states.${invitation.state}`))),
       h('td.right', active ? h('button.btn.small.danger', { type: 'button', dataset: { action: 'revoke' }, onclick: () => revoke(invitation) }, t('accounts.invitations.revoke')) : null));
@@ -106,7 +107,7 @@ export function mount(el) {
     tbody.replaceChildren(...(shown.length ? shown.map(row) : [h('tr', h('td.empty-row', { colspan: 7 }, t('accounts.invitations.none')))]));
   }
 
-  create.addEventListener('click', () => createInvitation().catch((err) => toast(errorText(err), 'error')));
+  create.addEventListener('click', () => createInvitation().catch((err) => toast(err.message, 'error')));
   showEnded.addEventListener('change', render);
   onLocaleChange(render);
   live.on('accounts:changed', () => { if (visible) load(); });

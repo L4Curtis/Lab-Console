@@ -19,12 +19,14 @@
  * hides buttons
  */
 import { h, icon, toast, loadCss } from '../../core/dom.js';
-import { getJson, live } from '../../core/api.js';
+import { getJson, live, callOrToast } from '../../core/api.js';
 import { t, tNode, loadNamespace, onLocaleChange } from '../../core/i18n.js';
 import { session } from '../../core/session.js';
 import { confirmDialog } from '../../shared/dialog.js';
-import { codeText, stepText, stateText, kindText, fmtDate, fmtBytes, call, benchApi } from './text.js';
+import { stepText, stateText, kindText, fmtBytes, benchApi } from './text.js';
+import { codeText } from '../../shared/serverText.js';
 import { backupDialog, resetDialog, injectDialog, compareDialog, viewSetDialog, diffDialog, reportDialog, templateDialog } from './dialogs.js';
+import { fmtShort } from '../../core/format.js';
 
 const FINAL = new Set(['done', 'failed', 'cancelled', 'partial']);
 
@@ -81,7 +83,7 @@ export async function mount(el, { navigate }) {
     if (!bench) return;
     const name = bench;
     const [d, s, tp, runs] = await Promise.all([
-      call('GET', benchApi(name)),
+      callOrToast('GET', benchApi(name)),
       getJson(`/api/jobs/snapshots?bench=${encodeURIComponent(name)}`).catch(() => ({ snapshots: [] })),
       getJson('/api/jobs/templates').catch(() => ({ templates: [] })),
       getJson(`/api/jobs/runs?bench=${encodeURIComponent(name)}`).catch(() => ({ jobs: [] })),
@@ -126,7 +128,7 @@ export async function mount(el, { navigate }) {
   const startCompare = async (preset) => started(await compareDialog(bench, detail, { snapshots, preset }));
 
   async function cancel(job) {
-    const res = await call('POST', `/api/jobs/runs/${encodeURIComponent(job.id)}/cancel`);
+    const res = await callOrToast('POST', `/api/jobs/runs/${encodeURIComponent(job.id)}/cancel`);
     if (res) { current = res.job; renderRunning(); }
   }
 
@@ -136,12 +138,7 @@ export async function mount(el, { navigate }) {
     input.value = '';
     if (!file) return null;
     const name = encodeURIComponent(file.name.replace(/\.zip$/i, '').slice(0, 80));
-    const res = await fetch(path(name), {
-      method: 'POST', headers: { 'Content-Type': 'application/zip', Accept: 'application/json' }, body: file, credentials: 'same-origin',
-    });
-    const data = await res.json().catch(() => null);
-    if (!res.ok) { toast(codeText(data?.code, data?.params, data?.error ?? String(res.status)), 'error', 7000); return null; }
-    return data;
+    return callOrToast('POST', path(name), file, { type: 'application/zip' });
   }
 
   async function importZip() {
@@ -161,17 +158,17 @@ export async function mount(el, { navigate }) {
   async function search() {
     const q = searchBox.value.trim();
     if (q.length < 2) { searchOut.hidden = true; return; }
-    const res = await call('GET', `/api/jobs/snapshots/search?q=${encodeURIComponent(q)}`);
+    const res = await callOrToast('GET', `/api/jobs/snapshots/search?q=${encodeURIComponent(q)}`);
     if (!res) return;
     searchOut.hidden = false;
     searchOut.replaceChildren(
       h('p.muted', t('jobs.snapshots.hits', { count: res.hits.length, q })),
-      h('ul', res.hits.map((x) => h('li', h('span.muted', `${fmtDate(x.createdAt)} · ${x.bench} · ${x.device}:${x.line}`), ' ', h('code', x.text)))));
+      h('ul', res.hits.map((x) => h('li', h('span.muted', `${fmtShort(x.createdAt)} · ${x.bench} · ${x.device}:${x.line}`), ' ', h('code', x.text)))));
   }
 
   async function removeSnapshot(s) {
-    const ok = await confirmDialog({ title: t('jobs.snapshots.deleteTitle'), body: t('jobs.snapshots.deleteBody', { date: fmtDate(s.createdAt) }), confirmLabel: t('jobs.snapshots.delete'), danger: true });
-    if (ok && await call('DELETE', `/api/jobs/snapshots/${encodeURIComponent(s.id)}`)) await load();
+    const ok = await confirmDialog({ title: t('jobs.snapshots.deleteTitle'), body: t('jobs.snapshots.deleteBody', { date: fmtShort(s.createdAt) }), confirmLabel: t('jobs.snapshots.delete'), danger: true });
+    if (ok && await callOrToast('DELETE', `/api/jobs/snapshots/${encodeURIComponent(s.id)}`)) await load();
   }
 
   async function newTemplate(snapshot = null) {
@@ -180,12 +177,12 @@ export async function mount(el, { navigate }) {
   }
 
   async function setBase(tpl, on) {
-    if (await call('PUT', `/api/jobs/templates/${encodeURIComponent(tpl.id)}`, { base: on })) await load();
+    if (await callOrToast('PUT', `/api/jobs/templates/${encodeURIComponent(tpl.id)}`, { base: on })) await load();
   }
 
   async function removeTemplate(tpl) {
     const ok = await confirmDialog({ title: t('jobs.templates.deleteTitle', { name: tpl.name }), body: t('jobs.templates.deleteBody'), confirmLabel: t('jobs.templates.delete'), danger: true });
-    if (ok && await call('DELETE', `/api/jobs/templates/${encodeURIComponent(tpl.id)}`)) await load();
+    if (ok && await callOrToast('DELETE', `/api/jobs/templates/${encodeURIComponent(tpl.id)}`)) await load();
   }
 
   // ── Rendering ─────────────────────────────────────────────────────────────
@@ -270,7 +267,7 @@ export async function mount(el, { navigate }) {
     snapList.replaceChildren(h('div.table-wrap', h('table.vm-table.jobs-snapshots-table',
       h('thead', h('tr', ['date', 'label', 'devices', 'by', 'actions'].map((c) => h('th', t(`jobs.snapshots.col.${c}`))))),
       h('tbody', snapshots.map((s) => h('tr', { dataset: { snapshot: s.id } },
-        h('td', fmtDate(s.createdAt)),
+        h('td', fmtShort(s.createdAt)),
         h('td', s.label || t(`jobs.origin.${s.origin}`), s.teamName ? h('small.muted', ` · ${s.teamName}`) : null),
         h('td', s.devices.map((d) => d.device).join(', ')),
         h('td', s.author.name),
@@ -300,7 +297,7 @@ export async function mount(el, { navigate }) {
   function renderHistory() {
     if (!history.length) { histList.replaceChildren(h('li.muted', t('jobs.history.none'))); return; }
     histList.replaceChildren(...history.slice(0, 15).map((job) => h('li', { dataset: { job: job.id } },
-      h('time', fmtDate(job.createdAt)), ' ',
+      h('time', fmtShort(job.createdAt)), ' ',
       h('span', t('jobs.history.line', { kind: kindText(job.kind), name: job.actor?.name ?? '', count: job.devices.length })), ' ',
       h('span.jobs-state', { dataset: { state: job.state } }, stateText(job.state)), ' ',
       button('report', t('jobs.current.report'), () => reportDialog(job), { cls: '.subtle' }))));

@@ -15,12 +15,13 @@
  */
 import { h, toast } from '../../core/dom.js';
 import { request, getJson, live } from '../../core/api.js';
-import { t, getLocale } from '../../core/i18n.js';
+import { t } from '../../core/i18n.js';
 import { session } from '../../core/session.js';
 import { openDialog } from '../../shared/dialog.js';
 import { registerDiagramLayer, refreshDiagram } from '../../shared/diagramLayers.js';
 import { registerPaneAction } from '../../shared/paneActions.js';
 import { benchSummary, isOccupant, onBenches } from '../teams/data.js';
+import { fmtShort } from '../../core/format.js';
 
 const TOOLTIP_LINES = 3;
 const TOOLTIP_WIDTH = 70;
@@ -48,7 +49,6 @@ export function knowDevices(labs) {
 
 export const mayEdit = (bench) => session.isAdmin || isOccupant(benchSummary(bench));
 
-const when = (iso) => new Intl.DateTimeFormat(getLocale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }).format(new Date(iso));
 const clip = (line) => (line.length > TOOLTIP_WIDTH ? `${line.slice(0, TOOLTIP_WIDTH - 1)}…` : line);
 
 /** Read the list again (at start-up, and after a conflict); a failure leaves what we have */
@@ -79,7 +79,7 @@ export function startNotes() {
     if (note.text.split('\n').length > TOOLTIP_LINES) lines[lines.length - 1] += ' …';
     return {
       badges: [{ text: t('collab.notes.badge'), kind: 'note', title: t('collab.notes.badgeTitle', { name: note.by.name }) }],
-      tooltip: [t('collab.notes.tooltipHead', { name: note.by.name, time: when(note.updatedAt) }), ...lines],
+      tooltip: [t('collab.notes.tooltipHead', { name: note.by.name, time: fmtShort(note.updatedAt) }), ...lines],
     };
   });
   // On a console tile
@@ -99,7 +99,7 @@ export function openNoteDialog(key) {
   const note = noteOf(key);
 
   const meta = h('p.note-meta.muted');
-  const writeMeta = (n) => { meta.textContent = n ? t('collab.notes.lastBy', { name: n.by.name, time: when(n.updatedAt) }) : t('collab.notes.none'); };
+  const writeMeta = (n) => { meta.textContent = n ? t('collab.notes.lastBy', { name: n.by.name, time: fmtShort(n.updatedAt) }) : t('collab.notes.none'); };
   writeMeta(note);
   const problem = h('p.note-problem', { role: 'alert', hidden: true });
   const theirs = h('button.btn.small', { type: 'button', hidden: true }, t('collab.notes.showTheirs'));

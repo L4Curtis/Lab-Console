@@ -16,7 +16,7 @@ import { t, tNode, loadNamespace, onLocaleChange } from '../../core/i18n.js';
 import { session } from '../../core/session.js';
 import { confirmDialog, formDialog } from '../../shared/dialog.js';
 import { addPasskey, isCancelled } from '../../core/passkeys.js';
-import { formatDate, errorText } from '../admin/common.js';
+import { fmtLong } from '../../core/format.js';
 
 export async function mount(el) {
   await Promise.all([loadNamespace('accounts'), loadCss('accounts')]);
@@ -29,7 +29,7 @@ export async function mount(el) {
     try {
       me = await getJson('/api/accounts/me');
     } catch (err) {
-      body.replaceChildren(h('p.form-error', { role: 'alert' }, errorText(err)));
+      body.replaceChildren(h('p.form-error', { role: 'alert' }, err.message));
       return;
     }
     render();
@@ -58,7 +58,7 @@ export async function mount(el) {
     if (!me.canChangePassword) return null; // SSO accounts and the environment's administrator have none here
     const list = h('ul.passkey-list', me.passkeys.map((p) => h('li', { dataset: { passkey: p.id } },
       icon('key'),
-      h('div.passkey-text', h('strong', p.name), h('span.vm-meta', t('accounts.me.passkeyDates', { created: formatDate(p.createdAt), used: formatDate(p.lastUsedAt) }))),
+      h('div.passkey-text', h('strong', p.name), h('span.vm-meta', t('accounts.me.passkeyDates', { created: fmtLong(p.createdAt), used: fmtLong(p.lastUsedAt) }))),
       h('div.row-actions',
         h('button.btn.small', { type: 'button', dataset: { action: 'rename-passkey' }, onclick: () => renamePasskey(p) }, t('accounts.me.renamePasskey')),
         h('button.btn.small.danger', { type: 'button', dataset: { action: 'remove-passkey' }, onclick: () => removePasskey(p) }, t('accounts.me.removePasskey'))))));
@@ -74,7 +74,7 @@ export async function mount(el) {
     const items = me.sessions.map((s) => h('li', { dataset: { session: s.id, current: String(s.current) } },
       h('div.passkey-text',
         h('strong', s.current ? t('accounts.me.thisSession') : s.userAgent ? shortAgent(s.userAgent) : t('accounts.me.unknownBrowser')),
-        h('span.vm-meta', t('accounts.me.sessionDates', { ip: s.ip || '—', since: formatDate(s.createdAt), seen: formatDate(s.lastSeenAt) }))),
+        h('span.vm-meta', t('accounts.me.sessionDates', { ip: s.ip || '—', since: fmtLong(s.createdAt), seen: fmtLong(s.lastSeenAt) }))),
       s.current ? null : h('button.btn.small', { type: 'button', onclick: () => endSession(s) }, t('accounts.me.endSession'))));
     const others = me.sessions.filter((s) => !s.current).length;
     return card('accounts.me.sessions', h('ul.passkey-list', items),
@@ -125,7 +125,7 @@ export async function mount(el) {
       await addPasskey(name);
       toast(t('accounts.me.passkeyAdded'));
     } catch (err) {
-      if (!isCancelled(err)) toast(err.status ? errorText(err) : t('auth.step.failed'), 'error', 7000);
+      if (!isCancelled(err)) toast(err.status ? err.message : t('auth.step.failed'), 'error', 7000);
     } finally {
       button.disabled = false;
     }
@@ -149,7 +149,7 @@ export async function mount(el) {
       await request('DELETE', `/api/accounts/me/passkeys/${encodeURIComponent(passkey.id)}`);
       toast(t('accounts.me.passkeyRemoved'));
     } catch (err) {
-      toast(errorText(err), 'error', 7000);
+      toast(err.message, 'error', 7000);
     }
     await load();
   }
@@ -158,7 +158,7 @@ export async function mount(el) {
     try {
       await request('DELETE', `/api/accounts/me/sessions/${encodeURIComponent(s.id)}`);
     } catch (err) {
-      toast(errorText(err), 'error');
+      toast(err.message, 'error');
     }
     await load();
   }
@@ -170,7 +170,7 @@ export async function mount(el) {
       const { ended } = await request('POST', '/api/accounts/me/sessions/end-others');
       toast(t('accounts.me.ended', { count: ended }));
     } catch (err) {
-      toast(errorText(err), 'error');
+      toast(err.message, 'error');
     }
     await load();
   }

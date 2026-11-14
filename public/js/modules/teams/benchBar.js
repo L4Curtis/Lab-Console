@@ -14,10 +14,11 @@
  * before another team's slot
  */
 import { h, icon, toast, loadCss } from '../../core/dom.js';
-import { live, request } from '../../core/api.js';
+import { live, request, callOrToast } from '../../core/api.js';
 import { t, loadNamespace, onLocaleChange } from '../../core/i18n.js';
 import { confirmDialog, formDialog, openDialog } from '../../shared/dialog.js';
-import { onBenches, call, benchUrl, mayPilot, isOccupant, benchSummary, fmtTime, fmtSlot, fmtDateTime, historyText } from './data.js';
+import { onBenches, benchUrl, mayPilot, isOccupant, benchSummary, fmtSlot, historyText } from './data.js';
+import { fmtTime, fmtDateTime } from '../../core/format.js';
 
 const SLOTS_SHOWN = 3;
 
@@ -50,7 +51,7 @@ export function mountBenchBar(host) {
   async function refresh() {
     if (!ready || !bench) return;
     const name = bench;
-    const data = await call('GET', benchUrl(name), undefined, { quiet: true });
+    const data = await callOrToast('GET', benchUrl(name), undefined, { quiet: true });
     if (name !== bench) return;
     detail = data;
     render();
@@ -59,7 +60,7 @@ export function mountBenchBar(host) {
   async function loadSlots() {
     const name = bench;
     const from = new Date(Date.now() - 60 * 60_000).toISOString();
-    const data = await call('GET', `/api/benches/reservations?bench=${encodeURIComponent(name)}&from=${from}`, undefined, { quiet: true });
+    const data = await callOrToast('GET', `/api/benches/reservations?bench=${encodeURIComponent(name)}&from=${from}`, undefined, { quiet: true });
     if (name !== bench) return;
     slots = (data?.reservations ?? []).filter((r) => Date.parse(r.end) > Date.now());
     render();
@@ -75,7 +76,7 @@ export function mountBenchBar(host) {
   // ── Actions ───────────────────────────────────────────────────────────────
 
   async function act(method, rest, body) {
-    const result = await call(method, benchUrl(bench, rest), body);
+    const result = await callOrToast(method, benchUrl(bench, rest), body);
     await refresh();
     return result;
   }
@@ -124,7 +125,7 @@ export function mountBenchBar(host) {
   }
 
   async function assign() {
-    const data = await call('GET', '/api/teams');
+    const data = await callOrToast('GET', '/api/teams');
     if (!data) return;
     const options = data.teams.map((team) => ({ value: team.id, label: team.name }));
     if (!options.length) return toast(t('benches.assign.noTeam'), 'warn');
@@ -146,7 +147,7 @@ export function mountBenchBar(host) {
   }
 
   async function showHistory() {
-    const data = await call('GET', benchUrl(bench, '/history'));
+    const data = await callOrToast('GET', benchUrl(bench, '/history'));
     if (!data) return;
     const rows = data.history.map((e) => h('li',
       h('time', { datetime: e.ts }, fmtDateTime(e.ts)),

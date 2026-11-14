@@ -6,7 +6,7 @@
 import { h } from '../../../core/dom.js';
 import { getJson } from '../../../core/api.js';
 import { t, onLocaleChange } from '../../../core/i18n.js';
-import { formatDate, errorText } from '../common.js';
+import { fmtLong } from '../../../core/format.js';
 
 const FILTERS = [['action', 'text'], ['actor', 'text'], ['bench', 'text'], ['since', 'datetime-local'], ['until', 'datetime-local']];
 
@@ -40,7 +40,7 @@ export function mount(el) {
       notice.textContent = '';
     } catch (err) {
       entries = [];
-      notice.textContent = errorText(err);
+      notice.textContent = err.message;
     }
     render();
   }
@@ -49,7 +49,7 @@ export function mount(el) {
     const { bench, ...rest } = e.details ?? {};
     const detail = Object.keys(rest).length ? h('details', h('summary', t('admin.audit.more')), h('pre.audit-details', JSON.stringify(rest, null, 2))) : '';
     return h('tr', { dataset: { action: e.action } },
-      h('td', formatDate(e.ts)),
+      h('td', fmtLong(e.ts)),
       h('td', h('div.account-cell', h('strong', e.actor?.name || e.actor?.username || e.actor?.id), h('span.vm-meta', [e.actor?.id, e.ip].filter(Boolean).join(' · ')))),
       h('td.mono', e.action),
       h('td', bench ?? ''),

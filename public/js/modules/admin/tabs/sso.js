@@ -15,7 +15,6 @@
 import { h, icon, toast } from '../../../core/dom.js';
 import { request, getJson } from '../../../core/api.js';
 import { t, onLocaleChange } from '../../../core/i18n.js';
-import { errorText } from '../common.js';
 import { withConfirmation, keepDraft, takeDraft } from '../confirm.js';
 
 const TEXT_FIELDS = ['providerName', 'issuer', 'clientId', 'scopes', 'groupsClaim', 'adminGroups', 'allowedGroups'];
@@ -148,7 +147,7 @@ export function mount(el) {
       if (draft && !current.locked) applyDraft(draft);
       status.textContent = '';
     } catch (err) {
-      status.textContent = errorText(err);
+      status.textContent = err.message;
     }
     // Back from "try a sign-in": what the provider sent
     try {
@@ -173,7 +172,7 @@ export function mount(el) {
       toast(t('accounts.sso.saved'));
     } catch (err) {
       showProblems(err.params?.problems);
-      status.textContent = errorText(err);
+      status.textContent = err.message;
     } finally {
       save.disabled = Boolean(current?.locked);
     }
@@ -185,7 +184,7 @@ export function mount(el) {
       const result = await request('POST', '/api/accounts/sso/test', { issuer: inputs.issuer.value.trim(), allowInsecure: inputs.allowInsecure.checked });
       showTest(result);
     } catch (err) {
-      showTest({ ok: false, message: errorText(err) });
+      showTest({ ok: false, message: err.message });
     } finally {
       test.disabled = false;
     }
@@ -197,7 +196,7 @@ export function mount(el) {
       const { url } = await request('POST', '/api/accounts/sso/trial');
       location.assign(url);
     } catch (err) {
-      toast(errorText(err), 'error');
+      toast(err.message, 'error');
       trial.disabled = false;
     }
   });

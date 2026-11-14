@@ -8,7 +8,7 @@
 import { h, icon, toast } from '../../../core/dom.js';
 import { request, getJson } from '../../../core/api.js';
 import { t, onLocaleChange } from '../../../core/i18n.js';
-import { formatDate, errorText } from '../common.js';
+import { fmtLong } from '../../../core/format.js';
 
 const COLUMNS = ['id', 'name', 'bay', 'host', 'port'];
 
@@ -43,7 +43,7 @@ export function mount(el) {
   function fill(data) {
     tbody.replaceChildren(...data.switches.map((s) => line(s)));
     meta.textContent = data.source === 'saved'
-      ? t('admin.switches.saved', { date: formatDate(data.updatedAt), by: data.updatedBy ?? '—' })
+      ? t('admin.switches.saved', { date: fmtLong(data.updatedAt), by: data.updatedBy ?? '—' })
       : t('admin.switches.fromEnvironment');
   }
 
@@ -64,7 +64,7 @@ export function mount(el) {
       fill(await getJson('/api/admin/switches'));
       notice.textContent = '';
     } catch (err) {
-      notice.textContent = errorText(err);
+      notice.textContent = err.message;
     }
   }
 
@@ -85,7 +85,7 @@ export function mount(el) {
       toast(t('admin.switches.done'));
     } catch (err) {
       showProblems(err.params?.problems);
-      notice.textContent = errorText(err);
+      notice.textContent = err.message;
     } finally {
       save.disabled = false;
     }

@@ -11,8 +11,9 @@
  */
 import { h, icon } from '../../core/dom.js';
 import { t } from '../../core/i18n.js';
-import { fmtTime, fmtSlot, fmtDateTime } from '../teams/data.js';
+import { fmtSlot } from '../teams/data.js';
 import { kindText, stateText } from '../jobs/text.js';
+import { fmtTime, fmtDateTime } from '../../core/format.js';
 
 const CONSOLE_STATES = { connected: 'connected', silent: 'silent' };
 

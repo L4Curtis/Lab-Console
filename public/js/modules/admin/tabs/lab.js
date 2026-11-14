@@ -15,8 +15,8 @@
 import { h, toast } from '../../../core/dom.js';
 import { request, getJson } from '../../../core/api.js';
 import { t, tError, has, onLocaleChange } from '../../../core/i18n.js';
-import { formatDate, errorText } from '../common.js';
 import { askConfirmation, keepDraft, takeDraft } from '../confirm.js';
+import { fmtLong } from '../../../core/format.js';
 
 // The draft of an SSO administrator who left to sign in again keeps no secret
 const SECRET_KINDS = new Set(['secret', 'secretArea']);
@@ -106,7 +106,7 @@ export function mount(el) {
     save.textContent = t('admin.lab.save');
     for (const path of rows.keys()) renderRow(path);
     if (!page) return;
-    meta.textContent = page.settings.updatedAt ? t('admin.lab.updated', { date: formatDate(page.settings.updatedAt), by: page.settings.updatedBy ?? '—' }) : t('admin.lab.fromEnvironment');
+    meta.textContent = page.settings.updatedAt ? t('admin.lab.updated', { date: fmtLong(page.settings.updatedAt), by: page.settings.updatedBy ?? '—' }) : t('admin.lab.fromEnvironment');
     secretNotice.hidden = !page.settings.unreadable.length;
     secretNotice.textContent = t('admin.lab.unreadable', { fields: page.settings.unreadable.map((p) => t(`admin.lab.fields.${p}`)).join(', ') });
     const p = page.proxmox;
@@ -180,7 +180,7 @@ export function mount(el) {
       if (back?.ok) toast(t('admin.lab.ssoConfirmed', { time: new Date(back.confirmedUntil).toLocaleTimeString() }), 'info', 10_000);
       else if (back) status.textContent = tError(back.code, back.params, back.message);
     } catch (err) {
-      status.textContent = errorText(err);
+      status.textContent = err.message;
     }
   }
 
@@ -203,7 +203,7 @@ export function mount(el) {
       toast(t('admin.lab.saved'));
     } catch (err) {
       showProblems(err.params?.problems);
-      status.textContent = errorText(err);
+      status.textContent = err.message;
     } finally {
       save.disabled = false;
     }

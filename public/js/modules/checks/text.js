@@ -3,7 +3,7 @@
  * verdicts and their reasons, interface states, steps, codes of the server
  */
 import { t, has, getLocale } from '../../core/i18n.js';
-import { codeText } from '../jobs/text.js';
+import { codeText } from '../../shared/serverText.js';
 
 export { codeText };
 

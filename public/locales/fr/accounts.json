@@ -1,7 +1,4 @@
 {
-  "common": {
-    "failed": "L’opération a échoué. Réessayez."
-  },
   "states": {
     "active": "Actif",
     "pending": "En attente",

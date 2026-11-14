@@ -93,7 +93,7 @@ src/
     proxmox/                unchanged
 public/
   login.html, js/login.js   the only page served without a session, and its script (lot: auth)
-  js/core/                  dom.js, api.js, i18n.js, session.js, userMenu.js   (public: the login page uses them)
+  js/core/                  dom.js, api.js (request, callOrToast, live), i18n.js, format.js (dates), session.js, userMenu.js   (public: the login page uses them)
   js/shared/                workspace, panes, dialog.js, tabs.js
   js/modules/<section>/     one folder per rail section
   locales/<lang>/<ns>.json  one namespace per module (fr, en); common.json is shared
@@ -892,11 +892,19 @@ services.collab = {                            // lot collab
     `serverMessage` on the thrown error and sets `message` to the translation
     of `code` when there is one. Code `module.reason` is looked up as
     `<module>.errors.<reason>` (the module's namespace), then as
-    `common.errors.<module>.<reason>`. `tError(code, params, fallback)` does
-    the same for codes received over a WebSocket.
+    `common.errors.<module>.<reason>`, then as `terminal.server.<code>`; a
+    `cause` parameter that is a code is translated too. `tError(code, params,
+    fallback)` does the same for codes received over a WebSocket, and
+    `shared/serverText.js` `codeText(code, params, fallback)` for the codes
+    a job, a check or a recovery reports. `callOrToast(method, url, body, {
+    quiet, type })` is a request whose failure is only shown as a toast; a
+    Blob or File body (an upload) goes through `request()` too, with its
+    `type`, so a lost session still leads to the sign-in page.
 - **Dialogs.** `shared/dialog.js`: `confirmDialog({ title, body, confirmLabel,
-  danger, requireText })`, `formDialog(...)`, `openDialog(node)`. No
-  `window.confirm` / `alert`.
+  danger, requireText })`, `formDialog(...)`, `openDialog(node, { title })`
+  (a `title` function is asked again when the language changes). No
+  `window.confirm` / `alert`, and no `<dialog>` shown by hand: openDialog
+  keeps the focus inside and gives it back.
   - `confirmDialog({ title, body, confirmLabel, cancelLabel, danger, requireText })`
     → `Promise<boolean>`. `body` is a string, a node or an array of them
     (strings are text, never HTML). `danger` makes it an `alertdialog` with

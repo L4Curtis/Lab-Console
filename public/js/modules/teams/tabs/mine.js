@@ -4,11 +4,12 @@
  * with invite / rename / leave
  */
 import { h, icon, toast } from '../../../core/dom.js';
-import { live, request } from '../../../core/api.js';
+import { live, request, callOrToast } from '../../../core/api.js';
 import { t, onLocaleChange } from '../../../core/i18n.js';
 import { session } from '../../../core/session.js';
 import { confirmDialog, formDialog } from '../../../shared/dialog.js';
-import { call, teamUrl, onBenches, fmtDateTime, fmtSlot } from '../data.js';
+import { teamUrl, onBenches, fmtSlot } from '../data.js';
+import { fmtDateTime } from '../../../core/format.js';
 
 export function mount(el) {
   const root = h('div.panel.team-panel');
@@ -20,8 +21,8 @@ export function mount(el) {
 
   async function load() {
     const [teams, resv] = await Promise.all([
-      call('GET', '/api/teams', undefined, { quiet: true }),
-      call('GET', `/api/benches/reservations?from=${new Date().toISOString()}`, undefined, { quiet: true }),
+      callOrToast('GET', '/api/teams', undefined, { quiet: true }),
+      callOrToast('GET', `/api/benches/reservations?from=${new Date().toISOString()}`, undefined, { quiet: true }),
     ]);
     data = teams;
     slots = resv?.reservations ?? [];
@@ -38,26 +39,26 @@ export function mount(el) {
 
   async function create(form) {
     const name = form.elements.name.value;
-    const res = await call('POST', '/api/teams', { name });
+    const res = await callOrToast('POST', '/api/teams', { name });
     if (res) { toast(t('teams.create.done', { name: res.team.name })); await load(); }
   }
 
   async function invite(form, team) {
     const username = form.elements.username.value.trim();
     if (!username) return;
-    const res = await call('POST', teamUrl(team.id, '/invitations'), { username });
+    const res = await callOrToast('POST', teamUrl(team.id, '/invitations'), { username });
     if (res) { toast(t('teams.invite.done', { username })); form.reset(); await load(); }
   }
 
   async function answer(inv, accept) {
     const res = accept
-      ? await call('POST', teamUrl(inv.team.id, '/accept'))
-      : await call('DELETE', teamUrl(inv.team.id, `/invitations/${encodeURIComponent(session.user.username)}`));
+      ? await callOrToast('POST', teamUrl(inv.team.id, '/accept'))
+      : await callOrToast('DELETE', teamUrl(inv.team.id, `/invitations/${encodeURIComponent(session.user.username)}`));
     if (res) { if (accept) toast(t('teams.invitations.joined', { team: inv.team.name })); await load(); }
   }
 
   async function withdraw(team, username) {
-    if (await call('DELETE', teamUrl(team.id, `/invitations/${encodeURIComponent(username)}`))) await load();
+    if (await callOrToast('DELETE', teamUrl(team.id, `/invitations/${encodeURIComponent(username)}`))) await load();
   }
 
   async function rename(team) {
@@ -77,12 +78,12 @@ export function mount(el) {
       confirmLabel: t('teams.leave.confirm'),
       danger: true,
     });
-    if (ok && await call('POST', teamUrl(team.id, '/leave'))) await load();
+    if (ok && await callOrToast('POST', teamUrl(team.id, '/leave'))) await load();
   }
 
   async function cancelSlot(r) {
     const ok = await confirmDialog({ title: t('teams.slots.cancelTitle'), body: t('teams.slots.cancelBody', { bench: r.bench, slot: fmtSlot(r) }), confirmLabel: t('teams.slots.cancel'), danger: true });
-    if (ok && await call('DELETE', `/api/benches/reservations/${encodeURIComponent(r.id)}`)) await load();
+    if (ok && await callOrToast('DELETE', `/api/benches/reservations/${encodeURIComponent(r.id)}`)) await load();
   }
 
   // ── Rendering ─────────────────────────────────────────────────────────────

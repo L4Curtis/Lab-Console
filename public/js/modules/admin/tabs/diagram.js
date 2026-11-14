@@ -11,30 +11,16 @@
  */
 import { h, icon, toast } from '../../../core/dom.js';
 import { request, getJson, live } from '../../../core/api.js';
-import { t, tError, onLocaleChange } from '../../../core/i18n.js';
+import { t, onLocaleChange } from '../../../core/i18n.js';
 import { serverText } from '../../../shared/serverText.js';
 import { confirmDialog } from '../../../shared/dialog.js';
 import { DiagramView } from '../../consoles/diagramView.js';
-import { formatDate, errorText } from '../common.js';
+import { fmtLong } from '../../../core/format.js';
 
 const MAX_BYTES = 5 * 1024 * 1024;
 
 /** POST the file as it is: the body is the diagram, not JSON */
-async function uploadFile(file) {
-  const res = await fetch(`/api/admin/diagrams?name=${encodeURIComponent(file.name)}`, {
-    method: 'POST',
-    headers: { Accept: 'application/json', 'Content-Type': 'application/octet-stream' },
-    body: file,
-    credentials: 'same-origin',
-  });
-  const data = await res.json().catch(() => null);
-  if (!res.ok) {
-    const err = new Error(data?.code ? tError(data.code, data.params, data.error) : data?.error || `HTTP ${res.status}`);
-    err.code = data?.code ?? null;
-    throw err;
-  }
-  return data;
-}
+const uploadFile = (file) => request('POST', `/api/admin/diagrams?name=${encodeURIComponent(file.name)}`, file, { type: 'application/octet-stream' });
 
 export function mount(el) {
   const input = h('input', { type: 'file', accept: '.drawio,.xml,application/xml', id: 'diagram-file', hidden: true });
@@ -63,7 +49,7 @@ export function mount(el) {
       state = await getJson('/api/admin/diagrams');
       notice.textContent = '';
     } catch (err) {
-      notice.textContent = errorText(err);
+      notice.textContent = err.message;
     }
     render();
   }
@@ -78,7 +64,7 @@ export function mount(el) {
       h('td', h('div.account-cell', h('strong', v.name), v.source === 'environment' ? h('span.vm-meta', t('admin.diagram.fromEnvironment')) : null)),
       h('td', t('admin.diagram.deviceCount', { count: v.devices ?? 0 })),
       h('td', v.by?.username ?? '—'),
-      h('td', formatDate(v.at)),
+      h('td', fmtLong(v.at)),
       h('td', v.active ? h('span.state-pill', { dataset: { state: 'active' } }, t('admin.diagram.active')) : ''),
       h('td.right', h('div.row-actions.end', actions)));
   }
@@ -133,7 +119,7 @@ export function mount(el) {
       for (const lab of labs) pages.append(h('button.seg-btn', { type: 'button', dataset: { lab: lab.name }, onclick: () => select(lab) }, lab.name));
       if (labs[0]) select(labs[0]);
     } catch (err) {
-      toast(errorText(err), 'error', 7000);
+      toast(err.message, 'error', 7000);
     }
   }
 
@@ -145,7 +131,7 @@ export function mount(el) {
       toast(t('admin.diagram.activated'));
       preview.hidden = true;
     } catch (err) {
-      toast(errorText(err), 'error', 7000);
+      toast(err.message, 'error', 7000);
     }
     await load();
   }
@@ -158,7 +144,7 @@ export function mount(el) {
       toast(t('admin.diagram.rolledBack'));
       preview.hidden = true;
     } catch (err) {
-      toast(errorText(err), 'error', 7000);
+      toast(err.message, 'error', 7000);
     }
     await load();
   });
@@ -178,7 +164,7 @@ export function mount(el) {
       await load();
       await showPreview(result.version.id);
     } catch (err) {
-      notice.textContent = errorText(err);
+      notice.textContent = err.message;
     } finally {
       pick.disabled = false;
     }

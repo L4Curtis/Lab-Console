@@ -8,7 +8,7 @@ import { h, toast } from '../../../core/dom.js';
 import { request, getJson, live } from '../../../core/api.js';
 import { t, onLocaleChange } from '../../../core/i18n.js';
 import { confirmDialog } from '../../../shared/dialog.js';
-import { formatDate, errorText } from '../common.js';
+import { fmtLong } from '../../../core/format.js';
 
 /** A short name for a browser, from its user agent */
 function browserOf(ua = '') {
@@ -35,7 +35,7 @@ export function mount(el) {
       ({ sessions } = await getJson('/api/admin/sessions'));
       notice.textContent = '';
     } catch (err) {
-      notice.textContent = errorText(err);
+      notice.textContent = err.message;
     }
     render();
   }
@@ -53,7 +53,7 @@ export function mount(el) {
       await request('DELETE', `/api/admin/sessions/${encodeURIComponent(s.id)}`);
       toast(t('admin.sessions.ended'));
     } catch (err) {
-      toast(errorText(err), 'error');
+      toast(err.message, 'error');
     }
     await load();
   }
@@ -65,7 +65,7 @@ export function mount(el) {
       const { count: n } = await request('POST', '/api/admin/sessions/revoke-user', { userId: s.user.id });
       toast(t('admin.sessions.endedAll', { count: n }));
     } catch (err) {
-      toast(errorText(err), 'error');
+      toast(err.message, 'error');
     }
     await load();
   }
@@ -77,8 +77,8 @@ export function mount(el) {
         s.current ? h('div.account-notes', h('span.badge', t('admin.sessions.thisOne'))) : null)),
       h('td', browserOf(s.userAgent), s.connections ? h('span.vm-meta', ` · ${t('admin.sessions.sockets', { count: s.connections })}`) : null),
       h('td.mono', s.ip ?? '—'),
-      h('td', formatDate(s.createdAt)),
-      h('td', formatDate(s.lastSeenAt)),
+      h('td', fmtLong(s.createdAt)),
+      h('td', fmtLong(s.lastSeenAt)),
       h('td.right', h('div.row-actions.end',
         h('button.btn.small.danger', { type: 'button', dataset: { action: 'end' }, onclick: () => end(s) }, t('admin.sessions.end')),
         h('button.btn.small', { type: 'button', dataset: { action: 'end-all' }, onclick: () => endAll(s) }, t('admin.sessions.endAll')))));

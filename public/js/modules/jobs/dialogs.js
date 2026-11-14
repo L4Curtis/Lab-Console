@@ -13,7 +13,9 @@ import { request, getJson } from '../../core/api.js';
 import { t } from '../../core/i18n.js';
 import { session } from '../../core/session.js';
 import { openDialog } from '../../shared/dialog.js';
-import { codeText, stateText, kindText, fmtDate, benchApi, patchView } from './text.js';
+import { stateText, kindText, benchApi, patchView } from './text.js';
+import { codeText } from '../../shared/serverText.js';
+import { fmtShort } from '../../core/format.js';
 
 // ── Pieces ──────────────────────────────────────────────────────────────────
 
@@ -132,7 +134,7 @@ export async function resetDialog(bench, detail) {
 
 export async function injectDialog(bench, detail, { snapshots, templates, preset = null }) {
   const source = h('select.field', { name: 'source' },
-    snapshots.length ? h('optgroup', { label: t('jobs.inject.snapshots') }, snapshots.map((s) => h('option', { value: `snapshot:${s.id}`, selected: preset === s.id }, `${fmtDate(s.createdAt)} · ${s.bench} · ${s.label || t(`jobs.origin.${s.origin}`)}`))) : null,
+    snapshots.length ? h('optgroup', { label: t('jobs.inject.snapshots') }, snapshots.map((s) => h('option', { value: `snapshot:${s.id}`, selected: preset === s.id }, `${fmtShort(s.createdAt)} · ${s.bench} · ${s.label || t(`jobs.origin.${s.origin}`)}`))) : null,
     templates.length ? h('optgroup', { label: t('jobs.inject.templates') }, templates.map((x) => h('option', { value: `template:${x.id}`, selected: preset === x.id }, x.name))) : null);
   const mode = h('select.field', { name: 'mode' }, h('option', { value: 'reset' }, t('jobs.inject.modeReset')), h('option', { value: 'merge' }, t('jobs.inject.modeMerge')));
   const save = h('input', { type: 'checkbox', name: 'save', checked: true });
@@ -211,7 +213,7 @@ export async function injectDialog(bench, detail, { snapshots, templates, preset
 // ── Comparison with the live devices ───────────────────────────────────────
 
 export async function compareDialog(bench, detail, { snapshots, preset = null }) {
-  const source = h('select.field', { name: 'snapshot' }, snapshots.map((s) => h('option', { value: s.id, selected: preset === s.id }, `${fmtDate(s.createdAt)} · ${s.bench} · ${s.label || t(`jobs.origin.${s.origin}`)}`)));
+  const source = h('select.field', { name: 'snapshot' }, snapshots.map((s) => h('option', { value: s.id, selected: preset === s.id }, `${fmtShort(s.createdAt)} · ${s.bench} · ${s.label || t(`jobs.origin.${s.origin}`)}`)));
   const devices = deviceChecklist(detail.devices);
   const pw = passwordFields();
   const { dlg } = formShell({
@@ -237,14 +239,14 @@ export async function viewSetDialog(set, { kind = 'snapshots' } = {}) {
     code.textContent = d.config ?? '';
   }
   pick.addEventListener('change', show);
-  const dlg = openDialog(h('div.modal-body.jobs-view', h('label', h('span', t('jobs.view.device')), pick), facts, code), { title: set.name ?? `${set.bench} · ${set.label || fmtDate(set.createdAt)}`, wide: true });
+  const dlg = openDialog(h('div.modal-body.jobs-view', h('label', h('span', t('jobs.view.device')), pick), facts, code), { title: set.name ?? `${set.bench} · ${set.label || fmtShort(set.createdAt)}`, wide: true });
   await show();
   return dlg.closed;
 }
 
 export async function diffDialog(a, snapshots) {
   const others = snapshots.filter((s) => s.id !== a.id);
-  const pick = h('select.field', others.map((s) => h('option', { value: s.id }, `${fmtDate(s.createdAt)} · ${s.bench} · ${s.label || t(`jobs.origin.${s.origin}`)}`)));
+  const pick = h('select.field', others.map((s) => h('option', { value: s.id }, `${fmtShort(s.createdAt)} · ${s.bench} · ${s.label || t(`jobs.origin.${s.origin}`)}`)));
   const out = h('div.jobs-diff');
   async function show() {
     if (!pick.value) { out.replaceChildren(h('p.muted', t('jobs.diff.none'))); return; }
@@ -255,7 +257,7 @@ export async function diffDialog(a, snapshots) {
       d.patch ? patchView(d.patch) : null)));
   }
   pick.addEventListener('change', show);
-  const dlg = openDialog(h('div.modal-body', h('label', h('span', t('jobs.diff.with')), pick), out), { title: t('jobs.diff.title', { a: a.label || fmtDate(a.createdAt) }), wide: true });
+  const dlg = openDialog(h('div.modal-body', h('label', h('span', t('jobs.diff.with')), pick), out), { title: t('jobs.diff.title', { a: a.label || fmtShort(a.createdAt) }), wide: true });
   await show();
   return dlg.closed;
 }
@@ -284,7 +286,7 @@ export function reportDialog(job) {
       r.check?.missing?.length ? h('details', h('summary', t('jobs.report.missing')), h('pre.jobs-code', r.check.missing.join('\n'))) : null,
       d.lastOutput ? h('details', h('summary', t('jobs.report.output')), h('pre.jobs-code', d.lastOutput)) : null);
   });
-  return openDialog(h('div.modal-body.jobs-report', h('p.muted', t('jobs.report.by', { name: job.actor.name, date: fmtDate(job.createdAt), state: stateText(job.state) })),
+  return openDialog(h('div.modal-body.jobs-report', h('p.muted', t('jobs.report.by', { name: job.actor.name, date: fmtShort(job.createdAt), state: stateText(job.state) })),
     job.redacted ? h('p.muted', t('jobs.report.redacted')) : null, h('ul.jobs-report-list', rows)),
     { title: t('jobs.report.title', { kind: kindText(job.kind), bench: job.bench }), wide: true }).closed;
 }

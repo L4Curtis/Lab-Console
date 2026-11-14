@@ -5,11 +5,12 @@
  * overlaps and the limits; its refusal is shown in the dialog
  */
 import { h, icon } from '../../../core/dom.js';
-import { getJson, live, request } from '../../../core/api.js';
+import { getJson, live, request, callOrToast } from '../../../core/api.js';
 import { t, getLocale, onLocaleChange } from '../../../core/i18n.js';
 import { session } from '../../../core/session.js';
 import { confirmDialog, formDialog } from '../../../shared/dialog.js';
-import { call, fmtDay, fmtSlot, fmtTime } from '../data.js';
+import { fmtSlot } from '../data.js';
+import { fmtDay, fmtTime } from '../../../core/format.js';
 
 const FIRST_HOUR = 8;
 const LAST_HOUR = 20;
@@ -57,7 +58,7 @@ export function mount(el, { navigate }) {
 
   async function load() {
     if (!benchNames.length) {
-      const data = await call('GET', '/api/benches', undefined, { quiet: true });
+      const data = await callOrToast('GET', '/api/benches', undefined, { quiet: true });
       benchNames = (data?.benches ?? []).map((b) => b.bench);
       if (!bench || !benchNames.includes(bench)) bench = benchNames[0] ?? null;
     }
@@ -66,7 +67,7 @@ export function mount(el, { navigate }) {
     const nextMonday = new Date(monday);
     nextMonday.setDate(nextMonday.getDate() + 7);
     const to = nextMonday.toISOString();
-    const data = await call('GET', `/api/benches/reservations?bench=${encodeURIComponent(bench)}&from=${from}&to=${to}`);
+    const data = await callOrToast('GET', `/api/benches/reservations?bench=${encodeURIComponent(bench)}&from=${from}&to=${to}`);
     reservations = data?.reservations ?? [];
     limits = data?.limits ?? limits;
     render();
@@ -112,7 +113,7 @@ export function mount(el, { navigate }) {
 
   async function cancel(r) {
     const ok = await confirmDialog({ title: t('teams.slots.cancelTitle'), body: t('teams.slots.cancelBody', { bench: r.bench, slot: fmtSlot(r) }), confirmLabel: t('teams.slots.cancel'), danger: true });
-    if (ok && await call('DELETE', `/api/benches/reservations/${encodeURIComponent(r.id)}`)) await load();
+    if (ok && await callOrToast('DELETE', `/api/benches/reservations/${encodeURIComponent(r.id)}`)) await load();
   }
 
   function render() {

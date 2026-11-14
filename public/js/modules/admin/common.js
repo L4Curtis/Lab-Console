@@ -1,23 +1,13 @@
 /**
  * Small pieces shared by the accounts screens (administration tabs and My account)
  *
- *   formatDate(iso)          a date and time in the interface's language, '—' for none
  *   showLink({ title, intro, url, expiresAt })   the one time a link's token is shown, with a copy button
- *   errorText(err)           what to say about a failed request
  */
 import { h, icon, toast } from '../../core/dom.js';
-import { t, getLocale } from '../../core/i18n.js';
+import { t } from '../../core/i18n.js';
+import { fmtLong } from '../../core/format.js';
 import { openDialog } from '../../shared/dialog.js';
 
-export function formatDate(iso) {
-  if (!iso) return '—';
-  const date = new Date(iso);
-  if (Number.isNaN(date.getTime())) return '—';
-  return new Intl.DateTimeFormat(getLocale(), { dateStyle: 'medium', timeStyle: 'short' }).format(date);
-}
-
-/** The message of a failed request: api.js already translated the server's code when it knows it */
-export const errorText = (err) => err?.message || t('accounts.common.failed');
 
 /**
  * Show a freshly created link. It is the only time its token is visible:
@@ -39,7 +29,7 @@ export function showLink({ title, intro, url, expiresAt }) {
     },
   }, icon('copy'), t('accounts.links.copy'));
   const body = h('div.modal-body.link-dialog',
-    h('div.dialog-text', h('p', intro), h('p.muted', t('accounts.links.once')), expiresAt ? h('p.muted', t('accounts.links.expires', { date: formatDate(expiresAt) })) : null),
+    h('div.dialog-text', h('p', intro), h('p.muted', t('accounts.links.once')), expiresAt ? h('p.muted', t('accounts.links.expires', { date: fmtLong(expiresAt) })) : null),
     h('div.link-row', field, copy),
     h('div.form-actions', h('button.btn', { type: 'button', onclick: () => dlg.close() }, t('common.actions.close'))));
   const dlg = openDialog(body, { title, wide: true, initialFocus: copy });
