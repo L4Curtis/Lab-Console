@@ -1,5 +1,7 @@
 # Signing in to Lab Console
 
+**English** · [Français](../fr/AUTH.md)
+
 Everything in Lab Console needs a signed-in user: pages, API, live events and
 the console WebSockets. There is no mode without sign-in. Three ways in, one
 kind of session:
@@ -374,6 +376,9 @@ The sign-in is built to face the Internet directly:
   - The upstream `TRUST_PROXY=true` (believe the header from any peer) let
     any client choose its own address: Lab Console refuses to start while it
     is set. Remove it and fill `TRUSTED_PROXIES`.
+- If the site is also reached under another origin than `PUBLIC_URL` (a proxy,
+  a second name), add it to `ALLOWED_ORIGINS`: it governs the origin check of
+  the WebSockets and of requests that change something.
 - `PUBLIC_URL` must be the https address: it sets the cookie prefix and
   `Secure`, and the callback URL given to the provider.
 - The login page and every `/auth/*` answer carry `X-Robots-Tag: noindex` and
