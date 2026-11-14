@@ -420,7 +420,7 @@ test('the application\'s own files are revalidated on every load; vendor files a
     for (const file of ['/js/core/dom.js', '/css/app.css', '/locales/fr/common.json']) {
       const res = await fetch(app.url + file);
       assert.equal(res.status, 200, file);
-      assert.equal(res.headers.get('cache-control'), 'no-cache', file);
+      assert.equal(res.headers.get('cache-control'), 'private, no-cache', file);
     }
     const vendor = await fetch(app.url + '/vendor/xterm/css/xterm.css');
     assert.match(vendor.headers.get('cache-control'), /immutable/);
