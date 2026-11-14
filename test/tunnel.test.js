@@ -16,6 +16,7 @@ import assert from 'node:assert/strict';
 import net from 'node:net';
 import ssh2 from 'ssh2';
 import { SshTunnel } from '../src/lib/sshTunnel.js';
+import { testHostKey } from './helpers/sshHostKey.js';
 
 const log = { info() {}, warn() {}, error() {}, child() { return log; } };
 
@@ -32,7 +33,7 @@ function startEcho() {
  */
 function startJump(targetPort, { allowForward, maxSessions = 10 } = {}) {
   const stats = { connections: 0, forwardChannels: 0, execChannels: 0, clients: new Set(), peakSessionsPerConn: 0 };
-  const server = new ssh2.Server({ hostKeys: [ssh2.utils.generateKeyPairSync('ed25519').private] }, (client) => {
+  const server = new ssh2.Server({ hostKeys: [testHostKey()] }, (client) => {
     stats.clients.add(client);
     let sessions = 0;
     client.on('authentication', (ctx) => ctx.accept());

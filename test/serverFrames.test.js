@@ -13,6 +13,7 @@ import path from 'node:path';
 import ssh2 from 'ssh2';
 import WebSocket from 'ws';
 import { startTestApp, tempDataDir, repoRoot, silentLogger } from './helpers/app.js';
+import { testHostKey } from './helpers/sshHostKey.js';
 import { RoomManager } from '../src/modules/consoles/roomManager.js';
 import { ConsoleSession } from '../src/modules/consoles/consoleSession.js';
 import { createAutomationHandler } from '../src/lib/automationProtocol.js';
@@ -246,7 +247,7 @@ test('frames: progress and results of an export and of a script', async () => {
 // ── A ConsoleSession against a small SSH server ─────────────────────────────
 
 function startJump(onExec) {
-  const server = new ssh2.Server({ hostKeys: [ssh2.utils.generateKeyPairSync('ed25519').private] }, (client) => {
+  const server = new ssh2.Server({ hostKeys: [testHostKey()] }, (client) => {
     client.on('authentication', (ctx) => ctx.accept());
     client.on('error', () => {});
     client.on('ready', () => client.on('session', (accept) => {
