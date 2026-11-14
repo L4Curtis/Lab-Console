@@ -8,7 +8,7 @@
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
 import { useHarness, waitForApp } from './harness.js';
-import { contrastFailures } from './contrast.js';
+import { contrastFailures, tinyText } from './contrast.js';
 
 const h = useHarness({ oidc: false, mockLab: false });
 
@@ -109,6 +109,7 @@ for (const theme of ['light', 'dark']) {
     for (const route of routes) {
       await go(page, route);
       failures.push(...(await contrastFailures(page, { within: `section.view-${route}` })).map((f) => ({ route, ...f })));
+      failures.push(...(await tinyText(page, { within: `section.view-${route}` })).map((f) => ({ route, ...f })));
     }
     await go(page, 'admin');
     const tabs = page.locator('section.view-admin .admin-tabs [role="tab"]');

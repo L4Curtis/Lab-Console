@@ -71,6 +71,22 @@ test('a student reaches R1', async () => {
 `waitForTerminal()` throws with the screen's content when the pattern never
 appears, which is usually the whole diagnosis.
 
+## Layout, contrast and failed loads
+
+`test/e2e/ui-layout.e2e.js` keeps what the interface audit measured: table
+headers line up with their columns, the consoles header fits at 1280 and 1440
+px in both languages, no section overflows a 390 px phone, every section has
+AA text contrast in both themes, and the shell works from the keyboard (skip
+link, page title, focus on the heading, unknown address, 404 page).
+`test/e2e/contrast.js` holds the measuring helpers (`contrastFailures(page)`
+composites the real background of each text node; `tinyText(page)` lists text
+under 11 px): use them for a new screen rather than looking by eye.
+`test/e2e/ui-failures.e2e.js` forces an HTTP 500 and a cut network on each
+section's data (`page.route`) and expects the shared failure block with its
+"Réessayer" button (`public/js/shared/loadState.js`), then that the retry
+works. A new section loads its data through `getJson` and shows `loading()` /
+`loadFailure()`; a toast alone is not a failure state.
+
 ## Rules
 
 - **Wait on conditions, never on time**: `waitForSelector`, `waitForURL`,

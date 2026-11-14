@@ -56,3 +56,20 @@ export async function contrastFailures(page, { within = 'body' } = {}) {
     return out;
   }, within);
 }
+
+/** Visible text drawn smaller than `min` px (the audit's floor is 11) */
+export async function tinyText(page, { within = 'body', min = 11 } = {}) {
+  return page.evaluate(([root, floor]) => {
+    const out = [];
+    const walker = document.createTreeWalker(document.querySelector(root), NodeFilter.SHOW_TEXT);
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+      const el = node.parentElement;
+      if (!node.textContent.trim() || !el || el.closest('svg, canvas, .xterm, script, style, [hidden]')) continue;
+      const box = el.getBoundingClientRect();
+      const s = getComputedStyle(el);
+      if (!box.width || !box.height || s.visibility === 'hidden') continue;
+      if (parseFloat(s.fontSize) < floor) out.push({ text: node.textContent.trim().slice(0, 30), size: s.fontSize, selector: `${el.tagName.toLowerCase()}.${String(el.className).trim().split(/\s+/).join('.')}` });
+    }
+    return out;
+  }, [within, min]);
+}
