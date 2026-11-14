@@ -13,7 +13,7 @@
  *   room.write(user, data)     ignored (false) unless the user may type now
  *   room.requestControl(user) / grantControl(to, by) / denyControl(to, by) / releaseControl(user)
  *   room.takeControl(admin)    / setShared(user, on) / hangUp(user)
- *   room.runExclusive(actor, label, async (cli) => …, { signal })   automation takes the keyboard
+ *   room.runExclusive(actor, label, async (cli) => …, { signal, privateOutput })   automation takes the keyboard
  *   room.summary()             what the live panel and the diagram show
  *   room.screen(maxBytes)      the end of the recent output, as text (a job's driver reads it first)
  *
@@ -79,6 +79,9 @@ function chunksOf(text, size) {
   return out;
 }
 
+// What a private task printed is kept only this far, for screen()
+const PRIVATE_TAIL_BYTES = 16 * 1024;
+
 const who = (u) => (u ? { id: u.id, name: u.name || u.username || u.id, initials: u.initials ?? '', color: u.color ?? '' } : null);
 const SYSTEM = Object.freeze({ id: 'system', name: 'Lab Console', initials: 'LC', color: '' });
 
@@ -92,6 +95,7 @@ export class ConsoleRoom extends EventEmitter {
   #task = null;            // { label, actor, state: 'waiting' | 'running' }
   #scroll = [];
   #scrollBytes = 0;
+  #privateTail = [];       // what a private task printed: for screen() only, never replayed nor journaled
   #graceTimer = null;
   #closed = false;
   #echo = { line: '', crAt: 0 };
@@ -139,7 +143,7 @@ export class ConsoleRoom extends EventEmitter {
    * before typing anything (a "[confirm]" left on screen must not get an Enter)
    */
   screen(maxBytes = 4096) {
-    const all = this.scrollback;
+    const all = Buffer.concat([...this.#scroll, ...this.#privateTail]);
     // As the automation engine reads the console: no escape sequences, no carriage returns
     return all.subarray(Math.max(0, all.length - maxBytes)).toString('latin1')
       .replace(/\x1b\[[0-9;?]*[A-Za-z]|\x1b[()][A-Z0-9]|\x1b[=>]/g, '').replace(/[\r\0\x07]/g, '');
@@ -391,7 +395,7 @@ export class ConsoleRoom extends EventEmitter {
     if (this.#task) {
       const allowed = this.#isPilotOrAdmin(user) || (Boolean(user) && user.id === this.#task.actor.id);
       if (!allowed) return refusal('consoles.task_running', { task: this.#task.label });
-    } else if (!(this.#isPilotOrAdmin(user) || (!this.#pilot && this.#mayDrive(user)))) {
+    } else if (!(this.#isPilotOrAdmin(user) || (!this.#livePilot() && this.#mayDrive(user)))) {
       return refusal('consoles.control_not_pilot');
     }
     this.#activity('freed', user);
@@ -419,16 +423,21 @@ export class ConsoleRoom extends EventEmitter {
    *   - `signal` (AbortSignal) or cancelTask() stops it at any point: waiting
    *     for the pilot, waiting for the line, or inside `fn` (steps reject with
    *     err.cancelled);
+   *   - `privateOutput` ((user) => boolean): what the device prints while the
+   *     task runs reaches only the attached people it accepts, and stays out
+   *     of the scrollback (replay, history) and of the journal, which gets a
+   *     marker line instead (a job reading a team's configuration: SPEC "Lot
+   *     jobs", snapshots are never seen by other teams);
    *   - afterwards a person keeps the keyboard; a system task gives it back.
    */
-  async runExclusive(actor, label, fn, { signal } = {}) {
+  async runExclusive(actor, label, fn, { signal, privateOutput = null } = {}) {
     const user = actor === 'system' || !actor ? null : actor;
     if (this.#closed) throw new RoomError('This console has closed.', 'consoles.room_closed');
     if (this.#task || this.cli.running) throw new RoomError(`Another task (${this.#task?.label ?? this.cli.running}) holds this console.`, 'consoles.task_running', { task: this.#task?.label ?? this.cli.running });
     if (user && !this.canPilot(user)) throw new RoomError(`You may watch ${this.device.name}, not drive it.`, 'consoles.control_not_allowed', { name: this.device.name });
     if (signal?.aborted) throw cancelled();
 
-    const task = { label: String(label), actor: user ? who(user) : SYSTEM, state: 'waiting', abort: null };
+    const task = { label: String(label), actor: user ? who(user) : SYSTEM, state: 'waiting', abort: null, audience: typeof privateOutput === 'function' ? privateOutput : null };
     this.#task = task;
     const before = this.#pilot;
     const onAbort = () => task.abort?.();
@@ -450,6 +459,7 @@ export class ConsoleRoom extends EventEmitter {
       this.#clearTyping();
       task.abort = () => this.cli.cancel();
       this.journal?.mark(`task ${task.label} by ${task.actor.name}`);
+      if (task.audience) this.journal?.mark(`output of ${task.label} not recorded: private to its team, kept with the job`);
       this.#changed();
       try {
         return await this.cli.perform(task.label, (cli) => fn(cli), { allowed: mayGoOn });
@@ -470,6 +480,7 @@ export class ConsoleRoom extends EventEmitter {
       signal?.removeEventListener('abort', onAbort);
       if (this.#pending?.kind === 'task') this.#clearPending(null);
       this.#task = null;
+      this.#privateTail = [];
       if (!this.#closed && obtained) {
         // A person who asked for the keyboard keeps it; a system task gives it back
         const previous = this.#people.get(before)?.user;
@@ -486,7 +497,9 @@ export class ConsoleRoom extends EventEmitter {
   /** Stop the running (or waiting) task: its actor, the pilot, or an admin */
   cancelTask(user) {
     if (!this.#task) return refusal('consoles.no_task');
-    const allowed = user === 'system' || user?.role === 'admin' || user?.id === this.#task.actor.id || user?.id === this.#pilot;
+    // The pilot only while the bench rule still lets them drive: a pilot left over from before
+    // another team took the bench must not stop that team's paste or job
+    const allowed = user === 'system' || this.#isPilotOrAdmin(user) || user?.id === this.#task.actor.id;
     if (!allowed) return refusal('consoles.control_not_pilot');
     this.#task.abort?.();
     return { ok: true };
@@ -565,9 +578,16 @@ export class ConsoleRoom extends EventEmitter {
     return Boolean(p) && p.counted > 0 && this.canPilot(user);
   }
 
-  #pilotIdle() {
+  /** Someone holds the keyboard and may still drive this line (not a pilot the bench rule has since turned into a spectator) */
+  #livePilot() {
     const p = this.#people.get(this.#pilot);
-    if (!p) return true;
+    return Boolean(p) && p.counted > 0 && this.canPilot(p.user);
+  }
+
+  /** The keyboard may pass without asking: the pilot is gone, may no longer drive, or has not typed for a while */
+  #pilotIdle() {
+    if (!this.#livePilot()) return true;
+    const p = this.#people.get(this.#pilot);
     return this.now() - Math.max(p.lastInput, this.#pilotSince) >= this.options.pilotIdleMs;
   }
 
@@ -697,6 +717,15 @@ export class ConsoleRoom extends EventEmitter {
   }
 
   #onOutput(buf) {
+    const audience = this.#task?.state === 'running' ? this.#task.audience : null;
+    if (audience) {
+      this.#privateTail.push(buf);
+      let bytes = this.#privateTail.reduce((n, b) => n + b.length, 0);
+      while (bytes > PRIVATE_TAIL_BYTES && this.#privateTail.length > 1) bytes -= this.#privateTail.shift().length;
+      for (const c of this.#clients) safe(() => { if (audience(c.user)) c.sendBytes(buf); });
+      this.#trackEcho(buf);
+      return;
+    }
     this.#scroll.push(buf);
     this.#scrollBytes += buf.length;
     while (this.#scrollBytes > this.options.scrollbackBytes && this.#scroll.length > 1) {

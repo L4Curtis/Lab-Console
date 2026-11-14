@@ -4,7 +4,9 @@
  * bench now; guests without configuration lines), shared console lines
  * another team holds, an injection the device refused, the startup-config of
  * a router that ignores it (1841 at 0x2141), a base configuration gone or
- * damaged since the reset started, and the refusals nobody tested
+ * damaged since the reset started, the configuration a job prints on the
+ * shared console (never replayed nor journaled for others), and the refusals
+ * nobody tested
  */
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -12,6 +14,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { startJobsApp, reportOf, waitFor } from './helpers/jobs.js';
 import { student } from './helpers/fakes.js';
+import { connectConsole } from './helpers/consoleClient.js';
 
 let j;
 const B = '/api/jobs/benches/B4M';
@@ -302,5 +305,49 @@ test('refusals with their codes: cancel_forbidden, bad_mode, bad_search', { time
     const s = await j.api('student1', 'GET', `/api/jobs/snapshots/search?q=${q}`);
     assert.equal(s.status, 400);
     assert.equal(s.body.code, 'jobs.bad_search');
+  }
+});
+
+test('what a backup prints on the console reaches its team only: not an outsider watching, not the replay, not the next team through the journal', { timeout: 60_000 }, async () => {
+  const r1 = j.device('R1');
+  const member = connectConsole(j.app, 'student1', r1);
+  await member.frame((f) => f.type === 'replay', 'replay');
+  const outsider = connectConsole(j.app, student(4), r1);
+  await outsider.frame((f) => f.type === 'replay', 'replay');
+  try {
+    const backup = await j.until((await run('student1', 'backup', { devices: [j.key('R1')] })).id);
+    assert.equal(backup.state, 'done');
+    await member.see(/line con 0/);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    assert.doesNotMatch(outsider.text, /line con 0/, 'an outsider watching the line does not read the configuration');
+    const late = connectConsole(j.app, student(4), r1);
+    await late.frame((f) => f.type === 'replay', 'replay');
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    assert.doesNotMatch(late.text, /line con 0/, 'nor does someone joining afterwards, in the replay');
+    await late.close();
+    const room = j.services.consoles.rooms.get(`${r1.target.host}:${r1.target.port}`);
+    assert.doesNotMatch(room.scrollback.toString('latin1'), /line con 0/, 'nor the scrollback the history searches and downloads');
+  } finally {
+    await outsider.close();
+    await member.close();
+  }
+
+  // Team 1 lets the bench go, team 2 takes it the same day: R1's journal of the day holds a marker, not the configuration
+  assert.equal((await j.release('student1')).status, 200);
+  await j.holdBench('student2', 'B4M', 'team-student2');
+  try {
+    let text = '';
+    await waitFor(async () => {
+      const list = await j.api('student2', 'GET', '/api/consoles/journal');
+      for (const session of (list.body?.sessions ?? []).filter((x) => x.bench === 'B4M' && x.device === 'R1')) {
+        const file = await fetch(`${j.app.url}/api/consoles/journal/${session.id}`, { headers: j.app.as('student2') });
+        if (file.status === 200) text += await file.text();
+      }
+      return /job:backup not recorded/.test(text);
+    }, 10_000, 'the journal marker');
+    assert.doesNotMatch(text, /line con 0/, 'team 1\'s configuration does not reach team 2 through the journal');
+  } finally {
+    await j.release('student2');
+    await j.holdBench('student1');
   }
 });

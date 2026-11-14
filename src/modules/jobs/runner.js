@@ -5,7 +5,8 @@
  * A job covers some devices of one bench and runs on the server. For each
  * device it opens the console line (services.consoles.rooms.open), takes the
  * keyboard with room.runExclusive (the pilot is asked, everyone watching sees
- * the task, the actor's right to drive is asked again before every byte) and
+ * the task but only the job's team sees its output, the actor's right to
+ * drive is asked again before every byte) and
  * runs the Cisco IOS driver on it. Five devices at a time; one job per bench.
  *
  * Nothing destructive without a backup, in this order, in code:
@@ -278,6 +279,8 @@ export class JobRunner {
       return this.#set(job, d, { state: 'failed', code: err.code ?? 'jobs.device_failed', params: err.params ?? {}, message: err.message });
     }
     try {
+      // What the job reads and types is the team's configuration: on the console, only the people who
+      // may see the job in full (its team, admins) see it; never the replay, the history nor the journal
       const result = await room.runExclusive(job.hidden.actorUser, `job:${job.kind}`, async (cli) => {
         this.#set(job, d, { state: 'running', step: 'jobs.steps.start' });
         const ios = new CiscoIos(cli, {
@@ -289,7 +292,7 @@ export class JobRunner {
         if (job.kind === 'reset') return this.#resetDevice(ctx);
         if (job.kind === 'inject') return this.#injectDevice(ctx);
         return this.#compareDevice(ctx);
-      }, { signal });
+      }, { signal, privateOutput: (u) => this.viewOf?.(u, job, { live: true }) === 'full' });
       this.#set(job, d, { state: 'done', step: null, stage: null, result: { ...result, seconds: Math.round((this.now() - started) / 1000) } });
     } catch (err) {
       if (err instanceof DeviceStop) {

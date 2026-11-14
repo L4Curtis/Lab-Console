@@ -261,3 +261,92 @@ test('runExclusive: a person\'s task stops once its actor may no longer pilot: d
   const job = room({ canPilot: () => false });
   assert.equal(await job.runExclusive('system', 'backup', async (cli) => { cli.send('x'); return 'ok'; }), 'ok');
 });
+
+test('runExclusive: a pilot the bench rule turned into a spectator cannot stop the task, and the keyboard passes without asking them', async () => {
+  // eve pilots a free line; then a team takes the bench and eve may no longer drive
+  let eveMay = true;
+  const r = room({ canPilot: (u) => u.id !== eve.id || eveMay });
+  const e = attach(r, eve);
+  attach(r, alice);
+  assert.equal(r.pilot, 'eve');
+  eveMay = false;
+  assert.equal(r.pilot, 'eve', 'nothing moved the keyboard yet');
+
+  // A system job does not wait 30 s for eve's answer, and eve cannot stop it
+  let release;
+  const gate = new Promise((res) => { release = res; });
+  const job = r.runExclusive('system', 'job:reset', async () => gate);
+  await until(() => r.task?.state === 'running');
+  assert.equal(e.event('request'), undefined, 'eve is not asked');
+  assert.equal(r.cancelTask(eve).code, 'consoles.control_not_pilot', 'a former pilot cannot stop the team\'s job');
+  assert.equal(r.task.state, 'running');
+  release('done');
+  assert.equal(await job, 'done');
+
+  // A person of the team asking for the keyboard gets it at once
+  assert.deepEqual(r.requestControl(alice), { ok: true });
+  assert.equal(r.pilot, 'alice');
+
+  // A paste of alice's (her task) cannot be stopped by eve either; alice and an admin can
+  const paste = r.runExclusive(alice, 'paste', (cli) => cli.pause(10_000));
+  await until(() => r.task?.state === 'running');
+  assert.equal(r.cancelTask(eve).code, 'consoles.control_not_pilot');
+  assert.equal(r.hangUp(eve).code, 'consoles.task_running', 'nor free the line under it');
+  assert.deepEqual(r.cancelTask(alice), { ok: true });
+  await assert.rejects(paste, (err) => err.cancelled === true);
+});
+
+test('runExclusive: a stale pilot does not block a person\'s request nor freeing an unowned line', async () => {
+  let eveMay = true;
+  const r = room({ canPilot: (u) => u.id !== eve.id || eveMay });
+  attach(r, eve);
+  attach(r, alice);
+  eveMay = false;
+  assert.equal(r.releaseControl(alice).code, 'consoles.control_not_pilot');
+  // eve still holds the pilot slot, but alice may free the line since nobody may drive it as pilot
+  const freed = r.hangUp(alice);
+  assert.deepEqual(freed, { ok: true });
+  assert.equal(r.closed, true);
+});
+
+test('runExclusive: with privateOutput, what the device prints reaches only the accepted people, never the replay nor the journal', async () => {
+  const marks = [];
+  const outputs = [];
+  const journal = { output: (b) => outputs.push(Buffer.from(b).toString()), mark: (t) => marks.push(t), attended() {}, watched() {}, piloted() {}, close() {} };
+  const session = fakeSession();
+  const r = new ConsoleRoom({
+    device: { key: 'B4M:R1', name: 'R1', labName: 'B4M', target: { host: '10.22.9.211', port: 2001 } },
+    session, journal, canPilot: () => true,
+    options: { controlTimeoutMs: 5000, pilotIdleMs: 60_000, graceMs: 60_000 },
+  });
+  const seen = new Map();
+  const join = (u) => {
+    seen.set(u.id, '');
+    r.attach({ user: u, send() {}, sendBytes: (b) => seen.set(u.id, seen.get(u.id) + Buffer.from(b).toString()), close() {} });
+  };
+  join(alice);
+  join(bob);
+  r.releaseControl(alice); // a free line: the job does not wait for an answer
+  session.emit('data', Buffer.from('R1#\r\n'));
+  await r.runExclusive('system', 'job:backup', async () => {
+    session.emit('data', Buffer.from('hostname R1\r\nline con 0\r\nend\r\nR1#'));
+    assert.match(r.screen(), /line con 0/, 'the driver still reads the screen');
+  }, { privateOutput: (u) => u.id === 'alice' || u.role === 'admin' });
+  session.emit('data', Buffer.from('\r\nR1#'));
+
+  assert.match(seen.get('alice'), /line con 0/, 'the team sees its job');
+  assert.doesNotMatch(seen.get('bob'), /line con 0/, 'an outsider does not');
+  assert.match(seen.get('bob'), /R1#/, 'but still sees the line before and after');
+  assert.doesNotMatch(r.scrollback.toString(), /line con 0/, 'not in the replay nor the history');
+  assert.doesNotMatch(r.screen(), /line con 0/, 'nor in the screen once the task is over');
+  assert.doesNotMatch(outputs.join(''), /line con 0/, 'not in the journal');
+  assert.ok(marks.some((m) => /job:backup not recorded/.test(m)), 'the journal says why');
+  join(eve);
+  assert.doesNotMatch(seen.get('eve'), /line con 0/, 'a newcomer is not replayed it');
+  r.releaseControl(eve);
+
+  // Without the option, a task's output stays public as before
+  await r.runExclusive('system', 'job:other', async () => { session.emit('data', Buffer.from('public line\r\n')); });
+  assert.match(seen.get('bob'), /public line/);
+  assert.match(outputs.join(''), /public line/);
+});

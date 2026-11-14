@@ -125,7 +125,10 @@ exposed directly to the Internet (no Cloudflare Access in front).
   confirmed by the owner). The list of days per console
   is a table of the database; the output stays in files.
   Output only, never keystrokes. A banner tells users that sessions are
-  journaled.
+  journaled. What a bench job prints (configurations it reads, injects or
+  compares) is not journaled, not kept in the replay or history, and reaches
+  only the attached people who may see the job in full (its team, admins):
+  the journal holds a marker line instead (integration review, 14 Nov).
 - Lab connection parameters (jump server, console login, allowed hosts) are
   read from `deps.settings.get('lab')` **each time a line is opened**, never
   from `config` and never once at start-up: the admin lot makes them editable.

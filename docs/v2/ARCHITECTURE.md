@@ -915,7 +915,7 @@ room.write(user, data) → boolean        // ignored (false) unless the user may
                                         //   who may pilot when the keyboard is shared; nobody while a task runs
 room.requestControl(user) / room.grantControl(to, by) / room.denyControl(to, by) / room.releaseControl(user)
 room.takeControl(admin) / room.setShared(user, on) / room.hangUp(user)   // → { ok } | { ok: false, code, params }
-room.runExclusive(actor, label, async (cli) => { ... }, { signal })   // actor: User | 'system'
+room.runExclusive(actor, label, async (cli) => { ... }, { signal, privateOutput })   // actor: User | 'system'
 room.cancelTask(user | 'system')
 room.cli                                // CliAutomation bound to this line
 room.summary()                          // { target, key, bench, device, state, users, pilot, shared, task,
@@ -930,7 +930,8 @@ provides it, every signed-in user otherwise (one call site, `mayPilot` in
 `src/modules/consoles/index.js`, read lazily). It is asked when a line opens,
 at every control action and at every keystroke: a pilot whose bench gets
 locked, or taken by another team, keeps watching but no longer types,
-shares, grants or frees the line. Anyone signed in may watch an open line
+shares, grants, frees the line or stops its task, and counts as no pilot:
+the next request or task gets the keyboard at once instead of asking them. Anyone signed in may watch an open line
 (the browser lets anyone open a tile on a line already open, and asks the
 bench bar only before opening a new one); opening a new line needs the right
 to pilot it (`consoles.open_not_allowed`). Every console activity entry
@@ -956,9 +957,14 @@ another team taking the bench or a disabled account stops it with
 `console.control.refused`: codes of this module start with `consoles.`). Then
 it waits for the line to be ready (console server login done), locks every
 keyboard and runs `fn` inside `cli.perform()`. `signal` or `cancelTask()`
-(actor, pilot, admin, or 'system') stops it while it waits for the pilot,
-for the line, or while it runs (`err.cancelled`). Afterwards a person keeps
-the keyboard; a 'system' task gives it back to the previous pilot.
+(actor, pilot while still allowed to drive, admin, or 'system') stops it
+while it waits for the pilot, for the line, or while it runs
+(`err.cancelled`). Afterwards a person keeps the keyboard; a 'system' task
+gives it back to the previous pilot. With `privateOutput: (user) => boolean`
+(bench jobs pass "may see the job in full": its team, admins), what the
+device prints while the task runs goes only to the attached people it
+accepts and stays out of the scrollback (replay, history) and the journal,
+which gets a marker line instead; `screen()` still sees it.
 
 The line stays open while someone is attached, 30 s after the last one
 leaves (or after the last task, for a line a job opened that nobody
