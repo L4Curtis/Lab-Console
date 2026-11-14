@@ -9,7 +9,7 @@
  *   snapshots.insert(snapshot)     snapshot: { id, bench, teamId, label, origin, jobId, author, dir, createdAt, bytes, devices?: [Device] }
  *   snapshots.addDevice(id, device, bytes)   one more device (a job writes them as they come); `bytes`: the new total
  *   snapshots.get(id)              → Snapshot | null
- *   snapshots.list({ bench })      → Snapshot[] newest first (every bench without `bench`)
+ *   snapshots.list({ bench, teamId, limit })   → Snapshot[] newest first (every bench and every team without the filters; at most `limit`)
  *   snapshots.remove(id)
  *
  *   templates.insert(template)     template: { id, name, description, base, dir, author, createdAt, updatedAt, devices: [Device] }
@@ -94,10 +94,15 @@ export function createSnapshotsRepository(db) {
       const row = await db.get(`SELECT ${SNAPSHOT_COLUMNS} FROM snapshots WHERE id = ?`, [String(id)]);
       return row ? (await withDevices([row]))[0] : null;
     },
-    async list({ bench } = {}) {
-      const rows = bench === undefined
-        ? await db.query(`SELECT ${SNAPSHOT_COLUMNS} FROM snapshots ORDER BY created_at DESC, id DESC`)
-        : await db.query(`SELECT ${SNAPSHOT_COLUMNS} FROM snapshots WHERE bench = ? ORDER BY created_at DESC, id DESC`, [String(bench)]);
+    async list({ bench, teamId, limit } = {}) {
+      const where = [];
+      const params = [];
+      if (bench !== undefined) { where.push('bench = ?'); params.push(String(bench)); }
+      if (teamId !== undefined) { where.push('team_id = ?'); params.push(String(teamId)); }
+      const capped = Number.isInteger(limit) && limit > 0;
+      if (capped) params.push(limit);
+      const rows = await db.query(
+        `SELECT ${SNAPSHOT_COLUMNS} FROM snapshots${where.length ? ` WHERE ${where.join(' AND ')}` : ''} ORDER BY created_at DESC, id DESC${capped ? ' LIMIT ?' : ''}`, params);
       return withDevices(rows);
     },
     async remove(id) {

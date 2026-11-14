@@ -1,0 +1,159 @@
+{
+  "title": "Overview",
+  "subtitle": "Every bench of the lab, live",
+  "loading": "Loading…",
+  "loadError": "Could not read the state of the lab.",
+  "retry": "Try again",
+  "empty": "No bench matches.",
+  "filters": {
+    "label": "Filter the benches",
+    "all": "All",
+    "free": "Free",
+    "mine": "Mine"
+  },
+  "totals": {
+    "label": "The lab in numbers",
+    "benches": {
+      "one": "{count} bench",
+      "other": "{count} benches"
+    },
+    "free": {
+      "one": "{count} free",
+      "other": "{count} free"
+    },
+    "taken": {
+      "one": "{count} taken",
+      "other": "{count} taken"
+    },
+    "locked": {
+      "one": "{count} locked",
+      "other": "{count} locked"
+    },
+    "consoles": {
+      "one": "{count} console open",
+      "other": "{count} consoles open"
+    },
+    "jobs": {
+      "one": "{count} job running",
+      "other": "{count} jobs running"
+    }
+  },
+  "state": {
+    "free": "Free",
+    "taken": "Taken",
+    "locked": "Locked"
+  },
+  "console": {
+    "connecting": "connecting",
+    "silent": "device silent"
+  },
+  "card": {
+    "yours": "Your bench",
+    "requests": {
+      "one": "{count} request",
+      "other": "{count} requests"
+    },
+    "requestsHint": "People are asking to join this bench: the bench bar lets you answer.",
+    "heldBy": "Taken by team {team} since {time}",
+    "free": "No team is working on it.",
+    "locked": "Locked:",
+    "lockedBy": "({name}, {time})",
+    "onBench": "On the bench",
+    "guest": "guest",
+    "jobBy": {
+      "one": "by {name} · {done}/{total} device",
+      "other": "by {name} · {done}/{total} devices"
+    },
+    "lines": {
+      "one": "{count} line open out of {total}",
+      "other": "{count} lines open out of {total}"
+    },
+    "busy": {
+      "one": "{count} busy outside the app",
+      "other": "{count} busy outside the app"
+    },
+    "busyHint": "The console server refused the line: someone else is using it outside the application.",
+    "silent": {
+      "one": "{count} silent",
+      "other": "{count} silent"
+    },
+    "silentHint": "The line is open but the device does not answer: powered off, cable unplugged or hung.",
+    "pilot": "piloted by {name}",
+    "noPilot": "nobody at the keyboard",
+    "people": {
+      "one": "{count} person",
+      "other": "{count} people"
+    },
+    "shared": "shared keyboard",
+    "task": "job running",
+    "slots": "Next slots",
+    "slotMine": "your team",
+    "releaseAt": "Released automatically around {time} without activity",
+    "open": "Open the bench"
+  },
+  "activity": {
+    "consoleOpen": "{who} opened the console of {device}",
+    "consoleJoin": "{who} joined the console of {device}",
+    "consoleFreed": "The line of {device} was freed"
+  },
+  "home": {
+    "title": "Home",
+    "greeting": "Hello {name}",
+    "announcement": {
+      "by": "{name}, {time}",
+      "until": "until {time}"
+    },
+    "team": {
+      "title": "My team",
+      "members": "Team members",
+      "you": "you",
+      "manage": "Manage the team",
+      "admin": "Administrators need no team: they see and edit every team.",
+      "allTeams": "All teams",
+      "none": "You are not in a team.",
+      "noneHint": "Create yours to take a bench, or wait for a classmate's invitation.",
+      "create": "Create a team"
+    },
+    "invitations": {
+      "title": "Invitations",
+      "item": "{by} invites you to team {team}",
+      "answer": "Answer"
+    },
+    "bench": {
+      "title": "Our bench",
+      "jobs": "Backups",
+      "none": "You are not working on any bench.",
+      "noneTeam": "Your team has no bench.",
+      "free": {
+        "one": "{count} bench free out of {total}.",
+        "other": "{count} benches free out of {total}."
+      },
+      "choose": "See the benches"
+    },
+    "backups": {
+      "title": "Our latest backups",
+      "devices": {
+        "one": "{count} device",
+        "other": "{count} devices"
+      },
+      "empty": "No backup yet.",
+      "all": "All backups"
+    },
+    "activity": {
+      "title": "Recent activity on the bench",
+      "empty": "Nothing yet."
+    },
+    "slots": {
+      "title": "Our next slots",
+      "empty": "No slot booked.",
+      "book": "Book a slot"
+    },
+    "lab": {
+      "title": "The lab right now",
+      "overview": "See every bench"
+    }
+  },
+  "errors": {
+    "unavailable": "The overview is not available right now."
+  }
+}

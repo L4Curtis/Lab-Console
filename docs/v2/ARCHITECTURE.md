@@ -77,8 +77,9 @@ src/
     jobs/                   bench jobs (runner.js), snapshots and templates (library.js,
                             configFiles.js: files, hashes, ZIP)      (lot: jobs), see §9b
     collab/                 device notes, bench chat (notifications are browser work)   (lot: collab), see §9 "Group work"
+    overview/               read-only views: every bench on one screen, the personal home page   (lot: overview), see §9d
     scripts/                shared script library: personal, team, published scripts   (lot: terminal)
-    checks/                 line status, cabling, ping matrix, interface overlay
+    checks/                 line status, cabling, ping matrix, interface overlay   (lot: checks), see §9c
     proxmox/                unchanged
 public/
   login.html, js/login.js   the only page served without a session, and its script (lot: auth)
@@ -724,6 +725,7 @@ services.teams = {                           // lot teams (src/modules/teams/)
   teamOf(userOrId) → Team | null               // { id, name, members: userId[], people: [{ id, username, name, since }], invitations }
   get(teamId) → Team | null
   list() → Team[]
+  invitationsFor(user) → [{ team: { id, name }, by, at }]   // the invitations waiting for this person
 }
 services.benches = {                           // lot teams (src/modules/teams/)
   holder(labName) → { teamId, since } | null   // the team that took the bench
@@ -743,6 +745,9 @@ services.benches = {                           // lot teams (src/modules/teams/)
                                                //   (by: Person | 'system'; reason: hand|admin|idle|reservation|dissolved);
                                                //   an object it returns is handed to the browser that released
                                                //   (`offers`), e.g. the jobs lot's backup offer
+  detail(labName, user) → BenchDetail          // the bench as that user may see it: holder, occupants, lock, `requests`
+                                               //   (occupants and admins only), `you` { occupant, member, guest, … }
+  reservations({ bench?, from?, to? }) → [{ id, bench, teamId, teamName, start, end, by, createdAt }]   // the calendar, oldest first
 }
 services.accounts = {                          // lot accounts
   get(userId) → Account | null                 // { id, username, name, role, state, via, hasPasskey, … }
@@ -763,6 +768,7 @@ services.admin = { announcement() → { text, level, at, expiresAt, by } | null 
 services.jobs = {                              // lot jobs (§9b)
   running(labName) → { id, kind, bench, state, startsAt, actor: { name }, devices: [{ key, name, state, step }] } | null
   list({ bench }) → Job[]                      // recent jobs kept in memory, newest first
+  snapshots(user, { teamId, limit }) → Snapshot[]   // that team's snapshots as `user` may see them (its members and admins), newest first
 }
 services.scripts = { list(user), get(user, id) }   // lot terminal: the library as that person may see it, the rules of the API
 services.checks = { running(bench) → { id, bench, kind, state, actor: { name }, startedAt, devices } | null }   // lot checks (§9c)
@@ -789,6 +795,8 @@ services.collab = {                            // lot collab
   mounted once by `main.js`) follows the sticky SSE topic `admin:announcement`. **My account** (`#/account`) is
   reached from the user menu. Passkeys in the browser go through
   `core/passkeys.js` (public: the login page and `/join` use it).
+  **Accueil** (`#/home`, the landing page) and **Vue d'ensemble**
+  (`#/overview`) are the overview lot's (§9d).
   **Sauvegardes** (`#/jobs/<bench>[/<action>]`, `modules/jobs/`, every
   signed-in user; `#/jobs/B4M/backup` opens the backup dialog, which is where
   the release offer of the bench bar leads) holds the bench jobs, the
@@ -1346,7 +1354,10 @@ SSE: `jobs:running` (sticky, everyone: per bench, the job and each device's
 state and step: the diagram layer `jobs` draws it), `jobs:job` (the whole
 job, audience above), `jobs:done` (once per finished job, to the bench's
 occupants of that moment: `{ bench, jobId, kind, ok, state }`, what the
-collab notifications read, §9 "Group work"). Audit: `job.<kind>` (start, `details.device` = the
+collab notifications read, §9 "Group work"), `jobs:snapshots` (a team's list
+of snapshots moved: a set finished, a ZIP imported, a snapshot deleted;
+`{ teamId }` to the team's members and the admins, what the home page's
+"latest backups" read). Audit: `job.<kind>` (start, `details.device` = the
 device names), `job.<kind>.cancel`, `job.<kind>.end` (each device's state,
 code, stage), `job.snapshot.import | download | delete`,
 `job.folder.download`, `job.template.publish | update | delete`. A job left
@@ -1443,6 +1454,68 @@ cable whose two interfaces are not shut, an interface with nothing alive at
 the other end is `down`, a ping answers when another device holds the
 address on an interface that is up. `lab.cabling.unplug() / move() /
 plug()` (or `MOCK_CABLING`) make deliberate mismatches.
+
+## 9d. Overview and home (lot: overview)
+
+`src/modules/overview/` (`/api/overview`): **read only, no state, no SSE topic
+of its own.** Each answer is computed when it is asked, from the service that
+owns the data (`services.benches`, `teams`, `consoles`, `jobs`, `admin`, the
+audit trail); a migration, a repository or a file here would be a second
+source of truth.
+
+- `GET /api/overview/benches` → `{ benches: [card], at }`, one card per bench
+  of the diagram, in its order, for every signed-in user. A card:
+  `{ bench, state: free|taken|locked, holder: { teamName, since, mine } | null,
+  occupants: [{ name, guest }], lock: { reason, by, at } | null, releaseAt,
+  lastActivity, lines: { total, open, busy, silent }, consoles: [{ device,
+  state, pilot, people, shared, task }], job: { kind, state, actor, startsAt,
+  devices: { total, finished, failed } } | null, slots: [{ start, end,
+  teamName, mine }] (the next three, the one under way included), requests,
+  you: { occupant, member, guest } }`. Everything in it is what every
+  signed-in user already receives (`benches:state`, `consoles:rooms`,
+  `jobs:running`, the calendar); only `you`, `mine` and `requests` depend on
+  the reader (`requests`, the join requests waiting, is 0 for anyone who is
+  neither an occupant nor an admin: `benches.detail` empties it). Left out on
+  purpose: backups, journals, notes and chat (a team's), the last command typed
+  on a console, ids and user names (names only), console addresses.
+  *Line status when known*: `lines.open` (a room is open, whoever opened it),
+  `busy` (the console server refused the line lately, `rooms.busyOutside()`)
+  and `silent` (open, the device printed nothing); `total` counts the devices
+  inside the allow-list. The on-demand status probe of the checks lot is not
+  read here yet.
+- `GET /api/overview/home` → the page of the person who asks: `team` (name and
+  members' names, `you` marks the reader) or null, `invitations` waiting for
+  them, `bench` (the card above of the bench their team holds, else one they
+  are a guest of, else null), `slots` (their team's next), `backups` (**their
+  team's** five latest snapshots, `jobs.snapshots(user, { teamId })`: a guest,
+  another team, an admin or someone with no team gets none), `activity` (the
+  bench's audit trail **since the current holder took it**, for its occupants
+  only: `bench.*`, the job runs `job.<kind>[.cancel|.end]` and
+  `console.open|join|freed`; never `job.snapshot.*` or `job.folder.*`, which
+  the jobs module logs on the bench whichever team owns the snapshot; names of
+  people and devices, never an address), `lab` (the totals of the cards) and
+  `announcement`. An admin has no team: team, bench, backups and activity are
+  empty, the totals and the announcement are there.
+- Errors: `overview.unavailable` (503) when the consoles, teams and benches
+  modules are not there. Both routes answer `Cache-Control: no-store`.
+
+In the browser (`public/js/modules/overview/`) two rail sections: **Accueil**
+(`#/home`, `home.js`, the address a signed-in user lands on, and the one no
+section answers) and **Vue d'ensemble** (`#/overview`, `index.js`, with a
+filter: all, free, mine, kept in `prefs`). `live.js` keeps them live with the
+topics the services already publish, each under its own audience: it reads the
+API again, once for a burst (250 ms), when `benches:state`,
+`benches:reservations`, `consoles:rooms`, `consoles:busy`, `jobs:running`,
+`teams:changed` (home also `jobs:done`, `jobs:snapshots`, `teams:invitation`,
+`admin:announcement`) moves. `consoles:rooms` moves at every command typed in
+the lab, so it is compared on what the screen shows (`roomsSignature`: line,
+state, pilot, people, task) and ignored otherwise. Sections stay mounted when
+hidden: a hidden one reads nothing and catches up when shown. The cards
+(`benchCard.js`) are text only and lead to the bench (`#/consoles/<bench>`)
+and to its backups (`#/jobs/<bench>`); taking, joining and releasing stay in
+the bench bar. The announcement banner is hidden on the home page, which shows
+the announcement in a card. `teams/data.js` exports `historyText(entry)`, the
+sentence of a bench history entry, shared with the bench bar.
 
 ## 10. Data directory
 

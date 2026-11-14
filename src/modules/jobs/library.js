@@ -11,7 +11,7 @@
  * after a reset.
  *
  *   library.canSee(user, snapshot)
- *   library.listSnapshots(user, { bench })        → visible snapshots, newest first
+ *   library.listSnapshots(user, { bench, teamId, limit })   → visible snapshots, newest first (a team's, at most `limit`: read in the repository)
  *   library.snapshot(user, id)                    → the snapshot, or 404 / 403
  *   library.open({ bench, teamId, label, origin, jobId, author })   a new snapshot a job fills
  *   library.add(set, { device, config, vlans, vtp, facts })        → its index row
@@ -75,7 +75,10 @@ export class Library {
   #audit;
   #now;
 
-  constructor({ store, repos, services, audit, now = () => Date.now() }) {
+  #events;
+
+  constructor({ store, repos, services, audit, events = null, now = () => Date.now() }) {
+    this.#events = events;
     this.files = new ConfigFiles({ store });
     this.store = store;
     this.#repos = repos;
@@ -102,9 +105,19 @@ export class Library {
     return snapshotView(s, { teamName: this.teamName(s.teamId) });
   }
 
-  async listSnapshots(user, { bench } = {}) {
-    const all = await this.#repos.snapshots.list(bench === undefined ? {} : { bench });
+  async listSnapshots(user, { bench, teamId, limit } = {}) {
+    const all = await this.#repos.snapshots.list({ bench, teamId, limit });
     return all.filter((s) => this.canSee(user, s));
+  }
+
+  /**
+   * Tell the people who see a team's snapshots that the list moved (SSE
+   * 'jobs:snapshots' { teamId }: the team's members and the admins, the
+   * audience of canSee): a set finished, imported or deleted
+   */
+  #changed(teamId) {
+    if (!this.#events || !teamId) return;
+    this.#events.publish('jobs:snapshots', { teamId }, { audience: (u) => this.canSee(u, { teamId }) });
   }
 
   /** The snapshot `id` as `user` may see it: 404 when unknown, 403 when it is another team's */
@@ -140,6 +153,7 @@ export class Library {
 
   close(set) {
     this.files.close(set.dir);
+    this.#changed(set.teamId);
   }
 
   /** A device of a set (snapshot or template) by name; templates fall back to their '*' entry */
@@ -163,6 +177,7 @@ export class Library {
     await this.#repos.snapshots.remove(s.id);
     await this.files.remove(s.dir);
     this.#audit.log(user, 'job.snapshot.delete', { bench: s.bench, snapshot: s.id });
+    this.#changed(s.teamId);
   }
 
   // ── ZIP import ────────────────────────────────────────────────────────────

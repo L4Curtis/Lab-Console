@@ -72,7 +72,7 @@ export function createJobsModule({ config, logger, events, store, repos, audit, 
   const log = logger.child('jobs');
   const cfg = config.jobs ?? { devicesAtOnce: 5, countdownSeconds: 10, importMaxKb: 2048, timeScale: 1 };
   const now = options.now ?? (() => Date.now());
-  const library = new Library({ store, repos, services, audit, now });
+  const library = new Library({ store, repos, services, audit, events, now });
   const offers = new Map(); // bench → { teamId, until }: the backup offered after a release
 
   // ── Who may do what ───────────────────────────────────────────────────────
@@ -554,6 +554,10 @@ export function createJobsModule({ config, logger, events, store, repos, audit, 
     /** Recent jobs (in memory), newest first, without a line of configuration (redactedJob) */
     list: ({ bench } = {}) => runner.recent(bench).map(redactedJob),
     kinds: KINDS,
+    /** A team's snapshots as `user` may see them (its members and admins), newest first: the home page's "latest backups" */
+    snapshots: async (user, { teamId, limit = 5 } = {}) => (teamId
+      ? (await library.listSnapshots(user, { teamId, limit })).map((s) => library.view(s))
+      : []),
   };
 
   let offRelease = null;

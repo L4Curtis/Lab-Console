@@ -1,0 +1,159 @@
+{
+  "title": "Vue d’ensemble",
+  "subtitle": "Toutes les baies du labo, en direct",
+  "loading": "Chargement…",
+  "loadError": "Impossible de lire l’état du labo.",
+  "retry": "Réessayer",
+  "empty": "Aucune baie ne correspond.",
+  "filters": {
+    "label": "Filtrer les baies",
+    "all": "Toutes",
+    "free": "Libres",
+    "mine": "La mienne"
+  },
+  "totals": {
+    "label": "Le labo en chiffres",
+    "benches": {
+      "one": "{count} baie",
+      "other": "{count} baies"
+    },
+    "free": {
+      "one": "{count} libre",
+      "other": "{count} libres"
+    },
+    "taken": {
+      "one": "{count} prise",
+      "other": "{count} prises"
+    },
+    "locked": {
+      "one": "{count} verrouillée",
+      "other": "{count} verrouillées"
+    },
+    "consoles": {
+      "one": "{count} console ouverte",
+      "other": "{count} consoles ouvertes"
+    },
+    "jobs": {
+      "one": "{count} tâche en cours",
+      "other": "{count} tâches en cours"
+    }
+  },
+  "state": {
+    "free": "Libre",
+    "taken": "Prise",
+    "locked": "Verrouillée"
+  },
+  "console": {
+    "connecting": "connexion en cours",
+    "silent": "appareil muet"
+  },
+  "card": {
+    "yours": "Votre baie",
+    "requests": {
+      "one": "{count} demande",
+      "other": "{count} demandes"
+    },
+    "requestsHint": "Des personnes demandent à rejoindre cette baie : la barre de la baie permet de répondre.",
+    "heldBy": "Prise par l’équipe {team} depuis {time}",
+    "free": "Aucune équipe n’y travaille.",
+    "locked": "Verrouillée :",
+    "lockedBy": "({name}, {time})",
+    "onBench": "Sur la baie",
+    "guest": "invité",
+    "jobBy": {
+      "one": "par {name} · {done}/{total} appareil",
+      "other": "par {name} · {done}/{total} appareils"
+    },
+    "lines": {
+      "one": "{count} ligne ouverte sur {total}",
+      "other": "{count} lignes ouvertes sur {total}"
+    },
+    "busy": {
+      "one": "{count} occupée hors de l’application",
+      "other": "{count} occupées hors de l’application"
+    },
+    "busyHint": "Le serveur de consoles a refusé la ligne : quelqu’un d’autre l’utilise en dehors de l’application.",
+    "silent": {
+      "one": "{count} muette",
+      "other": "{count} muettes"
+    },
+    "silentHint": "La ligne est ouverte mais l’appareil ne répond pas : éteint, câble débranché ou planté.",
+    "pilot": "piloté par {name}",
+    "noPilot": "personne au clavier",
+    "people": {
+      "one": "{count} personne",
+      "other": "{count} personnes"
+    },
+    "shared": "clavier partagé",
+    "task": "tâche en cours",
+    "slots": "Prochains créneaux",
+    "slotMine": "votre équipe",
+    "releaseAt": "Libération automatique vers {time} sans activité",
+    "open": "Ouvrir la baie"
+  },
+  "activity": {
+    "consoleOpen": "{who} a ouvert la console de {device}",
+    "consoleJoin": "{who} a rejoint la console de {device}",
+    "consoleFreed": "La ligne de {device} a été libérée"
+  },
+  "home": {
+    "title": "Accueil",
+    "greeting": "Bonjour {name}",
+    "announcement": {
+      "by": "{name}, {time}",
+      "until": "jusqu’au {time}"
+    },
+    "team": {
+      "title": "Mon équipe",
+      "members": "Membres de l’équipe",
+      "you": "vous",
+      "manage": "Gérer l’équipe",
+      "admin": "Les administrateurs n’ont pas besoin d’équipe : ils voient et modifient toutes les équipes.",
+      "allTeams": "Toutes les équipes",
+      "none": "Vous n’êtes dans aucune équipe.",
+      "noneHint": "Créez la vôtre pour prendre une baie, ou attendez l’invitation d’un camarade.",
+      "create": "Créer une équipe"
+    },
+    "invitations": {
+      "title": "Invitations",
+      "item": "{by} vous invite dans l’équipe {team}",
+      "answer": "Répondre"
+    },
+    "bench": {
+      "title": "Notre baie",
+      "jobs": "Sauvegardes",
+      "none": "Vous ne travaillez sur aucune baie.",
+      "noneTeam": "Votre équipe n’a pas de baie.",
+      "free": {
+        "one": "{count} baie libre sur {total}.",
+        "other": "{count} baies libres sur {total}."
+      },
+      "choose": "Voir les baies"
+    },
+    "backups": {
+      "title": "Nos dernières sauvegardes",
+      "devices": {
+        "one": "{count} appareil",
+        "other": "{count} appareils"
+      },
+      "empty": "Aucune sauvegarde pour l’instant.",
+      "all": "Toutes les sauvegardes"
+    },
+    "activity": {
+      "title": "Activité récente sur la baie",
+      "empty": "Rien pour l’instant."
+    },
+    "slots": {
+      "title": "Nos prochains créneaux",
+      "empty": "Aucun créneau réservé.",
+      "book": "Réserver un créneau"
+    },
+    "lab": {
+      "title": "Le labo en ce moment",
+      "overview": "Voir toutes les baies"
+    }
+  },
+  "errors": {
+    "unavailable": "La vue d’ensemble n’est pas disponible pour l’instant."
+  }
+}

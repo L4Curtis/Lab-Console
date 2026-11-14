@@ -19,7 +19,11 @@ import { mountAnnouncement } from './shared/announcement.js';
 import { startCollab } from './modules/collab/index.js';
 
 const MODULES = [
+  // The page shown after sign-in: my team, our bench, our backups, recent activity (also the address no section answers)
+  { id: 'overview', path: 'home', titleKey: 'common.shell.home', icon: 'home', load: () => import('./modules/overview/home.js') },
   { id: 'consoles', path: 'consoles', titleKey: 'common.shell.consoles', icon: 'topology', load: () => import('./modules/consoles/index.js') },
+  // Every bench of the lab on one screen, live
+  { id: 'overview', path: 'overview', titleKey: 'common.shell.overview', icon: 'dashboard', load: () => import('./modules/overview/index.js') },
   { id: 'teams', path: 'team', titleKey: 'common.shell.team', icon: 'team', load: () => import('./modules/teams/index.js') },
   // Backend module "proxmox" serves this section (admin switches + Proxmox VMs)
   { id: 'proxmox', path: 'infra', titleKey: 'common.shell.infra', icon: 'rack', load: () => import('./modules/infra/index.js') },
@@ -80,7 +84,7 @@ async function init() {
 }
 
 async function route() {
-  const [path = 'consoles', ...params] = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
+  const [path = 'home', ...params] = location.hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent);
   const mod = available().find((m) => m.path === path) || MODULES[0];
   for (const a of rail.querySelectorAll('.rail-btn')) a.classList.toggle('active', a.dataset.path === mod.path);
 

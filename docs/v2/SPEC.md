@@ -479,6 +479,36 @@ One screen with every bench: team, occupants, open consoles, running jobs,
 locks. A **personal home page** after sign-in: my team, our bench, our
 backups, recent activity. A guided tour at first sign-in and a help page.
 
+### Lot overview, as built
+- **Overview** (rail: "Vue d'ensemble", `#/overview`, everyone signed in): a
+  card per bench, live. Team holding it and since when, occupants (guests
+  marked), consoles open with their pilot and how many people are on them,
+  the running job (kind, state, who, how many devices are done), the lock and
+  its reason, the next three slots (the one under way included, "your team"
+  marked), the join requests waiting (shown to the bench's occupants and
+  admins only), the automatic release time, and the state of the console
+  lines: open, busy outside the application, silent. Filter: all, free, mine.
+  It tells everybody what everybody already sees on the diagram and in the
+  calendar; **it never lists a team's backups or journals, nor what was typed
+  on a console.**
+- **Home** (rail: "Accueil", `#/home`, the page after sign-in): my team and its
+  members, the invitations waiting for me, our bench (the same card), our five
+  latest backups (the team's; none for a guest, another team or an admin), the
+  recent activity of our bench since our team took it (occupants only: who
+  took, joined or left, the job runs, the console lines; never the downloads
+  or deletions of a snapshot or of the lab folder), our
+  next slots, the lab in numbers, the announcement. A person with no team, or
+  whose team has no bench, is told what to do next and led to the section for
+  it. Admins have no team and see the totals and the announcement.
+- Both are read-only views computed from the existing services at each request
+  and kept live by the SSE topics those services publish (the jobs module
+  adds `jobs:snapshots`, told to a team when its backups change); no new
+  state. The on-demand line check of the checks lot is not read yet (the
+  overview shows the lines the application itself knows: open, refused, silent).
+- Not done on purpose: no action on the cards (taking, joining, releasing and
+  locking stay in the bench bar), no history beyond the last 15 entries, no
+  per-team statistics.
+
 ## Wave 5
 End-to-end scenarios, security review, completeness check against this file,
 documentation in French and English, version 2.0.0.
