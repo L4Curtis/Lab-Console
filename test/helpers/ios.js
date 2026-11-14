@@ -6,7 +6,8 @@
 import assert from 'node:assert/strict';
 import { FakeIos } from '../../dev/fakeIos.js';
 import { CliAutomation } from '../../src/lib/cliAutomation.js';
-import { CiscoIos, toReplayScript } from '../../src/lib/drivers/ciscoIos.js';
+import { CiscoIos } from '../../src/lib/drivers/ciscoIos.js';
+import { toReplayScript } from '../../src/lib/drivers/iosReplay.js';
 
 /** Real budgets divided by about a thousand, like the simulator's clock (timeScale 0.002) */
 export const FAST = {

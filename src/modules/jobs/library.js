@@ -23,7 +23,7 @@
  *   library.base()                                → the base configuration template, or null
  */
 import { createTwoFilesPatch, diffLines } from 'diff';
-import { comparableConfig } from '../../lib/drivers/ciscoIos.js';
+import { comparableConfig } from '../../lib/drivers/iosReplay.js';
 import { httpError } from '../../lib/httpError.js';
 import {
   ConfigFiles, ANY_DEVICE, MANIFEST, newSetId, isSetId, readZip, checkConfigText, cleanVlans, cleanVtp, factsOf,

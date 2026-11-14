@@ -7,7 +7,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { parseCdpNeighbors, parseIpInterfaceBrief, countRows, parsePing } from '../src/lib/drivers/ciscoIos.js';
+import { parseCdpNeighbors, parseIpInterfaceBrief, countRows, parsePing } from '../src/lib/drivers/iosParse.js';
 import { canonicalPort, samePort, fullPort, shortPort } from '../src/modules/checks/ports.js';
 import { diagramLinks } from '../src/modules/checks/links.js';
 import { compareCabling, hostKey } from '../src/modules/checks/cabling.js';

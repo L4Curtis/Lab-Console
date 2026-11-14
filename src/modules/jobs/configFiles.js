@@ -23,7 +23,7 @@ import crypto from 'node:crypto';
 import { zipSync, unzipSync, strToU8, strFromU8 } from 'fflate';
 import { writeFileAtomic } from '../../lib/store.js';
 import { httpError } from '../../lib/httpError.js';
-import { parseVlanBrief } from '../../lib/drivers/ciscoIos.js';
+import { parseVlanBrief } from '../../lib/drivers/iosParse.js';
 
 export const ANY_DEVICE = '*';
 export const MANIFEST = 'manifest.json';

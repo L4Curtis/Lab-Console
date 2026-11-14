@@ -74,7 +74,8 @@ src/
     safeFetch.js            outgoing requests to an address an administrator typed (the SSO identity provider), guarded against server-side request forgery
     cliAutomation.js        expect-like engine on a console line
     terminalText.js         terminal output as plain text (history search and download)   (lot: terminal)
-    drivers/ciscoIos.js     device procedures built on the engine (lot: ios)
+    drivers/ciscoIos.js     device procedures built on the engine (lot: ios); iosParse.js reads
+                            what the console prints, iosReplay.js builds the replay script
     drivers/ciscoRecovery.js  password-recovery procedures per device family (lot: recovery), see §9e
   modules/
     auth/                   sessions, OIDC, local accounts + TOTP, roles   (lot: auth)
@@ -1260,6 +1261,7 @@ ios.runningConfig() → { hostname, config }
 ios.vlans() → { supported, vlans: [{ id, name, status, ports }], vtp: { version, mode, domain, password, pruning } | null }
 ios.cdpNeighbors() → { enabled, neighbors: [...] }   ios.interfaces() → { interfaces: [...] }   ios.ping(ipv4, { repeat })
 ios.eraseAndReload({ backup, verifyBackup, facts }) → { hostname, kind, vlanDat, register, answered, warnings }
+// iosReplay.js
 toReplayScript(config, { vlans, vtp, facts, rsaModulus }) → { script, dropped, vlans, lineTimeouts }
 comparableConfig(config) → text                     // snapshot vs live, volatile lines removed
 checkBackupProof(proof) → { ok, kind, hostname }

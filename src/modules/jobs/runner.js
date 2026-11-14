@@ -40,7 +40,8 @@
  * each device's outcome): the bench history reads the audit trail.
  */
 import { newId } from '../../lib/db/values.js';
-import { CiscoIos, TIMEOUTS, toReplayScript, comparableConfig } from '../../lib/drivers/ciscoIos.js';
+import { CiscoIos, TIMEOUTS } from '../../lib/drivers/ciscoIos.js';
+import { toReplayScript, comparableConfig } from '../../lib/drivers/iosReplay.js';
 import { patterns, screenTail, escapeRe } from '../../lib/cliAutomation.js';
 import { comparable, compareConfigs } from './library.js';
 import { sha256 } from './configFiles.js';

@@ -7,7 +7,7 @@
  */
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import { comparableConfig, toReplayScript } from '../src/lib/drivers/ciscoIos.js';
+import { comparableConfig, toReplayScript } from '../src/lib/drivers/iosReplay.js';
 import { roundTrip, volatile } from './helpers/ios.js';
 
 describe('router round trips', { concurrency: true }, () => {

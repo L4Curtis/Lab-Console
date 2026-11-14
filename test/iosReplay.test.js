@@ -10,7 +10,8 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { toReplayScript, comparableConfig, parseVlanBrief } from '../src/lib/drivers/ciscoIos.js';
+import { parseVlanBrief } from '../src/lib/drivers/iosParse.js';
+import { toReplayScript, comparableConfig } from '../src/lib/drivers/iosReplay.js';
 import { parseScript } from '../src/lib/cliAutomation.js';
 
 const dir = path.join(path.dirname(fileURLToPath(import.meta.url)), 'fixtures', 'ios');
