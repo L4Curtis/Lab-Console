@@ -70,7 +70,7 @@ test('a multi-line paste is paced by the server and reaches every line; a specta
 
   // Several lines: handed to the server, shown as a task, run line by line
   await paste(pane, `${CONFIG}\n`);
-  await taskBar(pane).filter({ hasText: /Lignes envoyées : 13 sur 13/ }).waitFor();
+  await taskBar(pane).filter({ hasText: /Lignes envoyées\u00a0: 13 sur 13/ }).waitFor();
   await waitForTerminal(pane, /PASTED#/);
   const device = h.lab.device('10.22.9.211:2013');
   assert.equal(device.cfg.hostname, 'PASTED');
@@ -154,7 +154,7 @@ test('the same lines go to every console the person holds the keyboard of, each 
   assert.equal(await results.count(), 2);
   for (const name of ['R1', 'R2']) {
     const row = results.filter({ hasText: new RegExp(`^${name}`) });
-    assert.match(await row.textContent(), /Lignes envoyées : 2 sur 2/);
+    assert.match(await row.textContent(), /Lignes envoyées\u00a0: 2 sur 2/);
   }
   await waitForTerminal(first, /^Serial0\/0\/1 +unassigned.*\nR1>$/m);
   await waitForTerminal(second, /^Serial0\/0\/1 +unassigned.*\nR2>$/m);
@@ -216,7 +216,7 @@ test('the inject dialog takes a script from the library and keeps one in it; som
 
   // And it runs on the console
   await inject.locator('button[type="submit"]').click();
-  await taskBar(pane).filter({ hasText: /Lignes envoyées : 7 sur 7/ }).waitFor();
+  await taskBar(pane).filter({ hasText: /Lignes envoyées\u00a0: 7 sur 7/ }).waitFor();
   assert.equal(h.lab.device('10.22.9.211:2015').cfg.hostname, 'LIBRARY');
 
   // The section's own button manages the library: she deletes her script

@@ -73,7 +73,7 @@
   border-radius: var(--radius); box-shadow: var(--shadow); font-size: 13px; color: var(--ink-2);
 }
 .journal-notice > .icon { color: var(--console); flex: none; }
-.journal-notice p { margin: 0; flex: 1; }
+.journal-notice p { margin: 0; flex: 1; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
 
 /* ── The live panel ───────────────────────────────────────────────────── */
 .live-btn { position: relative; }
@@ -140,7 +140,6 @@
 @media (max-width: 700px) {
   /* In the flow, above the diagram, and short: the page's own controls stay reachable */
   .journal-notice { position: static; margin: 8px 14px 0; }
-  .journal-notice p { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
 }
 
 /* Until the diagram is there (loading, failed, no bench at all) its controls have nothing to act on */

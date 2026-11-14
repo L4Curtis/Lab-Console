@@ -83,7 +83,7 @@ test('the local administrator: user name, password and code, then the applicatio
   await page.fill('#local-code', await h.adminCode());
   await page.click('#local-submit');
   await page.waitForSelector('#local-error:visible');
-  assert.equal(await page.textContent('#local-error'), 'Connexion refusée. Vérifiez l\'identifiant, le mot de passe et, pour l\'administrateur du serveur, le code.',
+  assert.equal(await page.textContent('#local-error'), 'Connexion refusée. Vérifiez l’identifiant, le mot de passe et, pour l’administrateur du serveur, le code.',
     'one generic message, in the page language (the server default is French)');
   assert.equal(await page.inputValue('#local-password'), '', 'the password field is emptied');
 

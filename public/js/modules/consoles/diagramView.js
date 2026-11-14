@@ -47,6 +47,9 @@ const GLYPHS = {
 // What a device's state says (consoles.state.<state>)
 const stateText = (state) => t(`consoles.state.${state}`);
 
+/** Below this width of the diagram pane, the title and the buttons over its corner leave less room than the diagram needs */
+const NARROW = 900;
+
 export class DiagramView {
   #lab = null;
   #k = 1; #tx = 0; #ty = 0;
@@ -56,8 +59,10 @@ export class DiagramView {
   #layers = new Map(); // name → (device) => decoration | null
   #stop = []; // what destroy() undoes: listeners on module-wide registries, the resize observer
 
-  constructor(container, { onOpen }) {
+  /** `insets()` → { top, bottom }: the height of what is drawn over the canvas (the lab's title and buttons, the journal notice), so that a narrow diagram is not fitted under it */
+  constructor(container, { onOpen, insets = () => ({}) }) {
     this.onOpen = onOpen;
+    this.insets = insets;
     this.el = container;
     this.svg = svg('svg', { class: 'diagram-svg', role: 'img' });
     this.viewport = svg('g', { class: 'viewport' });
@@ -309,14 +314,20 @@ export class DiagramView {
 
   // ── Pan & zoom ───────────────────────────────────────────────────────────
 
+  /** Fit again unless the person has zoomed or panned on their own */
+  refit() { if (this.#autoFit) this.fit(); }
+
   fit(force = false) {
     if (!this.#lab) return;
     if (force) this.#autoFit = true;
     const { width, height } = this.el.getBoundingClientRect();
     if (!width || !height) return;
     const b = this.#lab.bounds;
-    const k = Math.min(width / b.w, height / b.h, 1.6);
-    this.#set(k, (width - b.w * k) / 2 - b.x * k, (height - b.h * k) / 2 - b.y * k);
+    // In a narrow pane the title would cover the devices at the top: fit the diagram in what is left under it
+    const { top = 0, bottom = 0 } = width < NARROW ? this.insets() : {};
+    const room = Math.max(height - top - bottom, height / 3);
+    const k = Math.min(width / b.w, room / b.h, 1.6);
+    this.#set(k, (width - b.w * k) / 2 - b.x * k, top + (room - b.h * k) / 2 - b.y * k);
   }
 
   zoomBy(factor, cx, cy) {

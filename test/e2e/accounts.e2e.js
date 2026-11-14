@@ -99,7 +99,7 @@ test('a promoted account registers a passkey at its next sign-in, then signs in 
   await passwordSignIn(page, 'yann');
   // The password was right, but it is not enough: a passkey first
   await page.waitForSelector('#login-step:not([hidden])');
-  assert.equal(await page.textContent('#step-title'), "Enregistrez une clé d'accès");
+  assert.equal(await page.textContent('#step-title'), 'Enregistrez une clé d’accès');
   assert.equal(await page.locator('#login-local').isHidden(), true);
   await page.click('#step-button');
   await waitForApp(page);
@@ -144,7 +144,7 @@ test('a promoted account registers a passkey at its next sign-in, then signs in 
   await signOut(page);
   await passwordSignIn(page, 'yann');
   await page.waitForSelector('#login-step:not([hidden])');
-  assert.equal(await page.textContent('#step-title'), 'Confirmez avec votre clé d\'accès');
+  assert.equal(await page.textContent('#step-title'), 'Confirmez avec votre clé d’accès');
   await page.click('#step-button');
   await waitForApp(page);
   const methods = (await h.app.deps.audit.query({ action: 'auth.login' })).filter((e) => e.actor.id === 'local:yann').map((e) => e.details.method);

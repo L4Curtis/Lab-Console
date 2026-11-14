@@ -389,7 +389,7 @@ test('language switch: the FR / EN buttons in the rail change the visible texts 
     title: document.querySelector('section.view-consoles .view-title h1').textContent,
   }));
   // The sections, then the notification bell (lot collab) next to the theme, outside the sections
-  assert.deepEqual(await texts(), { rail: ['Accueil', 'Consoles', 'Vue d’ensemble', 'Équipe', 'Infra', 'Administration', 'Sauvegardes', 'État du labo', 'Aide'], theme: 'Thème', bell: 'Alertes', title: 'Consoles du labo' });
+  assert.deepEqual(await texts(), { rail: ['Accueil', 'Consoles', 'Vue d’ensemble', 'Équipe', 'Infra', 'Admin', 'Sauvegardes', 'État du labo', 'Aide'], theme: 'Thème', bell: 'Alertes', title: 'Consoles du labo' });
   const before = await texts();
   await setLanguage(page, 'en');
   assert.equal(await page.getAttribute('.lang-btn[data-lang="en"]', 'aria-pressed'), 'true');

@@ -74,7 +74,16 @@ export async function mount(el, { navigate }) {
   el.append(head);
   const benchBar = mountBenchBar(el); // who holds the bench on screen (lot teams)
   const split = new SplitView(el, diagramPane, { labelKey: 'consoles.topology', onResize: () => diagram.fit() });
-  const diagram = new DiagramView(canvas, { onOpen: (d) => openDevice(d) });
+  const diagram = new DiagramView(canvas, {
+    onOpen: (d) => openDevice(d),
+    insets: () => {
+      const box = canvas.getBoundingClientRect();
+      return {
+        top: Math.max(0, heading.getBoundingClientRect().bottom - box.top + 8),
+        bottom: Math.max(0, ...[journalNotice, diagram.controls].filter((over) => !over.hidden).map((over) => box.bottom - over.getBoundingClientRect().top + 8)),
+      };
+    },
+  });
   benchBar.decorate(diagram);
   workspace.addEventListener('change', () => refreshStates());
 
@@ -175,10 +184,11 @@ export async function mount(el, { navigate }) {
     if (retentionDays === null || prefs.get('journalNoticeSeen', false)) { journalNotice.hidden = true; return; }
     journalNotice.replaceChildren(
       icon('script'),
-      h('p', t('consoles.journal.notice', { days: retentionDays })),
+      h('p', { title: t('consoles.journal.notice', { days: retentionDays }) }, t('consoles.journal.notice', { days: retentionDays })),
       h('button.btn.small.subtle', { type: 'button', onclick: () => openJournalDialog() }, tNode('consoles.journal.button')),
-      h('button.icon-btn', { type: 'button', ...tAttr('title', 'consoles.journal.dismiss'), onclick: () => { prefs.set('journalNoticeSeen', true); journalNotice.hidden = true; } }, icon('close')));
+      h('button.icon-btn', { type: 'button', ...tAttr('title', 'consoles.journal.dismiss'), onclick: () => { prefs.set('journalNoticeSeen', true); journalNotice.hidden = true; diagram.refit(); } }, icon('close')));
     journalNotice.hidden = false;
+    diagram.refit();
   }
 
   // ── Consoles ──────────────────────────────────────────────────────────────

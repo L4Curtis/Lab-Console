@@ -126,7 +126,7 @@ test('the overview shows both teams\' benches to both, moves when one of them fr
   await showHome(alice);
   const backup = home(alice).locator('[data-panel="backups"] li', { hasText: 'Avant le TP noté' });
   await backup.waitFor({ timeout: 90_000 });
-  assert.match(await backup.textContent(), /B4M · 1 appareil · Alice Martin/);
+  assert.match(await backup.textContent(), /B4M · 1 équipement · Alice Martin/);
   await home(alice).locator('[data-panel="activity"] li', { hasText: 'Alice Martin a ouvert la console de R1' }).waitFor();
 
   // A ZIP imported, then deleted: the list follows, nothing else moves on the page
