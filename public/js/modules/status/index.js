@@ -12,6 +12,7 @@ import { t, has, tNode, tError, loadNamespace, onLocaleChange } from '../../core
 import { session } from '../../core/session.js';
 import { mountTabs } from '../../shared/tabs.js';
 import { fmtLong } from '../../core/format.js';
+import { loading, loadFailure } from '../../shared/loadState.js';
 
 export async function mount(el, { navigate }) {
   await Promise.all([loadNamespace('admin', 'accounts'), loadCss('accounts'), loadCss('admin')]);
@@ -31,7 +32,7 @@ function mountHealth(el) {
   const details = h('div.health-details');
   const meta = h('p.muted.small-note');
   const refresh = h('button.btn', { type: 'button', dataset: { action: 'refresh' }, hidden: !session.isAdmin }, icon('refresh'), h('span.lbl'));
-  const notice = h('p.form-error', { role: 'alert' });
+  const notice = h('div');
   el.append(h('div.panel', h('p.muted.panel-intro', { dataset: { text: 'intro' } }), h('div.panel-toolbar', meta, refresh), notice, cards, details));
   let data = null;
 
@@ -74,11 +75,13 @@ function mountHealth(el) {
 
   async function load(fresh = false) {
     refresh.disabled = true;
+    if (!data) cards.replaceChildren(loading());
     try {
       data = await getJson(`/api/admin/health${fresh ? '?fresh=1' : ''}`);
-      notice.textContent = '';
+      notice.replaceChildren();
     } catch (err) {
-      notice.textContent = err.message;
+      if (!data) cards.replaceChildren();
+      notice.replaceChildren(loadFailure('admin.status.loadFailed', err, () => load(fresh)));
     } finally {
       refresh.disabled = false;
     }
@@ -113,7 +116,8 @@ function mountJournaling(el) {
       block('never'));
   }
   async function load() {
-    try { data = await getJson('/api/admin/journaling'); } catch (err) { list.replaceChildren(h('p.form-error', err.message)); return; }
+    if (!data) list.replaceChildren(loading());
+    try { data = await getJson('/api/admin/journaling'); } catch (err) { list.replaceChildren(loadFailure('admin.journaling.loadFailed', err, load)); return; }
     render();
   }
   onLocaleChange(render);

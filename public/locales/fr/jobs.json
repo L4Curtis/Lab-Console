@@ -348,5 +348,6 @@
     "snapshot_download": "{who} a téléchargé une sauvegarde",
     "snapshot_delete": "{who} a supprimé une sauvegarde",
     "folder_download": "{who} a téléchargé le dossier de TP"
-  }
+  },
+  "loadFailed": "Impossible de charger les sauvegardes et les tâches de la baie."
 }

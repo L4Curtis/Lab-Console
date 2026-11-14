@@ -348,5 +348,6 @@
     "snapshot_download": "{who} downloaded a backup",
     "snapshot_delete": "{who} deleted a backup",
     "folder_download": "{who} downloaded the lab folder"
-  }
+  },
+  "loadFailed": "Could not load this bench’s backups and tasks."
 }

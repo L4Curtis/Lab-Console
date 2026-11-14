@@ -142,3 +142,7 @@
   .journal-notice { position: static; margin: 8px 14px 0; }
   .journal-notice p { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
 }
+
+/* Until the diagram is there (loading, failed, no bench at all) its controls have nothing to act on */
+.diagram-pane:not([data-state="ready"]) :is(.canvas-heading > .btn, .zoom-controls, .notes-btn) { display: none; }
+.canvas-hint .btn { pointer-events: auto; margin-left: 4px; }

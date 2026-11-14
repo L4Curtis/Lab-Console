@@ -92,3 +92,5 @@ textarea.jobs-code { width: 100%; box-sizing: border-box; white-space: pre; }
 @media (max-width: 720px) {
   .jobs-search-form .field { width: 100%; }
 }
+
+.jobs-view.failed > .panel { display: none; }

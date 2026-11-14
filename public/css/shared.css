@@ -19,3 +19,8 @@
 
 /* Text for assistive technology only (an actions column header, a skip link target) */
 .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+
+/* A section's data is on its way, or could not be read (shared/loadState.js) */
+.load-state { margin: 24px 20px; }
+.load-failure { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 20px; padding: 12px 14px; border: 1px solid var(--danger-ink); border-radius: var(--radius); background: color-mix(in srgb, var(--led-red) 8%, var(--surface)); color: var(--ink); }
+.load-failure p { margin: 0; }

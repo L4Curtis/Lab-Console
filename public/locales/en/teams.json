@@ -1,7 +1,7 @@
 {
   "title": "Team",
   "subtitle": "Your lab group: the bench, the bookings and the backups belong to the team",
-  "loadFailed": "Teams could not be loaded. Reload the page.",
+  "loadFailed": "Could not load the teams.",
   "tabs": {
     "mine": "My team",
     "calendar": "Bookings",

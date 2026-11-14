@@ -53,7 +53,8 @@
     },
     "settings": {
       "invalid": "Some values are not valid."
-    }
+    },
+    "network": "Cannot reach the server: check your connection."
   },
   "announcement": {
     "hide": "Hide the announcement"
@@ -66,5 +67,6 @@
     "text": "The requested address does not exist on this platform.",
     "home": "Back to home",
     "pageTitle": "Page not found · Lab Console"
-  }
+  },
+  "loading": "Loading…"
 }

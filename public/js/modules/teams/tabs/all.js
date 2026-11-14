@@ -4,7 +4,8 @@
  * anyone else, whatever this screen shows
  */
 import { h, icon } from '../../../core/dom.js';
-import { live, request, callOrToast } from '../../../core/api.js';
+import { live, request, getJson, callOrToast } from '../../../core/api.js';
+import { loadFailure } from '../../../shared/loadState.js';
 import { t, onLocaleChange } from '../../../core/i18n.js';
 import { confirmDialog, formDialog } from '../../../shared/dialog.js';
 import { teamUrl, onBenches } from '../data.js';
@@ -13,14 +14,19 @@ export function mount(el) {
   const body = h('tbody');
   const table = h('table.vm-table.team-table', h('thead', h('tr', h('th'), h('th'), h('th'), h('th'))), body);
   const head = table.querySelector('tr');
-  el.append(h('div.panel', h('div.table-wrap', table)));
+  const failure = h('div');
+  el.append(h('div.panel', failure, h('div.table-wrap', table)));
   let teams = [];
   let benches = new Map();
   let visible = false;
 
   async function load() {
-    const data = await callOrToast('GET', '/api/teams', undefined, { quiet: true });
-    teams = data?.teams ?? [];
+    try {
+      teams = (await getJson('/api/teams')).teams ?? [];
+      failure.replaceChildren();
+    } catch (err) {
+      failure.replaceChildren(loadFailure('teams.loadFailed', err, load));
+    }
     render();
   }
 

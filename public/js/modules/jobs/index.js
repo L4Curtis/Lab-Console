@@ -20,6 +20,7 @@
  */
 import { h, icon, toast, loadCss } from '../../core/dom.js';
 import { getJson, live, callOrToast } from '../../core/api.js';
+import { loading, loadFailure } from '../../shared/loadState.js';
 import { t, tNode, loadNamespace, onLocaleChange } from '../../core/i18n.js';
 import { session } from '../../core/session.js';
 import { confirmDialog } from '../../shared/dialog.js';
@@ -43,6 +44,8 @@ export async function mount(el, { navigate }) {
   let lastBackup = null;    // the snapshot a backup of this page just made: offered as a ZIP
   let visible = false;
   let tick = null;
+  let retryStart = null;
+  let failure = null;       // why the bench's page could not be read, shown with a retry button
 
   // ── Layout ────────────────────────────────────────────────────────────────
   const picker = h('select.field.jobs-bench', { 'aria-label': t('jobs.bench'), onchange: () => select(picker.value) });
@@ -58,7 +61,8 @@ export async function mount(el, { navigate }) {
   const importTemplateInput = h('input', { type: 'file', accept: '.zip,application/zip', hidden: true, onchange: () => importTemplateZip() });
   const tplList = h('div.jobs-templates');
   const histList = h('ol.jobs-history');
-  const body = h('div.jobs-view', h('div.panel',
+  const failureBox = h('div.jobs-failure');
+  const body = h('div.jobs-view', failureBox, h('div.panel',
     notice, actions, running, download,
     h('section', h('div.jobs-section-head', h('h2', tNode('jobs.snapshots.title')),
       h('form.jobs-search-form', { onsubmit: (e) => { e.preventDefault(); search(); } }, searchBox, h('button.btn.small', { type: 'submit' }, icon('search'), tNode('jobs.snapshots.search'))),
@@ -70,11 +74,12 @@ export async function mount(el, { navigate }) {
         h('button.btn.small', { type: 'button', dataset: { action: 'import-template' }, onclick: () => importTemplateInput.click() }, icon('upload'), tNode('jobs.templates.import')), importTemplateInput) : null), tplList),
     h('section', h('h2', tNode('jobs.history.title')), histList)));
   el.append(head, body);
+  failureBox.replaceChildren(loading());
 
   // ── Data ──────────────────────────────────────────────────────────────────
 
   async function loadBenches() {
-    const labs = await getJson('/api/consoles/labs').catch(() => ({ labs: [] }));
+    const labs = await getJson('/api/consoles/labs');
     benches = labs.labs.map((l) => l.name);
     picker.replaceChildren(...benches.map((b) => h('option', { value: b }, b)));
   }
@@ -82,13 +87,22 @@ export async function mount(el, { navigate }) {
   async function load() {
     if (!bench) return;
     const name = bench;
-    const [d, s, tp, runs] = await Promise.all([
-      callOrToast('GET', benchApi(name)),
-      getJson(`/api/jobs/snapshots?bench=${encodeURIComponent(name)}`).catch(() => ({ snapshots: [] })),
-      getJson('/api/jobs/templates').catch(() => ({ templates: [] })),
-      getJson(`/api/jobs/runs?bench=${encodeURIComponent(name)}`).catch(() => ({ jobs: [] })),
-    ]);
+    let d; let s; let tp; let runs;
+    try {
+      [d, s, tp, runs] = await Promise.all([
+        getJson(benchApi(name)),
+        getJson(`/api/jobs/snapshots?bench=${encodeURIComponent(name)}`),
+        getJson('/api/jobs/templates'),
+        getJson(`/api/jobs/runs?bench=${encodeURIComponent(name)}`),
+      ]);
+    } catch (err) {
+      if (name === bench) { failure = err; renderFailure(); }
+      return;
+    }
     if (name !== bench) return;
+    failure = null;
+    failureBox.replaceChildren();
+    body.classList.remove('failed');
     detail = d;
     snapshots = s.snapshots;
     templates = tp.templates;
@@ -188,6 +202,18 @@ export async function mount(el, { navigate }) {
   // ── Rendering ─────────────────────────────────────────────────────────────
 
   const button = (action, label, onclick, { cls = '', disabled = false, iconName = null } = {}) => h(`button.btn.small${cls}`, { type: 'button', dataset: { action }, onclick, disabled }, iconName ? icon(iconName) : null, label);
+
+  /** The bench's page could not be read: a message and a retry, in place of the empty headings */
+  function renderFailure() {
+    body.classList.add('failed');
+    failureBox.replaceChildren(loadFailure('jobs.loadFailed', failure, () => retry()));
+  }
+
+  function retry() {
+    if (!bench) return retryStart();
+    failureBox.replaceChildren(loading());
+    return load();
+  }
 
   function render() {
     if (!detail) return;
@@ -328,11 +354,19 @@ export async function mount(el, { navigate }) {
     return mine?.bench ?? benches[0];
   }
 
-  await loadBenches();
+  /** The list of benches, then the page of one; a failure of either shows the message with its retry */
+  async function start(name, action) {
+    if (!benches.length) {
+      try { await loadBenches(); } catch (err) { failure = err; renderFailure(); return; }
+    }
+    await select(name && benches.includes(name) ? name : bench ?? await defaultBench(), action ?? null);
+  }
+  retryStart = () => { failureBox.replaceChildren(loading()); return start(null, null); };
+
   return {
     async show([name, action] = []) {
       visible = true;
-      await select(name && benches.includes(name) ? name : bench ?? await defaultBench(), action ?? null);
+      await start(name, action ?? null);
     },
     hide() { visible = false; },
   };

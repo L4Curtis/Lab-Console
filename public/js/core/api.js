@@ -1,5 +1,5 @@
 /** HTTP + live-event access to the backend. */
-import { tError } from './i18n.js';
+import { t, tError } from './i18n.js';
 import { toast } from './dom.js';
 
 let leaving = false;
@@ -19,16 +19,28 @@ export async function getJson(url) {
  * know it, else the server's own sentence (kept in `serverMessage`).
  * A Blob or File body is sent as it is, with `type` as its Content-Type
  * (an upload: `request('POST', url, file, { type: 'application/zip' })`).
+ * A server that cannot be reached throws an error with code 'network'.
  */
 export async function request(method, url, body, { type } = {}) {
   const raw = body instanceof Blob;
   const contentType = raw ? (type ?? (body.type || 'application/octet-stream')) : 'application/json';
-  const res = await fetch(url, {
-    method,
-    headers: { Accept: 'application/json', ...(body !== undefined ? { 'Content-Type': contentType } : {}) },
-    body: body === undefined ? undefined : raw ? body : JSON.stringify(body),
-    credentials: 'same-origin',
-  });
+  let res;
+  try {
+    res = await fetch(url, {
+      method,
+      headers: { Accept: 'application/json', ...(body !== undefined ? { 'Content-Type': contentType } : {}) },
+      body: body === undefined ? undefined : raw ? body : JSON.stringify(body),
+      credentials: 'same-origin',
+    });
+  } catch (cause) {
+    // The browser says "Failed to fetch" (in English) for an unreachable server: say it in the user's language
+    const err = new Error(t('common.errors.network'), { cause });
+    err.code = 'network';
+    err.status = 0;
+    err.params = {};
+    err.serverMessage = err.message;
+    throw err;
+  }
   let data = null;
   try { data = await res.json(); } catch { /* empty or non-JSON body */ }
   if (!res.ok) {

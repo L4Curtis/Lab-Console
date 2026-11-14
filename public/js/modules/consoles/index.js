@@ -15,7 +15,7 @@ import { t, tNode, tAttr, loadNamespace, onLocaleChange } from '../../core/i18n.
 import { workspace } from '../../shared/workspace.js';
 import { SplitView } from '../../shared/splitView.js';
 import { consoleSession } from '../../shared/sessions.js';
-import { serverText } from '../../shared/serverText.js';
+import { serverText, errorText } from '../../shared/serverText.js';
 import { DiagramView } from './diagramView.js';
 import { LabPicker } from './labPicker.js';
 import { QuickOpen } from './quickOpen.js';
@@ -52,7 +52,7 @@ export async function mount(el, { navigate }) {
     h('button.find-btn', { type: 'button', onclick: () => quick.open() }, icon('search'), tNode('consoles.find'), h('kbd', 'Ctrl K'))));
 
   const labTitle = h('h2.canvas-title');
-  const labHint = h('p.canvas-hint');
+  const labHint = h('p.canvas-hint', tNode('common.loading'));
   const wallBtn = h('button.btn.small.wall-btn', { type: 'button', hidden: true, onclick: () => current && openBenchWall(current, { onOpen: (d) => openDevice(d) }) }, icon('grid'), tNode('consoles.wall.button'));
   const notesBtn = h('button.notes-btn', { type: 'button', hidden: true, onclick: () => notes.toggleAttribute('hidden') }, icon('warning'));
   const notes = h('div.notes-pop', { hidden: true });
@@ -61,7 +61,7 @@ export async function mount(el, { navigate }) {
   const livePanel = new LivePanel({ onOpen: (r) => openSummary(r) });
   // The notes and the chat of the bench (lot collab) share the side of the diagram with the live panel: one at a time
   const heading = h('div.canvas-heading', labTitle, labHint, wallBtn);
-  const diagramPane = h('div.diagram-pane', journalNotice, heading, canvas, notesBtn, notes, livePanel.el);
+  const diagramPane = h('div.diagram-pane', { dataset: { state: 'loading' } }, journalNotice, heading, canvas, notesBtn, notes, livePanel.el);
   const group = mountBenchPanel({ host: diagramPane });
   heading.append(group.button,
     // Line status, cabling, ping matrix, addresses of the bench on screen (lot checks)
@@ -124,6 +124,7 @@ export async function mount(el, { navigate }) {
       const data = await getJson('/api/consoles/labs');
       version = data.version;
       loadError = null;
+      diagramPane.dataset.state = 'ready';
       labs = data.labs;
       knowDevices(labs);
       retentionDays = data.journal?.retentionDays ?? null;
@@ -133,16 +134,18 @@ export async function mount(el, { navigate }) {
       renderNotes(data.warnings);
       const keep = labs.find((l) => l.id === current?.id || l.name === pendingLabName) || labs.find((l) => l.name === prefs.get('lab')) || labs[0];
       if (keep) selectLab(keep, true);
-      else labTitle.textContent = t('consoles.noLabs');
+      else { diagramPane.dataset.state = 'empty'; labTitle.textContent = t('consoles.noLabs'); }
     } catch (err) {
-      loadError = err.message;
+      loadError = err;
+      diagramPane.dataset.state = 'failed';
       writeLoadError();
     }
   }
 
   function writeLoadError() {
     labTitle.textContent = t('consoles.loadFailed');
-    labHint.textContent = t('consoles.loadFailedHint', { error: loadError });
+    labHint.replaceChildren(`${errorText(loadError)} ${t('consoles.loadFailedHint')} `,
+      h('button.btn.small', { type: 'button', dataset: { action: 'retry' }, onclick: () => { labHint.textContent = t('common.loading'); loadLabs(); } }, t('common.actions.retry')));
   }
 
   function selectLab(lab, force = false) {

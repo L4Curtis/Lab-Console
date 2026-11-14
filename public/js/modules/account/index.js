@@ -12,6 +12,7 @@
  */
 import { h, icon, toast, loadCss } from '../../core/dom.js';
 import { request, getJson } from '../../core/api.js';
+import { loading, loadFailure } from '../../shared/loadState.js';
 import { t, tNode, loadNamespace, onLocaleChange } from '../../core/i18n.js';
 import { session } from '../../core/session.js';
 import { confirmDialog, formDialog } from '../../shared/dialog.js';
@@ -26,10 +27,11 @@ export async function mount(el) {
   let me = null;
 
   async function load() {
+    if (!me) body.replaceChildren(loading());
     try {
       me = await getJson('/api/accounts/me');
     } catch (err) {
-      body.replaceChildren(h('p.form-error', { role: 'alert' }, err.message));
+      body.replaceChildren(loadFailure('accounts.me.loadFailed', err, load));
       return;
     }
     render();

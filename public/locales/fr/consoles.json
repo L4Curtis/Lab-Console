@@ -4,8 +4,8 @@
   "find": "Trouver un équipement",
   "topology": "Topologie",
   "noLabs": "Aucune baie trouvée dans le fichier de schéma",
-  "loadFailed": "Impossible de charger le schéma",
-  "loadFailedHint": "{error}. Vérifiez que la plateforme tourne, puis rechargez la page.",
+  "loadFailed": "Impossible de charger le schéma.",
+  "loadFailedHint": "Vérifiez que la plateforme tourne, puis réessayez.",
   "hint": {
     "one": "{count} équipement. Cliquez dessus pour ouvrir sa console.",
     "other": "{count} équipements. Cliquez sur l’un d’eux pour ouvrir sa console."

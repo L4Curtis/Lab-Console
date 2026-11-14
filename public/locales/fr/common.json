@@ -53,7 +53,8 @@
     },
     "settings": {
       "invalid": "Certaines valeurs ne sont pas valides."
-    }
+    },
+    "network": "Impossible de joindre le serveur : vérifiez votre connexion."
   },
   "announcement": {
     "hide": "Masquer l’annonce"
@@ -66,5 +67,6 @@
     "text": "L’adresse demandée n’existe pas sur cette plateforme.",
     "home": "Retour à l’accueil",
     "pageTitle": "Page introuvable · Lab Console"
-  }
+  },
+  "loading": "Chargement…"
 }

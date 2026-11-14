@@ -259,7 +259,8 @@
     "ended": {
       "one": "{count} session fermée.",
       "other": "{count} sessions fermées."
-    }
+    },
+    "loadFailed": "Impossible de lire votre compte."
   },
   "errors": {
     "link_invalid": "Ce lien n’est pas valable : il a peut-être expiré, déjà servi ou été retiré. Demandez-en un nouveau.",

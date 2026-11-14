@@ -4,7 +4,8 @@
  * with invite / rename / leave
  */
 import { h, icon, toast } from '../../../core/dom.js';
-import { live, request, callOrToast } from '../../../core/api.js';
+import { live, request, getJson, callOrToast } from '../../../core/api.js';
+import { loading, loadFailure } from '../../../shared/loadState.js';
 import { t, onLocaleChange } from '../../../core/i18n.js';
 import { session } from '../../../core/session.js';
 import { confirmDialog, formDialog } from '../../../shared/dialog.js';
@@ -18,14 +19,21 @@ export function mount(el) {
   let slots = [];
   let benches = new Map();
   let visible = false;
+  let failure = null;
 
   async function load() {
-    const [teams, resv] = await Promise.all([
-      callOrToast('GET', '/api/teams', undefined, { quiet: true }),
-      callOrToast('GET', `/api/benches/reservations?from=${new Date().toISOString()}`, undefined, { quiet: true }),
-    ]);
-    data = teams;
-    slots = resv?.reservations ?? [];
+    if (!data) root.replaceChildren(loading());
+    try {
+      const [teams, resv] = await Promise.all([
+        getJson('/api/teams'),
+        getJson(`/api/benches/reservations?from=${new Date().toISOString()}`),
+      ]);
+      data = teams;
+      slots = resv.reservations ?? [];
+      failure = null;
+    } catch (err) {
+      failure = err;
+    }
     render();
   }
 
@@ -33,7 +41,7 @@ export function mount(el) {
   live.on('teams:invitation', () => visible && load());
   live.on('benches:reservations', () => visible && load());
   onBenches((all) => { benches = all; if (data) render(); });
-  onLocaleChange(() => data && render());
+  onLocaleChange(() => render());
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
@@ -89,7 +97,7 @@ export function mount(el) {
   // ── Rendering ─────────────────────────────────────────────────────────────
 
   function render() {
-    if (!data) { root.replaceChildren(h('p.muted', t('teams.loadFailed'))); return; }
+    if (!data) { root.replaceChildren(failure ? loadFailure('teams.loadFailed', failure, load) : loading()); return; }
     root.replaceChildren(invitations(), data.mine ? myTeam(data.mine) : createForm());
   }
 
