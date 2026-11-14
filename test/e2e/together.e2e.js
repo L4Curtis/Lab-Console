@@ -91,7 +91,7 @@ test('a locked bench refuses to open its consoles, a line it shares with a free 
   await deviceTile(bilal, first.name).click();
   await toastWith(bilal, 'verrouill').waitFor();
   assert.equal(await bilal.locator('article.pane.pane-console').count(), 0, 'no console opened');
-  assert.equal(await socketAnswer(bilal, first.key), 'consoles.open_not_allowed');
+  assert.equal(await socketAnswer(bilal, first.key), 'consoles.open_locked');
 
   // R5 of B5H is the same console line as R5 of B4B, a free bench: the lock still closes it
   const labs = h.app.deps.services.consoles.registry.model.labs;
@@ -101,7 +101,7 @@ test('a locked bench refuses to open its consoles, a line it shares with a free 
   await deviceTile(bilal, 'R5').click();
   await toastWith(bilal, 'verrouill').first().waitFor();
   assert.equal(await bilal.locator('article.pane.pane-console').count(), 0, 'no console opened');
-  assert.equal(await socketAnswer(bilal, shared.key), 'consoles.open_not_allowed', 'the server refuses the shared line too');
+  assert.equal(await socketAnswer(bilal, shared.key), 'consoles.open_locked', 'the server refuses the shared line too');
 
   assert.equal(await socketAnswer(ada, first.key), 'open', 'admins work on locked benches');
   assert.equal(await socketAnswer(ada, shared.key), 'open');
