@@ -304,6 +304,8 @@ test('notifications: the bell, then a request for the keyboard, a free line and 
   const r2 = { device: 'R2', bench: 'B4M', key: deviceKey('B4M', 'R2'), target: lineOf('B4M', 'R2') };
   const s1 = { device: 'S1', bench: 'B4M', key: deviceKey('B4M', 'S1'), target: lineOf('B4M', 'S1') };
   events.toUser(aliceId, 'consoles:free', { ...r2, state: 'free' });   // in front: nothing
+  // The page shows a toast for it: once it has, the event is handled while she was still in front
+  await alice.locator('.toast', { hasText: 'R2' }).waitFor();
   await lookAway(alice, true);
   events.toUser(aliceId, 'consoles:free', { ...r2, state: 'expired' }); // giving up is not news worth a notification
   events.toUser(aliceId, 'consoles:free', { ...s1, state: 'free' });
