@@ -253,7 +253,7 @@ describe('signed in: the application behaves as upstream', () => {
   });
 
   test('every module received the platform services, and the registry is shared', () => {
-    assert.deepEqual(Object.keys(lab.deps).sort(), ['audit', 'auth', 'config', 'diagrams', 'events', 'infra', 'logger', 'repos', 'services', 'settings', 'store']);
+    assert.deepEqual(Object.keys(lab.deps).sort(), ['assets', 'audit', 'auth', 'config', 'diagrams', 'events', 'infra', 'logger', 'repos', 'services', 'settings', 'store']);
     assert.equal(lab.deps.db, undefined, 'modules reach the database through repositories only');
     assert.equal(typeof lab.deps.services.consoles.registry.getDevice, 'function');
     assert.equal(typeof lab.deps.services.consoles.rooms.open, 'function');

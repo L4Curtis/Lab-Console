@@ -542,7 +542,7 @@ describe('sign-out and the login page', () => {
     assert.equal(res.headers.get('cache-control'), 'no-store');
     assert.equal(res.headers.get('x-powered-by'), null);
     const html = await res.text();
-    assert.match(html, /<script type="module" src="\/js\/login.js">/);
+    assert.match(html, new RegExp(`<script type="module" src="${lab.assets.prefix}/js/login.js">`), 'the script of this release');
     assert.match(html, /id="local-form"/);
     assert.match(html, /id="login-extra"/, 'room for a passkey button');
     const script = await fetch(`${lab.url}/js/login.js`);

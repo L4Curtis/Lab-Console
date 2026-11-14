@@ -181,6 +181,40 @@ describe('route walk: nothing is served to an anonymous client outside the allow
     }
   });
 
+  test('under the versioned prefix, every file of public/ keeps the access rule of its plain address', async () => {
+    // src/lib/assets.js: /v/<build id>/x is x with another cache header, never another way in
+    const isPublicFile = (rel) => /^(?:css|locales|js\/core)\//.test(rel) || ['js/login.js', 'js/join.js'].includes(rel);
+    const files = [];
+    const walk = (dir) => {
+      for (const entry of fs.readdirSync(path.join(repoRoot, 'public', dir), { withFileTypes: true })) {
+        const rel = `${dir}/${entry.name}`;
+        if (entry.isDirectory()) walk(rel);
+        else files.push(rel);
+      }
+    };
+    for (const dir of ['js', 'css', 'locales']) walk(dir);
+    const { headers } = lab.signIn('student1');
+    let gated = 0;
+    for (const rel of files) {
+      const p = `${lab.assets.prefix}/${rel}`;
+      const plain = await fetch(`${lab.url}/${rel}`, { redirect: 'manual' });
+      const anonymous = await fetch(lab.url + p, { redirect: 'manual' });
+      assert.equal(anonymous.status, plain.status, `${p}: same answer as /${rel}`);
+      if (isPublicFile(rel)) {
+        assert.equal(anonymous.status, 200, p);
+      } else {
+        gated++;
+        assert.equal(anonymous.status, 302, p);
+        assert.match(anonymous.headers.get('location'), /^\/login\?next=/, p);
+      }
+      await Promise.all([plain.arrayBuffer(), anonymous.arrayBuffer()]);
+      const signed = await fetch(lab.url + p, { headers });
+      assert.equal(signed.status, 200, `${p} (signed in)`);
+      await signed.arrayBuffer();
+    }
+    assert.ok(gated >= 50, `only ${gated} gated files found`);
+  });
+
   test('each of the three WebSocket endpoints refuses an anonymous client, and a forged cookie', async () => {
     const upgrade = (p, headers = {}) => new Promise((resolve, reject) => {
       const ws = new WebSocket(lab.wsUrl + p, { headers: { origin: lab.url, ...headers } });

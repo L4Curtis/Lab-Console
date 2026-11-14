@@ -42,9 +42,9 @@
  * The gate itself (requireAuth, requireRole) is gate.js
  */
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { sendError } from '../../lib/httpError.js';
+import { appAssets } from '../../lib/assets.js';
 import { requireSameOrigin, clientIp } from '../../lib/security.js';
 import { requireAuth, requireRole } from './gate.js';
 import { oidcRoutes } from './oidcRoutes.js';
@@ -63,18 +63,18 @@ import { normalizeOidcSettings, isInsecureIssuer } from './oidcSettings.js';
 export { createUser, hasRole, ROLES } from './user.js';
 export { requireAuth, requireRole };
 
-const publicDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'public');
 
 /** The OIDC settings an administrator may see: everything but the secret */
 const visibleSettings = ({ clientSecret, ...rest }) => ({ ...rest, hasClientSecret: Boolean(clientSecret) });
 
 /**
  * deps: { config, logger, events, repos, audit } from the platform (repos:
- * createRepositories(db), of which it uses `sessions` and `authState`); `now`
+ * createRepositories(db), of which it uses `sessions` and `authState`;
+ * assets: the front end, src/lib/assets.js, for the sign-in page); `now`
  * is a test seam (a clock). Rejects when there is no local administrator or
  * no PUBLIC_URL: the platform must not start without a way to sign in
  */
-export async function createAuth({ config, logger, events, repos, audit, services = {}, now = Date.now }) {
+export async function createAuth({ config, logger, events, repos, audit, services = {}, assets = appAssets(), now = Date.now }) {
   const log = logger ?? { info() {}, warn() {}, error() {} };
   const settings = config.auth;
   if (!settings?.localAdmin?.username || !settings.localAdmin.passwordHash || !settings.localAdmin.totpSecret) {
@@ -175,9 +175,9 @@ export async function createAuth({ config, logger, events, repos, audit, service
 
   router.get('/login', (req, res) => {
     if (sessions.peek(tokenOf(req))) return res.redirect(302, safeReturnPath(req.query.next));
-    res.sendFile(path.join(publicDir, 'login.html'));
+    assets.sendPage(res, 'login.html');
   });
-  router.get('/js/login.js', (_req, res) => res.sendFile(path.join(publicDir, 'js', 'login.js')));
+  router.get('/js/login.js', (_req, res) => res.sendFile(path.join(assets.dir, 'js', 'login.js')));
 
   // What the browser may know about its own session; never anything secret.
   // Reading it is not activity: a forgotten tab must not keep a session alive

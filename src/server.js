@@ -26,11 +26,11 @@ import { openDatabase, createRepositories, importLegacyFiles } from './lib/db/in
 import { createAudit } from './lib/audit.js';
 import { createSettings } from './lib/settings.js';
 import { HttpError, errorBody, sendError } from './lib/httpError.js';
+import { appAssets } from './lib/assets.js';
 import { createAuth } from './modules/auth/index.js';
 import { createModules } from './modules/index.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const publicDir = path.join(root, 'public');
 
 /** File name of the database inside DATA_DIR */
 export const DATABASE_FILE = 'lab-console.db';
@@ -40,7 +40,7 @@ export const DATABASE_FILE = 'lab-console.db';
  * database is open and migrated, and the files of the time before it are
  * imported, before anything that reads its state is created
  */
-async function createPlatform({ config, logger, makeAuth, makeModules, trust }) {
+async function createPlatform({ config, logger, makeAuth, makeModules, trust, assets }) {
   const store = createStore(config.dataDir, { logger: logger('store') });
   const db = await openDatabase({ file: store.resolve(DATABASE_FILE), logger: logger('db') });
   try {
@@ -53,8 +53,8 @@ async function createPlatform({ config, logger, makeAuth, makeModules, trust }) 
     // The active diagram lives in the data directory (seeded from DIAGRAM_PATH on the first start)
     const diagrams = await createDiagrams({ config, store, repos, logger: logger('diagrams') });
     const services = {};
-    const auth = await makeAuth({ config, logger: logger('auth'), events, store, repos, audit, services });
-    const deps = { config, logger: logger('app'), events, infra, store, repos, audit, auth, settings, diagrams, services };
+    const auth = await makeAuth({ config, logger: logger('auth'), events, store, repos, audit, services, assets });
+    const deps = { config, logger: logger('app'), events, infra, store, repos, audit, auth, settings, diagrams, services, assets };
     let modules = [];
     try {
       modules = makeModules(deps);
@@ -79,14 +79,17 @@ async function createPlatform({ config, logger, makeAuth, makeModules, trust }) 
  *   logger   optional replacement for createLogger, e.g. a silent one in tests
  *   createAuth, createModules   test seams: another identity (see
  *            test/helpers/fakes.js) or another module list, in the real pipeline
- * Resolves to { app, server, modules, deps, db, listen(), close() } once the
- * database is ready; rejects (with nothing left open) when it cannot be
+ *   assets   the front end (src/lib/assets.js): public/ read once, its build id
+ *            and its pages; a test seam too (another directory)
+ * Resolves to { app, server, modules, deps, db, assets, listen(), close() } once
+ * the database is ready; rejects (with nothing left open) when it cannot be
  */
-export async function createApp({ config, logger = createLogger, createAuth: makeAuth = createAuth, createModules: makeModules = createModules } = {}) {
+export async function createApp({ config, logger = createLogger, createAuth: makeAuth = createAuth, createModules: makeModules = createModules, assets = appAssets() } = {}) {
   if (!config) throw new TypeError('createApp needs a config');
   const log = logger('server');
   const trust = proxyTrust(config.server);
-  const { store, db, events, auth, deps, modules } = await createPlatform({ config, logger, makeAuth, makeModules, trust });
+  const { store, db, events, auth, deps, modules } = await createPlatform({ config, logger, makeAuth, makeModules, trust, assets });
+  const publicDir = assets.dir;
 
   const app = express();
   app.disable('x-powered-by');
@@ -95,12 +98,13 @@ export async function createApp({ config, logger = createLogger, createAuth: mak
 
   // ── 1. Security headers on every response ──────────────────────────────────
   app.use(securityHeaders({ https: config.server.publicUrl?.startsWith('https://') ?? false }));
-  // Every file of the application itself, whoever serves it (static folders, the login and
-  // sign-up scripts): see `revalidate` below. Express's sendFile keeps a header set before it
-  app.use((req, res, next) => {
-    if (!req.path.startsWith('/vendor/') && /\.(?:m?js|css|json|html)$/.test(req.path)) res.setHeader('Cache-Control', 'private, no-cache');
-    next();
-  });
+  // The application's own files, whoever serves them (static folders, the login and sign-up
+  // scripts). Versioned addresses (/v/<build id>/js/main.js) are rewritten here to the plain
+  // one and kept for a year; any other id is a 404. Plain addresses are revalidated on every
+  // load (`private, no-cache`; Express's sendFile and static keep a header set before them).
+  // Both are `private`: Cloudflare rewrites a public max-age into hours of browser caching,
+  // but leaves a private response alone. Why and how: src/lib/assets.js
+  app.use(assets.middleware);
 
   // ── 2. Public static assets: what the login page needs, nothing more ───────
   // Self-hosted front-end dependencies (works on isolated lab networks)
@@ -112,14 +116,9 @@ export async function createApp({ config, logger = createLogger, createAuth: mak
   app.use('/vendor/simplewebauthn', vendor(path.join('@simplewebauthn', 'browser', 'esm')));
   app.use('/vendor/fonts/plex-sans', vendor('@fontsource/ibm-plex-sans'));
   app.use('/vendor/fonts/plex-mono', vendor('@fontsource/ibm-plex-mono'));
-  // fallthrough off: a missing public asset is a 404, never a redirect to the login page
-  // The application's own files change with every release, and they import one another: a
-  // browser holding yesterday's dom.js with today's join.js breaks the page. `no-cache` makes
-  // it revalidate each file (a 304 when nothing changed). `private` matters behind a CDN:
-  // Cloudflare rewrites max-age=0 and even no-cache into hours of browser caching (its
-  // Browser Cache TTL), but leaves a private response alone
-  const revalidate = { cacheControl: false, setHeaders: (res) => res.setHeader('Cache-Control', 'private, no-cache') };
-  const publicAssets = (dir) => express.static(path.join(publicDir, dir), { index: false, fallthrough: false, ...revalidate });
+  // fallthrough off: a missing public asset is a 404, never a redirect to the login page.
+  // Their Cache-Control was set by assets.middleware above
+  const publicAssets = (dir) => express.static(path.join(publicDir, dir), { index: false, fallthrough: false, cacheControl: false });
   app.use('/css', publicAssets('css'));
   app.use('/locales', publicAssets('locales'));
   app.use('/js/core', publicAssets(path.join('js', 'core')));
@@ -139,7 +138,13 @@ export async function createApp({ config, logger = createLogger, createAuth: mak
   app.use(requireSameOrigin(config.server.allowedOrigins));
 
   // ── 7. App shell and the rest of the front end ─────────────────────────────
-  app.use(express.static(publicDir, { index: 'index.html', ...revalidate }));
+  // The pages come from memory, their scripts and stylesheets pointing at the versioned prefix
+  app.get(['/', '/:page'], (req, res, next) => {
+    const name = req.params.page ?? 'index.html';
+    if (!assets.hasPage(name)) return next();
+    assets.sendPage(res, name);
+  });
+  app.use(express.static(publicDir, { index: false, cacheControl: false }));
 
   // ── 8. API ─────────────────────────────────────────────────────────────────
   app.get('/api/events', events.handler);
@@ -151,7 +156,7 @@ export async function createApp({ config, logger = createLogger, createAuth: mak
   app.use('/api', (_req, res) => sendError(res, 404, 'server.not_found', 'Not found'));
   // Any other address: a page for a browser, the JSON error for anything else
   app.use((req, res) => {
-    if (req.method === 'GET' && req.accepts(['html', 'json']) === 'html') return res.status(404).sendFile(path.join(publicDir, '404.html'));
+    if (req.method === 'GET' && req.accepts(['html', 'json']) === 'html') return assets.sendPage(res, '404.html', 404);
     sendError(res, 404, 'server.not_found', 'Not found');
   });
   app.use((err, _req, res, _next) => {
@@ -223,7 +228,7 @@ export async function createApp({ config, logger = createLogger, createAuth: mak
     return closing;
   }
 
-  return { app, server, modules, deps, db, listen, close };
+  return { app, server, modules, deps, db, assets, listen, close };
 }
 
 // ── Process entry point ──────────────────────────────────────────────────────

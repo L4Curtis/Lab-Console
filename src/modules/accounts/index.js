@@ -24,6 +24,7 @@ import express from 'express';
 import { readCookie, serializeCookie, clearCookie, appendCookie } from '../auth/cookies.js';
 import { SCRYPT_DEFAULTS } from '../auth/password.js';
 import { clientIp } from '../../lib/security.js';
+import { appAssets } from '../../lib/assets.js';
 import { createRefusalAudit } from '../auth/refusals.js';
 import { createDirectory, environmentAccount } from './directory.js';
 import { createLinks } from './links.js';
@@ -49,7 +50,7 @@ function createMutex() {
  * parameters, a test seam: tests use the cheapest the platform accepts),
  * now (a clock), fetchOptions (the SSO test's guarded fetch, a test seam)
  */
-export function createAccountsModule({ config, logger, events, repos, audit, auth, services }, { passwordCost = SCRYPT_DEFAULTS, now = Date.now, fetchOptions } = {}) {
+export function createAccountsModule({ config, logger, events, repos, audit, auth, services, assets = appAssets() }, { passwordCost = SCRYPT_DEFAULTS, now = Date.now, fetchOptions } = {}) {
   const log = logger?.child ? logger.child('accounts') : logger ?? { info() {}, warn() {}, error() {} };
   const publicUrl = config.server.publicUrl;
   const directory = createDirectory({ repos, envAdminName: config.auth.localAdmin.username, now, passwordCost, logger: log });
@@ -82,7 +83,7 @@ export function createAccountsModule({ config, logger, events, repos, audit, aut
   const changed = (what) => events?.toAdmins('accounts:changed', { what, at: now() });
 
   const ctx = {
-    config, log, audit, auth, events, services, directory, links, sso, rp, ceremony, refusals, changed, now, passwordCost,
+    config, log, audit, auth, events, services, assets, directory, links, sso, rp, ceremony, refusals, changed, now, passwordCost,
     exclusive: createMutex(),
     linkUrl: (kind, token) => `${publicUrl}/${kind === 'reset' ? 'reset' : 'join'}#${token}`,
   };

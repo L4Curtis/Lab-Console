@@ -19,7 +19,6 @@
  * yet, so the address is the only key there is) and the sign-up per link
  */
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import express from 'express';
 import { jsonBody } from '../../lib/bodies.js';
 import { sendError } from '../../lib/httpError.js';
@@ -33,7 +32,6 @@ import {
 } from './passkeys.js';
 import { isAdmin } from '../auth/roles.js';
 
-const publicDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..', '..', 'public');
 const WINDOW = 15 * 60_000;
 /** Passkey requests per client address and minute: one-click sign-in (options and verify together), and the step after a password */
 export const PASSKEY_LIMITS = Object.freeze({ oneClick: 120, step: 30, windowMs: 60_000 });
@@ -81,7 +79,7 @@ export const defaultPasskeyName = (req) => {
 };
 
 export function publicRoutes(ctx) {
-  const { config, auth, audit, directory, links, rp, ceremony, refusals, changed, exclusive, passwordCost, log } = ctx;
+  const { config, auth, audit, directory, links, rp, ceremony, refusals, changed, exclusive, passwordCost, log, assets } = ctx;
   const router = express.Router();
   const sameOrigin = requireSameOrigin(config.server.allowedOrigins);
   const small = jsonBody('4kb');
@@ -114,10 +112,10 @@ export function publicRoutes(ctx) {
     return sendError(res, 404, 'accounts.link_invalid', 'This link is not valid: it may have expired, been used or been withdrawn');
   }
 
-  const page = (_req, res) => res.sendFile(path.join(publicDir, 'join.html'));
+  const page = (_req, res) => assets.sendPage(res, 'join.html');
   router.get('/join', noStore, page);
   router.get('/reset', noStore, page);
-  router.get('/js/join.js', (_req, res) => res.sendFile(path.join(publicDir, 'js', 'join.js')));
+  router.get('/js/join.js', (_req, res) => res.sendFile(path.join(assets.dir, 'js', 'join.js')));
 
   // ── Invitations ────────────────────────────────────────────────────────────
   router.post('/auth/invitation', sameOrigin, small, limited(linkAttempts, WINDOW), (req, res) => {
