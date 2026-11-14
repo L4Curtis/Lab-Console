@@ -77,7 +77,7 @@ test('the families and their steps', () => {
 });
 
 test('ISR G1 (2811) locked by a console line password: BREAK, confreg 0x2142, factory prompt, 0x2102 for the next boot', async () => {
-  const r = rig({ model: '2811', start: 'linepass', linePassword: 'unknown-pw', hostname: 'R1-2001' });
+  const r = rig({ model: '2811', start: 'linepass', linePassword: 'unknown-pw', hostname: 'R1-3001' });
   try {
     const { look, plan, results } = await recover(r, 'isr_g1');
     assert.equal(look.state, 'password');
@@ -93,7 +93,7 @@ test('ISR G1 (2811) locked by a console line password: BREAK, confreg 0x2142, fa
     assert.equal(r.dev.cfg.hostname, 'Router');
     assert.equal(r.dev.confReg, '0x2142');
     assert.equal(r.dev.nextConfReg, '0x2102');
-    assert.equal(r.dev.startup.hostname, 'R1-2001');
+    assert.equal(r.dev.startup.hostname, 'R1-3001');
     assert.ok(r.dev.startup.blocks.find((b) => b.head === 'line con 0').lines.includes('password unknown-pw'));
     const typed = typedLines(r);
     assert.ok(typed.includes('confreg 0x2142') && typed.includes('reset') && typed.includes('config-register 0x2102'), typed.join(' | '));
@@ -118,21 +118,21 @@ test('the 1841 left at 0x2141 at its initial dialog: no power cycle, dialog answ
 });
 
 test('ISR 4331 (IOS XE) locked by an enable secret: BREAK during its long boot, PnP, Router#', async () => {
-  const r = rig({ model: 'isr4331', start: 'exec', enableSecret: 'lost-secret', hostname: 'R1-2012' });
+  const r = rig({ model: 'isr4331', start: 'exec', enableSecret: 'lost-secret', hostname: 'R1-3012' });
   try {
     const { results } = await recover(r, 'isr4300');
     assert.ok(allOk(results), JSON.stringify(results, null, 1));
     assert.equal(r.dev.mode, '#');
     assert.equal(r.dev.cfg.hostname, 'Router');
     assert.equal(r.dev.nextConfReg, '0x2102');
-    assert.equal(r.dev.startup.hostname, 'R1-2012');
+    assert.equal(r.dev.startup.hostname, 'R1-3012');
     assert.ok(!typedLines(r).some((l) => DESTRUCTIVE.test(l)));
   } finally { r.done(); }
 });
 
 for (const [model, family] of [['2960', 'catalyst'], ['3560', 'catalyst'], ['3560v2', 'catalyst'], ['c1000', 'c1000']]) {
   test(`${model}: Mode button, flash_init, config.text parked, Switch#, config.text put back`, async () => {
-    const r = rig({ model, start: 'linepass', linePassword: 'unknown-pw', hostname: 'S1-2004' });
+    const r = rig({ model, start: 'linepass', linePassword: 'unknown-pw', hostname: 'S1-3004' });
     try {
       const { plan, results } = await recover(r, family, { mode: true });
       assert.deepEqual(plan, ['power_cycle', 'flash_init', 'park_config', 'boot', 'restore_config']);
@@ -142,7 +142,7 @@ for (const [model, family] of [['2960', 'catalyst'], ['3560', 'catalyst'], ['356
       assert.equal(r.dev.mode, '#');
       assert.equal(r.dev.cfg.hostname, 'Switch');
       assert.equal(r.dev.parked, null);
-      assert.equal(r.dev.startup.hostname, 'S1-2004', 'flash:config.text is back, untouched');
+      assert.equal(r.dev.startup.hostname, 'S1-3004', 'flash:config.text is back, untouched');
       const typed = typedLines(r);
       assert.ok(typed.includes('flash_init') && typed.includes(`rename flash:config.text flash:${PARKED_NAME}`) && typed.includes(`rename flash:${PARKED_NAME} flash:config.text`), typed.join(' | '));
       assert.ok(!typed.some((l) => DESTRUCTIVE.test(l)), typed.join(' | '));
@@ -152,14 +152,14 @@ for (const [model, family] of [['2960', 'catalyst'], ['3560', 'catalyst'], ['356
 }
 
 test('Catalyst 9300L: Mode button, SWITCH_IGNORE_STARTUP_CFG=1, Switch#, startup-config used again next time', async () => {
-  const r = rig({ model: 'c9300l', start: 'exec', enableSecret: 'lost', hostname: 'SW1-2005' });
+  const r = rig({ model: 'c9300l', start: 'exec', enableSecret: 'lost', hostname: 'SW1-3005' });
   try {
     const { results } = await recover(r, 'c9300l', { mode: true });
     assert.ok(allOk(results), JSON.stringify(results, null, 1));
     assert.equal(r.dev.cfg.hostname, 'Switch');
     assert.equal(r.dev.mode, '#');
     assert.equal(r.dev.romvars.SWITCH_IGNORE_STARTUP_CFG, '0');
-    assert.equal(r.dev.startup.hostname, 'SW1-2005');
+    assert.equal(r.dev.startup.hostname, 'SW1-3005');
     assert.ok(!typedLines(r).some((l) => DESTRUCTIVE.test(l)));
   } finally { r.done(); }
 });
@@ -294,7 +294,7 @@ test('cancelled in the middle of the BREAKs: the step stops with the engine\'s c
 });
 
 test('9300L: the ignore flag read back with show romvar; accepted but not cleared is ignore_not_cleared', async () => {
-  const r = rig({ model: 'c9300l', start: 'exec', enableSecret: 'lost', hostname: 'SW1-2005', ignoreFlagSticks: true });
+  const r = rig({ model: 'c9300l', start: 'exec', enableSecret: 'lost', hostname: 'SW1-3005', ignoreFlagSticks: true });
   try {
     const { results } = await recover(r, 'c9300l', { mode: true });
     assert.ok(results.boot.ok, JSON.stringify(results.boot));
@@ -330,26 +330,26 @@ async function stopAfter(r, family, last, { mode = false, boot = true } = {}) {
 const bootedOwn = (dev, host) => ['linepass', 'exec', 'pressreturn', 'idle'].includes(dev.state) && !dev.inBoot && dev.cfg.hostname === host;
 
 test('put back a router stopped after confreg: confreg 0x2102, reset, its own startup-config again', async () => {
-  const r = rig({ model: '2811', start: 'linepass', linePassword: 'pw', hostname: 'R1-2001' });
+  const r = rig({ model: '2811', start: 'linepass', linePassword: 'pw', hostname: 'R1-3001' });
   try {
     const { putBack } = await stopAfter(r, 'isr_g1', 'confreg');
     assert.ok(putBack.ok, JSON.stringify(putBack));
     assert.equal(putBack.booted, true);
     assert.equal(r.dev.confReg, '0x2102');
-    assert.ok(bootedOwn(r.dev, 'R1-2001'), `${r.dev.state} ${r.dev.cfg.hostname}`);
+    assert.ok(bootedOwn(r.dev, 'R1-3001'), `${r.dev.state} ${r.dev.cfg.hostname}`);
     assert.ok(typedLines(r).includes('confreg 0x2102'));
     assert.ok(!typedLines(r).some((l) => DESTRUCTIVE.test(l)));
   } finally { r.done(); }
 });
 
 test('put back a router stopped after boot (Router>, 0x2142): config-register 0x2102, checked', async () => {
-  const r = rig({ model: '2811', start: 'linepass', linePassword: 'pw', hostname: 'R1-2001' });
+  const r = rig({ model: '2811', start: 'linepass', linePassword: 'pw', hostname: 'R1-3001' });
   try {
     const { putBack } = await stopAfter(r, 'isr_g1', 'boot');
     assert.ok(putBack.ok, JSON.stringify(putBack));
     assert.equal(r.dev.confReg, '0x2142', 'running as booted');
     assert.equal(r.dev.nextConfReg, '0x2102', 'its next boot reads the startup-config');
-    assert.equal(r.dev.startup.hostname, 'R1-2001');
+    assert.equal(r.dev.startup.hostname, 'R1-3001');
     // A second recovery from Router> resumes at restore_register, no power cycle
     assert.deepEqual(planFrom('isr_g1', { state: 'user', host: 'Router' }, { bypassed: 'register' }), ['restore_register']);
   } finally { r.done(); }
@@ -381,12 +381,12 @@ test('put back a classic switch stopped after boot (Switch>): config.text rename
 });
 
 test('put back a 9300L stopped after ignore_startup: SWITCH_IGNORE_STARTUP_CFG=0, booted with its startup-config', async () => {
-  const r = rig({ model: 'c9300l', start: 'exec', enableSecret: 'lost', hostname: 'SW1-2005' });
+  const r = rig({ model: 'c9300l', start: 'exec', enableSecret: 'lost', hostname: 'SW1-3005' });
   try {
     const { putBack } = await stopAfter(r, 'c9300l', 'ignore_startup', { mode: true });
     assert.ok(putBack.ok, JSON.stringify(putBack));
     assert.equal(r.dev.romvars.SWITCH_IGNORE_STARTUP_CFG, '0');
-    assert.ok(bootedOwn(r.dev, 'SW1-2005'), `${r.dev.state} ${r.dev.cfg.hostname}`);
+    assert.ok(bootedOwn(r.dev, 'SW1-3005'), `${r.dev.state} ${r.dev.cfg.hostname}`);
   } finally { r.done(); }
 });
 
@@ -402,7 +402,7 @@ test('put back without booting (server stopping): the register only, the router 
 });
 
 test('put back that cannot: the restore refused names what is left (left_ignore)', async () => {
-  const r = rig({ model: 'c9300l', start: 'exec', enableSecret: 'lost', hostname: 'SW1-2005', ignoreFlagSticks: true });
+  const r = rig({ model: 'c9300l', start: 'exec', enableSecret: 'lost', hostname: 'SW1-3005', ignoreFlagSticks: true });
   try {
     const { putBack } = await stopAfter(r, 'c9300l', 'boot', { mode: true });
     assert.equal(putBack.reason, 'recovery.left_ignore', JSON.stringify(putBack));

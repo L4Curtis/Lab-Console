@@ -23,7 +23,7 @@ const MODELS = {
   R1: { model: '2811', start: 'linepass', linePassword: 'left-by-a-group', ...SLOW },
   R2: { model: 'isr4331', enableSecret: 'lost', ...SLOW },
   S1: { model: '3560', start: 'linepass', linePassword: 'left-by-a-group', ...SLOW },
-  S2: { model: 'c9300l', enableSecret: 'lost', hostname: 'SW1-2005' },
+  S2: { model: 'c9300l', enableSecret: 'lost', hostname: 'SW1-3005' },
   R3: { model: '1841', start: 'privileged', hostname: 'R3-2005', ...SLOW },
   R4: { model: '2801', start: 'linepass', linePassword: 'left-by-a-group', hostname: 'R4-2009', ...SLOW },
   R5: { model: '2811', start: 'linepass', linePassword: 'left-by-a-group', hostname: 'R5-2008', ...SLOW },
