@@ -60,6 +60,10 @@
       "title": "{device} est libre",
       "body": "La ligne de {device} (baie {bench}) est libre : vous pouvez l’ouvrir."
     },
+    "open": {
+      "title": "{device} est ouverte",
+      "body": "La console de {device} (baie {bench}) est ouverte dans Lab Console : vous pouvez la rejoindre."
+    },
     "job": {
       "titleOk": "Tâche terminée sur {bench}",
       "titleFailed": "Tâche en échec sur {bench}",

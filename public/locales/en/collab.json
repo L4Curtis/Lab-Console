@@ -60,6 +60,10 @@
       "title": "{device} is free",
       "body": "The line of {device} (bench {bench}) is free: you can open it."
     },
+    "open": {
+      "title": "{device} is open",
+      "body": "The console of {device} (bench {bench}) is open in Lab Console: you can join it."
+    },
     "job": {
       "titleOk": "Job finished on {bench}",
       "titleFailed": "Job failed on {bench}",

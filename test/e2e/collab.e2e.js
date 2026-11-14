@@ -6,8 +6,8 @@
  *   - the chat of a bench between two members of a team, closed to the others,
  *     shown as text
  *   - the notifications: turned on with the bell, shown only when the window
- *     is not the one looked at, for a request for the keyboard, a free line
- *     and a finished job of the person's own bench
+ *     is not the one looked at, for a request for the keyboard, a line that is
+ *     free or can be joined, and a finished job of the person's own bench
  * Each scenario makes the team and the bench it needs and gives them back
  */
 import { test, afterEach } from 'node:test';
@@ -217,6 +217,25 @@ test('the chat of a bench: two members talk, a newcomer is left out, markup stay
   await message(ada, 'Pensez à sauvegarder').waitFor({ state: 'detached' });
   await message(bilal, 'Pensez à sauvegarder').waitFor({ state: 'detached' });
 
+  // The unread count is the one of the bench on screen, and a message taken down leaves it
+  await view(ada).locator('.collab-btn').click();
+  await panel(ada).waitFor({ state: 'hidden' });
+  const adaBadge = view(ada).locator('.collab-btn .live-badge');
+  await say(alice, 'Un de plus');
+  await adaBadge.waitFor({ state: 'visible' });
+  assert.equal(await adaBadge.textContent(), '1');
+  const thread = (await api(ada, 'GET', '/api/collab/chat/B4M')).body.messages;
+  const extra = thread.find((m) => m.text === 'Un de plus');
+  assert.equal((await api(ada, 'DELETE', `/api/collab/chat/B4M/${extra.id}`)).status, 200);
+  await adaBadge.waitFor({ state: 'hidden' });
+  await say(alice, 'Encore un');
+  await adaBadge.waitFor({ state: 'visible' });
+  await showBench(ada, 'B4H');
+  await adaBadge.waitFor({ state: 'hidden' }); // B4H has its own count: nothing was said there
+  await showBench(ada, 'B4M');
+  await adaBadge.waitFor({ state: 'visible' });
+  assert.equal(await adaBadge.textContent(), '1');
+
   for (const page of [alice, bilal, chloe, ada]) assert.deepEqual(page.errors, [], 'no page error');
 });
 
@@ -286,13 +305,19 @@ test('notifications: the bell, then a request for the keyboard, a free line and 
   const s1 = { device: 'S1', bench: 'B4M', key: deviceKey('B4M', 'S1'), target: lineOf('B4M', 'S1') };
   events.toUser(aliceId, 'consoles:free', { ...r2, state: 'free' });   // in front: nothing
   await lookAway(alice, true);
-  events.toUser(aliceId, 'consoles:free', { ...r2, state: 'open' });   // not "free": nothing
+  events.toUser(aliceId, 'consoles:free', { ...r2, state: 'expired' }); // giving up is not news worth a notification
   events.toUser(aliceId, 'consoles:free', { ...s1, state: 'free' });
   await waitForTag(alice, `free:${s1.target}`);
-  assert.equal((await tagsOf(alice)).includes(`free:${r2.target}`), false, 'looking at the page, no notification');
+  assert.equal((await tagsOf(alice)).includes(`free:${r2.target}`), false, 'looking at the page, or expired: no notification');
   const free = (await shown(alice)).find((n) => n.tag === `free:${s1.target}`);
   assert.equal(free.title, 'S1 est libre');
   assert.equal(free.body, 'La ligne de S1 (baie B4M) est libre : vous pouvez l’ouvrir.');
+  // The line was opened in the app by someone else: it can be joined, which ends the watch just as well
+  events.toUser(aliceId, 'consoles:free', { ...r2, state: 'open' });
+  await waitForTag(alice, `free:${r2.target}`);
+  const joinable = (await shown(alice)).find((n) => n.tag === `free:${r2.target}`);
+  assert.equal(joinable.title, 'R2 est ouverte');
+  assert.equal(joinable.body, 'La console de R2 (baie B4M) est ouverte dans Lab Console : vous pouvez la rejoindre.');
 
   // 3. a job of her bench is over; a job of another bench is not hers
   const bench = (name) => (u) => h.app.deps.services.benches.isOccupant(u, name);

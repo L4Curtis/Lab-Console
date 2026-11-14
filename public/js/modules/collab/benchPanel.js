@@ -13,8 +13,9 @@
  * read); it belongs to the team that holds the bench, so it is empty for a
  * bench nobody holds and for a person who does not work on it. Messages
  * arrive over the SSE topic 'collab:chat', which the server sends to the
- * bench's occupants and the admins only. The button counts the messages that
- * came while the panel was shut. A message is shown as text, whatever it says
+ * bench's occupants and the admins only. The button counts, for the bench on
+ * screen, the messages that came while the panel was shut. A message is shown
+ * as text, whatever it says
  */
 import { h, icon } from '../../core/dom.js';
 import { getJson, request, live } from '../../core/api.js';
@@ -32,7 +33,7 @@ export function mountBenchPanel({ host }) {
   let chatFor = null;    // the bench `messages` belong to
   let canPost = false;
   let maxChars = 500;
-  let unread = 0;
+  const unread = new Map(); // bench → ids of the messages that arrived unseen (a removed message leaves the count)
 
   // ── Elements ──────────────────────────────────────────────────────────────
   const badge = h('span.live-badge', { hidden: true });
@@ -69,7 +70,7 @@ export function mountBenchPanel({ host }) {
     el.dispatchEvent(new Event('toggle'));
     button.setAttribute('aria-pressed', String(on));
     if (on) {
-      unread = 0;
+      unread.delete(bench());
       showBadge();
       loadChat();
       if (!form.hidden) field.focus();
@@ -77,9 +78,10 @@ export function mountBenchPanel({ host }) {
   }
 
   function showBadge() {
-    badge.hidden = unread === 0;
-    badge.textContent = String(unread);
-    badge.title = t('collab.chat.unread', { count: unread });
+    const count = unread.get(bench())?.size ?? 0; // only the bench on screen
+    badge.hidden = count === 0;
+    badge.textContent = String(count);
+    badge.title = t('collab.chat.unread', { count });
   }
 
   // ── Notes ─────────────────────────────────────────────────────────────────
@@ -172,12 +174,17 @@ export function mountBenchPanel({ host }) {
 
   live.on('collab:chat', (data) => {
     if (data.removed) {
+      if (unread.get(data.bench)?.delete(data.removed)) showBadge();
       if (data.bench === chatFor) { messages = messages.filter((m) => m.id !== data.removed); renderChat(); }
       return;
     }
     const mine = data.message.author.id === session.user?.id;
     if (data.bench === bench() && isOpen()) { add(data.message); return; }
-    if (!mine) { unread += 1; showBadge(); }
+    if (!mine) {
+      if (!unread.has(data.bench)) unread.set(data.bench, new Set());
+      unread.get(data.bench).add(data.message.id);
+      showBadge();
+    }
   });
 
   onNotes(renderNotes);
@@ -196,7 +203,8 @@ export function mountBenchPanel({ host }) {
       chatFor = null;
       renderNotes();
       renderChat();
-      if (isOpen()) { unread = 0; showBadge(); loadChat(); }
+      if (isOpen()) { unread.delete(bench()); loadChat(); }
+      showBadge();
     },
   };
 }

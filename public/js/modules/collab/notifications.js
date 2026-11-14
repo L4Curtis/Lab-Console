@@ -3,7 +3,7 @@
  * things you would miss while looking at another window
  *
  *   - someone asks for the keyboard of a console you pilot   (SSE consoles:activity + consoles:rooms)
- *   - a line you waited for is free                            (SSE consoles:free)
+ *   - a line you waited for is free or can be joined           (SSE consoles:free, state free | open)
  *   - a job finished on your bench                             (SSE jobs:done { bench, jobId, kind, ok })
  *
  * Nothing new travels from the server: these are events the page already
@@ -102,11 +102,13 @@ export function startNotifications() {
   });
 
   // "Tell me when it is free", answered
+  // 'free': nobody holds the line any more; 'open': someone opened it in the app, it can be joined.
+  // 'expired' (30 minutes without an answer) is not good news: the page says it, no notification
   live.on('consoles:free', (n) => {
-    if (n.state !== 'free') return;
+    if (n.state !== 'free' && n.state !== 'open') return;
     notify({
-      title: t('collab.notify.free.title', { device: n.device }),
-      body: t('collab.notify.free.body', { device: n.device, bench: n.bench }),
+      title: t(`collab.notify.${n.state}.title`, { device: n.device }),
+      body: t(`collab.notify.${n.state}.body`, { device: n.device, bench: n.bench }),
       tag: `free:${n.target}`,
       href: benchHref(n.bench),
     });
