@@ -2,14 +2,53 @@
 
 [English](README.md) · **Français**
 
-Accès par le navigateur au matériel physique du labo. Choisissez une baie,
-cliquez sur un routeur ou un commutateur de son schéma, et sa console s'ouvre
-dans un terminal à côté du schéma. Ouvrez-en plusieurs à la fois pour
-configurer des équipements côte à côte.
+Version 2.0.0. Accès par le navigateur au matériel physique du labo d'un cours
+de réseaux. Choisissez une baie, cliquez sur un routeur ou un commutateur de
+son schéma, et sa console s'ouvre dans un terminal à côté du schéma.
+Ouvrez-en plusieurs à la fois pour configurer des équipements côte à côte.
 
 ```
 Navigateur ──WebSocket──► Lab Console ──SSH (exec)──► serveur de rebond ──telnet──► serveur de consoles ──► équipement
 ```
+
+## Ce que fait l'application
+
+- **Consoles** : chaque équipement du schéma du labo s'ouvre comme une console
+  texte dans le navigateur. Une ligne de console appartient au serveur :
+  plusieurs personnes peuvent la rejoindre, une seule tape (le pilote), les
+  autres regardent, et le clavier se passe sur demande.
+- **Équipes et baies** : les étudiants forment des équipes, prennent une baie,
+  invitent des invités et réservent des créneaux. Une baie tenue par une
+  équipe n'est pilotée que par ses membres.
+- **Tâches de baie** : sauvegarde de tous les équipements d'une baie,
+  injection d'un script, remise à la configuration de base, comparaison de
+  sauvegardes ; modèles de TP publiés par les enseignants.
+- **Vérifications et récupération de mot de passe** : état des lignes,
+  câblage, matrice de ping et adresses des interfaces ; récupération guidée
+  d'un équipement verrouillé par un mot de passe.
+- **Travail en groupe** : une note par équipement, un chat par baie, une
+  bibliothèque de scripts, des notifications du navigateur, le journal des
+  consoles.
+- **Comptes et administration** : connexion unique par votre fournisseur
+  d'identité (OpenID Connect), comptes locaux par invitation, clés d'accès,
+  administrateur local obligatoire, journal d'audit, sessions, paramètres du
+  labo, versions du schéma, annonces, page d'état.
+- **Infrastructure** (administrateurs seulement) : commutateurs
+  d'administration et machines virtuelles Proxmox, joints par le serveur de
+  rebond.
+- Tout est en français et en anglais, et la page **Aide** de l'application
+  explique chaque section aux étudiants.
+
+## Documentation
+
+| Pour | Français | English |
+|---|---|---|
+| Étudiants et enseignants | [Guide étudiant](docs/fr/ETUDIANTS.md) | [Student guide](docs/STUDENTS.md) |
+| Mise en ligne (reverse proxy, HTTPS, sauvegardes) | [docs/fr/DEPLOY.md](docs/fr/DEPLOY.md) | [docs/DEPLOY.md](docs/DEPLOY.md) |
+| Connexion, SSO, administrateur local | [docs/fr/AUTH.md](docs/fr/AUTH.md) | [docs/v2/AUTH.md](docs/v2/AUTH.md) |
+| Tous les paramètres | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) (en anglais, générée depuis `.env.example`) | idem |
+| Ce qui a changé | [CHANGELOG.fr.md](CHANGELOG.fr.md) | [CHANGELOG.md](CHANGELOG.md) |
+| Développeurs | [docs/v2/ARCHITECTURE.md](docs/v2/ARCHITECTURE.md), [SPEC.md](docs/v2/SPEC.md), [TESTING.md](docs/v2/TESTING.md) (en anglais) | |
 
 ## Démarrage rapide (Docker)
 
@@ -20,17 +59,102 @@ npm run setup-admin         # affiche les trois lignes LOCAL_ADMIN_* : collez-le
 docker compose up -d --build
 ```
 
-Ouvrez http://localhost:3000.
+Ouvrez http://localhost:3000 et connectez-vous avec l'administrateur local
+(nom, mot de passe et code à 6 chiffres de votre application d'authentification).
+
+L'image Docker tourne avec `NODE_ENV=production`, qui exige
+`SSH_HOST_FINGERPRINT` (l'identité du serveur de rebond) : sans elle, aucune
+console ne se connecte. Obtenez-la avec
+`ssh-keyscan -t ed25519 <serveur de rebond> | ssh-keygen -lf -`. Avant de
+mettre l'application sur Internet, lisez [docs/fr/DEPLOY.md](docs/fr/DEPLOY.md).
 
 Sans Docker (Node.js 22.13 ou plus récent) :
 
 ```bash
 npm ci
+npm run setup-admin
 npm start
 ```
 
-Toutes les variables sont décrites, une ligne d'explication chacune, dans
-`.env.example`.
+### Démarrage rapide avec le labo simulé (Docker)
+
+Pas de labo sous la main ? `docker-compose.mock.yml` lance un faux serveur de
+rebond et de faux équipements à côté de l'application :
+
+```bash
+cp .env.example .env
+npm run setup-admin         # collez les trois lignes LOCAL_ADMIN_* dans .env
+# dans .env :  PUBLIC_URL=http://localhost:3000
+#              SSH_HOST=mock-lab  SSH_PORT=2222  SSH_USERNAME=lab  SSH_PASSWORD=lab
+#              TELNET_USERNAME=  TELNET_PASSWORD=
+docker compose -f docker-compose.yml -f docker-compose.mock.yml up -d --build
+```
+
+Les commentaires de `docker-compose.mock.yml` donnent les détails. C'est un
+outil de démonstration : la clé d'hôte du simulateur change à chaque démarrage,
+l'application y tourne donc avec `NODE_ENV=development` (pas d'épinglage de la
+clé d'hôte). Jamais avec de vrais comptes. (Ce fichier a été écrit sans moteur
+Docker : s'il échoue, lancez les deux programmes sur l'hôte comme décrit
+ci-dessous.)
+
+## Configuration
+
+Tout se règle par variables d'environnement, lues dans `.env` :
+[docs/CONFIGURATION.md](docs/CONFIGURATION.md) les liste toutes avec leur
+valeur par défaut et leur description (en anglais). Elle est générée depuis
+les commentaires de `.env.example` (`npm run gen-config-doc` ; un test échoue
+si les deux divergent). Les réglages qui comptent d'abord : `PUBLIC_URL`,
+`TRUSTED_PROXIES`, `LOCAL_ADMIN_*`, `SSH_*` avec `SSH_HOST_FINGERPRINT`,
+`TELNET_*`, `ALLOWED_CONSOLE_HOSTS`, `APP_SECRET`.
+
+## Passer de la v1 à la v2
+
+Lab Console 2 est une autre application pour le même usage : prévoyez une
+migration, pas un simple remplacement.
+
+- **La connexion est obligatoire.** La v1 n'en avait pas (elle comptait sur un
+  proxy devant). La v2 refuse de démarrer tant que `LOCAL_ADMIN_USERNAME`,
+  `LOCAL_ADMIN_PASSWORD_HASH` et `LOCAL_ADMIN_TOTP_SECRET` ne sont pas
+  renseignés : lancez `npm run setup-admin` et collez ses trois lignes dans
+  `.env`. Le fournisseur d'identité (`OIDC_*`) est facultatif.
+  `TRUST_PROXY=true` est refusé au démarrage : remplacez-le par
+  `TRUSTED_PROXIES` (listez chaque relais) et renseignez `PUBLIC_URL` (https
+  derrière un proxy).
+- **Il y a désormais un dossier de données.** La v1 ne conservait rien. La v2
+  garde son état dans `DATA_DIR` (`./data` par défaut ; `/data` dans l'image
+  Docker, volume nommé `lab-console-data` dans `docker-compose.yml`, le
+  système de fichiers racine étant en lecture seule) : la base SQLite
+  `lab-console.db` (comptes, équipes, sessions, journal d'audit, réglages,
+  tâches, notes…) et des fichiers (sauvegardes, modèles, journaux de
+  consoles, versions du schéma). Un dossier monté depuis l'hôte doit être
+  accessible en écriture à l'uid 1000. Sauvegardez-le : voir
+  [docs/fr/DEPLOY.md](docs/fr/DEPLOY.md).
+- **La base est créée au premier démarrage** et migrée toute seule aux
+  suivants. Les fichiers des premières versions de la v2 (`auth/*.json`,
+  `audit/*.jsonl`) sont importés une fois puis renommés `*.imported`. Il n'y a
+  rien à importer depuis la v1.
+- **Le schéma.** `diagrams/diagram.drawio` est copié vers
+  `DATA_DIR/diagrams/current.drawio` au premier démarrage, et cette copie est
+  le schéma actif ensuite : remplacez-le depuis Administration > Schéma
+  (aperçu, versions, retour en arrière). Modifier le fichier sur l'hôte ne
+  change plus une plateforme en marche.
+- **Clé d'hôte du serveur de rebond.** En production (l'image Docker), elle
+  doit être épinglée par `SSH_HOST_FINGERPRINT` ou sur la page des paramètres
+  du labo, sinon aucune console ne se connecte (`consoles.ssh_unpinned`).
+- **Paramètres du labo** (serveur de rebond, connexion aux consoles, consoles
+  autorisées) : modifiables depuis l'administration sans redémarrage ;
+  renseignez `APP_SECRET` (32 caractères ou plus) pour stocker leurs mots de
+  passe chiffrés.
+- **Transport du tunnel Proxmox.** Le tunnel vers l'API Proxmox passe toujours
+  par le serveur de rebond, avec `PROXMOX_TUNNEL_TRANSPORT=auto` par défaut
+  (redirection TCP, puis une commande de relais comme `socat`, `nc` ou bash
+  `/dev/tcp` quand le serveur de rebond interdit la redirection ; `forward` et
+  `exec` en imposent un). Les machines virtuelles de la section Infra sont
+  désormais réservées aux administrateurs ; les commutateurs d'administration
+  restent ouverts à tous.
+- **Noms et étiquettes.** L'image s'appelle `lab-console:2`. Les réglages de
+  la v1 gardent leur sens ; les nouveaux ont une valeur par défaut (voir la
+  référence ci-dessus).
 
 ## L'essayer sans le labo
 
@@ -77,9 +201,11 @@ l'équipement (ajoutez `mode` pour maintenir le bouton Mode d'un commutateur).
 
 ## Le schéma
 
-`diagrams/diagram.drawio` est l'unique source de vérité. Chaque page est un
-labo. L'application surveille le fichier et le recharge quelques secondes
-après une modification : pas de redémarrage.
+`diagrams/diagram.drawio` est le schéma livré avec la plateforme ; au premier
+démarrage il est copié vers `DATA_DIR/diagrams/current.drawio`, qui est le
+schéma actif ensuite. Chaque page est un labo. Remplacez le schéma actif
+depuis Administration > Schéma (aperçu des changements, versions, retour en
+arrière) ; la plateforme le recharge en quelques secondes, sans redémarrage.
 
 Une forme devient un équipement cliquable quand :
 
@@ -482,6 +608,8 @@ public/
   js/modules/overview/      sections Accueil et Vue d'ensemble
   js/modules/help/          visite guidée et section Aide
 scripts/check-diagram.js    vérificateur de schéma
+scripts/gen-config-doc.js   construit docs/CONFIGURATION.md depuis .env.example
+docs/                       DEPLOY, STUDENTS, CONFIGURATION (générée), fr/ (français), v2/ (architecture, spec, tests)
 dev/mock-lab.js             faux serveur de rebond (telnet, sonde de ligne, redirection de ports) ; importable
 dev/fakeIos.js              Cisco IOS / IOS XE simulé (quatre familles, démarrage, effacement, VLAN, console lente,
                             coupure d'alimentation, BREAK, ROMMON et chargeur de démarrage)

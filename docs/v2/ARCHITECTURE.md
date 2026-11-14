@@ -103,7 +103,14 @@ dev/                        mock-lab.js, fakeIos.js, fakeOther.js (devices that 
                             addresses of the simulated cabling), mock-oidc.js, mock-proxmox.js
 test/                       *.test.js (node:test)   test/e2e/*.e2e.js (browser)
 test/helpers/               app.js (startTestApp), fakes.js (users, fakeAuth, fake req / res), db.js (memoryDatabase)
-docs/v2/                    this file, SPEC.md
+scripts/                    setup-admin.js, forget-browsers.js, check-diagram.js, gen-config-doc.js
+                            (builds docs/CONFIGURATION.md from .env.example; test/configDoc.test.js fails when they differ)
+docs/                       DEPLOY.md, STUDENTS.md, CONFIGURATION.md (generated), fr/ (French: AUTH, DEPLOY, ETUDIANTS)
+docs/v2/                    this file, SPEC.md, AUTH.md, TESTING.md
+docker-compose.yml          the production stack; docker-compose.preprod.yml adds the mock identity provider,
+                            docker-compose.mock.yml adds the mock lab (demonstrations only, NODE_ENV=development)
+README.md, README.fr.md     what the application does, quick start, upgrade from v1
+CHANGELOG.md, CHANGELOG.fr.md
 ```
 
 Vocabulary: a **lab** (code) is one page of the diagram, shown to users as a

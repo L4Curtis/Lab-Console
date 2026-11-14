@@ -1,0 +1,41 @@
+# Try Lab Console in Docker without the lab: a simulated jump server and
+# devices (dev/mock-lab.js) next to the application. For a demonstration or a
+# test only, never with real accounts or real credentials.
+#
+#   cp .env.example .env     then in .env:
+#     PUBLIC_URL=http://localhost:3000
+#     SSH_HOST=mock-lab  SSH_PORT=2222  SSH_USERNAME=lab  SSH_PASSWORD=lab
+#     TELNET_USERNAME=  TELNET_PASSWORD=
+#     MOCK_SSH_HOST=0.0.0.0
+#     LOCAL_ADMIN_*  (npm run setup-admin)
+#   docker compose -f docker-compose.yml -f docker-compose.mock.yml up -d --build
+#
+# The image is the application's own; dev/ is mounted read-only into the mock.
+# The simulated jump server makes a new host key at every start, so it cannot
+# be pinned: the application runs here with NODE_ENV=development, which
+# disables the pinning that production requires. Do not copy that line.
+services:
+  mock-lab:
+    build: .
+    image: lab-console:2
+    container_name: lab-console-mock-lab
+    env_file: .env
+    environment:
+      NODE_ENV: development
+      MOCK_SSH_HOST: 0.0.0.0
+    working_dir: /app
+    command: ["node", "dev/mock-lab.js"]
+    volumes:
+      - ./dev:/app/dev:ro
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 256m
+    pids_limit: 128
+    restart: unless-stopped
+
+  lab-console:
+    depends_on:
+      - mock-lab
+    environment:
+      NODE_ENV: development

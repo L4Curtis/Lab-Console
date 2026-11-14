@@ -627,12 +627,19 @@ End-to-end scenarios, security review, completeness check against this file,
 documentation in French and English, version 2.0.0.
 
 ### Wave 5 as integrated
-- Version 2.0.0. French and English documentation: `README.md` and
-  `README.fr.md`, `docs/v2/AUTH.md` and `docs/fr/AUTH.md`. The other files of
-  `docs/v2/` (this one, ARCHITECTURE, TESTING) are working documents for the
-  people who build the application and stay in English; the in-app Help page
-  and every screen are bilingual.
-- The Proxmox section is untouched on purpose. Known gap, to settle with the
+- Version 2.0.0 (tag `v2.0.0`). Documentation in French and English:
+  `README.md` / `README.fr.md` (what it does, quick start with Docker and the
+  mock lab, upgrade from v1), `docs/DEPLOY.md` / `docs/fr/DEPLOY.md`
+  (production behind a reverse proxy), `docs/STUDENTS.md` /
+  `docs/fr/ETUDIANTS.md`, `docs/v2/AUTH.md` / `docs/fr/AUTH.md`,
+  `CHANGELOG.md` / `CHANGELOG.fr.md`. `docs/CONFIGURATION.md` is generated from
+  `.env.example` (`npm run gen-config-doc`, checked by a test) and is English
+  only. The other files of `docs/v2/` (this one, ARCHITECTURE, TESTING) are
+  working documents for the people who build the application and stay in
+  English; the in-app Help page and every screen are bilingual.
+- The Proxmox module was left alone, except for the security audit's change
+  (administrators only, a generic error toward the browser; ARCHITECTURE §1.6).
+  Known gap, to settle with the
   owner: the health page shows no Proxmox tunnel line, because the module
   does not publish `services.proxmox`, and `/api/proxmox/status` names the
   environment's jump server, not the one saved on the lab parameters page.

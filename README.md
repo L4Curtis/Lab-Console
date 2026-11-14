@@ -2,13 +2,49 @@
 
 **English** · [Français](README.fr.md)
 
-Browser access to the physical lab equipment. Pick a bench, click a router or
-switch on its diagram, and its console opens in a terminal next to the
-diagram. Open several at once to configure devices side by side.
+Version 2.0.0. Browser access to the physical lab equipment of a networking
+course. Pick a bench, click a router or switch on its diagram, and its console
+opens in a terminal next to the diagram. Open several at once to configure
+devices side by side.
 
 ```
 Browser ──WebSocket──► Lab Console ──SSH (exec)──► jump server ──telnet──► console server ──► device
 ```
+
+## What it does
+
+- **Consoles**: every device of the lab diagram opens as a text console in the
+  browser. A console line belongs to the server, so several people can join
+  it: one types (the pilot), the others watch, and the keyboard is passed on
+  request.
+- **Teams and benches**: students form teams, take a bench, invite guests and
+  reserve slots. A bench held by a team is driven by its members only.
+- **Bench jobs**: backup of every device of a bench, injection of a script,
+  reset to the base configuration, comparison of snapshots; TP templates
+  published by the teachers.
+- **Checks and password recovery**: line status, cabling, ping matrix and
+  interface addresses; a guided recovery of a device locked by a password.
+- **Group work**: a note per device, a chat per bench, a script library,
+  browser notifications, the console journal.
+- **Accounts and administration**: single sign-in through your identity
+  provider (OpenID Connect), local accounts by invitation, passkeys, a
+  mandatory local administrator, audit trail, sessions, lab parameters,
+  diagram versions, announcements, health page.
+- **Infrastructure** (administrators only): admin switches and the Proxmox
+  virtual machines, reached through the jump server.
+- Everything is in French and English, and the in-app **Aide** page explains
+  each section to the students.
+
+## Documentation
+
+| For | English | Français |
+|---|---|---|
+| Students and teachers | [Student guide](docs/STUDENTS.md) | [Guide étudiant](docs/fr/ETUDIANTS.md) |
+| Putting it online (reverse proxy, HTTPS, backups) | [docs/DEPLOY.md](docs/DEPLOY.md) | [docs/fr/DEPLOY.md](docs/fr/DEPLOY.md) |
+| Signing in, SSO, local administrator | [docs/v2/AUTH.md](docs/v2/AUTH.md) | [docs/fr/AUTH.md](docs/fr/AUTH.md) |
+| Every setting | [docs/CONFIGURATION.md](docs/CONFIGURATION.md) (generated from `.env.example`) | [README.fr.md](README.fr.md) |
+| What changed | [CHANGELOG.md](CHANGELOG.md) | [CHANGELOG.fr.md](CHANGELOG.fr.md) |
+| People who work on the code | [docs/v2/ARCHITECTURE.md](docs/v2/ARCHITECTURE.md), [SPEC.md](docs/v2/SPEC.md), [TESTING.md](docs/v2/TESTING.md) (English) | |
 
 ## Quick start (Docker)
 
@@ -19,14 +55,94 @@ npm run setup-admin         # prints the three LOCAL_ADMIN_* lines: paste them i
 docker compose up -d --build
 ```
 
-Open http://localhost:3000.
+Open http://localhost:3000 and sign in with the local administrator (user
+name, password, and the 6-digit code of your authenticator app).
+
+The Docker image runs with `NODE_ENV=production`, which requires
+`SSH_HOST_FINGERPRINT` (the identity of the jump server): without it no
+console connects. Get it with
+`ssh-keyscan -t ed25519 <jump server> | ssh-keygen -lf -`. To put the
+application on the Internet read [docs/DEPLOY.md](docs/DEPLOY.md) first.
 
 Without Docker (Node.js 22.13 or newer):
 
 ```bash
 npm ci
+npm run setup-admin
 npm start
 ```
+
+### Quick start with the mock lab (Docker)
+
+No lab at hand? `docker-compose.mock.yml` starts a simulated jump server and
+simulated devices next to the application:
+
+```bash
+cp .env.example .env
+npm run setup-admin         # paste the three LOCAL_ADMIN_* lines into .env
+# in .env:  PUBLIC_URL=http://localhost:3000
+#           SSH_HOST=mock-lab  SSH_PORT=2222  SSH_USERNAME=lab  SSH_PASSWORD=lab
+#           TELNET_USERNAME=  TELNET_PASSWORD=
+docker compose -f docker-compose.yml -f docker-compose.mock.yml up -d --build
+```
+
+The comments of `docker-compose.mock.yml` explain the details. It is a demo
+tool: the simulator's host key changes at each start, so the application runs
+there with `NODE_ENV=development` (no host key pinning). Never use it with real
+accounts. (This file was written without a Docker engine at hand: if it
+fails, run the two programs on the host as described next.)
+
+## Configuration
+
+Everything is set through environment variables, read from `.env`:
+[docs/CONFIGURATION.md](docs/CONFIGURATION.md) lists every one of them with its
+default and description. It is generated from the comments of `.env.example`
+(`npm run gen-config-doc`; a test fails when the two differ). The settings
+that matter first: `PUBLIC_URL`, `TRUSTED_PROXIES`, `LOCAL_ADMIN_*`, `SSH_*`
+with `SSH_HOST_FINGERPRINT`, `TELNET_*`, `ALLOWED_CONSOLE_HOSTS`, `APP_SECRET`.
+
+## Upgrading from v1
+
+Lab Console 2 is a different application with the same job; plan an
+upgrade, not a drop-in replacement.
+
+- **Sign-in is mandatory.** v1 had none (it relied on a proxy in front).
+  v2 refuses to start unless `LOCAL_ADMIN_USERNAME`,
+  `LOCAL_ADMIN_PASSWORD_HASH` and `LOCAL_ADMIN_TOTP_SECRET` are set: run
+  `npm run setup-admin` and paste its three lines into `.env`. The identity
+  provider (`OIDC_*`) is optional. `TRUST_PROXY=true` is refused at
+  start-up: replace it with `TRUSTED_PROXIES` (list every hop) and set
+  `PUBLIC_URL` (https behind a proxy).
+- **There is now a data directory.** v1 kept nothing. v2 keeps its state in
+  `DATA_DIR` (default `./data`; `/data` in the Docker image, a named volume
+  `lab-console-data` in `docker-compose.yml`, the root filesystem being
+  read-only): the SQLite database `lab-console.db` (accounts, teams,
+  sessions, audit trail, settings, jobs, notes…) and files (snapshots,
+  templates, console journals, diagram versions). A bind-mounted folder must
+  be writable by uid 1000. Back it up: see [docs/DEPLOY.md](docs/DEPLOY.md).
+- **The database is created at the first start** and migrated by itself at
+  each later start. Files of earlier v2 builds (`auth/*.json`,
+  `audit/*.jsonl`) are imported once and renamed `*.imported`. There is
+  nothing to import from v1.
+- **The diagram.** `diagrams/diagram.drawio` is copied to
+  `DATA_DIR/diagrams/current.drawio` on the first start and that copy is the
+  active one from then on: replace it from Administration > Diagram (preview,
+  versions, rollback). Editing the file on the host no longer changes a
+  running platform.
+- **Jump server host key.** In production (the Docker image) the key must be
+  pinned with `SSH_HOST_FINGERPRINT` or on the lab parameters page, otherwise
+  no console connects (`consoles.ssh_unpinned`).
+- **Lab parameters** (jump server, console login, allowed consoles) can be
+  edited from Administration without a restart; set `APP_SECRET` (32
+  characters or more) to store their passwords encrypted.
+- **Proxmox tunnel transport.** The tunnel to the Proxmox API still goes
+  through the jump server, with `PROXMOX_TUNNEL_TRANSPORT=auto` by default
+  (TCP forwarding, then a relay command such as `socat`, `nc` or bash
+  `/dev/tcp` when the jump server forbids forwarding; `forward` and `exec`
+  force one). The Infra section's virtual machines are now reserved to
+  administrators; admin switches stay open to everyone.
+- **Names and tags.** The image is `lab-console:2`. Settings of v1 keep their
+  meaning; new ones have defaults (see the reference above).
 
 ## Try it without the lab
 
@@ -70,9 +186,11 @@ device off and on (add `mode` to hold a switch's Mode button).
 
 ## The diagram
 
-`diagrams/diagram.drawio` is the single source of truth. Each page is a lab.
-The app watches the file and reloads it a few seconds after it changes, so
-there is no restart.
+`diagrams/diagram.drawio` is the diagram shipped with the platform; on the
+first start it is copied to `DATA_DIR/diagrams/current.drawio`, which is the
+active diagram from then on. Each page is a lab. Replace the active diagram
+from Administration > Diagram (preview of the changes, versions, rollback);
+the platform reloads it within seconds, with no restart.
 
 A shape becomes a clickable device when either:
 
@@ -423,6 +541,8 @@ public/
   js/modules/overview/      Accueil and Vue d'ensemble sections
   js/modules/help/          guided tour and the Help section
 scripts/check-diagram.js    diagram linter
+scripts/gen-config-doc.js   builds docs/CONFIGURATION.md from .env.example
+docs/                       DEPLOY, STUDENTS, CONFIGURATION (generated), fr/ (French), v2/ (architecture, spec, tests)
 dev/mock-lab.js             fake jump server (telnet, line probe, port forwarding); importable
 dev/fakeIos.js              simulated Cisco IOS / IOS XE (four families, boot, erase, VLANs, slow console,
                             power cycle, BREAK, ROMMON and boot loader)
