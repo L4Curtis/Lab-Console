@@ -77,7 +77,8 @@ export class VmPanel {
       if (manual) toast(t('infra.vm.reloaded'));
     } catch (err) {
       this.tbody.replaceChildren(h('tr', h('td.empty-row', { colspan: 5 },
-        h('p.form-error', t('infra.vm.unreachable', { error: err.message })),
+        // A coded answer is a whole sentence already (infra.unreachable: the detail stays in the server's log)
+        h('p.form-error', err.code ? err.message : t('infra.vm.unreachable', { error: err.message })),
         h('button.btn.small', { type: 'button', onclick: () => this.load(true) }, tNode('common.actions.retry')))));
     }
   }
