@@ -10,7 +10,9 @@
     "sections": {
       "title": "The sections of Lab Console",
       "intro": "The left-hand bar leads to every section. Your badge, at the bottom, opens your account menu.",
+      "home": "Home: where you land after signing in: your team, its bench, your latest backups, the bench's activity, your next slots.",
       "consoles": "Consoles: pick a bench, then click a device on the diagram to open its console. This is where you take the bench for your team, type your commands and see who is working on what (\"Live\", \"Bench wall\").",
+      "overview": "Overview: every bench of the lab at a glance, one card per bench.",
       "team": "Team: create the team of your lab group, invite your classmates, answer an invitation, book a bench in the calendar.",
       "jobs": "Backups: back up the configuration of every device of a bench, compare it, inject it again, or reset the bench. Your backups and the lab templates are here too.",
       "infra": "Infra: the Proxmox VMs when Proxmox is configured, and the admin switches of the lab.",
@@ -19,6 +21,18 @@
       "account": "My account (from your badge): display name, password and passkeys of a local account, open sessions.",
       "help": "Help: this page. The account menu also lets you replay the guided tour.",
       "extras": "Also in the left-hand bar: FR / EN switches the language, \"Theme\" switches light and dark, and the \"Alerts\" bell turns on browser alerts (keyboard asked for, line free, job finished)."
+    },
+    "home": {
+      "title": "Home and overview",
+      "intro": "These two pages only show, and keep themselves up to date. Taking, joining or releasing a bench is still done in the bench bar, in the Consoles section.",
+      "homeTeam": "Home: your team and its members, the invitations waiting for you, your team's bench (or the one you are a guest of), your next slots, the lab in numbers and the current announcement.",
+      "homeBackups": "Your team's five latest backups: only its members see them, not a guest, not another team.",
+      "homeActivity": "The activity of your bench since your team took it: who took, joined or left it, the jobs started, the consoles opened. Only the bench's occupants see it.",
+      "homeNone": "With no team, or if your team has no bench, Home tells you what to do and leads you to the right section.",
+      "overview": "Overview: for each bench, the team holding it and since when, who is on it (guests are marked), the open consoles and who has the keyboard, the running job, the lock and its reason, the next three slots and the automatic release time.",
+      "overviewLines": "A card's lines: open in Lab Console, busy outside Lab Console, silent; and, for half an hour after a \"Line status\" check, the lines found free and when it ran.",
+      "overviewFilter": "The filter shows every bench, the free ones or yours. A card leads to the bench (Consoles section) and to its backups.",
+      "overviewPrivate": "The overview never shows a team's backups or journal, nor what was typed on a console."
     },
     "team": {
       "title": "Taking a bench with your team",
@@ -78,6 +92,34 @@
       "reset5": "The reload takes several minutes depending on the model. The job goes on in the server if you close the page; its report (device by device, refused lines included) is in \"Recent jobs of the bench\".",
       "stop": "In every case \"Stop\" is available to the person who started the job, to the bench's occupants and to administrators."
     },
+    "checks": {
+      "title": "Checking the bench",
+      "intro": "The \"Checks\" button, at the top of the Consoles section, opens the checks of the bench you picked. They only read: show commands and pings, nothing is configured. People watching a console see the check go by.",
+      "lines": "Line status: for each device, is the line free, busy outside Lab Console, already open in Lab Console, or is the device silent? The result is shown on the diagram for half an hour and on the bench's card in the overview; everyone sees it.",
+      "cabling": "Cabling (CDP): show cdp neighbors detail on every device, compared with the diagram's links: as drawn, on another port, missing (with the reason: interface shut down, down, no such port), cannot be checked, or a cable nobody drew. The verdict is shown on the diagram's links too.",
+      "ping": "Ping matrix: the routers' addresses are read from their active interfaces, then each router pings the addresses of the others. Green: answers; orange: partly; red: no answer.",
+      "interfaces": "Addresses and interfaces: show ip interface brief on every device; the address and state of each end of a link are written next to the diagram's links.",
+      "who": "Only the bench's occupants (and administrators) run a check. One at a time per bench, never during a job (backup, injection, reset); and while a check runs, neither a job nor a password recovery starts on the bench.",
+      "untouched": "A console open in Lab Console, or busy outside Lab Console, is never touched: the device is skipped and nothing is typed on it, not even Enter. A device waiting for an answer (ROMMON, initial dialog, [confirm]) or not running Cisco IOS is skipped too.",
+      "results": "The last result of each check stays on screen, even after the page is reloaded. The line status is for everyone; the cabling, pings and addresses for the team that held the bench, the person who ran the check and administrators.",
+      "stop": "\"Stop\" interrupts a check: the person who started it, the bench's occupants and administrators can.",
+      "limits": "The line status can only be run again after a short while, and everyone is limited to a few checks a minute."
+    },
+    "recovery": {
+      "title": "Lost password: recovery",
+      "intro": "For a device locked by a console password or an enable secret nobody knows. Someone must be in front of the device to power it off and on when the assistant asks.",
+      "step1": "Open the device's console, click \"Password recovery\" on its tile, pick the device's family, then \"Start the recovery\".",
+      "step2": "The assistant first reads the console, then says what to do at each step. Only the person who started it confirms the steps (\"Do this step\").",
+      "step3": "When told, the person on site powers the device off and on (holding the Mode button on a switch); the assistant goes through ROMMON or switch: and boots the device without its startup-config.",
+      "step4": "The device reaches its factory prompt (Router>, Switch>), with the factory configuration.",
+      "kept": "The startup-config is neither erased nor changed, only ignored for that boot: the assistant makes the next boot read it again. It still holds the old passwords: inject a backup and save it, or reset the device, from the Backups section, or it will be locked again at its next reload.",
+      "notLocked": "A device already at a privileged prompt is not locked: the assistant stops without typing anything.",
+      "stop": "Stopped, abandoned (nobody confirms) or failed: the assistant first puts the device back as it found it. If it cannot, it says so, and starting the assistant again finishes putting it back.",
+      "who": "The bench's occupants and administrators start a recovery; one at a time per device, never during a job or a check of the bench. The diagram marks the device being recovered, and the bench's occupants can follow it.",
+      "close": "Closing the window does not stop the recovery: it goes on on the server, and opening the assistant again finds it where it is.",
+      "families": "Families: 1841, 2801, 2811 and ISR 4331 routers; 2960, 3560, Catalyst 1000 and 9300L switches. The assistant says when a procedure has not been tried on the real equipment yet.",
+      "disabled": "A switch where recovery was disabled (no service password-recovery) offers to erase its configuration: the assistant always answers no, and the switch boots normally."
+    },
     "journal": {
       "title": "What is recorded, and for how long",
       "intro": "What you do here is not anonymous. The up-to-date detail is in Lab status, \"What is recorded\" tab.",
@@ -94,11 +136,12 @@
       "title": "When something is stuck",
       "busyTitle": "The line is busy",
       "busy": "On the diagram the device is marked \"Busy outside Lab Console\": the console server refuses the line because someone is connected to it outside Lab Console (another terminal, for instance), or because it is out of service. Click \"Tell me when it is free\": the line is watched for 30 minutes at most and you are told. Turn on the \"Alerts\" bell to be told when the window is hidden too. If nothing changes, talk to the instructor.",
+      "busy2": "To see the whole bench at once: \"Checks\", then \"Line status\", tells which lines are free, busy or silent.",
       "silentTitle": "The device is silent",
       "silent": "\"Device silent\": the console server opened the line but nothing comes back after Enter. It is not Lab Console: check on site that the device is powered on and that its console cable is plugged in.",
       "lockedTitle": "The device asks for a password",
       "locked": "If the console shows \"Password:\" before you typed anything, a previous group left a password on the console line. Lab Console does not know it and does not bypass it: ask the previous group or the instructor. Jobs (backup, injection, reset) never force a device they cannot bring to privileged mode: it is flagged in the report and left as it is.",
-      "locked2": "If the password is lost, recovery (BREAK, ROMMON, configuration register) is done with someone on site: the console's \"Send BREAK\" button is for that.",
+      "locked2": "If nobody knows the password, the \"Password recovery\" assistant of the console tile bypasses it, with someone on site to power the device off and on (see \"Lost password: recovery\").",
       "dialogTitle": "The device offers the initial configuration",
       "dialog": "A device with no configuration asks \"Would you like to enter the initial configuration dialog?\": answer no. Jobs do it by themselves.",
       "watchTitle": "I cannot type",
@@ -155,6 +198,10 @@
     "skip": "Skip the tour",
     "finish": "Finish",
     "steps": {
+      "home": {
+        "title": "Your home page",
+        "body": "This is where you land after signing in: your team, the bench it took, your latest backups and what happened on the bench. “Overview”, in the bar on the left, shows every bench of the lab."
+      },
       "bench": {
         "title": "Pick a bench",
         "body": "The lab is split into benches of routers and switches. Click a bench's name, then a device on the diagram to open its console."

@@ -25,21 +25,29 @@ test('the tour opens at the first sign-in, walks through the real screen, and ne
   await card(page).waitFor();
   assert.equal(await tourState(page), null, 'nothing is recorded before the end');
 
-  // 1. a bench: the picker is ringed
-  assert.equal(await stepOf(page), 'bench');
-  assert.match(await card(page).textContent(), /Étape 1 sur 5/);
-  assert.match(await card(page).textContent(), /Choisir une baie/);
-  await page.locator('.lab-picker.tour-target').waitFor();
+  // 1. the home page, where the sign-in landed: its panels are ringed
+  assert.equal(await stepOf(page), 'home');
+  assert.match(await card(page).textContent(), /Étape 1 sur 6/);
+  assert.match(await card(page).textContent(), /Votre page d’accueil/);
+  await page.locator('section.view-home .ov-home.tour-target').waitFor();
+  assert.equal(await page.locator('#rail-items a.rail-btn.active').getAttribute('data-path'), 'home');
   assert.equal(await button(page, 'back').isHidden(), true, 'nothing before the first step');
 
-  // 2. the team: the bench bar
+  // 2. a bench: the tour leads to the consoles, the picker is ringed
+  await button(page, 'next').click();
+  await page.waitForFunction(() => document.querySelector('.tour-card')?.dataset.step === 'bench');
+  assert.match(await card(page).textContent(), /Choisir une baie/);
+  await page.locator('section.view-consoles .lab-picker.tour-target').waitFor();
+  assert.equal(await page.locator('.ov-home.tour-target').count(), 0, 'only the current step is ringed');
+
+  // 3. the team: the bench bar
   await button(page, 'next').click();
   await page.waitForFunction(() => document.querySelector('.tour-card')?.dataset.step === 'team');
   await page.locator('.bench-bar.tour-target').waitFor();
   assert.match(await card(page).textContent(), /Prendre la baie avec votre équipe/);
   assert.equal(await page.locator('.lab-picker.tour-target').count(), 0, 'only the current step is ringed');
 
-  // 3. a console: the diagram
+  // 4. a console: the diagram
   await button(page, 'next').click();
   await page.locator('.diagram-canvas.tour-target').waitFor();
   assert.match(await card(page).textContent(), /Ouvrir une console/);
@@ -47,11 +55,11 @@ test('the tour opens at the first sign-in, walks through the real screen, and ne
   // Back works
   await button(page, 'back').click();
   await page.locator('.bench-bar.tour-target').waitFor();
-  assert.match(await card(page).textContent(), /Étape 2 sur 5/);
+  assert.match(await card(page).textContent(), /Étape 3 sur 6/);
   await button(page, 'next').click();
   await button(page, 'next').click();
 
-  // 4. the keyboard; 5. the backups, ringed in the rail
+  // 5. the keyboard; 6. the backups, ringed in the rail
   assert.match(await card(page).textContent(), /Demander la main/);
   await button(page, 'next').click();
   await page.locator('#rail-items a[data-path="jobs"].tour-target').waitFor();
@@ -112,7 +120,7 @@ test('it is replayed from the user menu, ringing the pane\'s keyboard bar once a
   await page.locator('#user-menu button[data-action="replay-tour"]').click();
   await card(page).waitFor();
   assert.equal(await page.locator('#user-menu').isHidden(), true, 'the menu closes');
-  for (let n = 0; n < 3; n++) await button(page, 'next').click();
+  for (let n = 0; n < 4; n++) await button(page, 'next').click();
   assert.equal(await stepOf(page), 'keyboard');
   await page.locator('.pane-presence.tour-target').waitFor();
 
@@ -128,9 +136,13 @@ test('the tour speaks English, and a dialog keeps Escape for itself', async () =
   await signInAsAdmin(page);              // the environment's administrator: a person of its own, who never saw the tour
   await card(page).waitFor();
   await setLanguage(page, 'en');
-  assert.match(await card(page).textContent(), /Step 1 of 5/);
-  assert.match(await card(page).textContent(), /Pick a bench/);
+  assert.match(await card(page).textContent(), /Step 1 of 6/);
+  assert.match(await card(page).textContent(), /Your home page/);
   assert.match(await button(page, 'skip').textContent(), /Skip the tour/);
+  await button(page, 'next').click();
+  await page.waitForFunction(() => document.querySelector('.tour-card')?.dataset.step === 'bench');
+  assert.match(await card(page).textContent(), /Pick a bench/);
+  await page.locator('section.view-consoles .lab-picker.tour-target').waitFor(); // the consoles are mounted, the finder with them
   await button(page, 'next').click();
   await page.waitForFunction(() => document.querySelector('.tour-card')?.dataset.step === 'team');
   assert.match(await card(page).textContent(), /Take the bench with your team/);
@@ -153,7 +165,7 @@ test('the help page: its sections, the figures of the server, both languages', a
   await page.click('#rail-items a[data-path="help"]');
   const view = page.locator('section.view-help');
   await view.locator('h1', { hasText: /^Aide$/ }).waitFor();
-  const ids = ['sections', 'team', 'share', 'backup', 'tasks', 'journal', 'trouble', 'keys'];
+  const ids = ['sections', 'home', 'team', 'share', 'backup', 'tasks', 'checks', 'recovery', 'journal', 'trouble', 'keys'];
   for (const id of ids) await view.locator(`section.help-section[data-section="${id}"] h2`).waitFor();
   assert.equal(await view.locator('section.help-section').count(), ids.length);
   assert.equal(await view.locator('.help-toc a').count(), ids.length);
@@ -214,7 +226,9 @@ test('the tour survives a step whose element never appears: no ring, the card st
   await page.route('**/api/help/tour', (route) => (route.request().method() === 'GET' ? route.fulfill({ json: { state: null } }) : route.fulfill({ json: { state: 'done' } })));
   await signInAs(page, 'student3');
   await card(page).waitFor();
-  await button(page, 'next').click();     // the 'team' step points at the bench bar, which cannot load
+  await button(page, 'next').click();     // the bench …
+  await page.waitForFunction(() => document.querySelector('.tour-card')?.dataset.step === 'bench');
+  await button(page, 'next').click();     // … then the 'team' step points at the bench bar, which cannot load
   await page.waitForFunction(() => document.querySelector('.tour-card')?.dataset.step === 'team');
   await page.waitForTimeout(3000);
   assert.equal(await card(page).isVisible(), true);

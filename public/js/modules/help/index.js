@@ -1,7 +1,8 @@
 /**
  * "Help" section (#/help[/<section>]), for everyone signed in: what each part
- * of Lab Console does, how a team takes a bench, sharing a console, backups,
- * injection and reset, what is journaled, what to do when a line is busy,
+ * of Lab Console does, the home page and the overview, how a team takes a
+ * bench, sharing a console, backups, injection and reset, the bench checks,
+ * the password recovery, what is journaled, what to do when a line is busy,
  * and the keyboard shortcuts
  *
  * The text is in the `help` dictionary (help.s.<section>.<key>); this file
@@ -25,7 +26,12 @@ import { startTour } from './tour.js';
 const SECTIONS = [
   { id: 'sections', blocks: [
     { p: 'intro' },
-    { ul: ['consoles', 'team', 'jobs', 'infra', 'status', 'admin', 'account', 'help', 'extras'] },
+    { ul: ['home', 'consoles', 'overview', 'team', 'jobs', 'infra', 'status', 'admin', 'account', 'help', 'extras'] },
+  ] },
+  { id: 'home', blocks: [
+    { p: 'intro' },
+    { ul: ['homeTeam', 'homeBackups', 'homeActivity', 'homeNone'] },
+    { ul: ['overview', 'overviewLines', 'overviewFilter', 'overviewPrivate'] },
   ] },
   { id: 'team', blocks: [
     { p: 'intro' },
@@ -53,6 +59,16 @@ const SECTIONS = [
     { ul: ['reset1', 'reset2', 'reset3', 'reset4', 'reset5'] },
     { p: 'stop' },
   ] },
+  { id: 'checks', blocks: [
+    { p: 'intro' },
+    { ul: ['lines', 'cabling', 'ping', 'interfaces'] },
+    { ul: ['who', 'untouched', 'results', 'stop', 'limits'] },
+  ] },
+  { id: 'recovery', blocks: [
+    { p: 'intro' },
+    { ol: ['step1', 'step2', 'step3', 'step4'] },
+    { ul: ['kept', 'notLocked', 'stop', 'who', 'close', 'families', 'disabled'] },
+  ] },
   { id: 'journal', blocks: [
     { p: 'intro' },
     { ul: [
@@ -65,7 +81,7 @@ const SECTIONS = [
     { link: 'open', href: '#/status/journaling' },
   ] },
   { id: 'trouble', blocks: [
-    { h: 'busyTitle' }, { p: 'busy' },
+    { h: 'busyTitle' }, { p: 'busy' }, { p: 'busy2' },
     { h: 'silentTitle' }, { p: 'silent' },
     { h: 'lockedTitle' }, { p: 'locked' }, { p: 'locked2' },
     { h: 'dialogTitle' }, { p: 'dialog' },

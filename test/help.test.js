@@ -111,7 +111,8 @@ describe('the help text', () => {
 
   test('the tour has a title and a body for each step, in both languages', () => {
     const steps = [...tour.matchAll(/\{ id: '(\w+)', route/g)].map((m) => m[1]);
-    assert.equal(steps.length, 5);
+    assert.equal(steps.length, 6);
+    assert.equal(steps[0], 'home', 'the tour starts where a sign-in lands');
     for (const lang of ['fr', 'en']) {
       for (const id of steps) {
         assert.ok(read(lang).tour.steps[id]?.title && read(lang).tour.steps[id]?.body, `${lang}: ${id}`);
@@ -124,6 +125,19 @@ describe('the help text', () => {
     const en = JSON.stringify(read('en').s);
     for (const word of [/n’est pas une sauvegarde/, /ZIP/, /compte à rebours/, /nom de la baie/, /Prendre la baie/, /Demander la main/]) assert.match(fr, word);
     for (const word of [/not a backup/, /ZIP/, /countdown/, /bench's name/, /Take the bench/, /Ask for the keyboard/]) assert.match(en, word);
+  });
+  test('wave 4 is described as built: checks only read, the recovery never erases the startup-config, the overview shows no team\'s backups', () => {
+    const fr = read('fr').s;
+    const en = read('en').s;
+    assert.match(fr.checks.intro, /ne font que lire/);
+    assert.match(en.checks.intro, /only read/);
+    assert.match(fr.checks.untouched, /jamais touchée/);
+    assert.match(fr.recovery.kept, /ni effacée ni modifiée/);
+    assert.match(en.recovery.kept, /neither erased nor changed/);
+    assert.match(fr.recovery.disabled, /toujours non/);
+    assert.match(fr.home.overviewPrivate, /jamais les sauvegardes/);
+    assert.match(en.home.overviewPrivate, /never shows a team's backups/);
+    assert.doesNotMatch(JSON.stringify(fr.trouble), /Envoyer un BREAK/, 'the console\'s BREAK button is no longer the way to recover a password');
   });
   test('the privacy lines say that echoed commands are journaled, and no fixed figure that an administrator can change', () => {
     for (const lang of ['fr', 'en']) {

@@ -10,7 +10,9 @@
     "sections": {
       "title": "Les sections de Lab Console",
       "intro": "La barre de gauche donne accès à chaque section. Votre pastille, en bas, ouvre le menu de votre compte.",
+      "home": "Accueil : la page où vous arrivez après la connexion : votre équipe, sa baie, vos dernières sauvegardes, l’activité de la baie, vos prochains créneaux.",
       "consoles": "Consoles : choisissez une baie, puis cliquez sur un équipement du schéma pour ouvrir sa console. C’est là que vous prenez la baie pour votre équipe, que vous tapez vos commandes et que vous voyez qui travaille sur quoi (« En direct », « Mur de la baie »).",
+      "overview": "Vue d’ensemble : toutes les baies du labo d’un coup d’œil, une carte par baie.",
       "team": "Équipe : créer l’équipe de votre groupe de TP, inviter vos camarades, répondre à une invitation, réserver une baie dans le calendrier.",
       "jobs": "Sauvegardes : sauvegarder la configuration de tous les équipements d’une baie, la comparer, la réinjecter, ou réinitialiser la baie. Vos sauvegardes et les modèles de TP y sont aussi.",
       "infra": "Infra : les VM Proxmox quand Proxmox est configuré, et les switchs d’administration du labo.",
@@ -19,6 +21,18 @@
       "account": "Mon compte (menu de la pastille) : nom d’affichage, mot de passe et clés d’accès d’un compte local, sessions ouvertes.",
       "help": "Aide : cette page. Le menu du compte permet aussi de revoir la visite guidée.",
       "extras": "Toujours dans la barre de gauche : FR / EN change la langue, « Thème » bascule clair / sombre, et la cloche « Alertes » active les alertes du navigateur (clavier demandé, ligne libre, tâche terminée)."
+    },
+    "home": {
+      "title": "Accueil et vue d’ensemble",
+      "intro": "Ces deux pages ne font que montrer, et se mettent à jour d’elles-mêmes. Prendre, rejoindre ou libérer une baie se fait toujours dans la barre de la baie, section Consoles.",
+      "homeTeam": "Accueil : votre équipe et ses membres, les invitations qui vous attendent, la baie de votre équipe (ou celle où vous êtes invité), vos prochains créneaux, le labo en chiffres et l’annonce en cours.",
+      "homeBackups": "Les cinq dernières sauvegardes de votre équipe : seuls ses membres les voient, ni un invité, ni une autre équipe.",
+      "homeActivity": "L’activité de votre baie depuis que votre équipe l’a prise : qui l’a prise, rejointe ou quittée, les tâches lancées, les consoles ouvertes. Seuls les occupants de la baie la voient.",
+      "homeNone": "Sans équipe, ou si votre équipe n’a pas de baie, l’Accueil vous dit quoi faire et vous mène à la bonne section.",
+      "overview": "Vue d’ensemble : pour chaque baie, l’équipe qui la tient et depuis quand, qui est dessus (les invités sont signalés), les consoles ouvertes et qui a la main, la tâche en cours, le verrou et son motif, les trois prochains créneaux et l’heure de libération automatique.",
+      "overviewLines": "Les lignes d’une carte : ouvertes dans Lab Console, occupées hors de Lab Console, muettes ; et, pendant une demi-heure après une vérification « État des lignes », les lignes trouvées libres et l’heure de la vérification.",
+      "overviewFilter": "Le filtre montre toutes les baies, les libres ou la vôtre. Une carte mène à la baie (section Consoles) et à ses sauvegardes.",
+      "overviewPrivate": "La Vue d’ensemble ne montre jamais les sauvegardes ni le journal d’une équipe, ni ce qui a été tapé sur une console."
     },
     "team": {
       "title": "Prendre une baie avec son équipe",
@@ -78,6 +92,34 @@
       "reset5": "Le redémarrage prend plusieurs minutes selon le modèle. La tâche continue sur le serveur si vous fermez la page ; son rapport (équipement par équipement, lignes refusées comprises) est dans « Tâches récentes de la baie ».",
       "stop": "Dans tous les cas, « Arrêter » est disponible à celle ou celui qui a lancé la tâche, aux occupants de la baie et aux administrateurs."
     },
+    "checks": {
+      "title": "Vérifier la baie",
+      "intro": "Le bouton « Vérifications », en haut de la section Consoles, ouvre les vérifications de la baie choisie. Elles ne font que lire : des commandes show et des pings, rien n’est configuré. Ceux qui regardent une console voient la vérification passer.",
+      "lines": "État des lignes : pour chaque équipement, la ligne est-elle libre, occupée hors de Lab Console, déjà ouverte dans Lab Console, ou l’équipement est-il muet ? Le résultat s’affiche sur le schéma pendant une demi-heure et sur la carte de la baie dans la Vue d’ensemble ; tout le monde le voit.",
+      "cabling": "Câblage (CDP) : show cdp neighbors detail sur chaque équipement, comparé aux liens du schéma : conforme, sur un autre port, manquant (avec la raison : interface en shutdown, hors service, port inexistant), non vérifiable, ou câble en trop. Le verdict s’affiche aussi sur les liens du schéma.",
+      "ping": "Matrice de ping : les adresses des routeurs sont lues sur leurs interfaces actives, puis chaque routeur pingue les adresses des autres. Vert : répond ; orange : en partie ; rouge : ne répond pas.",
+      "interfaces": "Adresses et interfaces : show ip interface brief sur chaque équipement ; l’adresse et l’état de chaque extrémité de lien s’écrivent près des liens du schéma.",
+      "who": "Seuls les occupants de la baie (et les administrateurs) lancent une vérification. Une seule à la fois par baie, jamais pendant une tâche (sauvegarde, injection, réinitialisation) ; et pendant une vérification, ni tâche ni récupération de mot de passe ne démarre sur la baie.",
+      "untouched": "Une console ouverte dans Lab Console, ou occupée hors de Lab Console, n’est jamais touchée : l’équipement est ignoré et rien n’y est tapé, même pas Entrée. Un équipement qui attend une réponse (ROMMON, dialogue initial, [confirm]) ou qui n’est pas sous Cisco IOS est ignoré aussi.",
+      "results": "Le dernier résultat de chaque vérification reste affiché, même après un rechargement de la page. L’état des lignes est visible par tous ; le câblage, les pings et les adresses par l’équipe qui tenait la baie, la personne qui a lancé la vérification et les administrateurs.",
+      "stop": "« Arrêter » interrompt une vérification : la personne qui l’a lancée, les occupants de la baie et les administrateurs le peuvent.",
+      "limits": "L’état des lignes ne se relance qu’après un court délai, et chacun est limité à quelques vérifications par minute."
+    },
+    "recovery": {
+      "title": "Mot de passe perdu : la récupération",
+      "intro": "Pour un équipement verrouillé par un mot de passe de console ou un enable secret que personne ne connaît. Il faut quelqu’un devant l’équipement pour l’éteindre et le rallumer quand l’assistant le demande.",
+      "step1": "Ouvrez la console de l’équipement, cliquez sur « Récupération du mot de passe » dans sa tuile, choisissez la famille de l’équipement, puis « Lancer la récupération ».",
+      "step2": "L’assistant lit d’abord la console, puis dit à chaque étape quoi faire. Seule la personne qui l’a lancé confirme les étapes (« Faire cette étape »).",
+      "step3": "Au signal, la personne sur place éteint et rallume l’équipement (en gardant le bouton Mode enfoncé sur un commutateur) ; l’assistant passe par ROMMON ou par switch: et fait démarrer l’équipement sans sa startup-config.",
+      "step4": "L’équipement arrive à son invite d’usine (Router>, Switch>), avec la configuration d’usine.",
+      "kept": "La startup-config n’est ni effacée ni modifiée, seulement ignorée pour ce démarrage : l’assistant fait en sorte que le suivant la relise. Elle contient toujours les anciens mots de passe : injectez une sauvegarde et enregistrez-la, ou réinitialisez l’équipement, depuis la section Sauvegardes, sinon il sera de nouveau verrouillé à son prochain redémarrage.",
+      "notLocked": "Un équipement déjà en mode privilégié n’est pas verrouillé : l’assistant s’arrête sans rien taper.",
+      "stop": "Arrêt, abandon (personne ne confirme) ou échec : l’assistant remet d’abord l’équipement comme il l’a trouvé. S’il n’y arrive pas, il le dit, et relancer l’assistant termine la remise en place.",
+      "who": "Les occupants de la baie et les administrateurs lancent une récupération ; une à la fois par équipement, jamais pendant une tâche ou une vérification de la baie. Le schéma marque l’équipement en cours de récupération, et les occupants de la baie peuvent la suivre.",
+      "close": "Fermer la fenêtre n’arrête pas la récupération : elle continue sur le serveur, et rouvrir l’assistant la retrouve où elle en est.",
+      "families": "Familles : routeurs 1841, 2801, 2811 et ISR 4331 ; commutateurs 2960, 3560, Catalyst 1000 et 9300L. L’assistant signale une procédure qui n’a pas encore été essayée sur le matériel réel.",
+      "disabled": "Un commutateur où la récupération a été désactivée (no service password-recovery) propose d’effacer sa configuration : l’assistant répond toujours non, et le commutateur redémarre normalement."
+    },
     "journal": {
       "title": "Ce qui est journalisé, et combien de temps",
       "intro": "Ce que vous faites ici n’est pas anonyme. Le détail à jour est dans État du labo, onglet « Ce qui est journalisé ».",
@@ -94,11 +136,12 @@
       "title": "Quand ça coince",
       "busyTitle": "La ligne est occupée",
       "busy": "Sur le schéma l’équipement est marqué « Occupée hors de Lab Console » : le serveur de consoles refuse la ligne parce que quelqu’un y est connecté en dehors de Lab Console (un autre terminal, par exemple), ou parce qu’elle est hors service. Cliquez sur « Prévenez-moi quand elle est libre » : la ligne est surveillée 30 minutes au plus et vous êtes prévenu. Activez la cloche « Alertes » pour l’être aussi quand la fenêtre est cachée. Si rien ne bouge, voyez avec l’enseignant.",
+      "busy2": "Pour faire le point sur toute la baie : « Vérifications », puis « État des lignes », dit quelles lignes sont libres, occupées ou muettes.",
       "silentTitle": "L’équipement est muet",
       "silent": "« Équipement muet » : le serveur de consoles a ouvert la ligne mais rien ne revient après Entrée. Ce n’est pas Lab Console : vérifiez sur place que l’équipement est allumé et que le câble console est bien branché.",
       "lockedTitle": "L’équipement demande un mot de passe",
       "locked": "Si la console affiche « Password: » avant même que vous ayez tapé quoi que ce soit, un groupe précédent a laissé un mot de passe sur la ligne console. Lab Console ne le connaît pas et ne le contourne pas : demandez-le au groupe précédent ou à l’enseignant. Les tâches (sauvegarde, injection, réinitialisation) ne forcent jamais un équipement qu’elles n’atteignent pas en mode privilégié : il est signalé dans le rapport et laissé tel quel.",
-      "locked2": "Si le mot de passe est perdu, la récupération (BREAK, ROMMON, registre de configuration) se fait avec quelqu’un sur place : le bouton « Envoyer un BREAK » de la console y sert.",
+      "locked2": "Si personne ne connaît le mot de passe, l’assistant « Récupération du mot de passe » de la tuile de console le contourne, avec quelqu’un sur place pour éteindre et rallumer l’équipement (voir « Mot de passe perdu : la récupération »).",
       "dialogTitle": "L’équipement propose la configuration initiale",
       "dialog": "Un équipement sans configuration demande « Would you like to enter the initial configuration dialog? » : répondez no. Les tâches le font d’elles-mêmes.",
       "watchTitle": "Je ne peux pas taper",
@@ -155,6 +198,10 @@
     "skip": "Passer la visite",
     "finish": "Terminer",
     "steps": {
+      "home": {
+        "title": "Votre page d’accueil",
+        "body": "Après la connexion, vous arrivez ici : votre équipe, la baie qu’elle a prise, vos dernières sauvegardes et ce qui s’est passé sur la baie. « Vue d’ensemble », dans la barre de gauche, montre toutes les baies du labo."
+      },
       "bench": {
         "title": "Choisir une baie",
         "body": "Le labo est découpé en baies de routeurs et de switchs. Cliquez sur le nom d’une baie, puis sur un équipement du schéma pour ouvrir sa console."

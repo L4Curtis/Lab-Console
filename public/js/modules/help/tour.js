@@ -1,6 +1,7 @@
 /**
- * The guided tour: a few steps that point at the real screen (pick a bench,
- * take it with the team, open a console, ask for the keyboard, back up)
+ * The guided tour: a few steps that point at the real screen (the home page
+ * where a sign-in lands, pick a bench, take it with the team, open a console,
+ * ask for the keyboard, back up)
  *
  *   maybeStartTour()   at start-up: opens the tour for someone who has never seen it
  *   startTour()        replay, from the user menu or the help page
@@ -18,6 +19,7 @@ import { t, loadNamespace, onLocaleChange } from '../../core/i18n.js';
 
 /** `target` is a selector (the step is shown without a pointer when it never appears); `route` the address it needs */
 const STEPS = [
+  { id: 'home', route: '#/home', target: 'section.view-home .ov-home' },
   { id: 'bench', route: '#/consoles', target: '.lab-picker' },
   { id: 'team', route: '#/consoles', target: '.bench-bar' },
   { id: 'console', route: '#/consoles', target: '.diagram-canvas' },
@@ -116,7 +118,8 @@ export async function startTour() {
     target?.classList.remove('tour-target');
     target = null;
     const step = STEPS[index];
-    if (step.route && (location.hash || '#/consoles').split('/')[1] !== step.route.split('/')[1]) location.hash = step.route;
+    // No address is the home page (main.js): the landing page after a sign-in
+    if (step.route && (location.hash || '#/home').split('/')[1] !== step.route.split('/')[1]) location.hash = step.route;
     write();
     card.dataset.step = step.id;
     const found = await whenVisible(step.target, abort.signal);
