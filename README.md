@@ -1,5 +1,7 @@
 # Lab Console
 
+**English** · [Français](README.fr.md)
+
 Browser access to the physical lab equipment. Pick a bench, click a router or
 switch on its diagram, and its console opens in a terminal next to the
 diagram. Open several at once to configure devices side by side.
@@ -48,7 +50,7 @@ on `http://127.0.0.1:9100` with a user picker (three students, one admin) and
 prints the `OIDC_*` lines to put in `.env`. Anyone can sign in as anyone
 there: it is a development tool, and it refuses to start with
 `NODE_ENV=production`. A pre-production Docker stack can use it through
-`docker-compose.preprod.yml` (docs/v2/AUTH.md §6).
+`docker-compose.preprod.yml` (docs/v2/AUTH.md §6; in French, docs/fr/AUTH.md).
 
 `MOCK_DOWN_PORTS=2003` simulates an unplugged console, `MOCK_BUSY_PORTS=2004`
 a line held outside the app.
@@ -170,7 +172,9 @@ imported into the database at the first start and kept as `*.imported`.
   student creates a team and invites classmates by user name; a member takes
   a free bench for the team; others ask to join; idle benches are released
   after `BENCH_IDLE_HOURS`; admins lock a bench with a reason; per-bench
-  reservation calendar with warnings before another team's slot.
+  reservation calendar with warnings before another team's slot. A team has
+  at most `TEAM_MAX_MEMBERS` members (8 by default), unanswered invitations
+  included.
 - **Accounts**: local accounts created through invitation links (single use,
   or several people with approval), password reset links made by an admin,
   passkeys (required for promoted administrators, one-click sign-in), roles
@@ -179,7 +183,8 @@ imported into the database at the first start and kept as `*.imported`.
   consoles) applied without a restart and confirmed again before saving
   (password + code, a passkey, or a fresh sign-in at the identity provider
   that confirms the session for 5 minutes); diagram import with preview,
-  versions and rollback; admin switches; sessions; audit viewer;
+  versions and rollback; admin switches; sessions; audit viewer (filter by a
+  person's name or id);
   announcement banner. **Lab status** for everyone: health of the jump
   server, the console servers, the open lines and shared SSH connections, the
   journals' total, and what is recorded.
@@ -197,7 +202,7 @@ imported into the database at the first start and kept as `*.imported`.
   "merge"), then reads the device back and compares. A **reset** says what
   is erased and who is on the consoles, wants the bench name typed and
   counts down; a device is never erased without a verified backup. Admins
-  publish **TP templates** (one may be the base configuration applied after
+  publish **TP templates** from a backup, by hand or by importing a ZIP (one may be the base configuration applied after
   a reset); the **TP folder** is one ZIP of a snapshot and the console
   journals of its day. Only Cisco IOS / IOS XE is touched. Releasing a bench
   from the bench bar offers its team a backup for 30 minutes. Settings:
