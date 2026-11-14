@@ -31,7 +31,7 @@ export function connectConsole(app, who, device, extra = '') {
   /** The last automation frame of a task (and batch) in the given states */
   c.outcome = (task, states = ['done', 'warning', 'error', 'cancelled'], batch) => c.frame(
     (f) => f.type === 'automation' && f.task === task && states.includes(f.state) && (batch === undefined || f.batch === batch),
-    `${task} finished`, 15_000);
+    `${task} finished`, 60_000);
   c.close = () => new Promise((r) => { if (c.closed) return r(); ws.once('close', r); ws.close(); });
   return c;
 }

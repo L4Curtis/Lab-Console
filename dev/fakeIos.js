@@ -426,6 +426,7 @@ export class FakeIos {
     if (slowConsole) {
       this.queue = [];
       this.busy = false;
+      this.drainedAt = performance.now();
       this.timer = setInterval(() => this.#pump(), 1);
     }
     this.#begin(start);
@@ -520,6 +521,7 @@ export class FakeIos {
   /** Bytes from the terminal server (the student's keystrokes) */
   input(data) {
     if (!this.slowConsole) { for (const ch of data) this.#char(ch); return; }
+    this.#pump();
     for (const ch of data) {
       if (this.queue.length >= this.slowConsole.bufferBytes) this.dropped++;
       else this.queue.push(ch);
@@ -528,9 +530,11 @@ export class FakeIos {
 
   // ── slow console: ~1 char/ms, nothing processed while a command runs ──────
   #pump() {
-    if (this.busy) return;
-    const ch = this.queue.shift();
-    if (ch !== undefined) this.#char(ch);
+    const now = performance.now();
+    let due = Math.floor(now - this.drainedAt); // one char per ms of real time, however late the timer ran
+    this.drainedAt += due;
+    while (due-- > 0 && !this.busy && this.queue.length) this.#char(this.queue.shift());
+    if (!this.queue.length || this.busy) this.drainedAt = now;
   }
 
   // ── timers ────────────────────────────────────────────────────────────────
