@@ -7,7 +7,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { useHarness, openConsole, typeInConsole, waitForTerminal, terminalText, setLanguage } from './harness.js';
+import { useHarness, openConsole, typeInConsole, sendInputFrame, waitForTerminal, terminalText, setLanguage } from './harness.js';
 
 const R1 = '10.22.9.211:2013';
 const h = useHarness({
@@ -61,6 +61,7 @@ test('alice opens R1, bob joins and sees the history, asks for the keyboard, ali
 
   // A spectator's keys go nowhere
   await typeInConsole(paneB, 'reload');
+  await sendInputFrame(paneB, 'reload\r'); // the page drops the keys; the server refuses a frame sent anyway
   await paneB.locator('button[data-action="request"]').click();
   // Alice is asked, with a countdown, and gives the keyboard
   const prompt = paneA.locator('.presence-prompt');

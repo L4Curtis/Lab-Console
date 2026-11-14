@@ -10,7 +10,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { useHarness, signInAs, openConsole, typeInConsole, waitForTerminal, terminalText, waitForApp } from './harness.js';
+import { useHarness, signInAs, openConsole, typeInConsole, sendInputFrame, waitForTerminal, terminalText, waitForApp } from './harness.js';
 import { invite, PASSWORD } from '../helpers/accounts.js';
 
 const h = useHarness();
@@ -61,6 +61,7 @@ test('a member of the team holding B4M pilots R1; an outsider joins to watch and
   await waitForTerminal(watching, /^R1>show clock$/m); // what was on screen, replayed
   await chloe.waitForFunction((el) => el.dataset.role === 'spectator', await watching.elementHandle());
   await typeInConsole(watching, 'reload');
+  await sendInputFrame(watching, 'reload\r'); // the page drops the keys; the server refuses a frame sent anyway
   await typeInConsole(pane, 'show users');
   await waitForTerminal(watching, /^R1>show users$/m);
   assert.doesNotMatch(await terminalText(pane), /reload/, 'the outsider\'s keys never reach the device');

@@ -411,6 +411,14 @@ export async function typeInConsole(target, line) {
   await pane.page().keyboard.press('Enter');
 }
 
+/** An `input` frame on the pane's own socket, the page's check on who may type bypassed: what the server alone refuses */
+export function sendInputFrame(target, data) {
+  return paneOf(target).evaluate((el, d) => import('/js/shared/workspace.js').then(({ workspace }) => {
+    const pane = [...workspace.panes.values()].find((p) => p.el === el);
+    pane.ws.send(JSON.stringify({ type: 'input', data: d }));
+  }), data);
+}
+
 const paneOf = (target) => (typeof target.locator === 'function' && typeof target.goto === 'function'
   ? target.locator('article.pane.pane-console').first()
   : target);
