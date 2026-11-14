@@ -178,7 +178,7 @@ export async function openChecksDialog(lab) {
     for (const c of r.cells ?? []) if (!targets.some((x) => x.to === c.to && x.ip === c.ip)) targets.push({ to: c.to, ip: c.ip, interface: c.interface });
     if (!routers.length || !targets.length) return h('p.muted', t('checks.ping.empty'));
     const cell = (from, x) => (r.cells ?? []).find((c) => c.from === from && c.to === x.to && c.ip === x.ip);
-    return h('div.checks-matrix-wrap', h('table.checks-table.checks-matrix',
+    return h('div.checks-matrix-wrap', r.tooMany ? h('p.muted', t('checks.ping.tooMany')) : null, h('table.checks-table.checks-matrix',
       h('caption.muted', t('checks.ping.caption', { count: r.repeat ?? 0 })),
       h('thead', h('tr', h('th', t('checks.ping.fromTo')), targets.map((x) => h('th', { scope: 'col', title: `${name.get(x.to)} ${x.interface}` }, h('div', name.get(x.to) ?? ''), h('div.muted', x.ip))))),
       h('tbody', routers.map((d) => h('tr', { dataset: { device: d.name } }, h('th', { scope: 'row' }, d.name),
@@ -187,7 +187,7 @@ export async function openChecksDialog(lab) {
           const c = cell(d.key, x);
           if (!c) return h('td', '');
           const text = c.state === 'error' || c.state === 'skipped' ? '?' : `${c.received}/${c.sent}`;
-          const title = c.state === 'error' ? codeText(c.code, {}, c.code ?? '') : t(`checks.ping.state.${c.state}`, { rtt: c.rtt?.avg ?? '' });
+          const title = c.state === 'error' || (c.state === 'skipped' && c.code) ? codeText(c.code, c.params ?? {}, c.code ?? '') : t(`checks.ping.state.${c.state}`, { rtt: c.rtt?.avg ?? '' });
           return h('td.checks-ping', { dataset: { state: c.state, to: name.get(x.to), ip: x.ip }, title }, text);
         }))))));
   }

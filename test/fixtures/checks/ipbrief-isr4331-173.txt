@@ -7,3 +7,4 @@ Serial0/1/0            10.0.13.1       YES manual down                  down
 Serial0/1/1            unassigned      YES unset  administratively down down    
 GigabitEthernet0       unassigned      YES NVRAM  administratively down down    
 Loopback0              1.1.1.1         YES manual up                    up      
+GigabitEthernet0/0/2.100unassigned     YES unset  up                    up      

@@ -106,6 +106,7 @@
   "ping": {
     "caption": "{count} paquets par adresse. Vert : répond ; orange : en partie ; rouge : ne répond pas.",
     "fromTo": "De \\ vers",
+    "tooMany": "Plus de cases que la limite : les dernières n’ont pas été essayées (affichées ?).",
     "empty": "Aucun routeur avec une adresse active : rien à pinguer.",
     "state": {
       "ok": "répond ({rtt} ms en moyenne)",
@@ -140,6 +141,8 @@
     "cancel_forbidden": "Seuls la personne qui l’a lancée, les occupants de la baie et les administrateurs l’arrêtent.",
     "cancelled": "arrêtée avant la fin",
     "not_allowed": "vous n’avez plus la main sur cette baie",
+    "line_in_use": "la ligne console est utilisée : rien n’a été tapé",
+    "too_many_cells": "non essayé : plus de {max} pings dans cette matrice",
     "console_waiting": "la console attend une réponse ({state}) : rien n’a été tapé",
     "not_router": "pas un routeur ({model})",
     "probe_failed": "le serveur de consoles n’a pas pu être interrogé",

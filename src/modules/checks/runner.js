@@ -1,7 +1,12 @@
 /**
  * Bench checks: line status, cabling, ping matrix, interfaces (SPEC "Lot checks")
  *
- * They run on real equipment, so they only read:
+ * They run on real equipment, so they only read, and only on lines nobody
+ * uses: a console line that has a room (someone has it open in the
+ * application, or a job holds it) is never touched, whatever the check:
+ * nothing is typed, not even an Enter that would run what is half-typed
+ * there. The device is `skipped` (checks.line_in_use), or `in_app` for the
+ * line status.
  *   - the line status asks the console server (`nc -z` through the jump
  *     server, on the shared SSH connections) and never opens a line that is
  *     in use, in the application (its room exists) or outside it (the
@@ -9,10 +14,12 @@
  *     room manager, one Enter is sent and the device's answer is awaited:
  *     nothing means "device silent" (powered off, cable unplugged, hung).
  *     The line is hung up afterwards unless someone joined it meanwhile;
- *   - the others type `show` commands and `ping` only, through the room of
- *     each line and its runExclusive (the pilot is asked, the bench rule is
- *     asked again before every byte, everyone watching sees the task), like
- *     the bench jobs. Before anything else `show version` must say Cisco IOS
+ *   - the others type `show` commands and `ping` only (and what the driver
+ *     needs to read them: Enter, `terminal length 0` / `24`, `end` out of a
+ *     configuration mode a previous person left), through the room of each
+ *     line the check opened and its runExclusive (the bench rule is asked
+ *     again before every byte, everyone watching sees the task), like the
+ *     bench jobs. Before anything else `show version` must say Cisco IOS
  *     or IOS XE: a device whose system is unknown is left alone after it.
  *     A console waiting for an answer that an Enter would give (a
  *     "[confirm]", the initial dialog, ROMMON, a boot) is not touched.
@@ -68,7 +75,7 @@ export class CheckRunner {
   /**
    * @param readable  (user, check) => boolean: may this user read the check's result
    * @param mayGoOn   (check) => boolean: may its actor still run it (asked before each device)
-   * @param options   { devicesAtOnce, timeouts, wakeMs, probeSeconds, pingRepeat, now }
+   * @param options   { devicesAtOnce, timeouts, wakeMs, probeSeconds, pingRepeat, pingCellsMax, now }
    */
   constructor({ services, events, audit, repos, logger, readable, mayGoOn = () => true, options = {} }) {
     this.services = services;
@@ -83,6 +90,7 @@ export class CheckRunner {
     this.wakeMs = options.wakeMs ?? 8000;
     this.probeSeconds = options.probeSeconds ?? 3;
     this.pingRepeat = options.pingRepeat ?? 3;
+    this.pingCellsMax = options.pingCellsMax ?? PING_CELLS_MAX;
     this.retryMs = options.retryMs ?? 1000;
     this.now = options.now ?? (() => Date.now());
   }
@@ -213,19 +221,20 @@ export class CheckRunner {
     const rooms = this.services.consoles.rooms;
     const signal = check.hidden.abort.signal;
     for (let attempt = 1; ; attempt++) {
-      const existed = Boolean(rooms.get(targetKey(device.target)));
+      // A line someone has open (or a job holds) is theirs: no pilot is asked, no key is typed
+      if (rooms.get(targetKey(device.target))) throw new DeviceStop('skipped', { reason: 'checks.line_in_use' });
       this.#set(check, d, { state: 'waiting', step: 'checks.steps.keyboard' });
       const room = rooms.open(device, check.hidden.actorUser, { task: true });
       try {
         return await room.runExclusive(check.hidden.actorUser, `check:${label}`, (cli) => fn(cli, room), { signal, privateOutput: (u) => this.readable(u, check) });
       } catch (err) {
-        if (!existed && attempt < 3 && !signal.aborted && refusedLine(err)) {
+        if (attempt < 3 && !signal.aborted && refusedLine(err)) {
           await pause(this.retryMs * attempt, signal);
           continue;
         }
         throw err;
       } finally {
-        this.#hangUpIfAlone(room, existed);
+        this.#hangUpIfAlone(room);
       }
     }
   }
@@ -245,8 +254,8 @@ export class CheckRunner {
   }
 
   /** A line the check opened and nobody joined is freed at once: the console server's port is someone's */
-  #hangUpIfAlone(room, existed) {
-    if (existed || room.closed || room.task || room.users.length) return;
+  #hangUpIfAlone(room) {
+    if (room.closed || room.task || room.users.length) return;
     room.close('Check done: the line is free again', { code: 'consoles.session_closed' });
   }
 
@@ -310,6 +319,11 @@ export class CheckRunner {
       });
       this.#set(check, d, { state: 'done' });
     } catch (err) {
+      // Opened in the application while the console server answered: left to them
+      if (err instanceof DeviceStop && err.code === 'checks.line_in_use') {
+        entry.line = 'in_app';
+        return this.#set(check, d, { state: 'done' });
+      }
       // The console server refused the line after all: someone outside took it meanwhile
       if (refusedLine(err)) {
         entry.line = 'busy';
@@ -358,7 +372,11 @@ export class CheckRunner {
         entry.cdp = { enabled: cdp.enabled, neighbors: cdp.neighbors.map(publicNeighbor) };
         this.#set(check, d, { step: 'checks.steps.interfaces' });
         const ifs = await ios.interfaces();
-        if (ifs.ok) entry.interfaces = ifs.interfaces.map(publicInterface);
+        if (ifs.ok) {
+          entry.interfaces = ifs.interfaces.map(publicInterface);
+          // Rows the parser could not read: a port that is not listed may be one of them
+          if (ifs.unparsed > 0) entry.interfacesPartial = true;
+        }
       });
       this.#set(check, d, { state: 'done', step: null });
     });
@@ -390,10 +408,11 @@ export class CheckRunner {
         for (const a of addresses.get(to.key)) cells.push({ from: from.key, to: to.key, interface: a.interface, ip: a.ip, state: 'queued', sent: 0, received: 0, successRate: null, rtt: null });
       }
     }
-    if (cells.length > PING_CELLS_MAX) cells.length = PING_CELLS_MAX;
+    // Past the limit a cell is listed but not tried
+    for (const c of cells.slice(this.pingCellsMax)) Object.assign(c, { state: 'skipped', code: 'checks.too_many_cells', params: { max: this.pingCellsMax } });
     // 2. From each router, every address of the others
     await this.#each(check, sources, async (d, device) => {
-      const mine = cells.filter((c) => c.from === d.key);
+      const mine = cells.filter((c) => c.from === d.key && c.state === 'queued');
       await this.#onConsole(check, d, device, 'ping', async (ios) => {
         for (const c of mine) {
           this.#set(check, d, { step: 'checks.steps.ping', params: { ip: c.ip } });
@@ -410,7 +429,7 @@ export class CheckRunner {
     const routers = check.devices.map((d) => ({ ...deviceReport(d), addresses: addresses.get(d.key) ?? null }));
     const summary = { ok: 0, partial: 0, fail: 0, error: 0, skipped: 0 };
     for (const c of cells) summary[c.state] = (summary[c.state] ?? 0) + 1;
-    return { routers, cells, repeat: this.pingRepeat, summary };
+    return { routers, cells, repeat: this.pingRepeat, summary, tooMany: cells.some((c) => c.code === 'checks.too_many_cells') };
   }
 
   // ── Publication ───────────────────────────────────────────────────────────

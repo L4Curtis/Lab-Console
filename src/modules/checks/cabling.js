@@ -165,7 +165,7 @@ function interfaceReason(end, d) {
   if (!end.port || d?.state !== READ || !Array.isArray(d.interfaces)) return null;
   const want = canonicalPort(end.port);
   const ifc = d.interfaces.find((i) => canonicalPort(i.name) === want);
-  if (!ifc) return d.interfaces.length ? { code: 'no_such_port', params: { device: d.name, port: end.port } } : null;
+  if (!ifc) return d.interfaces.length && !d.interfacesPartial ? { code: 'no_such_port', params: { device: d.name, port: end.port } } : null;
   if (ifc.status === 'administratively down') return { code: 'shutdown', params: { device: d.name, port: end.port } };
   if (ifc.status !== 'up' || ifc.protocol !== 'up') return { code: 'down', params: { device: d.name, port: end.port } };
   return null;

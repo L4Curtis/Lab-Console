@@ -34,7 +34,7 @@ const isAdmin = (u) => u?.role === 'admin';
 const targetKey = (t) => `${t.host}:${t.port}`;
 
 /**
- * @param options  test seam: { timeouts, wakeMs, retryMs, probeSeconds, pingRepeat, devicesAtOnce, linesCooldownMs, perMinute, now }
+ * @param options  test seam: { timeouts, wakeMs, retryMs, probeSeconds, pingRepeat, pingCellsMax, devicesAtOnce, linesCooldownMs, perMinute, now }
  */
 export function createChecksModule({ config, logger, events, repos, audit, infra, services }, options = {}) {
   const log = logger.child('checks');
@@ -69,6 +69,7 @@ export function createChecksModule({ config, logger, events, repos, audit, infra
       retryMs: options.retryMs,
       probeSeconds: options.probeSeconds,
       pingRepeat: options.pingRepeat,
+      pingCellsMax: options.pingCellsMax,
       now,
     },
   });

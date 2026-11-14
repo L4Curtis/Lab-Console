@@ -106,6 +106,7 @@
   "ping": {
     "caption": "{count} packets per address. Green: answers; orange: partly; red: no answer.",
     "fromTo": "From \\ to",
+    "tooMany": "More cells than the limit: the last ones were not tried (shown as ?).",
     "empty": "No router with an active address: nothing to ping.",
     "state": {
       "ok": "answers ({rtt} ms on average)",
@@ -140,6 +141,8 @@
     "cancel_forbidden": "Only the person who started it, the bench's occupants and admins can stop it.",
     "cancelled": "stopped before the end",
     "not_allowed": "you no longer hold this bench",
+    "line_in_use": "the console line is in use: nothing was typed",
+    "too_many_cells": "not tried: more than {max} pings in this matrix",
     "console_waiting": "the console is waiting for an answer ({state}): nothing was typed",
     "not_router": "not a router ({model})",
     "probe_failed": "the console server could not be asked",

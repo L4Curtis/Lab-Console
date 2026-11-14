@@ -36,7 +36,7 @@ export const CHECK_MODELS = {
   S4: { model: 'aruba' },
 };
 
-export async function startChecksApp({ models = CHECK_MODELS, lab: labOptions = {}, checks = {}, cabling = true } = {}) {
+export async function startChecksApp({ models = CHECK_MODELS, lab: labOptions = {}, checks = {}, cabling = true, env = {} } = {}) {
   const { labs } = parseDrawio(fs.readFileSync(`${repoRoot}/diagrams/diagram.drawio`, 'utf8'), { networkPrefix: '10.22.9' });
   const all = labs.flatMap((l) => l.devices.map((d) => ({ ...d, labName: l.name })));
   const names = new Map(all.map((d) => [`${d.target.host}:${d.target.port}`, d.name]));
@@ -53,6 +53,7 @@ export async function startChecksApp({ models = CHECK_MODELS, lab: labOptions = 
       SSH_HOST: '127.0.0.1', SSH_PORT: String(lab.port), SSH_USERNAME: SSH.username, SSH_PASSWORD: SSH.password,
       TELNET_USERNAME: TELNET.username, TELNET_PASSWORD: TELNET.password, TELNET_WAKE_IDLE_MS: '150',
       ALLOWED_CONSOLE_HOSTS: '10.22.9.211,10.22.9.212',
+      ...env,
     },
     modules: (deps) => {
       modules = [

@@ -283,6 +283,7 @@
     "not_occupant": "Seuls les occupants de la baie (et les administrateurs) lancent des tâches dessus.",
     "locked": "Baie verrouillée : {reason}",
     "bench_busy": "Une autre tâche tourne déjà sur cette baie ({name}).",
+    "check_running": "Une vérification tourne sur cette baie ({name}) : attendez qu’elle se termine.",
     "bad_devices": "Liste d’équipements invalide.",
     "unknown_device": "Un de ces équipements n’est pas sur cette baie.",
     "no_devices": "Cochez au moins un équipement.",

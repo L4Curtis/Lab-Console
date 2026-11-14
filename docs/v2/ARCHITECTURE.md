@@ -1387,24 +1387,37 @@ A port label near an end of a link belongs to that end; a single label in
 the middle is taken for both ends (`assumed`). `ping`: the routers'
 addresses (interfaces up/up with IPv4) read first, then from each router a
 `ping <ip> repeat <n>` to every address of the others; cells `ok`,
-`partial`, `fail`, `error`, `skipped` (400 at most). `interfaces`: `show ip
+`partial`, `fail`, `error`, `skipped`; the first 400 are tried, the others are
+listed `skipped` (`checks.too_many_cells`, `result.tooMany`). `interfaces`: `show ip
 interface brief` per device, and per diagram link the state and address of
 each labelled end.
 
 **On the devices.** Like a bench job (§9b): `rooms.open(device, actor, {
 task: true })`, `room.runExclusive(actor, 'check:<kind>', fn, { signal,
-privateOutput })` (the pilot is asked, the bench rule before every byte;
-what the device prints goes only to the people who may read the result and
-stays out of the journal), five devices at once. Before anything, a screen
+privateOutput })` (the bench rule before every byte; what the device prints
+goes only to the people who may read the result and stays out of the
+journal), five devices at once. **Only on a line nobody uses**: a console
+line that already has a room (open in the application, or held by a job) is
+never touched, whatever the check: no pilot is asked, nothing is typed (not
+even an Enter, which would run what is half-typed there), and the device is
+`skipped` (`checks.line_in_use`; `in_app` for the line status). A check
+therefore only ever types on a room it opened itself. Before anything, a screen
 waiting for an answer an Enter would give (`[confirm]`, the initial dialog,
 ROMMON, a boot loader, a boot) is not touched (`checks.console_waiting`),
 then `identify()`: not Cisco IOS / IOS XE → `skipped` (`ios.not_ios`),
-nothing more typed. Only `show …` and `ping` are typed. A line the check
-opened and nobody joined is hung up when its task ends.
+nothing more typed. What is typed: `show …` and `ping`, plus what the IOS
+driver needs to read them (a bare Enter to find the prompt, `terminal length
+0` before and `terminal length 24` after, and `end` if a previous person left
+the line in a configuration mode). A line the check opened and nobody joined
+is hung up when its task ends. A port the `show ip interface brief` rows do
+not list is `no_such_port` only when every row of that output was read
+(`interfacesPartial` otherwise).
 
 **Who.** Running: `services.benches.canOperate` (`checks.locked` 423,
 `checks.not_occupant` 403), no job on the bench (`checks.job_running`), one
-check per bench (`checks.bench_busy`), 10 a minute per person
+check per bench (`checks.bench_busy`; and the other way round, a job does
+not start while a check runs: `jobs.check_running` 409, through
+`services.checks.running`), 10 a minute per person
 (`checks.rate_limited`), the line status once every 20 s per bench
 (`checks.too_soon`). The actor's right is asked again before each device
 (`checks.not_allowed`). Reading: the line status is for every signed-in

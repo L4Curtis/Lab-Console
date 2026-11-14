@@ -7,7 +7,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { parseCdpNeighbors, parseIpInterfaceBrief, parsePing } from '../src/lib/drivers/ciscoIos.js';
+import { parseCdpNeighbors, parseIpInterfaceBrief, countRows, parsePing } from '../src/lib/drivers/ciscoIos.js';
 import { canonicalPort, samePort, fullPort, shortPort } from '../src/modules/checks/ports.js';
 import { diagramLinks } from '../src/modules/checks/links.js';
 import { compareCabling, hostKey } from '../src/modules/checks/cabling.js';
@@ -53,13 +53,26 @@ describe('parsing real output', () => {
 
   test('show ip interface brief, IOS XE 17.3: a sub-interface glued to its address, shut, down, a loopback', () => {
     const i = parseIpInterfaceBrief(fixture('ipbrief-isr4331-173.txt'));
-    assert.equal(i.length, 8);
+    assert.equal(i.length, 9);
     assert.deepEqual(i[0], { name: 'GigabitEthernet0/0/0', ip: '10.0.12.1', ok: true, method: 'manual', status: 'up', protocol: 'up' });
     assert.deepEqual(i[1], { name: 'GigabitEthernet0/0/1', ip: null, ok: true, method: 'unset', status: 'administratively down', protocol: 'down' });
     assert.equal(i[3].name, 'GigabitEthernet0/0/2.20');
     assert.equal(i[3].ip, '192.168.20.1');
     assert.equal(i[4].status, 'down');
     assert.equal(i[6].method, 'NVRAM');
+  });
+
+  test('show ip interface brief: a name as long as its column is glued to "unassigned" and is still read; every row is counted', () => {
+    const text = fixture('ipbrief-isr4331-173.txt');
+    const glued = text.split('\n').find((l) => l.includes('.100unassigned'));
+    assert.ok(glued, 'the fixture has a really glued line');
+    const i = parseIpInterfaceBrief(text).find((x) => x.name === 'GigabitEthernet0/0/2.100');
+    assert.deepEqual(i, { name: 'GigabitEthernet0/0/2.100', ip: null, ok: true, method: 'unset', status: 'up', protocol: 'up' });
+    assert.equal(countRows(text), 9);
+    // A row glued to an address that ends in a digit cannot be split: it is dropped, and counted as a row nobody read
+    const ambiguous = 'GigabitEthernet0/0/0.10010.0.0.1 YES manual up                    up\n';
+    assert.equal(parseIpInterfaceBrief(ambiguous).length, 0);
+    assert.equal(countRows(ambiguous), 1);
   });
 
   test('show ip interface brief, IOS 12.2SE on a 2960: SVIs, an SVI up with its protocol down, a port-channel', () => {
@@ -181,6 +194,17 @@ describe('the cabling verdict', () => {
     assert.deepEqual(r.unexpected[0], { a: { key: 'S1', name: 'S1', port: 'FastEthernet0/20' }, b: { key: 'S3', name: 'S3', port: 'FastEthernet0/20', guessed: false } });
     assert.equal(r.unexpected[1].b.key, null);
     assert.equal(r.unexpected[1].b.name, 'Phone-12');
+  });
+
+  test('a port missing from the interfaces read is "no such port" only when every row was read', () => {
+    const rows = [{ name: 'FastEthernet0/1', ip: null, status: 'up', protocol: 'up' }];
+    const run = (extra) => compareCabling([link('l1', 'R1', 'FastEthernet0/0', 'S1', 'FastEthernet0/24')], [
+      dev('R1', 'R1', [], { interfaces: rows, ...extra }),
+      dev('S1', 'S1', []),
+    ]).links[0];
+    assert.deepEqual(run({}).reason, { code: 'no_such_port', params: { device: 'R1', port: 'FastEthernet0/0' } });
+    assert.equal(run({ interfacesPartial: true }).status, 'missing');
+    assert.equal(run({ interfacesPartial: true }).reason, null, 'a row the parser could not read may be that port');
   });
 
   test('unverified: the other end does not run Cisco IOS, CDP is off, nothing was read', () => {
