@@ -30,7 +30,6 @@ test('resolve: path traversal is refused, whatever the disguise', () => {
     unsafe(() => store.resolve('snapshots', bad));
     unsafe(() => store.dir('snapshots', bad));
     unsafe(() => store.json(['snapshots', bad]));
-    unsafe(() => store.jsonl(['snapshots', bad]));
   }
   unsafe(() => store.resolve());
   unsafe(() => store.resolve('snapshots', 42));
@@ -161,34 +160,6 @@ test('json: a file that cannot be read is an error every time, never an empty do
   await assert.rejects(doc.update((d) => d), /EISDIR/);
 });
 
-test('jsonl: append then read, in order', async () => {
-  const log = store.jsonl('collab/chat/B4M.jsonl');
-  assert.deepEqual(await log.read(), [], 'a log that does not exist yet is empty');
-  await Promise.all([1, 2, 3, 4, 5].map((n) => log.append({ n })));
-  assert.deepEqual((await log.read()).map((e) => e.n), [1, 2, 3, 4, 5]);
-  assert.equal(fs.readFileSync(log.path, 'utf8').split('\n').length, 6, 'one line per entry');
-  assert.equal(store.jsonl('collab/chat/B4M.jsonl'), log);
-});
-
-test('jsonl: limit keeps the most recent, since / until / filter select', async () => {
-  const log = store.jsonl('audit/2026-11.jsonl');
-  for (let day = 1; day <= 9; day++) await log.append({ ts: `2026-11-0${day}T10:00:00.000Z`, day, even: day % 2 === 0 });
-  assert.deepEqual((await log.read({ limit: 3 })).map((e) => e.day), [7, 8, 9]);
-  assert.deepEqual((await log.read({ since: '2026-11-07T00:00:00Z' })).map((e) => e.day), [7, 8, 9]);
-  assert.deepEqual((await log.read({ since: new Date('2026-11-03T00:00:00Z'), until: Date.parse('2026-11-05T23:00:00Z') })).map((e) => e.day), [3, 4, 5]);
-  assert.deepEqual((await log.read({ filter: (e) => e.even, limit: 2 })).map((e) => e.day), [6, 8]);
-  assert.deepEqual(await log.read({ limit: 0 }), []);
-});
-
-test('jsonl: a torn line (crash in the middle of a write) is skipped, the rest is read', async () => {
-  const log = store.jsonl('journal.jsonl');
-  await log.append({ n: 1 });
-  fs.appendFileSync(log.path, '{"n": 2, "tor');
-  fs.appendFileSync(log.path, '\n');
-  await log.append({ n: 3 });
-  assert.deepEqual((await log.read()).map((e) => e.n), [1, 3]);
-});
-
 test('writeFileAtomic: replaces the content, cleans up when it fails', async () => {
   const file = store.resolve('diagrams', 'current.drawio');
   store.dir('diagrams');
@@ -207,8 +178,6 @@ test('createStore: an unusable DATA_DIR fails at start-up, with its path', () =>
 
 test('files are private to the service account', async () => {
   await store.json('auth/sessions.json', {}).set({ a: 1 });
-  await store.jsonl('audit/2026-11.jsonl').append({ a: 1 });
   assert.equal(fs.statSync(store.resolve('auth/sessions.json')).mode & 0o077, 0);
-  assert.equal(fs.statSync(store.resolve('audit/2026-11.jsonl')).mode & 0o077, 0);
   assert.equal(fs.statSync(store.resolve('auth')).mode & 0o077, 0);
 });

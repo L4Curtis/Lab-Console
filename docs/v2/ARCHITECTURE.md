@@ -49,7 +49,7 @@ src/
   config.js                 frozen config object, assembled from fragments; loadConfig()
   lib/
     env.js                  env readers + validation errors      (lot: skeleton)
-    store.js                data directory, JSON / JSONL files   (lot: skeleton)
+    store.js                data directory, JSON documents and files   (lot: skeleton)
     db/                     the database (lot: db), see §6
       index.js              openDatabase(), createRepositories(), importLegacyFiles()
       sqlite.js             the SQLite adapter (node:sqlite); a PostgreSQL one would sit beside it
@@ -511,7 +511,6 @@ by time, action, actor and details), with a warning in the log.
 store.resolve('snapshots', bench, name)   // absolute path inside DATA_DIR; throws on traversal
 store.dir('journal', bench)               // same, and creates the directory
 store.json('benches/occupancy.json', {})  // → { get(), set(value), update(fn) }  atomic, serialized
-store.jsonl('audit/2026-11.jsonl')        // → { append(obj), read({ limit, since, until, filter }) }
 store.safeName(label)                     // any label → a file name resolve() accepts
 store.flush()                             // resolves when every pending write is done
 ```
@@ -521,8 +520,8 @@ store.flush()                             // resolves when every pending write i
   contain a separator. Refused everywhere (`StoreError`, `code: 'store.path'`):
   `..`, `.`, empty or hidden names (leading dot), `/`, `\`, control
   characters, surrounding spaces, names over 200 bytes. Names with spaces or
-  accents are fine. `json()` and `jsonl()` also take an array of segments:
-  `store.jsonl(['collab/chat', bench + '.jsonl'])`. For a label that may
+  accents are fine. `json()` also takes an array of segments:
+  `store.json(['notes', bench + '.json'])`. For a label that may
   contain anything (a device name with a slash), use `safeName()` and keep the
   real name inside the document.
 - **`json(path, fallback)`** returns the same handle for the same file, so
@@ -534,9 +533,6 @@ store.flush()                             // resolves when every pending write i
   may be async — other updates of that document wait. If `fn` throws or the
   write fails, nothing changes, on disk or in memory. A file that is not valid
   JSON is renamed `<name>.corrupt-<ts>` and the fallback is used.
-- **`jsonl(path)`**: `append(obj)` returns a promise; `read()` resolves to the
-  entries in file order, `limit` keeps the most recent ones, `since` / `until`
-  compare with each entry's `ts` (ISO string or ms). Unparsable lines are skipped.
 - Other files (a snapshot's `.cfg`, a diagram version) are written by the
   module itself with `store.resolve` / `store.dir` and `writeFileAtomic(file, data)`,
   exported by `src/lib/store.js`.

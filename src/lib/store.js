@@ -9,7 +9,6 @@
  *   store.resolve('snapshots', bench, name)   absolute path inside DATA_DIR
  *   store.dir('journal', bench)               same, and creates the directory
  *   store.json('benches/occupancy.json', {})  { get(), set(value), update(fn) }
- *   store.jsonl('audit/2026-11.jsonl')        { append(obj), read({ limit, since, until, filter }) }
  *
  * Two guarantees the modules rely on:
  *   - a name coming from a user or from the diagram can never leave DATA_DIR
@@ -21,7 +20,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import readline from 'node:readline';
 
 export class StoreError extends Error {
   constructor(message, code = 'store.path') {
@@ -87,17 +85,11 @@ function createQueue() {
 }
 
 const clone = (value) => (value === undefined ? undefined : structuredClone(value));
-const toMillis = (v) => {
-  if (v === undefined || v === null || v === '') return null;
-  const ms = v instanceof Date ? v.getTime() : typeof v === 'number' ? v : Date.parse(v);
-  return Number.isFinite(ms) ? ms : null;
-};
 
 export function createStore(dataDir, { logger } = {}) {
   const root = path.resolve(dataDir);
   const log = logger ?? { info() {}, warn() {}, error() {} };
   const documents = new Map(); // absolute path → json handle
-  const logs = new Map();      // absolute path → jsonl handle
   const queues = new Set();
 
   try {
@@ -218,65 +210,10 @@ export function createStore(dataDir, { logger } = {}) {
     return handle;
   }
 
-  /**
-   * One append-only log, one JSON object per line. read() returns the
-   * matching entries in file order; `limit` keeps the most recent ones.
-   * `since` / `until` compare against each entry's `ts` (ISO date or ms)
-   */
-  function jsonl(relPath) {
-    const file = toPath(relPath);
-    if (logs.has(file)) return logs.get(file);
-
-    const enqueue = newQueue();
-    const handle = {
-      path: file,
-      append(entry) {
-        return enqueue(async () => {
-          const line = JSON.stringify(entry);
-          if (line === undefined) throw new StoreError('A JSONL entry must be a JSON value', 'store.value');
-          await fs.promises.mkdir(path.dirname(file), { recursive: true, mode: 0o700 });
-          await fs.promises.appendFile(file, `${line}\n`, { mode: 0o600 });
-        });
-      },
-      read({ limit = Infinity, since, until, filter } = {}) {
-        // Queued behind the appends, so a read sees every append made before it
-        return enqueue(async () => {
-          const from = toMillis(since);
-          const to = toMillis(until);
-          const max = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : Infinity;
-          const out = [];
-          let stream;
-          try {
-            await fs.promises.access(file);
-            stream = fs.createReadStream(file, { encoding: 'utf8' });
-          } catch (err) {
-            if (err.code === 'ENOENT') return out;
-            throw err;
-          }
-          for await (const line of readline.createInterface({ input: stream, crlfDelay: Infinity })) {
-            if (!line.trim()) continue;
-            let entry;
-            try { entry = JSON.parse(line); } catch { continue; } // a torn last line after a crash
-            if (from !== null || to !== null) {
-              const ts = toMillis(entry?.ts);
-              if (ts === null || (from !== null && ts < from) || (to !== null && ts > to)) continue;
-            }
-            if (filter && !filter(entry)) continue;
-            out.push(entry);
-            if (out.length >= max * 2 + 64) out.splice(0, out.length - max); // bounded memory on long logs
-          }
-          return out.length > max ? out.slice(out.length - max) : out;
-        });
-      },
-    };
-    logs.set(file, handle);
-    return handle;
-  }
-
   /** Resolves once every write requested so far has finished (shutdown, tests) */
   async function flush() {
     await Promise.all([...queues].map((pending) => pending()));
   }
 
-  return { root, resolve, dir, json, jsonl, flush, safeName, writeFileAtomic };
+  return { root, resolve, dir, json, flush, safeName, writeFileAtomic };
 }

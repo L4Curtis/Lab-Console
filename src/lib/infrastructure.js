@@ -131,8 +131,3 @@ export async function createInfrastructure({ file, repos, audit, logger }) {
     on: (event, fn) => { emitter.on(event, fn); return () => emitter.off(event, fn); },
   };
 }
-
-/** The list as the shipped file gives it (tests, tools); the platform uses createInfrastructure */
-export function loadInfrastructure(file, logger) {
-  return { adminSwitches: readShipped(file, logger ?? { warn() {} }).map(expand) };
-}

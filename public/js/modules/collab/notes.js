@@ -36,7 +36,6 @@ const changed = () => {
 };
 
 export const noteOf = (key) => notes.get(key) ?? null;
-export const allNotes = () => [...notes.values()];
 
 export function onNotes(fn) {
   listeners.add(fn);

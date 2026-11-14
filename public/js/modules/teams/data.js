@@ -15,12 +15,10 @@ import { getLocale, t, has } from '../../core/i18n.js';
 import { session } from '../../core/session.js';
 
 let summaries = new Map(); // bench → summary
-let backupOffer = false;
 const listeners = new Set();
 
 live.on('benches:state', (data) => {
   summaries = new Map((data?.benches ?? []).map((b) => [b.bench, b]));
-  backupOffer = Boolean(data?.backupOffer);
   for (const fn of listeners) fn(summaries);
 });
 
@@ -31,7 +29,6 @@ export function onBenches(fn) {
 }
 
 export const benchSummary = (name) => summaries.get(name) ?? null;
-export const hasBackupOffer = () => backupOffer;
 
 /** Is the signed-in user one of the bench's occupants? */
 export const isOccupant = (summary) => Boolean(summary?.occupants?.some((o) => o.id === session.user?.id));
