@@ -1,0 +1,145 @@
+{
+  "action": "Password recovery",
+  "title": "Password recovery of {device}",
+  "badge": "recovery",
+  "close": "Close (the recovery goes on)",
+  "intro": "For a device left locked by a console password or an enable secret nobody knows. Someone must be next to the device to switch it off and on when asked. The device then starts without its startup-config and stops at a clean prompt; its startup-config is neither erased nor changed (only bypassed), so your team then injects a backup and saves it, or starts afresh.",
+  "family": "Device family",
+  "unverified": "procedure not yet tried on the real equipment",
+  "start": "Start the recovery",
+  "loading": "Loading…",
+  "cannotStart": "You cannot start a recovery of this device: {reason}",
+  "byOther": "{name} is recovering this device.",
+  "stop": "Stop the recovery",
+  "stopConfirm": "Stop the recovery of {device}? The device stays where it is now; starting the assistant again picks up from what its console shows.",
+  "confirm": "Do this step",
+  "ready": "I am at the device, ready",
+  "notYours": "Only {name}, who started it, confirms the steps.",
+  "retry": "Try this step again when ready.",
+  "doneTitle": "{device} is at a clean prompt ({host}#)",
+  "doneText": "Its running configuration is the factory one; its startup-config is untouched and still holds the old passwords: it is read again at the next boot. Inject a backup and save it, or reset the device, from the Backups section.",
+  "toJobs": "Open the Backups section",
+  "failedTitle": "The recovery stopped",
+  "failedHint": "The device stays where it is. Starting the assistant again picks up from what its console shows (ROMMON, switch:, the initial dialog).",
+  "cancelledTitle": "The recovery was stopped",
+  "lastOutput": "End of the console output",
+  "attempt": "attempt {n}",
+  "families": {
+    "isr_g1": "ISR G1 routers: 1841, 2801, 2811 (IOS 12.4)",
+    "isr4300": "ISR 4331 routers (IOS XE 17.3)",
+    "catalyst": "Catalyst 2960, 3560, 3560V2 switches (IOS 12.2 / 15.0)",
+    "c1000": "Catalyst 1000 switches (IOS 15.2)",
+    "c9300l": "Catalyst 9300L switches (IOS XE 17.6)"
+  },
+  "state": {
+    "starting": "waiting for the console",
+    "awaiting": "waiting for you",
+    "running": "running",
+    "done": "done",
+    "failed": "stopped",
+    "cancelled": "stopped by {name}",
+    "pending": "to do",
+    "skipped": "not needed",
+    "not_run": "not run"
+  },
+  "steps": {
+    "look": {
+      "title": "Read the console",
+      "doing": "The assistant reads what the console shows, to know where to begin."
+    },
+    "power_cycle": {
+      "title": "Power cycle",
+      "router": "When you confirm, switch the router off with its power switch, wait five seconds, and switch it on again. The assistant sends BREAK as soon as the boot begins, until ROMMON answers (rommon 1 >).",
+      "switch": "When you confirm, unplug the switch's power cord, press and hold the Mode button on its front, plug the cord back in, and keep holding Mode until the console shows switch: (about 15 seconds; a Catalyst 9300L takes longer).",
+      "now": "Power cycle the device now."
+    },
+    "confreg": {
+      "title": "Ignore the startup-config",
+      "doing": "In ROMMON: confreg 0x2142. The next boot ignores the startup-config."
+    },
+    "flash_init": {
+      "title": "Initialise the flash",
+      "doing": "At switch:, flash_init gives access to the flash, where the startup-config is the file config.text."
+    },
+    "park_config": {
+      "title": "Set config.text aside",
+      "doing": "flash:config.text is renamed flash:config.text.recovery, so that the switch boots without it. Nothing is deleted."
+    },
+    "ignore_startup": {
+      "title": "Ignore the startup-config",
+      "doing": "At switch:, SWITCH_IGNORE_STARTUP_CFG=1. The next boot ignores the startup-config."
+    },
+    "boot": {
+      "title": "Boot without it",
+      "doing": "The device boots without its startup-config; the assistant answers no to the initial configuration dialog and waits for the factory prompt."
+    },
+    "restore_register": {
+      "title": "Back to 0x2102",
+      "doing": "enable, then config-register 0x2102: the router reads its startup-config again at the next boot. Checked with show version."
+    },
+    "restore_config": {
+      "title": "Put config.text back",
+      "doing": "enable, then rename flash:config.text.recovery flash:config.text: the switch reads its startup-config again at the next boot."
+    },
+    "restore_startup": {
+      "title": "Read the startup-config again next time",
+      "doing": "enable, then no system ignore startupconfig switch all: the switch reads its startup-config again at the next boot."
+    }
+  },
+  "progress": {
+    "look": "Reading the console",
+    "power_now": "Power cycle the device now: the assistant is watching the console.",
+    "sending_break": "The boot has begun: sending BREAK",
+    "in_rommon": "ROMMON reached ({breaks} BREAK)",
+    "hold_mode": "The switch is starting: keep holding Mode",
+    "in_loader": "Boot loader reached (switch:)",
+    "confreg_set": "Configuration register set to 0x2142 for the next boot",
+    "flash_init": "Initialising the flash (this can take a minute)",
+    "parking": "Renaming flash:config.text",
+    "parked_earlier": "flash:config.text.recovery is already there, left by an earlier recovery",
+    "no_config_text": "There is no flash:config.text: nothing to set aside",
+    "ignore_set": "The next boot ignores the startup-config",
+    "booting": "Booting without the startup-config",
+    "restoring_register": "Setting the configuration register back to 0x2102",
+    "restoring_config": "Putting flash:config.text back",
+    "restoring_startup": "Telling the switch to read its startup-config again"
+  },
+  "errors": {
+    "unknown_device": "There is no such device.",
+    "not_occupant": "Only the occupants of this bench (and admins) recover its devices.",
+    "locked": "This bench is locked: nobody but admins works on it ({reason}).",
+    "shared_in_use": "{device} shares its console line with bench {bench}, which another team holds: it is left alone.",
+    "job_running": "A job is running on this bench: wait for it to end.",
+    "busy": "{name} is already recovering this device.",
+    "bad_family": "Choose the family of the device.",
+    "no_recovery": "There is no such recovery.",
+    "forbidden": "This recovery is not yours to follow.",
+    "over": "This recovery is over.",
+    "confirm_forbidden": "Only the person who started the recovery confirms its steps.",
+    "not_awaiting": "The recovery is not waiting for this step.",
+    "cancel_forbidden": "Only the person who started the recovery, the occupants of the bench and admins may stop it.",
+    "not_allowed": "The bench is no longer yours: the recovery stopped.",
+    "abandoned": "Nobody confirmed the next step: the recovery stopped.",
+    "interrupted": "The server stopped during the recovery.",
+    "cancelled": "Stopped.",
+    "failed": "The recovery failed.",
+    "unknown_family": "Unknown device family \"{family}\".",
+    "wrong_family": "The console shows \"{line}\", which this device family does not show: check the family you chose.",
+    "no_boot_seen": "Nothing was printed after the power cycle: is it the right device, and is its console cable plugged in?",
+    "break_missed": "The device loaded its software before the BREAK took effect. Power it off and on again.",
+    "mode_missed": "The switch loaded its software: the Mode button was released too early. Power it off and on again, holding Mode until the console shows switch:.",
+    "recovery_disabled": "Password recovery is disabled on this switch: it only offers to erase its configuration. Nothing was answered: power it off and on without holding Mode to leave it as it was.",
+    "unknown_question": "The device asks a question the assistant does not know: \"{question}\". Nothing was answered.",
+    "unexpected_screen": "The console shows \"{line}\" where the assistant expected {expected}. Nothing more was typed.",
+    "monitor_no_answer": "The device did not answer \"{command}\".",
+    "monitor_refused": "The device refused \"{command}\": {detail}",
+    "parked_exists": "flash:{name} already exists next to flash:config.text: an earlier recovery left it. Nothing is overwritten: someone must look at the flash on site.",
+    "rename_failed": "The startup-config file could not be renamed: {detail}",
+    "still_locked": "The device still asks for a password: its startup-config was not bypassed.",
+    "not_bypassed": "The device booted its own configuration (prompt {host}): the startup-config was not bypassed.",
+    "enable_refused": "enable asks for a password after the bypass: the device is not at a factory prompt.",
+    "register_not_restored": "The configuration register could not be set back to 0x2102 (it reads {register}).",
+    "config_not_restored": "flash:config.text could not be put back: {detail}",
+    "ignore_not_cleared": "The switch refused to read its startup-config again: {detail}"
+  }
+}

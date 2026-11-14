@@ -1,0 +1,30 @@
+/* The password recovery assistant (public/js/modules/recovery) */
+.recovery-dialog { display: grid; gap: 12px; max-width: 46rem; }
+.recovery-dialog p { margin: 0; }
+.recovery-intro { color: var(--ink-2); }
+.recovery-start { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; }
+.recovery-start label { display: grid; gap: 4px; flex: 1 1 22rem; }
+.recovery-start select { width: 100%; }
+.recovery-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.recovery-state { display: inline-block; padding: 1px 8px; border-radius: 99px; font-size: 12px; background: var(--surface-2); color: var(--ink-2); white-space: nowrap; }
+.recovery-state[data-state="running"], .recovery-state[data-state="starting"] { background: var(--console-soft); color: var(--console-strong); }
+.recovery-state[data-state="awaiting"] { background: color-mix(in srgb, var(--led-amber) 22%, transparent); color: var(--ink); }
+.recovery-state[data-state="done"] { background: color-mix(in srgb, var(--led-green) 18%, transparent); color: var(--ink); }
+.recovery-state[data-state="failed"] { background: color-mix(in srgb, var(--led-red) 16%, transparent); color: var(--ink); }
+.recovery-state[data-state="cancelled"] { background: color-mix(in srgb, var(--led-amber) 18%, transparent); color: var(--ink); }
+.recovery-steps { margin: 0; padding-left: 1.4em; display: grid; gap: 8px; }
+.recovery-steps li { padding: 6px 8px; border-radius: 8px; }
+.recovery-steps li[data-state="awaiting"], .recovery-steps li[data-state="running"] { background: var(--surface-2); border: 1px solid var(--line); }
+.recovery-steps li[data-state="skipped"], .recovery-steps li[data-state="not_run"] { color: var(--ink-3); }
+.recovery-step-title { font-weight: 600; }
+.recovery-steps li > p, .recovery-steps li > button, .recovery-steps li > details { margin-top: 6px; }
+.recovery-progress { color: var(--console-strong); }
+.recovery-problem { color: var(--led-red); }
+.recovery-end { padding: 10px 12px; border-radius: 10px; border: 1px solid var(--line); display: grid; gap: 8px; justify-items: start; }
+.recovery-end[data-end="done"] { background: color-mix(in srgb, var(--led-green) 12%, var(--surface)); border-color: var(--led-green); }
+.recovery-end[data-end="failed"] { background: color-mix(in srgb, var(--led-red) 8%, var(--surface)); border-color: var(--led-red); }
+.recovery-end h3 { margin: 0; font-size: 15px; }
+.recovery-output pre { max-height: 14rem; overflow: auto; margin: 6px 0 0; padding: 8px; border-radius: 6px; background: #0F1821; color: #E3E9EF; font: 12px/1.4 var(--mono); white-space: pre-wrap; }
+.recovery-run-actions, .recovery-dialog .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.recovery-other { display: flex; align-items: center; gap: 8px; }
+.deco-ring.ring-recovery { stroke: var(--led-red); stroke-dasharray: 4 2; stroke-width: 2.5; }

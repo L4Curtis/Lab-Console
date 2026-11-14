@@ -1,0 +1,145 @@
+{
+  "action": "Récupération du mot de passe",
+  "title": "Récupération du mot de passe de {device}",
+  "badge": "récupération",
+  "close": "Fermer (la récupération continue)",
+  "intro": "Pour un équipement verrouillé par un mot de passe de console ou un enable secret que personne ne connaît. Quelqu’un doit se trouver devant l’équipement pour l’éteindre et le rallumer quand on le lui demande. L’équipement démarre alors sans sa startup-config et s’arrête à une invite propre ; sa startup-config n’est ni effacée ni modifiée (seulement ignorée) : votre équipe injecte ensuite une sauvegarde et l’enregistre, ou repart de zéro.",
+  "family": "Famille d’équipement",
+  "unverified": "procédure pas encore essayée sur le matériel réel",
+  "start": "Lancer la récupération",
+  "loading": "Chargement…",
+  "cannotStart": "Vous ne pouvez pas lancer de récupération sur cet équipement : {reason}",
+  "byOther": "{name} est en train de récupérer cet équipement.",
+  "stop": "Arrêter la récupération",
+  "stopConfirm": "Arrêter la récupération de {device} ? L’équipement reste dans l’état où il est ; relancer l’assistant reprend à partir de ce qu’affiche sa console.",
+  "confirm": "Faire cette étape",
+  "ready": "Je suis devant l’équipement, c’est parti",
+  "notYours": "Seul·e {name}, qui l’a lancée, confirme les étapes.",
+  "retry": "Refaites cette étape quand vous êtes prêt·e.",
+  "doneTitle": "{device} est à une invite propre ({host}#)",
+  "doneText": "Sa configuration en cours est celle d’usine ; sa startup-config est intacte et contient toujours les anciens mots de passe : elle sera relue au prochain démarrage. Injectez une sauvegarde et enregistrez-la, ou réinitialisez l’équipement, depuis la section Sauvegardes.",
+  "toJobs": "Ouvrir la section Sauvegardes",
+  "failedTitle": "La récupération s’est arrêtée",
+  "failedHint": "L’équipement reste où il en est. Relancer l’assistant reprend à partir de ce qu’affiche sa console (ROMMON, switch:, le dialogue initial).",
+  "cancelledTitle": "La récupération a été arrêtée",
+  "lastOutput": "Fin de la sortie de la console",
+  "attempt": "essai {n}",
+  "families": {
+    "isr_g1": "Routeurs ISR G1 : 1841, 2801, 2811 (IOS 12.4)",
+    "isr4300": "Routeurs ISR 4331 (IOS XE 17.3)",
+    "catalyst": "Commutateurs Catalyst 2960, 3560, 3560V2 (IOS 12.2 / 15.0)",
+    "c1000": "Commutateurs Catalyst 1000 (IOS 15.2)",
+    "c9300l": "Commutateurs Catalyst 9300L (IOS XE 17.6)"
+  },
+  "state": {
+    "starting": "attend la console",
+    "awaiting": "attend votre confirmation",
+    "running": "en cours",
+    "done": "terminé",
+    "failed": "arrêté",
+    "cancelled": "arrêté par {name}",
+    "pending": "à faire",
+    "skipped": "inutile",
+    "not_run": "non lancé"
+  },
+  "steps": {
+    "look": {
+      "title": "Lire la console",
+      "doing": "L’assistant lit ce qu’affiche la console, pour savoir par où commencer."
+    },
+    "power_cycle": {
+      "title": "Éteindre et rallumer",
+      "router": "Quand vous confirmez, éteignez le routeur avec son interrupteur, attendez cinq secondes et rallumez-le. L’assistant envoie BREAK dès que le démarrage commence, jusqu’à ce que ROMMON réponde (rommon 1 >).",
+      "switch": "Quand vous confirmez, débranchez le cordon d’alimentation du commutateur, appuyez sur le bouton Mode en façade et maintenez-le, rebranchez le cordon et gardez Mode enfoncé jusqu’à ce que la console affiche switch: (environ 15 secondes ; un Catalyst 9300L met plus longtemps).",
+      "now": "Éteignez et rallumez l’équipement maintenant."
+    },
+    "confreg": {
+      "title": "Ignorer la startup-config",
+      "doing": "Dans ROMMON : confreg 0x2142. Le prochain démarrage ignore la startup-config."
+    },
+    "flash_init": {
+      "title": "Initialiser la flash",
+      "doing": "À switch:, flash_init donne accès à la flash, où la startup-config est le fichier config.text."
+    },
+    "park_config": {
+      "title": "Mettre config.text de côté",
+      "doing": "flash:config.text est renommé flash:config.text.recovery, pour que le commutateur démarre sans lui. Rien n’est supprimé."
+    },
+    "ignore_startup": {
+      "title": "Ignorer la startup-config",
+      "doing": "À switch:, SWITCH_IGNORE_STARTUP_CFG=1. Le prochain démarrage ignore la startup-config."
+    },
+    "boot": {
+      "title": "Démarrer sans elle",
+      "doing": "L’équipement démarre sans sa startup-config ; l’assistant répond non au dialogue de configuration initiale et attend l’invite d’usine."
+    },
+    "restore_register": {
+      "title": "Revenir à 0x2102",
+      "doing": "enable, puis config-register 0x2102 : le routeur relira sa startup-config au prochain démarrage. Vérifié avec show version."
+    },
+    "restore_config": {
+      "title": "Remettre config.text en place",
+      "doing": "enable, puis rename flash:config.text.recovery flash:config.text : le commutateur relira sa startup-config au prochain démarrage."
+    },
+    "restore_startup": {
+      "title": "Relire la startup-config la prochaine fois",
+      "doing": "enable, puis no system ignore startupconfig switch all : le commutateur relira sa startup-config au prochain démarrage."
+    }
+  },
+  "progress": {
+    "look": "Lecture de la console",
+    "power_now": "Éteignez et rallumez l’équipement maintenant : l’assistant surveille la console.",
+    "sending_break": "Le démarrage a commencé : envoi de BREAK",
+    "in_rommon": "ROMMON atteint ({breaks} BREAK)",
+    "hold_mode": "Le commutateur démarre : gardez Mode enfoncé",
+    "in_loader": "Chargeur de démarrage atteint (switch:)",
+    "confreg_set": "Registre de configuration réglé sur 0x2142 pour le prochain démarrage",
+    "flash_init": "Initialisation de la flash (cela peut prendre une minute)",
+    "parking": "Renommage de flash:config.text",
+    "parked_earlier": "flash:config.text.recovery existe déjà, laissé par une récupération précédente",
+    "no_config_text": "Il n’y a pas de flash:config.text : rien à mettre de côté",
+    "ignore_set": "Le prochain démarrage ignore la startup-config",
+    "booting": "Démarrage sans la startup-config",
+    "restoring_register": "Retour du registre de configuration à 0x2102",
+    "restoring_config": "Remise en place de flash:config.text",
+    "restoring_startup": "Le commutateur relira sa startup-config"
+  },
+  "errors": {
+    "unknown_device": "Cet équipement n’existe pas.",
+    "not_occupant": "Seuls les occupants de cette baie (et les administrateurs) récupèrent ses équipements.",
+    "locked": "Cette baie est verrouillée : seuls les administrateurs y travaillent ({reason}).",
+    "shared_in_use": "{device} partage sa ligne de console avec la baie {bench}, qu’une autre équipe occupe : on n’y touche pas.",
+    "job_running": "Une tâche tourne sur cette baie : attendez qu’elle se termine.",
+    "busy": "{name} récupère déjà cet équipement.",
+    "bad_family": "Choisissez la famille de l’équipement.",
+    "no_recovery": "Cette récupération n’existe pas.",
+    "forbidden": "Vous ne pouvez pas suivre cette récupération.",
+    "over": "Cette récupération est terminée.",
+    "confirm_forbidden": "Seule la personne qui a lancé la récupération confirme ses étapes.",
+    "not_awaiting": "La récupération n’attend pas cette étape.",
+    "cancel_forbidden": "Seuls la personne qui a lancé la récupération, les occupants de la baie et les administrateurs peuvent l’arrêter.",
+    "not_allowed": "La baie n’est plus la vôtre : la récupération s’est arrêtée.",
+    "abandoned": "Personne n’a confirmé l’étape suivante : la récupération s’est arrêtée.",
+    "interrupted": "Le serveur s’est arrêté pendant la récupération.",
+    "cancelled": "Arrêtée.",
+    "failed": "La récupération a échoué.",
+    "unknown_family": "Famille d’équipement inconnue « {family} ».",
+    "wrong_family": "La console affiche « {line} », ce que cette famille d’équipement n’affiche pas : vérifiez la famille choisie.",
+    "no_boot_seen": "Rien ne s’est affiché après l’extinction : est-ce le bon équipement, et son câble console est-il branché ?",
+    "break_missed": "L’équipement a chargé son logiciel avant que le BREAK ne prenne effet. Éteignez-le et rallumez-le.",
+    "mode_missed": "Le commutateur a chargé son logiciel : le bouton Mode a été relâché trop tôt. Éteignez-le et rallumez-le en gardant Mode enfoncé jusqu’à ce que la console affiche switch:.",
+    "recovery_disabled": "La récupération du mot de passe est désactivée sur ce commutateur : il propose seulement d’effacer sa configuration. Rien n’a été répondu : éteignez-le et rallumez-le sans tenir Mode pour le laisser tel quel.",
+    "unknown_question": "L’équipement pose une question que l’assistant ne connaît pas : « {question} ». Rien n’a été répondu.",
+    "unexpected_screen": "La console affiche « {line} » là où l’assistant attendait {expected}. Rien de plus n’a été tapé.",
+    "monitor_no_answer": "L’équipement n’a pas répondu à « {command} ».",
+    "monitor_refused": "L’équipement a refusé « {command} » : {detail}",
+    "parked_exists": "flash:{name} existe déjà à côté de flash:config.text : une récupération précédente l’a laissé. Rien n’est écrasé : quelqu’un doit regarder la flash sur place.",
+    "rename_failed": "Le fichier de la startup-config n’a pas pu être renommé : {detail}",
+    "still_locked": "L’équipement demande toujours un mot de passe : sa startup-config n’a pas été ignorée.",
+    "not_bypassed": "L’équipement a démarré sur sa propre configuration (invite {host}) : la startup-config n’a pas été ignorée.",
+    "enable_refused": "enable demande un mot de passe après le contournement : l’équipement n’est pas à une invite d’usine.",
+    "register_not_restored": "Le registre de configuration n’a pas pu revenir à 0x2102 (il vaut {register}).",
+    "config_not_restored": "flash:config.text n’a pas pu être remis en place : {detail}",
+    "ignore_not_cleared": "Le commutateur a refusé de relire sa startup-config : {detail}"
+  }
+}

@@ -17,6 +17,7 @@ import { initI18n, setLocale, getLocale, onLocaleChange, t, tNode } from './core
 import { mountUserMenu } from './core/userMenu.js';
 import { mountAnnouncement } from './shared/announcement.js';
 import { startCollab } from './modules/collab/index.js';
+import { startRecovery } from './modules/recovery/index.js';
 
 const MODULES = [
   { id: 'consoles', path: 'consoles', titleKey: 'common.shell.consoles', icon: 'topology', load: () => import('./modules/consoles/index.js') },
@@ -54,6 +55,8 @@ async function init() {
   // Bench jobs drawn on the diagram, whichever section is on screen
   import('./modules/jobs/layer.js').then((m) => m.start()).catch(() => {});
   await startCollab(); // notes on the diagram, notifications: needs the session and the language
+  // The password recovery assistant on console tiles, and its badge on the diagram
+  await startRecovery().catch((err) => console.warn(`[recovery] ${err.message}`));
 
   // The backend says which modules are live; disabled ones show a "soon" tag
   let status = [];

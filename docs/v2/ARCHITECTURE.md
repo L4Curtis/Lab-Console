@@ -1172,6 +1172,8 @@ cli.answer(text) / cli.type(text) / cli.send(text) / cli.sendLine(text) / cli.pa
 cli.findPrompt({ nudge }) → { host, configMode, mark }
 cli.readRunningConfig(progress) / cli.sendScript(script, options, progress)   // the features, as steps
 cli.exportRunningConfig() / cli.injectScript()  // the same as standalone tasks (console tile)
+cli.sendBreak()                                 // a serial BREAK (telnet "send brk"), under the task's right to type;
+                                                //   automation.no_break on a line that has none
 cli.cancel()                                    // steps reject with err.cancelled
 ```
 
@@ -1350,6 +1352,64 @@ the driver's budgets multiplied by it; only the simulator boots fast enough
 to lower it). The mock lab's model `aruba` (`dev/fakeOther.js`) is a switch
 that does not run Cisco IOS.
 
+## 9c. Password recovery (lot: recovery)
+
+`src/lib/drivers/ciscoRecovery.js` (the procedures), `src/modules/recovery/`
+(`index.js`: routes, permissions; `assistant.js`: `RecoveryRunner`), repository
+`repos.recoveries` (migration 015), front end `public/js/modules/recovery/`
+(a `recovery` pane action on lab console tiles, order 70, and a diagram layer
+`recovery`). Contract of SPEC "Lot recovery".
+
+**Families** (`FAMILIES`): `isr_g1` (1841, 2801, 2811) and `isr4300` (ISR 4331)
+by `confreg`; `catalyst` (2960, 3560, 3560V2) and `c1000` by `config_text`;
+`c9300l` by `ignore_startup`. Steps (`STEPS`): `look` first, always (what the
+console shows decides where to begin, `planFrom()`: a router already in
+ROMMON, a switch at `switch:`, a router at the initial dialog skip what is
+done), then
+
+    confreg         power_cycle, confreg (0x2142), boot, restore_register (0x2102, checked)
+    config_text     power_cycle (Mode held), flash_init, park_config (config.text →
+                    config.text.recovery, never over an existing file), boot, restore_config
+    ignore_startup  power_cycle (Mode held), ignore_startup (SWITCH_IGNORE_STARTUP_CFG=1),
+                    boot, restore_startup (no system ignore startupconfig switch all)
+
+The driver never erases flash or the startup-config: it only makes the next
+boot ignore it, then makes the boot after that read it again. Every screen is
+recognised by its text; anything else is `recovery.unexpected_screen` /
+`recovery.unknown_question` and nothing more is typed. A step result is
+`{ ok, … }` or `{ ok: false, reason: 'recovery.<code>', params, retry?,
+lastOutput? }`; `retry` (BREAK too late, Mode released too early, nobody
+power-cycled) puts the same step back to the person.
+
+**A recovery** holds the device's room with `room.runExclusive(actor,
+'recovery', fn, { signal })` from `look` to the end. Before each step after
+`look` it waits (state `awaiting`, `awaiting: <step>`) for `POST
+/runs/:id/confirm { step }` by the person who started it, then asks again
+whether that person may still operate the bench (`recovery.not_allowed`).
+Nobody confirming for `confirmMs` (30 min) ends it (`recovery.abandoned`).
+One recovery per device; none while a job runs on the bench. Who starts one:
+`benches.canOperate` (occupants of an unlocked bench, admins), never on an
+admin switch, a shared console line only while the other benches are free or
+held by the same team. Who follows one: its actor, the occupants, the team
+that held the bench, admins. Budgets: `RECOVERY_TIMEOUTS`, multiplied by
+`JOB_TIME_SCALE`.
+
+HTTP (`/api/recovery`): `GET /families`, `GET /devices/:key` (`canStart`,
+`refusal`, the recovery under way, the last five), `POST /devices/:key/start
+{ family }` → 202, `GET /runs?bench=`, `GET /runs/:id`, `POST
+/runs/:id/confirm`, `POST /runs/:id/cancel`. SSE: `recovery:run` (the
+recovery, to those who follow it), `recovery:running` (sticky, everyone: the
+devices being recovered, by whom, at which step). Audit: `recovery.start`,
+`recovery.confirm`, `recovery.step`, `recovery.cancel`, `recovery.end`. A
+recovery left open by a stopped server is closed as failed at start-up
+(`recovery.interrupted`).
+
+Simulator (`dev/fakeIos.js`): `powerCycle({ modeButton })`, BREAK into
+ROMMON only while booting, `confreg`, `reset`, the classic switches' boot
+loader (`flash_init`, `dir flash:`, `rename`, `boot`, the password-recovery
+disabled question), the 9300L's `SWITCH_IGNORE_STARTUP_CFG`; the mock lab's
+`mock-power <host> <port> [mode]` command stands in for the person on site.
+
 ## 10. Data directory
 
 ```
@@ -1362,7 +1422,7 @@ data/
   <dir>/<name>.json.imported   audit/*.jsonl.imported   files of before the database, kept after their import
 ```
 
-In the database today (migrations 001-014): `schema_migrations`,
+In the database today (migrations 001-015): `schema_migrations`,
 `legacy_imports`, `auth_sessions`, `auth_state` (the local administrator's
 last TOTP step, the known-browser key), `audit_entries`, `settings` (the
 run-time settings per namespace, the SSO page's provider as `sso`, the edited
@@ -1373,7 +1433,8 @@ admin switches as `switches`), `teams`, `team_members`, `team_invitations`
 `jobs`, `snapshots`, `snapshot_devices`, `templates`, `template_devices` (012),
 `scripts` (013: the script library, one row per script with its text; `shelf`
 is `p:<user id>`, `t:<team id>` or `pub`, a title is unique on its shelf),
-`device_notes`, `bench_chat_messages` (014).
+`device_notes`, `bench_chat_messages` (014), `recoveries` (015: one row per
+password recovery, its steps as JSON).
 Passkey ceremonies' challenges are not stored: they live in memory, five
 minutes, single use.
 
