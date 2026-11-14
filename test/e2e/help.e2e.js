@@ -221,6 +221,7 @@ test('the help page replays the tour', async () => {
 
 test('the tour survives a step whose element never appears: no ring, the card stays usable', async () => {
   const page = await h.newPage({ tour: true });
+  await page.clock.install();
   await page.route('**/api/benches/**', (route) => route.abort());
   // Every person of the mock provider has already ended the tour in an earlier scenario: this one starts afresh
   await page.route('**/api/help/tour', (route) => (route.request().method() === 'GET' ? route.fulfill({ json: { state: null } }) : route.fulfill({ json: { state: 'done' } })));
@@ -230,7 +231,7 @@ test('the tour survives a step whose element never appears: no ring, the card st
   await page.waitForFunction(() => document.querySelector('.tour-card')?.dataset.step === 'bench');
   await button(page, 'next').click();     // … then the 'team' step points at the bench bar, which cannot load
   await page.waitForFunction(() => document.querySelector('.tour-card')?.dataset.step === 'team');
-  await page.waitForTimeout(3000);
+  await page.clock.fastForward(3000); // the tour's own wait for the element runs out now, whatever the machine's speed
   assert.equal(await card(page).isVisible(), true);
   assert.equal(await page.locator('.tour-target').count(), 0, 'nothing to ring');
   const box = await card(page).boundingBox();
