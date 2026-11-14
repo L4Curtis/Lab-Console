@@ -31,7 +31,8 @@
  *
  * Progress: every change of a device is published at once, to the people
  * who may see the job (SSE 'jobs:job', audience) and as a short summary to
- * everyone ('jobs:running', sticky, for the diagram and the bench bar).
+ * everyone ('jobs:running', sticky, for the diagram and the bench bar). Its
+ * end is told once to the bench's occupants ('jobs:done').
  * Cancellation stops whatever is going on (the countdown of a reset, a
  * device waiting for its keyboard, a command, a boot) and every device
  * reports where it stopped. Every job is audited (start, cancel, end with
@@ -242,6 +243,22 @@ export class JobRunner {
     });
     try { this.services.benches?.touch?.(job.bench); } catch { /* the bench went away */ }
     this.#publish(job);
+    this.#announceEnd(job);
+  }
+
+  /**
+   * Once per finished job, to the people working on the bench at that moment
+   * (SSE 'jobs:done' { bench, jobId, kind, ok, state }: the collab module turns
+   * it into a browser notification). No device, no configuration: what kind
+   * of job, and whether it went well ('done'; a partial, failed or cancelled
+   * job is not ok)
+   */
+  #announceEnd(job) {
+    let occupants;
+    try { occupants = new Set(this.services.benches?.occupants?.(job.bench) ?? []); } catch { occupants = new Set(); }
+    if (!occupants.size) return;
+    const payload = { bench: job.bench, jobId: job.id, kind: job.kind, ok: job.state === 'done', state: job.state };
+    this.events.publish('jobs:done', payload, { audience: (u) => occupants.has(u?.id) });
   }
 
   /** One device, start to end: its outcome lands in `d` */

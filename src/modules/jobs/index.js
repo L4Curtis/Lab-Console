@@ -25,7 +25,8 @@
  * of an unlocked bench, and admins); after a release, the team that released
  * may still back the bench up for a while (the offer). One job per bench.
  * SSE: 'jobs:running' (sticky, everyone: which bench runs what, device by
- * device), 'jobs:job' (the job, to those who may see it).
+ * device), 'jobs:job' (the job, to those who may see it), 'jobs:done' (once
+ * per finished job, to the bench's occupants: { bench, jobId, kind, ok, state }).
  *
  * Seeing a job is decided by what was true when it ran, never by who holds
  * the bench now: the members of the team that held it (job.teamId) and the

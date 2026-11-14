@@ -46,7 +46,8 @@ export async function waitFor(check, timeoutMs = 5000, what = 'condition') {
   }
 }
 
-export async function startJobsApp({ models = B4M_MODELS, countdownMs = 300, devicesAtOnce = 5, env = {}, lab: labOptions = {} } = {}) {
+/** `extra(deps)` adds modules that sit next to the jobs (one, or a list): the wave 3 wiring tests add collab */
+export async function startJobsApp({ models = B4M_MODELS, countdownMs = 300, devicesAtOnce = 5, env = {}, lab: labOptions = {}, extra } = {}) {
   const { labs } = parseDrawio(fs.readFileSync(`${repoRoot}/diagrams/diagram.drawio`, 'utf8'), { networkPrefix: '10.22.9' });
   const all = labs.flatMap((l) => l.devices.map((d) => ({ ...d, labName: l.name })));
   const names = new Map(all.map((d) => [`${d.target.host}:${d.target.port}`, d.name]));
@@ -67,6 +68,7 @@ export async function startJobsApp({ models = B4M_MODELS, countdownMs = 300, dev
         createConsolesModule(deps, { rooms: { graceMs: 2000, silentMs: 3000 } }),
         ...createTeamsModules(deps, { tickMs: 0 }),
         createJobsModule(deps, { timeouts: JOB_TIMEOUTS, pacing: JOB_PACING, countdownMs, devicesAtOnce }),
+        ...[extra?.(deps) ?? []].flat(),
       ];
       return modules;
     },
