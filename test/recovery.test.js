@@ -24,10 +24,10 @@ const MODELS = {
   R2: { model: 'isr4331', enableSecret: 'lost', ...SLOW },
   S1: { model: '3560', start: 'linepass', linePassword: 'left-by-a-group', ...SLOW },
   S2: { model: 'c9300l', enableSecret: 'lost', hostname: 'SW1-3005' },
-  R3: { model: '1841', start: 'privileged', hostname: 'R3-2005', ...SLOW },
-  R4: { model: '2801', start: 'linepass', linePassword: 'left-by-a-group', hostname: 'R4-2009', ...SLOW },
-  R5: { model: '2811', start: 'linepass', linePassword: 'left-by-a-group', hostname: 'R5-2008', ...SLOW },
-  S3: { model: '2960', start: 'linepass', linePassword: 'left-by-a-group', hostname: 'S3-2010', ...SLOW },
+  R3: { model: '1841', start: 'privileged', hostname: 'R3-3005', ...SLOW },
+  R4: { model: '2801', start: 'linepass', linePassword: 'left-by-a-group', hostname: 'R4-3009', ...SLOW },
+  R5: { model: '2811', start: 'linepass', linePassword: 'left-by-a-group', hostname: 'R5-3008', ...SLOW },
+  S3: { model: '2960', start: 'linepass', linePassword: 'left-by-a-group', hostname: 'S3-3010', ...SLOW },
 };
 export const RECOVERY_TIMEOUTS = {
   ...JOB_TIMEOUTS, powerOnMs: 6000, breakEveryMs: 300, breakWindowMs: 5000, bootLoaderMs: 8000, flashInitMs: 5000, monitorMs: 3000, confirmMs: 15_000,
@@ -279,7 +279,7 @@ test('a device at a privileged prompt is not locked: the assistant stops at once
   const rec = await ended(s.body.recovery.id);
   assert.equal(rec.state, 'failed');
   assert.equal(rec.code, 'recovery.not_locked', JSON.stringify(rec.look));
-  assert.equal(rec.error.params.host, 'R3-2005');
+  assert.equal(rec.error.params.host, 'R3-3005');
   assert.equal(rec.steps.find((x) => x.id === 'power_cycle').state, 'not_run');
   assert.equal(r3.powerCycles, 0);
   assert.equal(r3.mode, '#');
@@ -302,7 +302,7 @@ test('stopped after confreg: confreg 0x2102 and reset; the router boots its own 
   assert.deepEqual(rec.putBack, { ok: true, booted: true, at: rec.putBack.at });
   assert.equal(rec.bypassed, null);
   assert.equal(r4.confReg, '0x2102');
-  assert.ok(bootedOwn(r4, 'R4-2009'), `${r4.state} ${r4.cfg.hostname}`);
+  assert.ok(bootedOwn(r4, 'R4-3009'), `${r4.state} ${r4.cfg.hostname}`);
   const stored = await j.app.deps.repos.recoveries.get(id);
   assert.equal(stored.state, 'cancelled');
   assert.equal(stored.bypassed, null);
@@ -346,8 +346,8 @@ test('abandoned after park_config: put back all the same', async () => {
     recovery.runner.timeouts = { ...recovery.runner.timeouts, confirmMs: before };
   }
   assert.equal(s3.parked, null);
-  assert.equal(s3.startup.hostname, 'S3-2010');
-  assert.ok(bootedOwn(s3, 'S3-2010'), `${s3.state} ${s3.cfg.hostname}`);
+  assert.equal(s3.startup.hostname, 'S3-3010');
+  assert.ok(bootedOwn(s3, 'S3-3010'), `${s3.state} ${s3.cfg.hostname}`);
 });
 
 test('park_config refused (config.text.recovery next to config.text): nothing set aside, nothing to put back, the switch booted back', async () => {
@@ -364,8 +364,8 @@ test('park_config refused (config.text.recovery next to config.text): nothing se
     assert.equal(rec.bypassed, null, 'nothing was renamed: no bypass');
     assert.equal(rec.cause, null);
     assert.deepEqual({ ok: rec.putBack.ok, booted: rec.putBack.booted, nothing: rec.putBack.nothing }, { ok: true, booted: true, nothing: true });
-    assert.ok(bootedOwn(s3, 'S3-2010'), `${s3.state} ${s3.cfg.hostname}`);
-    assert.equal(s3.startup.hostname, 'S3-2010', 'config.text untouched');
+    assert.ok(bootedOwn(s3, 'S3-3010'), `${s3.state} ${s3.cfg.hostname}`);
+    assert.equal(s3.startup.hostname, 'S3-3010', 'config.text untouched');
     assert.equal(s3.parked.cfg.hostname, 'OLD', 'the parked file untouched');
     const row = await j.app.deps.repos.recoveries.get(id);
     assert.equal(row.bypassed, null);
@@ -421,7 +421,7 @@ test('the bench locked mid-way: a guest follows but may not stop it; the next st
     assert.equal(rec.steps.find((x) => x.id === 'boot').state, 'not_run', 'the refused step never ran');
     assert.equal(rec.putBack.ok, true, JSON.stringify(rec.putBack));
     assert.equal(r5.confReg, '0x2102');
-    assert.ok(bootedOwn(r5, 'R5-2008'), `${r5.state} ${r5.cfg.hostname}`);
+    assert.ok(bootedOwn(r5, 'R5-3008'), `${r5.state} ${r5.cfg.hostname}`);
   } finally {
     await j.api('admin', 'DELETE', '/api/benches/B4M/lock');
     await j.api('student3', 'POST', '/api/benches/B4M/leave');
@@ -477,7 +477,7 @@ async function refusedAndPutBack(id, r4, actors) {
   assert.equal(rec.putBack.ok, true, JSON.stringify(rec.putBack));
   assert.deepEqual(actors.seen, ['system'], 'put back by the system, not by the demoted person');
   assert.equal(r4.confReg, '0x2102');
-  assert.ok(bootedOwn(r4, 'R4-2009'), `${r4.state} ${r4.cfg.hostname}`);
+  assert.ok(bootedOwn(r4, 'R4-3009'), `${r4.state} ${r4.cfg.hostname}`);
 }
 
 test('an admin demoted while their recovery waits (signed in again as a student): the next confirmation ends it, put back by the system', async () => {

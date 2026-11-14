@@ -9,10 +9,14 @@
  *     (device closes the line, network error…), the SSH channel closes with it
  *   - No prompt-scraping to know when the shell is ready; no stray commands
  *
- * The telnet escape character (Ctrl+]) is filtered from student input so the
- * `telnet>` command mode - which can spawn a local shell with `!` on many
- * clients - is unreachable. The server uses it itself, only to send a BREAK
- * (needed for Cisco password recovery / ROMMON)
+ * The telnet escape character (Ctrl+]) never reaches telnet from anything but
+ * sendBreak(): every byte bound for the device (keystrokes, pastes, injected
+ * scripts, job passwords, auto-login, the wake-up Enter) goes through #send(),
+ * which drops it. Telnet's `telnet>` command mode can open a connection to any
+ * host (`open`) and spawn a shell on the jump server (`!`), so it must stay
+ * unreachable. The server uses it itself, only to send a BREAK (needed for
+ * Cisco password recovery / ROMMON); while a BREAK is on its way, every other
+ * byte waits (see sendBreak())
  *
  * What can go wrong, told apart for the student:
  *   - the jump server cannot be reached or refuses us: `consoles.ssh_*`;
@@ -47,6 +51,11 @@ const LINE_REFUSED = /Unable to connect to remote host: Connection refused/i;
 const SERVER_UNREACHABLE = /Unable to connect to remote host: (?:No route to host|Connection timed out|Network is unreachable)|Could not resolve|Unknown host/i;
 const DEFAULT_WAKE_IDLE_MS = 2500;
 const DEFAULT_SILENT_MS = 6000;
+// The escape alone first, so that telnet switches its terminal to command mode before it reads
+// the command; then the time it needs to run that command and go back to the session
+const BREAK_COMMAND_DELAY_MS = 150;
+const BREAK_SETTLE_MS = 150;
+const MAX_HELD_BYTES = 64 * 1024;
 
 export class ConsoleSession extends EventEmitter {
   #stream = null;
@@ -59,7 +68,9 @@ export class ConsoleSession extends EventEmitter {
   #bannerTail = '';
   #silentTimer = null;
   #silent = false;
-  #breaking = false;    // a BREAK is on its way (telnet escape sent, its command not yet)
+  #breaking = false;    // a BREAK is on its way: telnet is in command mode, or not back from it yet
+  #held = [];           // what was sent meanwhile, written once telnet is back in the session
+  #heldBytes = 0;
   #answered = true;
 
   /**
@@ -92,7 +103,7 @@ export class ConsoleSession extends EventEmitter {
       this.once('close', (info) => reject(Object.assign(new Error(info.reason), { code: info.info?.code, params: info.info?.params })));
     });
     this.ready.catch(() => {});
-    // Export config / inject script / bench jobs. Its writes bypass write()'s lock
+    // Export config / inject script / bench jobs. Its writes bypass write()'s lock, not #send()'s filter
     this.cli = new CliAutomation({
       write: (text) => { this.lastActivity = Date.now(); this.#send(text); },
       onStart: () => { this.#nudge?.cancel(); },
@@ -160,9 +171,7 @@ export class ConsoleSession extends EventEmitter {
     // auto-login stands down so both don't answer the same "Username:"
     // A bare Enter (the usual "wake the console" key) keeps auto-login on
     if (/[^\r\n]/.test(data)) this.#autoLogin?.cancel();
-    const safe = data.replaceAll(TELNET_ESCAPE, '');
-    if (safe) this.#send(safe);
-    return Boolean(safe);
+    return this.#send(data);
   }
 
   resize(cols, rows) {
@@ -170,7 +179,12 @@ export class ConsoleSession extends EventEmitter {
     try { this.#stream?.setWindow(this.size.rows, this.size.cols, 0, 0); } catch { /* channel gone */ }
   }
 
-  /** Serial BREAK through telnet's command mode, then straight back to the session */
+  /**
+   * Serial BREAK through telnet's command mode, then straight back to the session.
+   * The only writer of the telnet escape. From the escape until telnet is back in
+   * the session, nothing else is written (#send() holds it): a key typed in
+   * between would otherwise be read by telnet as a command
+   */
   sendBreak() {
     // One at a time: a second escape while telnet waits for its command would end up in that command
     if (!this.#stream || this.#breaking) return;
@@ -178,7 +192,18 @@ export class ConsoleSession extends EventEmitter {
     this.lastActivity = Date.now();
     this.#nudge?.cancel();
     this.#stream.write(TELNET_ESCAPE);
-    setTimeout(() => { this.#breaking = false; this.#stream?.write('send brk\r'); }, 150);
+    setTimeout(() => {
+      this.#stream?.write('send brk\r');
+      setTimeout(() => this.#breakDone(), BREAK_SETTLE_MS).unref?.();
+    }, BREAK_COMMAND_DELAY_MS).unref?.();
+  }
+
+  #breakDone() {
+    this.#breaking = false;
+    const held = this.#held.join('');
+    this.#held = [];
+    this.#heldBytes = 0;
+    if (held) this.#send(held);
   }
 
   close(reason = 'Session closed', code = null, info = { code: 'consoles.session_closed' }) {
@@ -198,9 +223,21 @@ export class ConsoleSession extends EventEmitter {
 
   get closed() { return this.#closed; }
 
-  /** Every byte to the device goes through here: an Enter starts the "is anybody there?" watch */
-  #send(text) {
-    if (!this.#stream) return;
+  /**
+   * Every byte to the device goes through here, whoever sends it: the telnet
+   * escape is dropped, what comes during a BREAK waits for its end, and an
+   * Enter starts the "is anybody there?" watch. False when nothing was taken
+   */
+  #send(raw) {
+    if (!this.#stream) return false;
+    const text = String(raw).replaceAll(TELNET_ESCAPE, '');
+    if (!text) return false;
+    if (this.#breaking) {
+      if (this.#heldBytes + text.length > MAX_HELD_BYTES) return false;
+      this.#held.push(text);
+      this.#heldBytes += text.length;
+      return true;
+    }
     this.#stream.write(text);
     if (this.#telnetUp && text.includes('\r') && this.silentMs > 0) {
       // Each Enter starts the count again: silent means "nothing visible since the last Enter"
@@ -210,6 +247,7 @@ export class ConsoleSession extends EventEmitter {
       this.#silentTimer = setTimeout(() => this.#goneSilent(), this.silentMs);
       this.#silentTimer.unref?.();
     }
+    return true;
   }
 
   #goneSilent() {
