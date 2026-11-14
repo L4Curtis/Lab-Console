@@ -105,7 +105,9 @@ test('a router locked by its console line password, walked through every step, e
   const c = await confirm('student1', id, 'power_cycle');
   assert.equal(c.status, 200);
   await personPowerCycles(id, r1);
+  const revBefore = rec.rev;
   rec = await awaiting(id, 'confreg');
+  assert.ok(rec.rev > revBefore, 'every change carries a higher rev: a client keeps the newest of an answer and a live update');
   assert.equal(r1.state, 'rommon');
   assert.ok(rec.steps.find((x) => x.id === 'power_cycle').result.breaks >= 1);
   assert.equal(r1.nextConfReg, null, 'nothing is typed before the confirmation');

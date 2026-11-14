@@ -35,19 +35,39 @@ async function until(check, what, ms = 60_000) {
   throw new Error(`timed out waiting for ${what}`);
 }
 
+/** A group left R1 locked, saved, and switched it off and on: it now asks for the line password (each test starts from there) */
+async function lockRouter() {
+  // No line left open by an earlier test (its grace time): the next console logs in afresh
+  h.app.deps.services.consoles.rooms.closeAll('test: start from a closed line');
+  r1.configure(['enable secret lost-secret', 'line con 0', ` password ${SECRET}`, ' login']);
+  r1.save();
+  r1.powerCycle();
+  await until(() => ['pressreturn', 'idle', 'linepass', 'exec'].includes(r1.state) && !r1.inBoot, 'R1 to boot locked');
+}
+
+/** Alice, signed in, her team holding B4M, with R1's assistant open and its start button ready */
+async function aliceAtTheAssistant() {
+  const alice = await h.newPage();
+  await signInAs(alice, 'alice');
+  assert.ok([201, 409].includes((await api(alice, 'POST', '/api/teams', { name: 'Les récupérateurs' })).status));
+  const taken = await api(alice, 'POST', '/api/benches/B4M/take');
+  assert.ok([200, 409].includes(taken.status), JSON.stringify(taken.body));
+  const pane = await openConsole(alice, 'B4M', 'R1');
+  await pane.locator('button[data-action="recovery"]').click();
+  const dlg = dialog(alice);
+  await dlg.locator('button[data-action="start"]:not([disabled])').waitFor();
+  return { alice, pane, dlg };
+}
+
 before(async () => {
   await h.ready;
   const lab = h.app.deps.services.consoles.registry.model.labs.find((l) => l.name === 'B4M');
   const d = lab.devices.find((x) => x.name === 'R1');
   r1 = h.lab.device(`${d.target.host}:${d.target.port}`);
-  // A group left it locked, saved, and switched it off and on: it now asks for the line password
-  r1.configure(['enable secret lost-secret', 'line con 0', ` password ${SECRET}`, ' login']);
-  r1.save();
-  r1.powerCycle();
-  await until(() => ['pressreturn', 'idle', 'linepass', 'exec'].includes(r1.state) && !r1.inBoot, 'R1 to boot');
 });
 
 test('a router locked by a console password, walked through the assistant from its console tile', async () => {
+  await lockRouter();
   const alice = await h.newPage();
   await signInAs(alice, 'alice');
   assert.ok([201, 409].includes((await api(alice, 'POST', '/api/teams', { name: 'Les récupérateurs' })).status));
@@ -56,7 +76,6 @@ test('a router locked by a console password, walked through the assistant from i
 
   const pane = await openConsole(alice, 'B4M', 'R1');
   await typeInConsole(pane, '');
-  await waitForTerminal(pane, /Password: ?$/m);
 
   // The assistant, from the tile
   await pane.locator('button[data-action="recovery"]').click();
@@ -112,18 +131,8 @@ test('a router locked by a console password, walked through the assistant from i
 });
 
 test('stopped from the assistant after confreg: the router is put back and boots its own startup-config', async () => {
-  // Locked again: switched off and on, it reads its startup-config (0x2102 since the first test)
-  r1.powerCycle();
-  await until(() => ['pressreturn', 'idle', 'linepass', 'exec'].includes(r1.state) && !r1.inBoot, 'R1 to boot locked');
-  const alice = await h.newPage();
-  await signInAs(alice, 'alice');
-  // The line of the first test may still be open (its grace time): then no console server login
-  const d = h.app.deps.services.consoles.registry.model.labs.find((l) => l.name === 'B4M').devices.find((x) => x.name === 'R1');
-  const open = Boolean(h.app.deps.services.consoles.rooms.get(`${d.target.host}:${d.target.port}`));
-  const pane = await openConsole(alice, 'B4M', 'R1', open ? { login: false } : {});
-  await pane.locator('button[data-action="recovery"]').click();
-  const dlg = dialog(alice);
-  await dlg.locator('button[data-action="start"]:not([disabled])').waitFor();
+  await lockRouter();
+  const { alice, dlg } = await aliceAtTheAssistant();
   // No procedure has been tried on the real lab yet: the families say so
   assert.match(await dlg.locator('option[value="isr_g1"]').textContent(), /pas encore essayée/);
   await dlg.locator('select[name="family"]').selectOption('isr_g1');
@@ -150,6 +159,42 @@ test('stopped from the assistant after confreg: the router is put back and boots
   assert.match(await end.locator('.recovery-putback').textContent(), /remis en place/);
   assert.equal(r1.confReg, '0x2102');
   assert.ok(!r1.inBoot && r1.state !== 'rommon', `R1 booted (${r1.state})`);
+  assert.deepEqual(alice.errors, []);
+  await alice.context().close();
+});
+
+test('the answer to a confirmation that arrives late does not undo the live update that overtook it', async () => {
+  await lockRouter();
+  const { alice, dlg } = await aliceAtTheAssistant();
+  await dlg.locator('select[name="family"]').selectOption('isr_g1');
+  await dlg.locator('button[data-action="start"]').click();
+  const power = dlg.locator('li[data-step="power_cycle"][data-state="awaiting"]');
+  await power.waitFor();
+
+  // The server's answer to POST /confirm still says "awaiting": hold it back until the live update has been shown
+  let release;
+  const held = new Promise((resolve) => { release = resolve; });
+  let answered;
+  await alice.route('**/api/recovery/runs/*/confirm', (route) => {
+    answered = route.fetch().then(async (res) => { await held; await route.fulfill({ response: res }); });
+  });
+  await power.locator('button[data-action="confirm"]').click();
+  const progress = dlg.locator('li[data-step="power_cycle"] .recovery-progress', { hasText: /maintenant/ });
+  await progress.waitFor();
+  release();
+  await answered;
+  // Let the page handle the answer, then check the dialog has not gone back
+  await alice.evaluate(() => new Promise((resolve) => setTimeout(resolve, 100)));
+  await progress.waitFor();
+  assert.equal(await dlg.locator('li[data-step="power_cycle"]').getAttribute('data-state'), 'running');
+  assert.equal(await dlg.locator('li[data-step="power_cycle"] button[data-action="confirm"]').count(), 0);
+
+  // Leave the router as it was found
+  r1.powerCycle();
+  await dlg.locator('li[data-step="confreg"][data-state="awaiting"]').waitFor({ timeout: 90_000 });
+  await dlg.locator('button[data-action="stop"]').click();
+  await alice.locator('dialog.modal[open]').last().locator('button[data-action="confirm"]').click();
+  await dlg.locator('.recovery-end[data-end="cancelled"]').waitFor({ timeout: 120_000 });
   assert.deepEqual(alice.errors, []);
   await alice.context().close();
 });

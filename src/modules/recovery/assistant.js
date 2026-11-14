@@ -123,6 +123,7 @@ export class RecoveryRunner {
       code: null,
       bypassed: null,
       putBack: null,
+      rev: 0,
       createdAt,
       endedAt: null,
       cancelledBy: null,
@@ -453,7 +454,9 @@ export class RecoveryRunner {
     rec.hidden.saved = this.repos.recoveries.save(record(rec)).catch((err) => this.log.warn(`recovery ${rec.id} not recorded: ${err.message}`));
   }
 
+  /** Every change goes out with a higher `rev`: a client keeps the newest of the answers and live updates it gets, whatever their order */
   #publish(rec) {
+    rec.rev++;
     this.events.publish('recovery:run', publicRecovery(rec), { audience: (u) => this.viewOf(u, rec) });
     this.events.publish('recovery:running', this.summary(), { sticky: true });
   }

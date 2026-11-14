@@ -97,8 +97,10 @@ export function openRecoveryDialog(key) {
   const dlg = openDialog(content, { title: t('recovery.action'), wide: true });
   const heading = dlg.el.querySelector('.modal-head h2');
 
+  // A request's answer can reach the page after the live update that followed it: only the newer one is shown
+  const isNewer = (r) => (r.rev ?? 0) >= (rec?.rev ?? 0);
   const follow = (r) => {
-    if (r?.id && rec?.id === r.id) { rec = r; render(); }
+    if (r?.id && rec?.id === r.id && isNewer(r)) { rec = r; render(); }
     else if (r?.id && !rec && r.device?.key === key) { rec = r; render(); }
   };
   followers.add(follow);
@@ -123,7 +125,7 @@ export function openRecoveryDialog(key) {
     render();
     try {
       const res = await fn();
-      if (res?.recovery) rec = res.recovery;
+      if (res?.recovery && (rec?.id !== res.recovery.id || isNewer(res.recovery))) rec = res.recovery;
     } catch (err) {
       problem = codeText(err.code, err.params, err.message);
     } finally {
