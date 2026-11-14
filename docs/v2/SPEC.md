@@ -152,7 +152,9 @@ exposed directly to the Internet (no Cloudflare Access in front).
   people and release.
 - Released by hand or after 3 h without activity (`BENCH_IDLE_HOURS`). On
   release the application offers a backup of the bench (the jobs lot provides
-  the action; until then the offer is a hook that does nothing).
+  the action: after a release by hand, the bench bar asks whether to back the
+  bench up and leads to the Sauvegardes section; the team may do so for 30
+  minutes, see "Lot jobs").
 - **Permissions.** On a taken bench only its occupants and admins may open or
   pilot its consoles and run jobs; everyone else watches (a line already open
   can be joined by anyone signed in, read-only). On a free bench anyone may
@@ -379,16 +381,39 @@ Reliable multi-line paste (paced like script injection); the same command sent
 to several consoles at once; a shared script library; search in a console's
 history and download of that history.
 
+*As built (terminal lot):* contracts in ARCHITECTURE §9 (console WebSocket
+frames, "History of a console", "Script library").
+- **Paste**: a paste of several lines is handed to the server, which sends it
+  line by line like an injection (waiting for each prompt, 50 ms between
+  lines); it needs the keyboard. A single long line is typed in 32-character
+  chunks, 40 ms apart, and what is left is dropped if the keyboard goes away.
+- **Send to several consoles**: at most 50 lines, to every console the person
+  ticks among those they **pilot** (a shared keyboard is not enough); each
+  console runs it as its own task and reports separately.
+- **History**: plain-text search (case only on request) in what a console's
+  screen showed: the live output for the people attached to it, and the
+  journal days the person may read (ARCHITECTURE §9, whole-day rule);
+  download of either as a text file, audited.
+- **Script library**: three shelves, personal (its owner only, administrators
+  included: it may hold a password), team (the members, who all edit it) and
+  published (everyone reads, administrators write); titles unique per shelf,
+  64 KB per script, shelves capped, concurrent edits refused rather than
+  overwritten. The inject dialog and the "send to several consoles" dialog
+  pick from it, and the consoles header has its own button.
+
 ### Lot collab
 Browser notifications (control requested, line freed, job finished); a shared
 note per device; a small chat per bench for its occupants (kept with the team).
-Contracts and endpoints: ARCHITECTURE §9, "Group work".
+
+*As built (collab lot):* contracts and endpoints in ARCHITECTURE §9, "Group work".
 - **Notifications**: a bell in the rail turns them on (and asks the browser's
   permission); they appear only while the window is hidden or not focused, for
   a request for the keyboard of a line the person pilots, a line they waited
   for that became free or joinable, and a job that finished on a bench they
-  work on (`jobs:done`, published by the jobs lot). Nothing is sent by the
-  server beyond the events the page already receives.
+  work on (`jobs:done`, published by the jobs module to the bench's
+  occupants when the job ends: finished, failed or cancelled, each said as
+  such; a click opens the bench's jobs). Nothing is sent by the server beyond
+  the events the page already receives.
 - **Device note**: one per device, text only (2000 characters), visible to
   everyone signed in (a badge and the first lines in the tooltip on the
   diagram, the whole text in the panel), editable by the occupants of the
@@ -401,6 +426,26 @@ Contracts and endpoints: ARCHITECTURE §9, "Group work".
   messages per 20 seconds per person. Not met by design: no files, no links
   drawn as links, no editing a sent message, no notification of chat messages
   (the panel's button counts what arrived).
+
+### Wave 3 as integrated
+- Migrations: 012 jobs, snapshots and templates; 013 the script library; 014
+  device notes and bench chat (the three lots had all taken 012).
+- Tile actions, in order: break, export, inject, send to several consoles,
+  history, device note.
+- The jobs publish `jobs:done` and the collab notifications read it; a
+  device's note is not configuration and survives a reset of the device
+  (browser scenario `test/e2e/wave3.e2e.js`).
+- **The script library is not offered in the jobs' injection**: a job
+  injects a configuration (a snapshot or a template, turned into a replay
+  script per device, previewed and fingerprinted), while a library script is
+  console commands (`enable`, `conf t`…) that the replay would refuse or
+  misread. Offering it would mean a new kind of source on the server, not a
+  button: left for a later lot if the owner wants it. The library feeds the
+  console tile's inject dialog and the "send to several consoles" dialog.
+- The release offer is shown after a release by hand, from the bench bar; a
+  release by the idle timer, an admin or a reservation reaches no browser
+  at that moment, and the team finds the offer in the Sauvegardes section of
+  the bench for the 30 minutes it lasts.
 
 ## Wave 4
 

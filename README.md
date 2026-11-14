@@ -152,7 +152,7 @@ anyone else. The upstream `TRUST_PROXY=true` is refused at start-up. State is
 written to `DATA_DIR` only: structured state (sessions, audit trail,
 settings, accounts, teams, benches, reservations…) in an SQLite database,
 `DATA_DIR/lab-console.db`; documents (console journals, diagram versions,
-later backups) as files. The Docker image runs with a read-only root
+configuration snapshots and TP templates) as files. The Docker image runs with a read-only root
 filesystem and a volume on `/data`. Files written by earlier v2 builds are
 imported into the database at the first start and kept as `*.imported`.
 
@@ -175,6 +175,35 @@ imported into the database at the first start and kept as `*.imported`.
   announcement banner. **Lab status** for everyone: health of the jump
   server, the console servers, the open lines and shared SSH connections, the
   journals' total, and what is recorded.
+
+## Bench jobs, console tools and group work (v2, wave 3)
+
+- **Sauvegardes** (Backups section, `#/jobs/<bench>`): jobs that cover the
+  devices of one bench and run on the server, watched live by everyone and
+  cancellable. A **backup** (running-config, VLANs and VTP on switches, model
+  and version, five devices at a time) is a snapshot owned by the team that
+  held the bench: list, read, diff (two snapshots, or a snapshot against the
+  live devices), search, ZIP download and import. The server is not a
+  backup: download the ZIP it offers right away. An **injection** shows the
+  exact script of each device before it starts ("reset then inject" or
+  "merge"), then reads the device back and compares. A **reset** says what
+  is erased and who is on the consoles, wants the bench name typed and
+  counts down; a device is never erased without a verified backup. Admins
+  publish **TP templates** (one may be the base configuration applied after
+  a reset); the **TP folder** is one ZIP of a snapshot and the console
+  journals of its day. Only Cisco IOS / IOS XE is touched. Releasing a bench
+  from the bench bar offers its team a backup for 30 minutes. Settings:
+  `JOB_DEVICES_AT_ONCE`, `JOB_COUNTDOWN_SECONDS`, `JOB_IMPORT_MAX_KB`,
+  `JOB_TIME_SCALE`.
+- **Console tools**: a multi-line paste is sent paced, line by line, like an
+  injection; **send to several consoles** sends the same lines to every
+  console the person pilots and ticks; **history** searches what a console
+  printed (its live screen, and the journal days the person may read) and
+  downloads it; a **script library** with personal, team and published
+  shelves feeds the inject and send dialogs.
+- **Group work**: a shared note per device, a chat per bench for its
+  occupants, and browser notifications, among them "the job on your bench is
+  finished" (see the security model above).
 
 ## Console tools (v1.1)
 
@@ -330,6 +359,9 @@ src/
     teams/                  teams, bench occupancy, locks, reservations
     accounts/               directory, invitations, reset links, passkeys, SSO settings
     admin/                  lab parameters, confirmation, health, announcements
+    jobs/                   bench jobs (backup, injection, reset, compare), snapshots, TP templates
+    scripts/                shared script library (personal, team, published)
+    collab/                 device notes, bench chat
     proxmox/                Proxmox client (ticket auth, over the SSH tunnel), service, console proxies
 public/
   index.html, css/app.css
@@ -338,6 +370,8 @@ public/
   js/modules/consoles/      diagram renderer, terminal workspace, lab picker, finder
   js/shared/                workspace (shared by all sections), terminal + VNC panes, split layout
   js/modules/infra/         Infrastructure section: VMs, network dialog, admin switches
+  js/modules/jobs/          Sauvegardes section: jobs, snapshots, templates, the diagram layer
+  js/modules/collab/        device notes, bench chat panel, browser notifications
 scripts/check-diagram.js    diagram linter
 dev/mock-lab.js             fake jump server (telnet, line probe, port forwarding); importable
 dev/fakeIos.js              simulated Cisco IOS / IOS XE (four families, boot, erase, VLANs, slow console)

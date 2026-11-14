@@ -76,7 +76,7 @@ src/
                             audit viewer, announcements, health, journaling   (lot: admin)
     jobs/                   bench jobs (runner.js), snapshots and templates (library.js,
                             configFiles.js: files, hashes, ZIP)      (lot: jobs), see §9b
-    collab/                 device notes, bench chat, notifications
+    collab/                 device notes, bench chat (notifications are browser work)   (lot: collab), see §9 "Group work"
     scripts/                shared script library: personal, team, published scripts   (lot: terminal)
     checks/                 line status, cabling, ping matrix, interface overlay
     proxmox/                unchanged
@@ -786,6 +786,16 @@ services.collab = {                            // lot collab
   mounted once by `main.js`) follows the sticky SSE topic `admin:announcement`. **My account** (`#/account`) is
   reached from the user menu. Passkeys in the browser go through
   `core/passkeys.js` (public: the login page and `/join` use it).
+  **Sauvegardes** (`#/jobs/<bench>[/<action>]`, `modules/jobs/`, every
+  signed-in user; `#/jobs/B4M/backup` opens the backup dialog, which is where
+  the release offer of the bench bar leads) holds the bench jobs, the
+  snapshots and the templates (§9b). `main.js` also starts, for every
+  section, the diagram layer of the jobs (`modules/jobs/layer.js`) and the
+  group work (`modules/collab/index.js`: the notes layer, and the
+  notification bell `#notify-toggle`, placed in the rail before the theme
+  button, outside `#rail-items`). The consoles view mounts the collab
+  bench panel (notes and chat) beside the diagram, one side panel at a time
+  with the live panel, and a script library button in its header.
 - **Live events.** `live.on(topic, fn)` (`core/api.js`) shares one
   `EventSource`. A named event without a listener is lost, and sticky topics
   are only replayed when a stream opens: when a section subscribes to a new
@@ -1123,13 +1133,18 @@ occupancy at the moment of the post. Removals are audited
 |---|---|---|
 | someone asks for the keyboard of a line I pilot | `consoles:activity` (`kind: control`, `event: request`) with the pilot of `consoles:rooms` | I am the pilot, not the requester |
 | a line I waited for is free, or opened in the app so I can join it | `consoles:free` (`state: free` or `open`; `expired` is not notified) | always for me: it is sent to me alone |
-| a job of my bench is over | `jobs:done` `{ bench, jobId, kind, ok }` | `bench` is one I am an occupant of (`benches:state`) |
+| a job of my bench is over | `jobs:done` `{ bench, jobId, kind, ok, state }` | `bench` is one I am an occupant of (`benches:state`) |
 
-`jobs:done` is the **jobs lot's** to publish, once per finished job (any
-`kind`: `backup`, `inject`, `reset`…, `ok: false` for a failed one), through
-`events.publish('jobs:done', payload, { audience })` with the bench's
-occupants as audience; the browser checks the bench again. No server-side
-subscription exists or is needed: SSE is the contract. A notification is a
+`jobs:done` is published by the jobs module (`runner.js`, at the end of
+every job), once per finished job (any `kind`: `backup`, `inject`, `reset`,
+`compare`; `ok` is true for `state: 'done'` only, so a `partial`, `failed`
+or `cancelled` job is not ok), through `events.publish('jobs:done', payload,
+{ audience })` with the bench's occupants **at the end of the job** as
+audience (nobody when no team holds the bench: an admin's job on a free bench,
+the backup a release offers); the browser checks the bench again. A
+cancelled job says "cancelled", not "failed"; clicking the notification
+opens the bench's jobs (`#/jobs/<bench>`), where the report is. No
+server-side subscription exists or is needed: SSE is the contract. A notification is a
 system notification, only when the window is hidden or not focused (the page
 says it itself otherwise), only when the person turned them on with the bell
 in the rail (which also asks the browser's permission, after a click); the
@@ -1314,7 +1329,9 @@ text, 2 to 100 characters, 200 hits), `GET /snapshots/:id`, `GET
 `PUT /templates/:id` (`name`, `description`, `base`), `DELETE /templates/:id`.
 SSE: `jobs:running` (sticky, everyone: per bench, the job and each device's
 state and step: the diagram layer `jobs` draws it), `jobs:job` (the whole
-job, audience above). Audit: `job.<kind>` (start, `details.device` = the
+job, audience above), `jobs:done` (once per finished job, to the bench's
+occupants of that moment: `{ bench, jobId, kind, ok, state }`, what the
+collab notifications read, §9 "Group work"). Audit: `job.<kind>` (start, `details.device` = the
 device names), `job.<kind>.cancel`, `job.<kind>.end` (each device's state,
 code, stage), `job.snapshot.import | download | delete`,
 `job.folder.download`, `job.template.publish | update | delete`. A job left
@@ -1334,7 +1351,7 @@ data/
   lab-console.db (600)      + lab-console.db-wal, lab-console.db-shm: the structured state (§6, "database")
   diagrams/current.drawio   diagrams/versions/<ts>-<user>-<rand>.drawio
   journal/<bench>/<device>/<yyyy-mm-dd>/<hhmmss>.log   …/<hhmmss>.json (one console session, who was there)
-  snapshots/<bench>/<id>/{manifest.json,<device>.cfg,<device>.vlan.txt}   <id> = yyyymmdd-hhmmss-<origin>-<6 hex>
+  snapshots/<bench>/<id>/{manifest.json,<device>.cfg,<device>.vlan.txt,<device>.startup.cfg}   <id> = yyyymmdd-hhmmss-<origin>-<6 hex>
   templates/<id>/...        same layout as a snapshot; _any.cfg is the '*' device
   <dir>/<name>.json.imported   audit/*.jsonl.imported   files of before the database, kept after their import
 ```
@@ -1385,7 +1402,11 @@ file alone while it runs may miss what is still in the `-wal` file.
   app's auto-login), the mock OIDC provider and the app **on ephemeral
   ports** with a temporary data directory, then Chromium; `after()` closes
   them all and removes the directory, also when a test failed, when start-up
-  failed half-way, or on SIGINT / SIGTERM (`teardown.e2e.js` checks it). A
+  failed half-way, or on SIGINT / SIGTERM (`teardown.e2e.js` checks it, on
+  the processes of its own run only: the Chromium processes descended from
+  the scenario it starts or carrying its marker argument, and the profiles
+  they name, so that another suite's browser on the machine does not make it
+  fail). A
   file's own `before()` awaits `h.ready` first (top-level hooks run
   concurrently). `h.newPage({ locale })` (with `page.errors`),
   `h.session(page, who)` (cookie of a session opened by the test helper),
