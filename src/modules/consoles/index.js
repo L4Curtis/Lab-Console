@@ -94,8 +94,9 @@ export function createConsolesModule({ config, events, logger, infra, services =
   const rooms = new RoomManager({
     settings, pool, journal, limits: config.limits, canPilot: mayPilot, options: options.rooms ?? {}, now, logger: log,
   });
+  const probe = sshProbe({ pool, settings });
   const watch = new LineWatch({
-    probe: sshProbe({ pool, settings }),
+    probe,
     isOpen: (target) => Boolean(rooms.get(target)),
     notify: (userId, payload) => events.toUser(userId, 'consoles:free', payload),
     onFree: (target) => rooms.markFree(target),
@@ -167,6 +168,8 @@ export function createConsolesModule({ config, events, logger, infra, services =
     registry, rooms, sharedTargets, journal,
     /** The SSH connections the console lines share: { connections, channels, channelsPerConnection, lines: [{ key, channels, capacity, state }] } */
     pool: () => ({ ...pool.size, channelsPerConnection: config.rooms.channelsPerConnection, lines: pool.stats() }),
+    /** Is the console line free? `nc -z` through the jump server, on the shared connections: 'free' | 'busy' | 'unknown' (no session opened) */
+    probe: (device, seconds) => probe(device, seconds),
   };
 
   // ── HTTP API ──────────────────────────────────────────────────────────────
