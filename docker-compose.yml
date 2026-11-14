@@ -1,7 +1,7 @@
 services:
   lab-console:
     build: .
-    image: lab-console:1
+    image: lab-console:2
     container_name: lab-console
     env_file: .env
     environment:
