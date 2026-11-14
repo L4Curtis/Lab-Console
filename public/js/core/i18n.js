@@ -34,7 +34,7 @@ function fetchDictionary(lang, ns) {
   const id = `${lang}/${ns}`;
   if (dictionaries.has(id)) return Promise.resolve();
   if (!loading.has(id)) {
-    loading.set(id, fetch(`/locales/${lang}/${ns}.json`, { credentials: 'same-origin' })
+    loading.set(id, fetch(new URL(`../../locales/${lang}/${ns}.json`, import.meta.url), { credentials: 'same-origin' })
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error(`HTTP ${res.status}`))))
       .then((data) => { dictionaries.set(id, data); })
       // A missing dictionary must not block the screen: its keys show as keys

@@ -37,7 +37,9 @@
     "help": "Help",
     "status": "Lab status",
     "skip": "Skip to content",
-    "adminShort": "Admin"
+    "adminShort": "Admin",
+    "loadFailed": "This section could not be loaded: a new version may just have been released. Reload the page.",
+    "reload": "Reload the page"
   },
   "errors": {
     "server": {

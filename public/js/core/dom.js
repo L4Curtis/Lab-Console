@@ -117,12 +117,14 @@ export function toast(message, kind = 'info', ms = 4500) {
 const stylesheets = new Map(); // href → promise
 
 /**
- * Load a module's stylesheet once: loadCss('benches') → /css/benches.css.
- * Resolves when the rules apply, so a screen can wait before it shows; a
- * stylesheet that fails to load resolves too (an unstyled screen still works)
+ * Load a module's stylesheet once: loadCss('benches') → /css/benches.css,
+ * under the same release prefix as this script (/v/<build id>/css/benches.css
+ * when the page was served with it). Resolves when the rules apply, so a
+ * screen can wait before it shows; a stylesheet that fails to load resolves
+ * too (an unstyled screen still works)
  */
 export function loadCss(name) {
-  const href = name.includes('/') ? name : `/css/${name}.css`;
+  const href = name.includes('/') ? name : new URL(`../../css/${name}.css`, import.meta.url).pathname;
   if (!stylesheets.has(href)) {
     stylesheets.set(href, new Promise((resolve) => {
       const link = h('link', { rel: 'stylesheet', href, onload: () => resolve(true), onerror: () => resolve(false) });

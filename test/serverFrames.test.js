@@ -30,8 +30,10 @@ before(async () => {
   const dir = path.join(repoRoot, 'public', 'locales');
   const realFetch = globalThis.fetch;
   globalThis.fetch = async (url, ...rest) => {
-    if (!String(url).startsWith('/locales/')) return realFetch(url, ...rest);
-    const file = path.join(dir, url.replace('/locales/', ''));
+    // i18n.js asks for its dictionaries next to itself: file:///…/public/locales/<lang>/<ns>.json here
+    const name = /\/public\/locales\/(.+)$/.exec(String(url))?.[1];
+    if (!name) return realFetch(url, ...rest);
+    const file = path.join(dir, name);
     return fs.existsSync(file) ? { ok: true, status: 200, json: async () => JSON.parse(fs.readFileSync(file, 'utf8')) } : { ok: false, status: 404 };
   };
   const store = new Map();

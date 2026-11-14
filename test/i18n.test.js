@@ -79,8 +79,10 @@ let i18n;
 
 before(async () => {
   globalThis.fetch = async (url) => {
-    fetched.push(url);
-    const body = files[url];
+    // i18n.js asks for its dictionaries next to itself (import.meta.url): here file:///…/public/locales/…
+    const asked = String(url).replace(/^.*\/public(?=\/locales\/)/, '');
+    fetched.push(asked);
+    const body = files[asked];
     return { ok: body !== undefined, status: body === undefined ? 404 : 200, json: async () => structuredClone(body) };
   };
   globalThis.localStorage = {

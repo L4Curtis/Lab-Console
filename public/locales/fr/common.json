@@ -37,7 +37,9 @@
     "help": "Aide",
     "status": "État du labo",
     "skip": "Aller au contenu",
-    "adminShort": "Admin"
+    "adminShort": "Admin",
+    "loadFailed": "Impossible de charger cette section : une nouvelle version vient peut-être d’être publiée. Rechargez la page.",
+    "reload": "Recharger la page"
   },
   "errors": {
     "server": {

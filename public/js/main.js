@@ -136,8 +136,18 @@ function setPageTitle() {
 async function mountSection(mod) {
   const el = h(`section.view.view-${mod.path}`); // visible while it mounts: the diagram measures itself
   views.append(el);
-  const { mount } = await mod.load();
-  return { el, api: (await mount(el, { enabled: mod.enabled, navigate })) || {} }; // mount may be async
+  try {
+    const { mount } = await mod.load();
+    return { el, api: (await mount(el, { enabled: mod.enabled, navigate })) || {} }; // mount may be async
+  } catch (err) {
+    // Typically a tab opened before a release: its scripts are no longer served under the old
+    // build id (src/lib/assets.js), and only a reload brings the new ones
+    console.error(`[${mod.path}] ${err?.message ?? err}`);
+    el.replaceChildren(h('div.load-failure', { role: 'alert' },
+      h('p', tNode('common.shell.loadFailed')),
+      h('button.btn.small', { type: 'button', dataset: { action: 'reload' }, onclick: () => location.reload() }, tNode('common.shell.reload'))));
+    return { el, api: {} };
+  }
 }
 
 /** Update the URL without re-running the router (for in-module state such as the selected lab) */
