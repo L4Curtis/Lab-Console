@@ -1039,8 +1039,13 @@ the team that holds it** (SPEC "Lot teams"): the thread is the one of (holder
 team, bench), shared by the team's members and the bench's guests. Released
 and taken again by the same team, the conversation is still there; another
 team starts its own; a team that is dissolved loses its threads (a sweep at
-start-up and daily). Occupants read and write; admins read and may take a
-message down; nobody else sees anything (`collab.chat_forbidden`).
+start-up and daily, done in the repository against the `teams` table, so it
+does not depend on the start order of the modules or on what is loaded).
+Occupants read and write; admins read and may take a message down, also while
+no team holds the bench (by bench and id; the thread itself is only readable
+through the current holder); nobody else sees anything
+(`collab.chat_forbidden`). The chat button's unread count is per bench: it
+counts the messages of the bench on screen, and a message taken down leaves it.
 `GET /api/collab/chat/:bench` → `{ bench, messages, canPost, limits }` (the
 last 200, oldest first); `POST` `{ text }`; `DELETE /:bench/:id` (admin). Text
 only, 500 characters and 6 lines, no control or direction-changing
@@ -1055,7 +1060,7 @@ occupancy at the moment of the post. Removals are audited
 | what | event | when it is shown |
 |---|---|---|
 | someone asks for the keyboard of a line I pilot | `consoles:activity` (`kind: control`, `event: request`) with the pilot of `consoles:rooms` | I am the pilot, not the requester |
-| a line I waited for is free | `consoles:free` (`state: free`) | always for me: it is sent to me alone |
+| a line I waited for is free, or opened in the app so I can join it | `consoles:free` (`state: free` or `open`; `expired` is not notified) | always for me: it is sent to me alone |
 | a job of my bench is over | `jobs:done` `{ bench, jobId, kind, ok }` | `bench` is one I am an occupant of (`benches:state`) |
 
 `jobs:done` is the **jobs lot's** to publish, once per finished job (any

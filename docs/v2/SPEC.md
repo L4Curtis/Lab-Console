@@ -347,9 +347,9 @@ Contracts and endpoints: ARCHITECTURE §9, "Group work".
 - **Notifications**: a bell in the rail turns them on (and asks the browser's
   permission); they appear only while the window is hidden or not focused, for
   a request for the keyboard of a line the person pilots, a line they waited
-  for that became free, and a job that finished on a bench they work on
-  (`jobs:done`, published by the jobs lot). Nothing is sent by the server
-  beyond the events the page already receives.
+  for that became free or joinable, and a job that finished on a bench they
+  work on (`jobs:done`, published by the jobs lot). Nothing is sent by the
+  server beyond the events the page already receives.
 - **Device note**: one per device, text only (2000 characters), visible to
   everyone signed in (a badge and the first lines in the tooltip on the
   diagram, the whole text in the panel), editable by the occupants of the
