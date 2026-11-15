@@ -27,7 +27,8 @@
     "pendingDone": "Your account and its passkey are ready. An administrator must approve the account: then sign in with your passkey.",
     "stepExpired": "Your account is created, but registering the passkey timed out. Sign in with your user name and password: the passkey will be asked again.",
     "toLogin": "Back to sign-in",
-    "invalidTitle": "This link does not work"
+    "invalidTitle": "This link does not work",
+    "unavailableTitle": "Passkeys are not available here"
   },
   "reset": {
     "title": "New password and passkey",

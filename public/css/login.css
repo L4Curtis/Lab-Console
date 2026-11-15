@@ -36,6 +36,8 @@
   font: var(--fs-small); line-height: 1.45;
 }
 
+.login-message[data-tone="success"] { border-left-color: var(--success); background: var(--success-bg); }
+
 .login-sso .btn, .login-local .btn, .join-done .btn, .login-card > .btn { text-decoration: none; }
 .login-extra:empty { display: none; }
 

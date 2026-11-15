@@ -45,15 +45,19 @@ let busy = false;
 const translate = (m) => (!m ? '' : m.code ? tError(m.code, m.params, m.fallback) : t(m.key, m.params));
 const fromError = (err) => (err.status ? { code: err.code, params: err.params, fallback: err.serverMessage } : { key: 'accounts.join.network' });
 
+// Not the link's fault: this browser, or this site, cannot offer the passkey the account signs in with
+const noPasskeys = () => message?.key === 'accounts.join.noPasskeySupport' || message?.code === 'accounts.passkeys_unavailable';
+
 function render() {
   $('join-page').dataset.state = state;
-  $('join-title').textContent = t(state === 'invalid' ? 'accounts.join.invalidTitle' : mode === 'reset' ? 'accounts.reset.title' : 'accounts.join.title');
+  $('join-title').textContent = t(state === 'invalid' ? (noPasskeys() ? 'accounts.join.unavailableTitle' : 'accounts.join.invalidTitle') : mode === 'reset' ? 'accounts.reset.title' : 'accounts.join.title');
   const sub = state === 'form' && offer ? (mode === 'reset'
     ? t('accounts.reset.for', { username: offer.username })
     : t(offer.approval ? 'accounts.join.offerApproval' : 'accounts.join.offer', { role: t(`auth.menu.roles.${offer.role}`) }))
     : '';
   $('join-sub').textContent = sub;
   $('join-message').hidden = !message;
+  $('join-message').dataset.tone = message?.tone ?? 'warning'; // what went well is not a warning
   $('join-message').textContent = translate(message);
   $('join-box').hidden = state !== 'form';
   $('signup-fields').hidden = mode === 'reset';
@@ -113,11 +117,11 @@ form.addEventListener('submit', async (event) => {
       const answer = await request('POST', '/auth/reset', { token, password: values.password });
       // A new passkey next; a disabled account only gets its new password
       state = answer.step ? 'step' : 'done';
-      message = { key: answer.step ? 'accounts.reset.saved' : 'accounts.reset.done' };
+      message = answer.step ? { key: 'accounts.reset.saved', tone: 'success' } : { key: 'accounts.reset.done' };
     } else {
       const answer = await request('POST', '/auth/signup', { token, username: values.username.trim(), name: values.name.trim(), password: values.password });
       state = answer.step ? 'step' : 'done';
-      message = { key: answer.step ? (answer.pending ? 'accounts.join.createdPending' : 'accounts.join.created') : 'accounts.join.pending' };
+      message = { key: answer.step ? (answer.pending ? 'accounts.join.createdPending' : 'accounts.join.created') : 'accounts.join.pending', tone: 'success' };
     }
     form.reset();
   } catch (err) {
@@ -150,7 +154,7 @@ $('join-step-button').addEventListener('click', async () => {
     }
     // A link for several people: the passkey is registered, the account waits for approval
     state = 'done';
-    message = { key: 'accounts.join.pendingDone' };
+    message = { key: 'accounts.join.pendingDone', tone: 'success' };
   } catch (err) {
     if (isCancelled(err)) stepError = { key: 'auth.step.cancelled' };
     else if (err.status === 401) {

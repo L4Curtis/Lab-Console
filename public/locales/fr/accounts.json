@@ -27,7 +27,8 @@
     "pendingDone": "Votre compte et sa clé d’accès sont prêts. Un administrateur doit valider le compte : connectez-vous ensuite avec votre clé d’accès.",
     "stepExpired": "Votre compte est créé, mais l’enregistrement de la clé d’accès a expiré. Connectez-vous avec votre identifiant et votre mot de passe : la clé vous sera redemandée.",
     "toLogin": "Retour à la connexion",
-    "invalidTitle": "Ce lien ne fonctionne pas"
+    "invalidTitle": "Ce lien ne fonctionne pas",
+    "unavailableTitle": "Clés d’accès indisponibles ici"
   },
   "reset": {
     "title": "Nouveau mot de passe et clé d’accès",

@@ -65,6 +65,7 @@ test('invitation sign-up: an administrator creates the link, a newcomer creates 
   // The account exists, but no session before its passkey: a student too
   await page.waitForSelector('#join-step:not([hidden])');
   assert.match(await page.textContent('#join-message'), /^Votre compte est créé\. Dernière étape/);
+  assert.equal(await page.getAttribute('#join-message', 'data-tone'), 'success', 'what went well is not shown as a warning');
   assert.equal(await page.locator('#join-box').isHidden(), true);
   assert.equal(await page.textContent('#join-step h2'), 'Enregistrez une clé d’accès');
   assert.equal((await page.context().cookies()).some((c) => c.name === h.app.deps.auth.cookieName), false, 'no session yet');
@@ -200,6 +201,7 @@ test('a reset link: a new password, the lost passkey replaced by a new one, then
   await page.click('#join-submit');
   await page.waitForSelector('#join-step:not([hidden])');
   assert.match(await page.textContent('#join-message'), /^Mot de passe enregistré, anciennes clés d’accès supprimées/);
+  assert.equal(await page.getAttribute('#join-message', 'data-tone'), 'success');
   assert.equal(h.app.deps.services.accounts.get(id).passkeys, 0, 'the lost one is gone already');
   await page.click('#join-step-button');
   await waitForApp(page);
@@ -209,6 +211,53 @@ test('a reset link: a new password, the lost passkey replaced by a new one, then
   assert.equal(h.app.deps.services.accounts.get(id).passkeys, 1);
   assert.equal((await passkeySignIn(h.app, new TestBrowser(), lost)).status, 401, 'the lost passkey no longer signs in');
 
+  assert.deepEqual(page.errors, []);
+  await page.context().close();
+});
+
+test('on a phone, a link for several people: the newcomer registers the passkey, then waits for approval without a session', async () => {
+  const { url } = await invite(h.app, { uses: 5 });
+  const page = await h.newPhonePage();
+  const authenticator = await addVirtualAuthenticator(page);
+  await page.goto(url);
+  await page.waitForSelector('#join-box:not([hidden])');
+  await page.fill('#join-username', 'wanda');
+  await page.fill('#join-name', 'Wanda Petit');
+  await page.fill('#join-password', PASSWORD);
+  await page.fill('#join-confirm', PASSWORD);
+  await page.click('#join-submit');
+  await page.waitForSelector('#join-step:not([hidden])');
+  assert.match(await page.textContent('#join-message'), /^Votre compte est créé\. Enregistrez la clé d’accès/);
+  await page.click('#join-step-button');
+  await page.waitForSelector('#join-done:not([hidden])');
+  assert.match(await page.textContent('#join-message'), /^Votre compte et sa clé d’accès sont prêts\. Un administrateur doit valider le compte/);
+  assert.equal(await page.getAttribute('#join-message', 'data-tone'), 'success');
+  assert.equal(await page.locator('#join-step').isHidden(), true);
+  assert.equal((await page.context().cookies()).some((c) => c.name === h.app.deps.auth.cookieName), false, 'no session before the approval');
+  assert.equal((await authenticator.credentials()).length, 1);
+  const account = h.app.deps.services.accounts.get('local:wanda');
+  assert.equal(account.state, 'pending');
+  assert.equal(account.passkeys, 1);
+  // The way out keeps to the phone's full width
+  const box = await page.locator('#join-done .btn').boundingBox();
+  assert.ok(box.width >= 390 - 2 * 16 - 1 && box.height >= 44, `a full-width button of 44 px at least (${box.width} × ${box.height})`);
+  assert.deepEqual(page.errors, []);
+  await page.context().close();
+});
+
+test('a browser without passkeys is told before anything is sent: the link stays usable from another browser', async () => {
+  const { url, token } = await invite(h.app);
+  const page = await h.newPage();
+  await page.addInitScript(() => { delete window.PublicKeyCredential; });
+  const posted = [];
+  page.on('request', (r) => { if (r.method() === 'POST') posted.push(r.url()); });
+  await page.goto(url);
+  await page.waitForSelector('#join-done:not([hidden])');
+  assert.equal(await page.textContent('#join-title'), 'Clés d’accès indisponibles ici');
+  assert.match(await page.textContent('#join-message'), /^Ce navigateur ne sait pas utiliser les clés d’accès/);
+  assert.equal(await page.locator('#join-box').isHidden(), true);
+  assert.deepEqual(posted, [], 'nothing sent');
+  assert.equal((await call(h.app, null, 'POST', '/auth/invitation', { token })).status, 200, 'the link still works');
   assert.deepEqual(page.errors, []);
   await page.context().close();
 });
