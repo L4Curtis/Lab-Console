@@ -62,7 +62,7 @@
 .team-row-actions { display: inline-flex; align-items: center; gap: var(--sp-2); margin-left: auto; flex: none; }
 
 /* ── My team ──────────────────────────────────────────────────────────── */
-.team-page { display: grid; gap: var(--sp-4); align-content: start; max-width: 760px; margin-inline: auto; }
+.team-page { display: grid; gap: var(--sp-4); align-content: start; max-width: 760px; }
 .team-page .card-head h2 { display: flex; align-items: center; gap: var(--sp-2); }
 .team-page .card-head h3, .team-page .card-section h3 { margin: 0; font: var(--fs-subheading); }
 .team-page .card-section > h3 { margin-bottom: var(--sp-2); }

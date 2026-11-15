@@ -20,7 +20,7 @@
 .link-dialog { display: grid; gap: var(--sp-4); }
 
 /* Mon compte */
-.account-panel { max-width: 760px; margin-inline: auto; width: 100%; }
+.account-panel { max-width: 760px; width: 100%; }
 .account-card .card-head { margin-bottom: var(--sp-3); }
 .account-facts { margin: 0; display: grid; gap: var(--sp-2); }
 .account-facts div { display: grid; grid-template-columns: 160px minmax(0, 1fr); gap: var(--sp-3); }
