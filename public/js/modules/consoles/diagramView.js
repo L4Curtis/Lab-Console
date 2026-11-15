@@ -7,9 +7,32 @@
  * through a third-party viewer, no overlay tricks
  *
  *   const view = new DiagramView(container, { onOpen(device) {} })
- *   view.render(lab); view.setStates(device => 'idle' | 'open' | 'busy' | 'disabled')
+ *   view.render(lab); view.setStates(device => 'idle' | 'open' | 'live' | 'busy' | 'disabled')
+ *
+ * Decorations (ARCHITECTURE §8): other features draw on the devices without
+ * touching this file. A layer is a function of the device, asked again on
+ * refresh(); what several layers return is combined, in the order the
+ * layers were added:
+ *
+ *   view.decorate('presence', (device) => ({
+ *     ring: 'pilot',                                   // a class: .deco-ring.ring-pilot (the last layer's wins)
+ *     badges: [{ text: 'AM', color: '#3E8FC9', title: 'Alice Martin', kind: 'pilot' }],
+ *     tooltip: ['Alice Martin has the keyboard'],      // extra lines of the device's tooltip
+ *   }) | null)
+ *   view.refresh()                                     // after the data behind a layer changed
+ *   view.decorate('presence', null)                    // remove a layer
+ *   view.destroy()                                     // the view is thrown away: stop listening
+ *
+ * Other lots do not hold the view: they register their layer once with
+ * `registerDiagramLayer(name, fn)` (shared/diagramLayers.js), which every
+ * view uses after its own layers, and call `refreshDiagram()`. Links are
+ * decorated the same way with `registerLinkLayer(name, fn)`: a tone (a
+ * colour), tooltip lines and a short text near each end.
  */
-import { svg, h, icon } from '../../core/dom.js';
+import { svg, h, icon, loadCss } from '../../core/dom.js';
+import { t, tAttr, onLocaleChange } from '../../core/i18n.js';
+import { diagramLayers, linkLayersList, onDiagramLayersChange } from '../../shared/diagramLayers.js';
+import { isCompact } from '../../core/viewport.js';
 
 // Device glyphs, drawn in a 24×24 box centred in the device tile
 const GLYPHS = {
@@ -22,21 +45,43 @@ const GLYPHS = {
   generic: 'M4 5h16v14H4z M8 10h8 M8 14h5',
 };
 
-const STATE_TEXT = {
-  idle: 'Free. Click to open the console',
-  open: 'Open in your workspace',
-  busy: 'In use by another session',
-  disabled: 'Console address not allowed by the platform',
-};
+// What a device's state says (consoles.state.<state>)
+const stateText = (state) => t(`consoles.state.${state}`);
+
+/** A device's glyph as a small inline SVG (the device list of a phone uses the diagram's own drawings) */
+export function deviceGlyph(kind) {
+  const k = GLYPHS[kind] ? kind : 'generic';
+  return svg('svg', { class: 'device-glyph-icon', viewBox: '0 0 24 24', 'aria-hidden': 'true' }, svg('path', { d: GLYPHS[k] }));
+}
+
+const ZOOM_MIN = 0.25;
+const ZOOM_MAX = 3;
+/** On screen, a device tile is at least this big at the first zoom (UX.md §8.3), and its hit area at least TAP */
+const MIN_TILE_PX = 36;
+const TAP = 44;
+/** Under this zoom only the devices' names stay: addresses and link labels would be specks */
+const LABELS_FROM = 0.5;
+const LONG_PRESS_MS = 500;
+const DOUBLE_TAP_MS = 300;
 
 export class DiagramView {
   #lab = null;
   #k = 1; #tx = 0; #ty = 0;
   #autoFit = true;
   #deviceEls = new Map();
+  #edgeEls = new Map(); // edge id → { el, edge, decoEl }
+  #layers = new Map(); // name → (device) => decoration | null
+  #stop = []; // what destroy() undoes: listeners on module-wide registries, the resize observer
 
-  constructor(container, { onOpen }) {
+  /**
+   * `onOpen(device)`: a click, Enter or a tap on a device. `onMenu(device)`: a long press or a right click (the device sheet).
+   * `insets()` → { top, bottom }: what floats over the canvas's edges (the hint, the zoom controls), so that the fitted diagram stays clear of it
+   */
+  constructor(container, { onOpen, onMenu, insets = () => ({}) }) {
+    loadCss('consoles'); // the diagram's rules (the administration's preview draws one too)
     this.onOpen = onOpen;
+    this.onMenu = onMenu;
+    this.insets = insets;
     this.el = container;
     this.svg = svg('svg', { class: 'diagram-svg', role: 'img' });
     this.viewport = svg('g', { class: 'viewport' });
@@ -44,31 +89,147 @@ export class DiagramView {
     this.tooltip = h('div.diagram-tip', { role: 'tooltip' });
     this.zoomLabel = h('span.zoom-level', '100%');
     this.controls = h('div.zoom-controls',
-      h('button.icon-btn', { type: 'button', title: 'Zoom out', onclick: () => this.zoomBy(1 / 1.25) }, icon('minus')),
+      h('button.icon-btn', { type: 'button', ...tAttr('title', 'consoles.diagram.zoomOut'), ...tAttr('aria-label', 'consoles.diagram.zoomOut'), onclick: () => this.zoomBy(1 / 1.25) }, icon('minus')),
       this.zoomLabel,
-      h('button.icon-btn', { type: 'button', title: 'Zoom in', onclick: () => this.zoomBy(1.25) }, icon('plus')),
-      h('button.icon-btn', { type: 'button', title: 'Fit diagram to view', onclick: () => this.fit(true) }, icon('fit')));
+      h('button.icon-btn', { type: 'button', ...tAttr('title', 'consoles.diagram.zoomIn'), ...tAttr('aria-label', 'consoles.diagram.zoomIn'), onclick: () => this.zoomBy(1.25) }, icon('plus')),
+      h('button.icon-btn', { type: 'button', ...tAttr('title', 'consoles.diagram.fit'), ...tAttr('aria-label', 'consoles.diagram.fit'), onclick: () => this.fit(true) }, icon('fit')));
     container.append(this.svg, this.controls, this.tooltip);
     this.#bindPanZoom();
-    new ResizeObserver(() => this.#autoFit && this.fit()).observe(container);
+    const resize = new ResizeObserver(() => this.#autoFit && this.fit());
+    resize.observe(container);
+    this.#stop.push(
+      onLocaleChange(() => this.#relabel()),
+      onDiagramLayersChange(() => this.refresh()),
+      () => resize.disconnect(),
+    );
+  }
+
+  /** Stop listening to the language, the shared layer registry and the container's size */
+  destroy() {
+    for (const stop of this.#stop.splice(0)) stop();
   }
 
   render(lab) {
     this.#lab = lab;
     this.#deviceEls.clear();
+    this.#edgeEls.clear();
     this.viewport.replaceChildren(
       svg('g', { class: 'layer-shapes' }, lab.shapes.map((s) => this.#shape(s))),
       svg('g', { class: 'layer-edges' }, lab.edges.map((e) => this.#edge(e))),
       svg('g', { class: 'layer-devices' }, lab.devices.map((d) => this.#device(d))),
     );
-    this.svg.setAttribute('aria-label', `Topology of ${lab.name}`);
+    this.#relabel();
     // One transparent hit area per device covering icon *and* label, so the
     // gap between them is clickable too
-    for (const { el } of this.#deviceEls.values()) {
-      const b = el.getBBox();
-      el.prepend(svg('rect', { class: 'device-hit', x: b.x - 6, y: b.y - 6, width: b.width + 12, height: b.height + 12, rx: 8 }));
+    for (const entry of this.#deviceEls.values()) {
+      const b = entry.el.getBBox();
+      entry.box = { x: b.x - 6, y: b.y - 6, w: b.width + 12, h: b.height + 12 };
+      entry.hit = svg('rect', { class: 'device-hit', rx: 8 });
+      entry.el.prepend(entry.hit);
     }
+    this.#sizeHits();
+    this.refresh();
     this.fit(true);
+  }
+
+  /** Whatever the zoom, a device can be hit with a finger: its hit area is at least TAP screen pixels each way */
+  #sizeHits() {
+    const min = TAP / this.#k;
+    for (const { hit, box } of this.#deviceEls.values()) {
+      if (!hit) continue;
+      const w = Math.max(box.w, min);
+      const h2 = Math.max(box.h, min);
+      hit.setAttribute('x', box.x - (w - box.w) / 2);
+      hit.setAttribute('y', box.y - (h2 - box.h) / 2);
+      hit.setAttribute('width', w);
+      hit.setAttribute('height', h2);
+    }
+  }
+
+  /** Add (or replace, or with `null` remove) a decoration layer */
+  decorate(layer, fn) {
+    if (fn === null) this.#layers.delete(layer);
+    else if (typeof fn === 'function') this.#layers.set(layer, fn);
+    else throw new TypeError('decorate(layer, fn): fn is (device) => decoration | null');
+    this.refresh();
+  }
+
+  /** Ask every layer again and redraw the decorations (not the diagram) */
+  refresh() {
+    this.#refreshLinks();
+    for (const entry of this.#deviceEls.values()) {
+      const deco = this.#decorationOf(entry.device);
+      entry.deco = deco;
+      entry.decoEl?.remove();
+      entry.el.classList.toggle('decorated', Boolean(deco.ring || deco.badges.length));
+      if (!deco.ring && !deco.badges.length) { entry.decoEl = null; continue; }
+      const d = entry.device;
+      const pad = 5;
+      const g = svg('g', { class: 'device-deco', 'aria-hidden': 'true' });
+      if (deco.ring) g.append(svg('rect', { class: `deco-ring ring-${deco.ring}`, x: d.x - pad, y: d.y - pad, width: d.w + 2 * pad, height: d.h + 2 * pad, rx: Math.min(d.w, d.h) * 0.3 }));
+      const r = 8;
+      deco.badges.slice(0, 4).forEach((b, i) => {
+        const cx = d.x + r + i * (r * 1.6) - pad;
+        const cy = d.y - pad - 2;
+        const badge = svg('g', { class: `deco-badge${b.kind ? ` badge-${b.kind}` : ''}` },
+          svg('circle', { cx, cy, r, style: b.color ? `--badge:${b.color}` : null }),
+          svg('text', { x: cx, y: cy + 3.2, 'text-anchor': 'middle' }, String(b.text ?? '').slice(0, 3)));
+        if (b.title) badge.prepend(svg('title', {}, b.title));
+        g.append(badge);
+      });
+      if (deco.badges.length > 4) {
+        const cx = d.x + r + 4 * (r * 1.6) - pad;
+        g.append(svg('g', { class: 'deco-badge badge-more' }, svg('circle', { cx, cy: d.y - pad - 2, r }), svg('text', { x: cx, y: d.y - pad + 1.2, 'text-anchor': 'middle' }, `+${deco.badges.length - 4}`)));
+      }
+      entry.el.append(g);
+      entry.decoEl = g;
+    }
+  }
+
+  /** The link layers: a tone on the edge, its tooltip, a short text near each end */
+  #refreshLinks() {
+    const layers = linkLayersList();
+    for (const entry of this.#edgeEls.values()) {
+      const out = { tone: null, title: [], ends: { source: [], target: [] } };
+      for (const [name, fn] of layers) {
+        let d = null;
+        try { d = fn(entry.edge, this.#lab); } catch (err) { console.warn(`[diagram] link layer ${name}: ${err.message}`); }
+        if (!d) continue;
+        if (d.tone) out.tone = d.tone;
+        if (d.title) out.title.push(...[].concat(d.title).filter(Boolean));
+        for (const side of ['source', 'target']) if (d.ends?.[side]) out.ends[side].push(String(d.ends[side]));
+      }
+      entry.decoEl?.remove();
+      entry.decoEl = null;
+      if (out.tone) entry.el.dataset.tone = out.tone;
+      else delete entry.el.dataset.tone;
+      const texts = ['source', 'target'].filter((side) => out.ends[side].length);
+      if (!out.title.length && !texts.length) continue;
+      const g = svg('g', { class: 'edge-deco' });
+      if (out.title.length) g.append(svg('title', {}, out.title.join('\n')));
+      for (const side of texts) {
+        const p = pointAlong(entry.edge.points, side === 'source' ? 0.2 : 0.8);
+        if (!p) continue;
+        g.append(svg('text', { class: 'edge-end', x: p.x + 4, y: p.y - 4 }, out.ends[side].join(' · ')));
+      }
+      // The tooltip covers the whole line: a wide transparent stroke takes the pointer
+      g.prepend(svg('polyline', { class: 'edge-hit', points: entry.edge.points.map((q) => `${q.x},${q.y}`).join(' ') }));
+      entry.el.append(g);
+      entry.decoEl = g;
+    }
+  }
+
+  #decorationOf(device) {
+    const out = { ring: null, badges: [], tooltip: [] };
+    for (const [name, fn] of [...this.#layers, ...diagramLayers()]) {
+      let d = null;
+      try { d = fn(device); } catch (err) { console.warn(`[diagram] layer ${name}: ${err.message}`); }
+      if (!d) continue;
+      if (d.ring) out.ring = d.ring;
+      if (Array.isArray(d.badges)) out.badges.push(...d.badges);
+      if (Array.isArray(d.tooltip)) out.tooltip.push(...d.tooltip.filter(Boolean));
+    }
+    return out;
   }
 
   /** Recolour status LEDs without re-rendering */
@@ -76,7 +237,15 @@ export class DiagramView {
     for (const [key, { el, device }] of this.#deviceEls) {
       const state = stateOf(device);
       el.dataset.state = state;
-      el.setAttribute('aria-label', `${device.name}: ${STATE_TEXT[state]}`);
+    }
+    this.#relabel();
+  }
+
+  /** Accessible names made of a device name and a state: written again when either changes */
+  #relabel() {
+    if (this.#lab) this.svg.setAttribute('aria-label', t('consoles.diagram.topology', { name: this.#lab.name }));
+    for (const { el, device } of this.#deviceEls.values()) {
+      el.setAttribute('aria-label', t('consoles.diagram.device', { name: device.name, state: stateText(el.dataset.state) }));
     }
   }
 
@@ -101,7 +270,13 @@ export class DiagramView {
       this.#label(d, true),
     );
     const open = () => this.onOpen(d);
-    g.addEventListener('click', (e) => { if (!this.dragged) open(); e.stopPropagation(); });
+    g.addEventListener('click', (e) => { if (!this.dragged && !this.pressed) open(); e.stopPropagation(); });
+    g.addEventListener('contextmenu', (e) => {
+      if (!this.onMenu) return;
+      e.preventDefault();
+      if (!this.pressed) this.onMenu(d); // a long press already opened it
+    });
+    g.addEventListener('pointerdown', (e) => this.#armLongPress(e, d));
     g.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
     g.addEventListener('pointerenter', () => this.#showTip(d, g));
     g.addEventListener('pointerleave', () => this.#hideTip());
@@ -134,9 +309,11 @@ export class DiagramView {
 
   #edge(e) {
     const pts = e.points.map((p) => `${p.x},${p.y}`).join(' ');
-    return svg('g', { class: `edge${e.dashed ? ' dashed' : ''}` },
+    const g = svg('g', { class: `edge${e.dashed ? ' dashed' : ''}`, 'data-edge': e.id },
       svg('polyline', { points: pts }),
       e.labels.map((l) => svg('text', { class: 'edge-label', x: l.x, y: l.y }, l.text)));
+    if (e.id) this.#edgeEls.set(e.id, { el: g, edge: e, decoEl: null });
+    return g;
   }
 
   /** Places a label around (or inside) a node like draw.io's label position styles */
@@ -163,10 +340,12 @@ export class DiagramView {
 
   #showTip(d, g) {
     const state = g.dataset.state;
+    const extra = this.#deviceEls.get(d.key)?.deco?.tooltip ?? [];
     this.tooltip.replaceChildren(
       h('strong', d.name),
       h('code', `${d.target.host}:${d.target.port}`),
-      h(`span.tip-state.${state}`, STATE_TEXT[state]));
+      h(`span.tip-state.${state}`, stateText(state)),
+      ...extra.map((line) => h('span.tip-line', line)));
     const box = g.getBoundingClientRect();
     const host = this.el.getBoundingClientRect();
     this.tooltip.style.left = `${box.left - host.left + box.width / 2}px`;
@@ -177,51 +356,157 @@ export class DiagramView {
 
   // ── Pan & zoom ───────────────────────────────────────────────────────────
 
+  /** Fit again unless the person has zoomed or panned on their own */
+  refit() { if (this.#autoFit) this.fit(); }
+
+  /**
+   * The whole diagram; on a phone, only when its devices stay at least
+   * MIN_TILE_PX on screen, otherwise (a phone) the zoom that keeps them that big, the top of the
+   * diagram in view: the person pans to the rest
+   */
   fit(force = false) {
     if (!this.#lab) return;
     if (force) this.#autoFit = true;
     const { width, height } = this.el.getBoundingClientRect();
     if (!width || !height) return;
     const b = this.#lab.bounds;
-    const k = Math.min(width / b.w, height / b.h, 1.6);
-    this.#set(k, (width - b.w * k) / 2 - b.x * k, (height - b.h * k) / 2 - b.y * k);
+    const { top = 0, bottom = 0 } = this.insets() ?? {};
+    const room = Math.max(height - top - bottom, height / 3);
+    const whole = Math.min(width / b.w, room / b.h, 1.6);
+    const smallest = Math.min(...this.#lab.devices.map((d) => Math.min(d.w, d.h)).filter((n) => n > 0), Infinity);
+    // A phone needs devices it can read and hit: they keep their size, the rest is a pan away
+    const readable = Number.isFinite(smallest) && isCompact() ? MIN_TILE_PX / smallest : 0;
+    if (whole >= readable) {
+      this.#set(whole, (width - b.w * whole) / 2 - b.x * whole, top + (room - b.h * whole) / 2 - b.y * whole);
+      return;
+    }
+    const k = Math.min(readable, ZOOM_MAX);
+    const tx = b.w * k <= width ? (width - b.w * k) / 2 - b.x * k : -b.x * k;
+    this.#set(k, tx, top - b.y * k);
   }
 
   zoomBy(factor, cx, cy) {
     const r = this.el.getBoundingClientRect();
     cx ??= r.width / 2; cy ??= r.height / 2;
-    const k = Math.max(0.2, Math.min(4, this.#k * factor));
-    const f = k / this.#k;
-    this.#autoFit = false;
-    this.#set(k, cx - (cx - this.#tx) * f, cy - (cy - this.#ty) * f);
+    this.#zoomTo(this.#k * factor, cx, cy, this.#tx, this.#ty, this.#k);
   }
 
+  /** Zoom to `k` around (cx, cy), starting from the translation (tx, ty) at zoom `from` */
+  #zoomTo(k, cx, cy, tx, ty, from) {
+    const next = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, k));
+    const f = next / from;
+    this.#autoFit = false;
+    this.#set(next, cx - (cx - tx) * f, cy - (cy - ty) * f);
+  }
+
+  get zoom() { return this.#k; }
+
   #set(k, tx, ty) {
+    const zoomed = k !== this.#k;
     this.#k = k; this.#tx = tx; this.#ty = ty;
     this.viewport.setAttribute('transform', `translate(${tx} ${ty}) scale(${k})`);
     this.zoomLabel.textContent = `${Math.round(k * 100)}%`;
+    this.svg.classList.toggle('far', k < LABELS_FROM);
+    if (zoomed) this.#sizeHits();
     this.#hideTip();
   }
 
+  // ── Long press: the device sheet ─────────────────────────────────────────
+
+  #armLongPress(e, device) {
+    if (!this.onMenu || e.pointerType === 'mouse') return;
+    clearTimeout(this.pressTimer);
+    this.pressed = false;
+    const x = e.clientX;
+    const y = e.clientY;
+    const cancel = (ev) => {
+      if (ev.type === 'pointermove' && Math.hypot(ev.clientX - x, ev.clientY - y) < 8) return;
+      clearTimeout(this.pressTimer);
+      removeEventListener('pointermove', cancel);
+      removeEventListener('pointerup', cancel);
+      removeEventListener('pointercancel', cancel);
+    };
+    addEventListener('pointermove', cancel);
+    addEventListener('pointerup', cancel);
+    addEventListener('pointercancel', cancel);
+    this.pressTimer = setTimeout(() => {
+      cancel({ type: 'timeout' });
+      if (this.pointers.size > 1 || this.dragged) return;
+      this.pressed = true; // the click that follows the finger's release opens nothing
+      setTimeout(() => { this.pressed = false; }, 700);
+      this.onMenu(device);
+    }, LONG_PRESS_MS);
+  }
+
+  // ── Pan & zoom: a finger or the mouse pans, two fingers pinch, a double tap zooms in ──
+
   #bindPanZoom() {
-    let start = null;
+    this.pointers = new Map(); // pointerId → { x, y }
+    let start = null;          // one pointer: where the pan started
+    let pinch = null;          // two pointers: distance and midpoint at the start
+    let lastTap = null;
+    const local = (x, y) => {
+      const r = this.el.getBoundingClientRect();
+      return { x: x - r.left, y: y - r.top };
+    };
+    const startPinch = () => {
+      const [a, b] = [...this.pointers.values()];
+      const mid = local((a.x + b.x) / 2, (a.y + b.y) / 2);
+      pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y) || 1, mid, k: this.#k, tx: this.#tx, ty: this.#ty };
+      start = null;
+      this.dragged = true;
+      clearTimeout(this.pressTimer);
+    };
     this.svg.addEventListener('pointerdown', (e) => {
-      if (e.button !== 0) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (this.pointers.size === 2) { startPinch(); return; }
+      if (this.pointers.size > 2) return;
       start = { x: e.clientX, y: e.clientY, tx: this.#tx, ty: this.#ty, id: e.pointerId };
       this.dragged = false;
     });
     this.svg.addEventListener('pointermove', (e) => {
+      if (!this.pointers.has(e.pointerId)) return;
+      this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pinch && this.pointers.size >= 2) {
+        const [a, b] = [...this.pointers.values()];
+        const mid = local((a.x + b.x) / 2, (a.y + b.y) / 2);
+        const k = pinch.k * (Math.hypot(a.x - b.x, a.y - b.y) / pinch.dist);
+        // Zoom around the first midpoint, then follow the fingers' midpoint as they move
+        this.#zoomTo(k, pinch.mid.x, pinch.mid.y, pinch.tx, pinch.ty, pinch.k);
+        this.#set(this.#k, this.#tx + mid.x - pinch.mid.x, this.#ty + mid.y - pinch.mid.y);
+        return;
+      }
       if (!start || e.pointerId !== start.id) return;
       const dx = e.clientX - start.x, dy = e.clientY - start.y;
-      if (!this.dragged && Math.hypot(dx, dy) < 5) return; // a click, not a drag
+      if (!this.dragged && Math.hypot(dx, dy) < 6) return; // a click, not a drag
       if (!this.dragged) { this.dragged = true; this.svg.setPointerCapture(e.pointerId); this.svg.classList.add('panning'); }
       this.#autoFit = false;
       this.#set(this.#k, start.tx + dx, start.ty + dy);
     });
-    const end = () => {
-      start = null;
-      this.svg.classList.remove('panning');
-      setTimeout(() => { this.dragged = false; }, 0); // let the click handler see the drag flag first
+    const end = (e) => {
+      const was = this.pointers.get(e.pointerId);
+      this.pointers.delete(e.pointerId);
+      if (pinch) {
+        if (this.pointers.size < 2) pinch = null;
+        if (this.pointers.size === 1) { // one finger left: it pans from where it is
+          const [[id, p]] = [...this.pointers.entries()];
+          start = { x: p.x, y: p.y, tx: this.#tx, ty: this.#ty, id };
+        }
+      } else if (e.type === 'pointerup' && e.pointerType !== 'mouse' && !this.dragged && was) {
+        // A double tap zooms in around the finger
+        const now = Date.now();
+        if (lastTap && now - lastTap.at < DOUBLE_TAP_MS && Math.hypot(was.x - lastTap.x, was.y - lastTap.y) < 30) {
+          const p = local(was.x, was.y);
+          this.zoomBy(2, p.x, p.y);
+          lastTap = null;
+        } else lastTap = { at: now, x: was.x, y: was.y };
+      }
+      if (!this.pointers.size) {
+        start = null;
+        this.svg.classList.remove('panning');
+        setTimeout(() => { this.dragged = false; }, 0); // let the click handler see the drag flag first
+      }
     };
     this.svg.addEventListener('pointerup', end);
     this.svg.addEventListener('pointercancel', end);
@@ -231,4 +516,25 @@ export class DiagramView {
       this.zoomBy(Math.exp(-e.deltaY * 0.0015), e.clientX - r.left, e.clientY - r.top);
     }, { passive: false });
   }
+}
+
+/** The point at `f` (0 to 1) of a polyline's length */
+function pointAlong(points, f) {
+  if (!points?.length) return null;
+  const segs = [];
+  let total = 0;
+  for (let i = 1; i < points.length; i++) {
+    const len = Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y);
+    segs.push(len);
+    total += len;
+  }
+  let left = total * f;
+  for (let i = 0; i < segs.length; i++) {
+    if (left <= segs[i] || i === segs.length - 1) {
+      const k = segs[i] ? Math.min(1, left / segs[i]) : 0;
+      return { x: points[i].x + (points[i + 1].x - points[i].x) * k, y: points[i].y + (points[i + 1].y - points[i].y) * k };
+    }
+    left -= segs[i];
+  }
+  return points[0];
 }

@@ -8,11 +8,12 @@
  */
 import RFB from '/vendor/novnc/core/rfb.js';
 import { h, icon } from '../core/dom.js';
+import { t, tAttr } from '../core/i18n.js';
 import { BasePane } from './pane.js';
 
 export class VncPane extends BasePane {
   constructor(session, opts) {
-    const cad = h('button.icon-btn', { type: 'button', title: 'Send Ctrl+Alt+Del', onclick: () => this.rfb?.sendCtrlAltDel() }, icon('keyboard'));
+    const cad = h('button.icon-btn', { type: 'button', ...tAttr('title', 'terminal.actions.ctrlAltDel'), onclick: () => this.rfb?.sendCtrlAltDel() }, icon('keyboard'));
     super(session, opts, [cad]);
     this.screen = h('div.vnc-screen');
     this.body.append(this.screen);
@@ -22,7 +23,7 @@ export class VncPane extends BasePane {
 
   connect() {
     this.#teardown();
-    this.setState('connecting', 'Opening screen');
+    this.setState('connecting', () => t('terminal.vnc.opening'));
     this.hideEnd();
 
     const ws = new WebSocket(this.wsUrl());
@@ -35,17 +36,17 @@ export class VncPane extends BasePane {
     rfb.resizeSession = false;    // never resize the guest's display
     rfb.background = '#0F1821';
     rfb.focusOnClick = true;
-    rfb.addEventListener('connect', () => this.setState('connected', 'Connected'));
+    rfb.addEventListener('connect', () => this.setState('connected', () => t('terminal.phase.connected')));
     rfb.addEventListener('disconnect', (e) => {
       if (this.rfb !== rfb) return;
       // Our server closes with code 4000 and a readable reason when Proxmox refuses
       const reason = closeInfo?.code === 4000 ? closeInfo.reason : null;
       if (reason) this.showEnd('error', reason);
-      else this.showEnd('closed', e.detail.clean ? 'Screen session closed' : 'Connection to the VM screen was lost');
+      else this.showEnd('closed', () => t(e.detail.clean ? 'terminal.vnc.closed' : 'terminal.vnc.lost'));
     });
     rfb.addEventListener('credentialsrequired', () => {
       rfb.disconnect();
-      this.showEnd('error', 'The VM asked for a password the platform did not expect');
+      this.showEnd('error', () => t('terminal.vnc.credentials'));
     });
   }
 
@@ -61,6 +62,7 @@ export class VncPane extends BasePane {
   }
 
   dispose() {
+    this.release();
     this.#teardown();
     this.el.remove();
   }

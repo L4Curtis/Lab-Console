@@ -1,0 +1,196 @@
+{
+  "title": "Consoles",
+  "find": "Trouver un équipement",
+  "topology": "Topologie",
+  "noLabs": "Aucune baie trouvée dans le fichier de schéma",
+  "loadFailed": "Le schéma n’a pas pu être chargé.",
+  "hint": {
+    "one": "Cliquez sur l’équipement pour ouvrir sa console.",
+    "other": "Cliquez sur un équipement pour ouvrir sa console."
+  },
+  "noDevice": "Cette page ne contient aucun équipement avec une adresse de console.",
+  "notAllowed": "L’adresse de console de {name} n’est pas dans la liste autorisée de la plateforme.",
+  "notes": {
+    "one": "{count} remarque sur le schéma",
+    "other": "{count} remarques sur le schéma"
+  },
+  "notesIntro": "Relevé à la lecture du fichier de schéma :",
+  "picker": {
+    "label": "Baies",
+    "none": "Baie",
+    "button": "Baie {name}, {state}. Changer de baie",
+    "bay": "Baie {bay}",
+    "ours": "Votre baie",
+    "you": "vous",
+    "devices": {
+      "one": "{count} équipement",
+      "other": "{count} équipements"
+    },
+    "open": {
+      "one": "{count} console ouverte",
+      "other": "{count} consoles ouvertes"
+    },
+    "state": {
+      "free": "Libre",
+      "taken": "Prise",
+      "mine": "Votre baie",
+      "locked": "Verrouillée"
+    }
+  },
+  "quickOpen": {
+    "placeholder": "Chercher un équipement par nom, baie ou port",
+    "label": "Trouver un équipement",
+    "hint": "Entrée ouvre la console. Échap ferme.",
+    "empty": "Aucun équipement ne correspond. Essayez un nom de baie comme B4B ou un port comme 2001."
+  },
+  "diagram": {
+    "zoomOut": "Zoom arrière",
+    "zoomIn": "Zoom avant",
+    "fit": "Ajuster le schéma à la fenêtre",
+    "topology": "Topologie de {name}",
+    "device": "{name} : {state}",
+    "watchers": {
+      "one": "Regarde : {names}",
+      "other": "Regardent : {names}"
+    }
+  },
+  "state": {
+    "idle": "Libre. Ouvrez-la pour piloter la console",
+    "open": "Ouverte dans votre espace de travail",
+    "live": "Ouverte par quelqu’un d’autre : vous pouvez la rejoindre",
+    "busy": "Occupée hors de Lab Console : le serveur de consoles a refusé la ligne",
+    "disabled": "Adresse de console non autorisée par la plateforme"
+  },
+  "live": {
+    "button": "En direct",
+    "title": "En direct",
+    "count": {
+      "one": "{count} console ouverte",
+      "other": "{count} consoles ouvertes"
+    },
+    "open": "Consoles ouvertes",
+    "activity": "Activité",
+    "none": "Aucune console ouverte pour l’instant.",
+    "quiet": "Rien de neuf pour l’instant.",
+    "join": "Ouvrir ou rejoindre la console de {name}",
+    "task": "Tâche « {task} » lancée par {name}",
+    "pilot": "{name} a la main",
+    "noPilot": "Personne n’a la main",
+    "lastCommand": "Dernière commande tapée",
+    "someone": "Quelqu’un",
+    "elsewhere": "{name} ({bench}) n’apparaît pas sur le schéma."
+  },
+  "activity": {
+    "open": "{name} a ouvert {device} ({bench})",
+    "join": "{name} a rejoint {device} ({bench})",
+    "leave": "{name} a quitté {device} ({bench})",
+    "freed": "{name} a libéré la ligne de {device} ({bench})",
+    "close": "La console de {device} ({bench}) s’est fermée",
+    "control": {
+      "granted": "{name} a la main sur {device} ({bench})",
+      "timeout": "{name} a pris la main sur {device} : pas de réponse dans le délai",
+      "idle": "{name} a pris la main sur {device} : le pilote était inactif",
+      "takeover": "{name} a pris la main sur {device} (administrateur)",
+      "released": "{name} a la main sur {device} ({bench})",
+      "left": "{name} a la main sur {device} ({bench})",
+      "request": "{name} demande la main sur {device} ({bench})",
+      "shared": "{name} a partagé le clavier de {device}",
+      "unshared": "{name} a repris le clavier de {device} pour lui seul",
+      "free": "{name} a la main sur {device} ({bench})",
+      "task": "{name} a la main sur {device} après sa tâche",
+      "denied": "{name} garde la main sur {device}",
+      "returned": "{name} a retrouvé la main sur {device}"
+    },
+    "task": {
+      "start": "{name} lance « {task} » sur {device}",
+      "done": "« {task} » terminé sur {device}",
+      "cancelled": "« {task} » arrêté sur {device}",
+      "failed": "« {task} » a échoué sur {device}"
+    }
+  },
+  "wall": {
+    "title": "Mur de consoles {bench}",
+    "intro": "Toutes les consoles ouvertes de la baie, en direct et en lecture seule.",
+    "empty": "Aucune console de cette baie n’est ouverte en ce moment.",
+    "open": "Ouvrir"
+  },
+  "journal": {
+    "title": "Mes journaux de console",
+    "intro": "Ce que les équipements ont affiché, session par session. Vous relisez toute la journée d’une console où vous êtes passé avec le droit de la piloter (regarder seulement ne compte pas), ou que la baie de votre équipe avait ce jour-là : toutes les sessions de ce jour, y compris celles des autres (toutes pour un administrateur). Conservé {days} jours.",
+    "none": "Aucun journal pour vous pour l’instant.",
+    "download": "Télécharger",
+    "truncated": "Tronqué",
+    "truncatedHint": "La taille maximale du journal pour la journée a été atteinte : la fin manque.",
+    "ongoing": "en cours",
+    "bytes": {
+      "one": "{count} octet",
+      "other": "{count} octets"
+    },
+    "kb": {
+      "one": "{count} Ko",
+      "other": "{count} Ko"
+    },
+    "mb": {
+      "one": "{count} Mo",
+      "other": "{count} Mo"
+    },
+    "notice": "Les consoles sont journalisées pendant {days} jours : ce que les équipements affichent, pas ce que vous tapez sans écho.",
+    "noticeShort": "Les consoles sont journalisées pendant {days} jours.",
+    "dismiss": "J’ai compris",
+    "noneTitle": "Aucun journal",
+    "loadFailed": "Les journaux n’ont pas pu être chargés.",
+    "downloadOf": "Télécharger le journal de {device} du {day}",
+    "more": "En savoir plus"
+  },
+  "notify": {
+    "free": "La console de {name} ({bench}) est libre : vous pouvez l’ouvrir.",
+    "open": "La console de {name} ({bench}) est maintenant ouverte dans Lab Console : vous pouvez la rejoindre.",
+    "expired": "La console de {name} ({bench}) est toujours occupée au bout de 30 minutes : on arrête de surveiller."
+  },
+  "noLabsHint": "Un administrateur importe le schéma du labo dans Admin › Schéma.",
+  "hintTouch": {
+    "one": "Touchez l’équipement pour ouvrir sa console.",
+    "other": "Touchez un équipement pour ouvrir sa console. Appui long : ses détails."
+  },
+  "unknownDevice": "{name} n’existe pas sur la baie {bench}.",
+  "view": {
+    "label": "Affichage de la baie",
+    "diagram": "Schéma",
+    "list": "Liste"
+  },
+  "list": {
+    "idle": "Libre",
+    "open": "Ouverte ici",
+    "live": "Ouverte",
+    "with": "Avec {name} (main)",
+    "busy": "Occupée hors appli",
+    "disabled": "Indisponible"
+  },
+  "device": {
+    "title": "{name} · {bench}",
+    "note": "Note",
+    "open": "Ouvrir la console"
+  },
+  "dock": {
+    "count": {
+      "one": "{count} console ouverte",
+      "other": "{count} consoles ouvertes"
+    },
+    "label": {
+      "one": "{count} console ouverte : revenir à {name}",
+      "other": "{count} consoles ouvertes : revenir à {name}"
+    }
+  },
+  "rotate": {
+    "hint": "Tournez le téléphone pour afficher plus de colonnes.",
+    "dismiss": "J’ai compris"
+  },
+  "tools": {
+    "title": "Outils",
+    "checks": "Vérifications",
+    "wall": "Mur de consoles",
+    "wallNone": "Aucune console de cette baie n’est ouverte.",
+    "journals": "Journaux",
+    "scripts": "Bibliothèque de scripts"
+  }
+}

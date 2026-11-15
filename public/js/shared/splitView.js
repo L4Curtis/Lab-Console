@@ -3,7 +3,8 @@
  * terminal workspace on the other, with a draggable splitter; Only the
  * visible section's SplitView holds the workspace (activate() moves it in)
  */
-import { h, prefs } from '../core/dom.js';
+import { h, prefs, loadCss } from '../core/dom.js';
+import { tAttr } from '../core/i18n.js';
 import { workspace } from './workspace.js';
 
 let activeSplit = null;
@@ -11,10 +12,12 @@ workspace.addEventListener('change', () => activeSplit?.sync());
 workspace.addEventListener('toggle-primary', () => activeSplit?.togglePrimary());
 
 export class SplitView {
-  constructor(container, primary, { onResize, label = 'Side panel' } = {}) {
+  /** `labelKey` names the side panel for assistive technology and follows the language; `label` is a fixed text */
+  constructor(container, primary, { onResize, label, labelKey = 'terminal.split.sidePanel' } = {}) {
+    loadCss('terminal'); // the splitter and the workspace's rules
     this.onResize = onResize;
-    this.primary = h('section.split-primary', { 'aria-label': label }, primary);
-    this.splitter = h('div.splitter', { role: 'separator', 'aria-orientation': 'vertical', 'aria-label': 'Resize panel and consoles', tabindex: 0 });
+    this.primary = h('section.split-primary', label ? { 'aria-label': label } : tAttr('aria-label', labelKey), primary);
+    this.splitter = h('div.splitter', { role: 'separator', 'aria-orientation': 'vertical', ...tAttr('aria-label', 'terminal.split.resize'), tabindex: 0 });
     this.el = h('div.split-body', { dataset: { primary: 'shown', terminals: 'false' } }, this.primary, this.splitter);
     container.append(this.el);
     this.#bindSplitter();
@@ -32,6 +35,8 @@ export class SplitView {
     this.el.dataset.terminals = String(workspace.panes.size > 0);
   }
 
+  get primaryShown() { return this.el.dataset.primary === 'shown'; }
+
   togglePrimary() {
     this.el.dataset.primary = this.el.dataset.primary === 'shown' ? 'hidden' : 'shown';
     requestAnimationFrame(() => { this.onResize?.(); workspace.refit(); });
@@ -44,7 +49,7 @@ export class SplitView {
       document.documentElement.style.setProperty('--primary-size', `${v}%`);
       prefs.set('split', v);
     };
-    apply(prefs.get('split', 40));
+    apply(prefs.get('split', 34));
     this.splitter.addEventListener('pointerdown', (e) => {
       this.splitter.setPointerCapture(e.pointerId);
       body.classList.add('resizing');
@@ -60,8 +65,10 @@ export class SplitView {
       this.splitter.addEventListener('pointermove', move);
       this.splitter.addEventListener('pointerup', up, { once: true });
     });
+    // A double click shows or hides the side, like the workspace bar's button
+    this.splitter.addEventListener('dblclick', () => this.togglePrimary());
     this.splitter.addEventListener('keydown', (e) => {
-      const cur = prefs.get('split', 40);
+      const cur = prefs.get('split', 34);
       if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') apply(cur - 5);
       if (e.key === 'ArrowRight' || e.key === 'ArrowDown') apply(cur + 5);
     });

@@ -1,13 +1,20 @@
 /**
- * Virtual machines tab - a plain list of every Proxmox VM with:
- *   power (Start / Stop / Force stop), consoles (Serial / VNC),
- *   the VLAN tag of net0 (edit in place), "Clone template",
- *   and bulk power: tick VMs (or all), then Start selected / Stop selected
+ * Virtual machines tab - every Proxmox VM as a list (a table from 720 px, one
+ * card per VM below), with:
+ *   consoles (Serial / VNC) and power (Start / Stop / Force stop) as row
+ *   actions, the VLAN tag of net0 (edit in place), "Clone template", and bulk
+ *   power: "Select" in the header's ⋯ shows the ticks, then Start selected /
+ *   Stop selected
+ * The page header's actions come from here: `actions()`
  */
 import { h, icon, toast } from '../../core/dom.js';
+import { t, has, tAttr, onLocaleChange } from '../../core/i18n.js';
 import { getJson, request, live } from '../../core/api.js';
 import { workspace } from '../../shared/workspace.js';
 import { vmSerialSession, vmScreenSession } from '../../shared/sessions.js';
+import { dataList } from '../../shared/dataList.js';
+import { confirmDialog } from '../../shared/dialog.js';
+import { emptyState, loading } from '../../shared/loadState.js';
 import { openCloneDialog } from './dialogs.js';
 
 const BULK_PARALLEL = 4; // power requests in flight at once during a bulk action
@@ -18,43 +25,78 @@ export class VmPanel {
   selected = new Set(); // keyOf(vm); survives the periodic refresh
   #timer = null;
   #reloadSoon = null;
+  #jobs = [];
 
-  constructor({ proxmox, host, via }) {
-    this.proxmox = proxmox;
-    this.filter = h('input.field.filter', { type: 'search', placeholder: 'Filter by name, VM id or VLAN', 'aria-label': 'Filter virtual machines', oninput: () => this.#renderRows() });
+  /** status: GET /api/proxmox/status ({ proxmox, admin, host?, via? }): only administrators get the list */
+  constructor({ proxmox, admin = false, host, via }) {
+    this.proxmox = proxmox && admin;
+    this.host = host;
+    this.via = via;
+    this.selecting = false;
+    this.filter = h('input.field.filter', { type: 'search', ...tAttr('placeholder', 'infra.vm.filter'), ...tAttr('aria-label', 'infra.vm.filterLabel'), oninput: () => this.#renderRows() });
     this.jobsEl = h('ul.jobs', { 'aria-live': 'polite' });
-    this.tbody = h('tbody');
+    this.notice = h('div.vm-notice');
     this.foot = h('p.table-foot');
-    this.selectAll = h('input', { type: 'checkbox', 'aria-label': 'Select all VMs shown', onchange: () => this.#toggleAll() });
+    this.selectAll = h('input', { type: 'checkbox', ...tAttr('aria-label', 'infra.vm.selectAll'), onchange: () => this.#toggleAll() });
     this.selCount = h('span.bulk-count');
-    this.bulkStart = h('button.btn.small', { type: 'button', onclick: () => this.#bulk('start') }, icon('play'), 'Start selected');
-    this.bulkStop = h('button.btn.small', { type: 'button', onclick: () => this.#bulk('stop') }, icon('power'), 'Stop selected');
-    this.bulkClear = h('button.btn.small.subtle', { type: 'button', onclick: () => { this.selected.clear(); this.#renderRows(); } }, 'Clear');
-    this.bulkBar = h('div.bulk-bar', this.selCount, this.bulkStart, this.bulkStop, this.bulkClear);
-    this.el = h('div.panel',
-      h('div.panel-toolbar',
-        this.filter,
-        host ? h('span.badge', { title: 'Proxmox is reached through the SSH jump server' }, `${host} via ${via}`) : null,
-        h('button.icon-btn', { type: 'button', title: 'Reload from Proxmox', onclick: () => this.load(true) }, icon('refresh')),
-        h('button.btn.primary', { type: 'button', onclick: () => this.#clone() }, icon('plus'), 'Clone template')),
-      this.bulkBar,
-      this.jobsEl,
-      h('div.table-wrap', h('table.vm-table',
-        h('thead', h('tr', h('th.select', this.selectAll), h('th', 'VM'), h('th', 'VLAN (net0)'), h('th', 'Console'), h('th.right', 'Power'))),
-        this.tbody)),
-      this.foot);
+    this.bulkStart = h('button.btn.sm', { type: 'button', onclick: () => this.#bulk('start') }, icon('play'), t('infra.vm.startSelected'));
+    this.bulkStop = h('button.btn.sm', { type: 'button', onclick: () => this.#bulk('stop') }, icon('power'), t('infra.vm.stopSelected'));
+    this.bulkDone = h('button.btn.sm.ghost', { type: 'button', onclick: () => this.setSelecting(false) }, t('infra.vm.selectDone'));
+    this.bulkBar = h('div.bulk-bar', { hidden: true }, this.selCount, this.bulkStart, this.bulkStop, this.bulkDone);
+    this.list = dataList({
+      label: () => t('infra.vm.listLabel'),
+      dense: true,
+      rowKey: keyOf,
+      columns: [
+        { id: 'select', label: () => this.selectAll, cell: (vm) => this.#tick(vm) },
+        { id: 'vm', label: () => t('infra.vm.colVm'), cell: (vm) => this.#nameCell(vm), primary: true },
+        { id: 'status', label: () => t('infra.vm.colStatus'), cell: (vm) => this.#statusBadge(vm), badge: true },
+        { id: 'vlan', label: () => t('infra.vm.colVlan'), cell: (vm) => (vm.bridge ? this.#vlanEditor(vm) : h('span.muted', t('infra.vm.noNet0'))), meta: true },
+      ],
+      actions: (vm) => this.#rowActions(vm),
+    });
+    this.list.el.classList.add('vm-list');
+    this.empty = h('div.vm-empty', { hidden: true });
+    this.el = h('div.admin-page.vm-panel',
+      h('div.admin-toolbar', this.filter, host ? h('span.badge', { dataset: { tone: 'neutral' }, ...tAttr('title', 'infra.vm.reachedVia') }, t('infra.vm.hostVia', { host, via })) : null),
+      this.bulkBar, this.jobsEl, this.notice, this.list.el, this.empty, this.foot);
 
-    if (!proxmox) {
-      this.el.replaceChildren(h('div.placeholder', icon('rack', 'placeholder-icon'),
-        h('h2', 'Proxmox is not configured'),
-        h('p', 'Set PROXMOX_URL, PROXMOX_USERNAME and PROXMOX_PASSWORD in .env and restart the platform.')));
+    if (!this.proxmox) {
+      // The names of the settings are an administrator's business: a student is only told it is not there
+      const [title, hint] = proxmox ? ['infra.vm.adminOnly', 'infra.vm.adminOnlyHint']
+        : admin ? ['infra.vm.notConfigured', 'infra.vm.notConfiguredHint']
+          : ['infra.vm.unavailable', null];
+      this.el.replaceChildren(emptyState({ icon: 'rack', title, text: hint }));
       return;
     }
-    live.on('proxmox:jobs', (jobs) => this.#renderJobs(jobs));
+    live.on('proxmox:jobs', (jobs) => { this.#jobs = jobs; this.#renderJobs(jobs); });
     live.on('proxmox:changed', () => {
       clearTimeout(this.#reloadSoon);
       this.#reloadSoon = setTimeout(() => this.load(), 300);
     });
+    // Rows, counts and the bulk bar are made of sentences: write them again
+    onLocaleChange(() => { this.#renderRows(); this.#renderJobs(this.#jobs); });
+  }
+
+  /** What the page header offers while this tab is on screen */
+  actions() {
+    if (!this.proxmox) return [];
+    return [
+      { id: 'clone', label: 'infra.vm.clone', icon: 'plus', run: () => this.#clone() },
+      { id: 'select', label: this.selecting ? 'infra.vm.selectDone' : 'infra.vm.select', icon: 'check', run: () => this.setSelecting(!this.selecting) },
+      { id: 'reload', label: 'infra.vm.reload', icon: 'refresh', run: () => this.load(true) },
+    ];
+  }
+
+  /** The header shows the actions of the tab: it asks again after a change (the selection) */
+  onActionsChange = null;
+
+  setSelecting(on) {
+    this.selecting = on;
+    if (!on) this.selected.clear();
+    this.list.el.classList.toggle('selecting', on);
+    this.#renderRows();
+    this.onActionsChange?.();
   }
 
   show() {
@@ -66,15 +108,17 @@ export class VmPanel {
   }
 
   async load(manual = false) {
-    if (!this.vms.length) this.tbody.replaceChildren(h('tr', h('td.empty-row', { colspan: 5 }, 'Asking Proxmox through the jump server…')));
+    if (!this.vms.length) this.notice.replaceChildren(loading());
     try {
       ({ vms: this.vms } = await getJson('/api/proxmox/vms'));
+      this.notice.replaceChildren();
       this.#renderRows();
-      if (manual) toast('VM list reloaded');
+      if (manual) toast(t('infra.vm.reloaded'));
     } catch (err) {
-      this.tbody.replaceChildren(h('tr', h('td.empty-row', { colspan: 5 },
-        h('p.form-error', `Could not reach Proxmox: ${err.message}`),
-        h('button.btn.small', { type: 'button', onclick: () => this.load(true) }, 'Try again'))));
+      this.notice.replaceChildren(h('div.load-failure', { role: 'alert' },
+        // A coded answer is a whole sentence already (infra.unreachable: the detail stays in the server's log)
+        h('p', err.code ? err.message : t('infra.vm.unreachable', { error: err.message })),
+        h('button.btn.sm', { type: 'button', dataset: { action: 'retry' }, onclick: () => this.load(true) }, t('common.actions.retry'))));
     }
   }
 
@@ -88,55 +132,61 @@ export class VmPanel {
     this.shown = shown;
     this.#updateBulk();
     // Don't wipe a VLAN field someone is typing in during the 15 s refresh
-    if (this.tbody.contains(document.activeElement) && document.activeElement.matches('.vlan-input')) return;
-    this.tbody.replaceChildren(...shown.map((vm) => this.#row(vm)));
-    if (!shown.length) this.tbody.append(h('tr', h('td.empty-row', { colspan: 5 }, q ? 'No VM matches this filter.' : 'No VMs yet. Use Clone template to create one.')));
+    if (this.list.el.contains(document.activeElement) && document.activeElement.matches('.vlan-input')) return;
+    this.list.render(shown);
+    for (const tr of this.list.el.querySelectorAll('tbody tr')) {
+      const vm = shown.find((v) => keyOf(v) === tr.dataset.key);
+      if (vm) { tr.dataset.status = vm.status; tr.classList.toggle('picked', this.selected.has(keyOf(vm))); }
+    }
+    const none = shown.length === 0 && this.vms.length === 0 && !this.notice.firstChild;
+    this.list.el.hidden = machines.length === 0;
+    this.empty.hidden = !(machines.length === 0 || shown.length === 0) || Boolean(this.notice.firstChild);
+    if (!this.empty.hidden) {
+      this.empty.replaceChildren(emptyState(machines.length === 0 && !none ? { icon: 'vm', title: 'infra.vm.noneTitle', text: 'infra.vm.none' } : { icon: 'search', title: 'infra.vm.noMatch' }));
+    }
     const templates = this.vms.filter((v) => v.template).length;
-    this.foot.textContent = `${machines.length} VMs. ${templates} template${templates === 1 ? '' : 's'} available to clone.`;
+    this.foot.textContent = machines.length ? t('infra.vm.foot', { vms: t('infra.vm.count', { count: machines.length }), templates: t('infra.vm.templateCount', { count: templates }) }) : '';
   }
 
-  #row(vm) {
-    const running = vm.status === 'running';
-    const btn = (label, iconName, attrs) => h('button.btn.small', { type: 'button', 'aria-label': `${label} ${vm.name}`, ...attrs }, icon(iconName), h('span.lbl', label));
+  #nameCell(vm) {
+    return h('div.vm-cell',
+      h('span.vm-led', { title: has(`infra.vm.status.${vm.status}`) ? t(`infra.vm.status.${vm.status}`) : vm.status }),
+      h('div', h('strong', vm.name), h('span.vm-meta', t('infra.vm.location', { vmid: vm.vmid, node: vm.node }))));
+  }
 
-    const consoles = [
-      btn('Serial', 'terminal', {
-        disabled: !running || !vm.hasSerial,
-        title: !vm.hasSerial ? 'No serial port on this VM (add serial0: socket in Proxmox)' : running ? 'Text console in the workspace' : 'Start the VM first',
-        onclick: () => workspace.open(vmSerialSession(vm)),
-      }),
-      btn('VNC', 'screen', {
-        disabled: !running,
-        title: running ? 'Graphical console in the workspace' : 'Start the VM first',
-        onclick: () => workspace.open(vmScreenSession(vm)),
-      }),
-    ];
-    const power = running
-      ? [btn('Stop', 'power', { title: 'Shut down the guest cleanly (ACPI)', onclick: () => this.#power(vm, 'stop') }),
-        btn('Force stop', 'close', { class: 'btn small danger', title: 'Cut the power immediately', onclick: () => this.#power(vm, 'force-stop') })]
-      : [btn('Start', 'play', { title: 'Start the VM', onclick: () => this.#power(vm, 'start') })];
+  #statusBadge(vm) {
+    const tone = vm.status === 'running' ? 'success' : vm.status === 'paused' ? 'warning' : 'neutral';
+    return h('span.badge', { dataset: { tone } }, h('span.dot'), has(`infra.vm.status.${vm.status}`) ? t(`infra.vm.status.${vm.status}`) : vm.status);
+  }
 
-    const tick = h('input', {
-      type: 'checkbox', checked: this.selected.has(keyOf(vm)), 'aria-label': `Select ${vm.name}`,
+  #tick(vm) {
+    return h('input', {
+      type: 'checkbox', checked: this.selected.has(keyOf(vm)), 'aria-label': t('infra.vm.select', { name: vm.name }),
       onchange: (e) => { if (e.target.checked) this.selected.add(keyOf(vm)); else this.selected.delete(keyOf(vm)); this.#updateBulk(); e.target.closest('tr').classList.toggle('picked', e.target.checked); },
     });
-    return h(`tr${this.selected.has(keyOf(vm)) ? '.picked' : ''}`, { dataset: { status: vm.status } },
-      h('td.select', tick),
-      h('td', h('div.vm-cell',
-        h('span.vm-led', { title: vm.status }),
-        h('div', h('strong', vm.name), h('span.vm-meta', `${vm.vmid} on ${vm.node}`)))),
-      h('td', vm.bridge ? this.#vlanEditor(vm) : h('span.muted', 'no net0')),
-      h('td', h('div.row-actions', consoles)),
-      h('td.right', h('div.row-actions.end', power)));
+  }
+
+  /** The consoles first (the table shows the first two), then the power */
+  #rowActions(vm) {
+    const running = vm.status === 'running';
+    const label = (key) => () => t('infra.vm.rowLabel', { action: t(key), name: vm.name });
+    return [
+      { id: 'serial', label: () => t('infra.vm.serial'), icon: 'terminal', primary: true, disabled: !running || !vm.hasSerial, hint: !vm.hasSerial ? 'infra.vm.noSerial' : !running ? 'infra.vm.startFirst' : null, run: () => workspace.open(vmSerialSession(vm)) },
+      { id: 'vnc', label: () => t('infra.vm.vnc'), icon: 'screen', disabled: !running, hint: running ? null : 'infra.vm.startFirst', run: () => workspace.open(vmScreenSession(vm)) },
+      ...(running
+        ? [{ id: 'stop', label: label('infra.vm.stop'), icon: 'power', run: () => this.#power(vm, 'stop') },
+          { id: 'force-stop', label: label('infra.vm.forceStop'), icon: 'close', danger: true, run: () => this.#power(vm, 'force-stop') }]
+        : [{ id: 'start', label: label('infra.vm.start'), icon: 'play', run: () => this.#power(vm, 'start') }]),
+    ];
   }
 
   /** net0 VLAN tag, edited in place: type a number (empty = untagged), Enter or Set */
   #vlanEditor(vm) {
     const input = h('input.field.vlan-input', {
-      type: 'number', min: 1, max: 4094, placeholder: 'none', value: vm.vlan ?? '',
-      'aria-label': `VLAN tag of ${vm.name} net0`, title: `net0 on ${vm.bridge}. Empty = untagged.`,
+      type: 'number', min: 1, max: 4094, placeholder: t('infra.vm.vlanNone'), value: vm.vlan ?? '',
+      'aria-label': t('infra.vm.vlanLabel', { name: vm.name }), title: t('infra.vm.vlanTitle', { bridge: vm.bridge }),
     });
-    const set = h('button.btn.small.primary', { type: 'button', hidden: true }, 'Set');
+    const set = h('button.btn.sm.primary', { type: 'button', hidden: true }, t('infra.vm.vlanSet'));
     const dirty = () => input.value !== String(vm.vlan ?? '');
     input.addEventListener('input', () => { set.hidden = !dirty(); });
     const save = async () => {
@@ -147,7 +197,7 @@ export class VmPanel {
         await request('PUT', `/api/proxmox/vms/${vm.node}/${vm.vmid}/vlan`, { vlan });
         vm.vlan = vlan;
         set.hidden = true;
-        toast(`${vm.name} net0 is now ${vlan === null ? 'untagged' : `on VLAN ${vlan}`}`);
+        toast(t(vlan === null ? 'infra.vm.vlanNowUntagged' : 'infra.vm.vlanNowTagged', { name: vm.name, vlan }));
         input.blur();
       } catch (err) {
         toast(err.message, 'error');
@@ -177,11 +227,11 @@ export class VmPanel {
     const toStart = picked.filter((v) => v.status !== 'running').length;
     const toStop = picked.filter((v) => v.status === 'running').length;
     this.selCount.textContent = picked.length
-      ? `${picked.length} selected (${toStop} running, ${toStart} stopped)`
-      : 'Tick VMs to start or stop several at once';
+      ? t('infra.vm.selected', { count: picked.length, running: toStop, stopped: toStart })
+      : t('infra.vm.tickHint');
     this.bulkStart.disabled = this.busy || !toStart;
     this.bulkStop.disabled = this.busy || !toStop;
-    this.bulkClear.hidden = !picked.length;
+    this.bulkBar.hidden = !this.selecting;
     this.bulkBar.classList.toggle('active', picked.length > 0);
   }
 
@@ -197,7 +247,7 @@ export class VmPanel {
   async #bulk(action) {
     const targets = this.#pickedVms().filter((v) => (action === 'start' ? v.status !== 'running' : v.status === 'running'));
     if (!targets.length) return;
-    if (action === 'stop' && !confirm(`Shut down ${targets.length} VM${targets.length > 1 ? 's' : ''}?\n\n${targets.map((v) => v.name).join(', ')}`)) return;
+    if (action === 'stop' && !await confirmDialog({ title: t('infra.vm.confirmStop', { count: targets.length }), body: targets.map((v) => v.name).join(', '), confirmLabel: t('infra.vm.stop'), danger: true })) return;
     this.busy = true;
     this.#updateBulk();
     const failed = [];
@@ -214,22 +264,21 @@ export class VmPanel {
     this.busy = false;
     this.#updateBulk();
     const ok = targets.length - failed.length;
-    const verb = action === 'start' ? 'Starting' : 'Shutting down';
-    if (ok) toast(`${verb} ${ok} VM${ok > 1 ? 's' : ''}. Progress shows above the list.`);
-    if (failed.length) toast(`Could not ${action} ${failed.join(', ')}`, 'error', 9000);
+    if (ok) toast(t(action === 'start' ? 'infra.vm.bulkStarting' : 'infra.vm.bulkStopping', { count: ok }));
+    if (failed.length) toast(t(action === 'start' ? 'infra.vm.bulkFailedStart' : 'infra.vm.bulkFailedStop', { names: failed.join(', ') }), 'error', 9000);
   }
 
   async #power(vm, action) {
-    if (action === 'force-stop' && !confirm(`Force stop ${vm.name}? This is like pulling the power cable.`)) return;
+    if (action === 'force-stop' && !await confirmDialog({ title: t('infra.vm.forceStop'), body: t('infra.vm.confirmForceStop', { name: vm.name }), confirmLabel: t('infra.vm.forceStop'), danger: true })) return;
     try {
       await request('POST', `/api/proxmox/vms/${vm.node}/${vm.vmid}/power`, { action });
-      toast(`${vm.name}: ${{ start: 'starting', stop: 'shutting down', 'force-stop': 'force-stopping' }[action]}`);
+      toast(t({ start: 'infra.vm.powerStarting', stop: 'infra.vm.powerStopping', 'force-stop': 'infra.vm.powerForceStopping' }[action], { name: vm.name }));
     } catch (err) { toast(err.message, 'error'); }
   }
 
   async #clone() {
     const templates = this.vms.filter((v) => v.template);
-    if (!templates.length) return toast('No template found. Convert a VM to a template in Proxmox first.', 'warn');
+    if (!templates.length) return toast(t('infra.vm.noTemplate'), 'warn');
     const { nodes } = await getJson('/api/proxmox/nodes').catch(() => ({ nodes: [] }));
     openCloneDialog({ templates, nodes });
   }

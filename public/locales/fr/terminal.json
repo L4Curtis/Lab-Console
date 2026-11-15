@@ -1,0 +1,406 @@
+{
+  "pane": {
+    "starting": "Démarrage…",
+    "console": "Console",
+    "label": "{subtitle} de {title}",
+    "reconnect": "Se reconnecter",
+    "maximize": "Agrandir",
+    "restore": "Rétablir la disposition",
+    "disconnectAndClose": "Se déconnecter et fermer",
+    "couldNotConnect": "Connexion impossible",
+    "disconnected": "Déconnecté",
+    "tryAgain": "Réessayer",
+    "connectionLost": "La connexion à la plateforme a été perdue",
+    "sessionClosed": "Session terminée",
+    "notifyFree": "Prévenez-moi quand elle est libre",
+    "notifyArmed": "C’est noté : vous serez prévenu quand la ligne de {name} sera libre (pendant 30 minutes au plus).",
+    "menu": "Actions de la console {title}",
+    "back": "Retour à la baie",
+    "copyScreen": "Copier l’écran",
+    "copyLines": {
+      "one": "Copier la dernière ligne",
+      "other": "Copier les {count} dernières lignes"
+    },
+    "copied": "Copié dans le presse-papiers.",
+    "copyFailed": "Le navigateur a refusé l’accès au presse-papiers."
+  },
+  "phase": {
+    "ssh": "Accès au serveur de rebond",
+    "telnet": "Ouverture de la console",
+    "proxmox": "Ouverture de la console de la VM",
+    "connected": "Connecté",
+    "login": "Connecté",
+    "silent": "Équipement muet"
+  },
+  "actions": {
+    "break": "Envoyer un BREAK",
+    "export": "Exporter la configuration",
+    "inject": "Injecter un script",
+    "ctrlAltDel": "Envoyer Ctrl+Alt+Suppr",
+    "broadcast": "Envoyer à plusieurs consoles",
+    "history": "Historique"
+  },
+  "vnc": {
+    "opening": "Ouverture de l’écran",
+    "closed": "Session d’écran terminée",
+    "lost": "La connexion à l’écran de la VM a été perdue",
+    "credentials": "La VM demande un mot de passe que la plateforme n’attendait pas"
+  },
+  "session": {
+    "serial": "Console série",
+    "screen": "Écran",
+    "vmAddress": "VM {vmid} sur {node}"
+  },
+  "split": {
+    "sidePanel": "Panneau latéral",
+    "resize": "Redimensionner le panneau et les consoles"
+  },
+  "workspace": {
+    "label": "Consoles ouvertes",
+    "togglePanel": "Afficher ou masquer le schéma",
+    "layoutGroup": "Disposition",
+    "layout": {
+      "grid": "Disposition en grille",
+      "columns": "Disposition en colonnes",
+      "rows": "Disposition en lignes"
+    },
+    "closeAll": "Tout fermer",
+    "count": {
+      "one": "{count} console ouverte",
+      "other": "{count} consoles ouvertes"
+    },
+    "display": "Affichage",
+    "smallerSize": "Texte plus petit ({size} px)",
+    "largerSize": "Texte plus grand ({size} px)",
+    "keys": "Barre de touches et ligne de saisie",
+    "switcher": "Consoles ouvertes"
+  },
+  "task": {
+    "stop": "Arrêter",
+    "showErrors": "Afficher les erreurs",
+    "hideErrors": "Masquer les erreurs",
+    "dismiss": "Masquer",
+    "keyboardPaused": "Clavier suspendu jusqu’à la fin",
+    "line": "ligne {line}",
+    "startingExport": "Démarrage de l’export",
+    "startingScript": "Démarrage du script",
+    "connectFirst": "Connectez-vous d’abord à l’équipement.",
+    "startingPaste": "Collage en cours"
+  },
+  "script": {
+    "title": "Injecter un script dans {title}",
+    "commands": "Commandes à envoyer",
+    "upload": "Charger un fichier",
+    "hint": "Une commande par ligne, comme si vous les tapiez. Les lignes vides sont envoyées comme un appui sur Entrée (pour répondre aux questions du type « [confirm] »). Vous pouvez aussi glisser un fichier .txt ici.",
+    "count": {
+      "one": "{count} ligne à envoyer",
+      "other": "{count} lignes à envoyer"
+    },
+    "fileTooLarge": "{name} dépasse 256 Ko.",
+    "tooLarge": "Le script dépasse 256 Ko.",
+    "pacing": "Cadence",
+    "waitPrompt": "Attendre le prompt après chaque ligne",
+    "waitPromptHint": "Recommandé. La ligne suivante part seulement quand l’équipement a répondu.",
+    "delay": "Délai entre deux lignes",
+    "delayLabel": "Délai entre les lignes, en millisecondes",
+    "ms": "ms",
+    "skipComments": "Ignorer les lignes de commentaire qui commencent par « ! »",
+    "stopOnError": "S’arrêter à la première erreur de l’équipement (« % Invalid input… »)",
+    "send": "Envoyer les commandes",
+    "library": "Bibliothèque",
+    "keep": "Garder dans la bibliothèque",
+    "replaceTitle": "Remplacer le texte ?",
+    "replaceBody": "Le texte de la fenêtre sera remplacé par le script « {title} ».",
+    "replace": "Remplacer",
+    "fromLibrary": "Bibliothèque : {title}"
+  },
+  "server": {
+    "consoles": {
+      "status_ssh": "Connexion au serveur de rebond {host}…",
+      "status_telnet": "Ouverture de la console {target}…",
+      "status_connected": "Console connectée",
+      "status_login": "Connexion automatique à la console effectuée",
+      "telnet_failed": "Impossible de lancer telnet sur le serveur de rebond : {detail}",
+      "closed": "Console fermée",
+      "closed_exit": "Console fermée (code de sortie telnet {code})",
+      "session_closed": "Session terminée",
+      "browser_gone": "Navigateur déconnecté",
+      "restarting": "La plateforme redémarre",
+      "idle_timeout": "Fermée après {minutes} minutes sans activité. La console de {name} est de nouveau libre.",
+      "platform_full": "La plateforme a atteint son nombre maximal de consoles ouvertes. Réessayez dans un instant.",
+      "client_full": "Vous pouvez garder {max} consoles ouvertes au maximum. Fermez-en une d’abord.",
+      "rate_limited": "Trop de consoles ouvertes en une minute. Patientez un instant et réessayez.",
+      "device_gone": "Cet équipement n’existe plus. Rechargez la page.",
+      "not_allowed": "L’adresse de console de {name} n’est pas dans la liste autorisée de la plateforme.",
+      "invalid_target": "Adresse de console invalide : {detail}",
+      "ssh_rejected": "Le serveur de rebond a refusé les identifiants SSH (vérifiez SSH_USERNAME et SSH_PASSWORD)",
+      "ssh_refused": "Le serveur de rebond {host}:{port} a refusé la connexion",
+      "ssh_timeout": "Le serveur de rebond {host} n’a pas répondu à temps",
+      "ssh_unreachable": "Le serveur de rebond {host} est injoignable depuis la plateforme",
+      "ssh_identity": "La vérification de l’identité du serveur de rebond a échoué (SSH_HOST_FINGERPRINT ne correspond pas)",
+      "ssh_unpinned": "L’identité du serveur de rebond n’est pas épinglée (SSH_HOST_FINGERPRINT) : aucune connexion sans elle. Un administrateur la renseigne dans les paramètres du labo.",
+      "ssh_error": "Erreur SSH : {detail}",
+      "ssh_closed": "La connexion au serveur de rebond s’est fermée",
+      "diagram_load_failed": "Le schéma n’a pas pu être chargé : {detail}",
+      "warn_not_allowed": "{lab}/{name} : {target} n’est pas dans la liste autorisée (équipement désactivé)",
+      "warn_different_devices": "La console {target} est utilisée par plusieurs équipements : {devices}",
+      "warn_several_pages": "La console {target} ({name}) apparaît sur plusieurs pages : {labs}. Équipement considéré comme partagé.",
+      "line_refused": "Le serveur de consoles refuse la ligne de {name} ({target}) : quelqu’un y est connecté en dehors de Lab Console, ou la ligne est hors service.",
+      "console_server_unreachable": "Le serveur de rebond n’arrive pas à joindre le serveur de consoles {host}.",
+      "device_silent": "{name} ne répond pas : le serveur de consoles a bien ouvert la ligne, mais rien ne revient {seconds} s après Entrée. Vérifiez sur place que l’équipement est allumé et que son câble console est branché.",
+      "open_locked": "{name} est sur la baie {bench}, verrouillée par un administrateur : {reason}",
+      "open_not_allowed": "{name} fait partie d’une baie prise par une autre équipe : vous pourrez regarder sa console quand elle l’aura ouverte.",
+      "room_gone": "Plus personne n’a la console de {name} ouverte.",
+      "room_closed": "Cette console vient de se fermer.",
+      "control_not_allowed": "Vous pouvez regarder la console de {name}, pas la piloter.",
+      "control_pending": "{name} a déjà demandé la main : attendez la réponse.",
+      "control_not_pilot": "Seule la personne qui a la main (ou un administrateur) peut faire ça.",
+      "control_no_request": "Personne ne demande la main en ce moment.",
+      "control_admin_only": "Seul un administrateur peut prendre la main d’autorité.",
+      "control_gone": "La personne qui demandait la main est partie.",
+      "wall_read_only": "Une tuile du mur de la baie ne fait que regarder : ouvrez la console pour demander la main.",
+      "control_refused": "{name} garde la main sur cette console.",
+      "task_running": "Une tâche ({task}) a la main sur cette console : attendez qu’elle se termine.",
+      "no_task": "Aucune tâche ne tourne sur cette console.",
+      "freed": "{name} a libéré la ligne de {device}.",
+      "too_many_watches": "Vous attendez déjà {max} lignes. Annulez-en une d’abord.",
+      "no_watch": "Vous n’attendiez pas cette ligne.",
+      "bad_journal": "Journal inconnu.",
+      "no_journal": "Ce journal de console n’existe pas (ou plus).",
+      "journal_forbidden": "Seuls ceux qui étaient sur cette console ce jour-là, leur équipe et les administrateurs peuvent lire ce journal.",
+      "paste_not_allowed": "Vous ne pouvez pas taper sur {name} pour l’instant : demandez la main d’abord. Rien n’a été collé.",
+      "broadcast_not_pilot": "Vous n’avez pas la main sur {name} : rien n’y a été envoyé.",
+      "history_forbidden": "Seules les personnes présentes sur cette console peuvent lire ce qu’elle affiche.",
+      "too_many_searches": "Trop de recherches en une minute. Patientez un instant.",
+      "bad_query": "Une recherche fait de 1 à {max} caractères."
+    },
+    "automation": {
+      "busy": "Une autre tâche tourne encore sur cette console.",
+      "busy_task": "Une autre tâche ({task}) tourne encore sur cette console.",
+      "export_unsupported": "L’export de config n’existe que pour les équipements Cisco.",
+      "script_empty": "Le script est vide.",
+      "script_too_large": "Le script dépasse 256 Ko.",
+      "script_too_long": "Le script dépasse {max} lignes.",
+      "script_control": "Le script contient des caractères de contrôle (Ctrl+], Échap…) : retirez-les.",
+      "looking_for_prompt": "Recherche du prompt de l’équipement",
+      "leaving_config": "Sortie du mode configuration",
+      "paging_off": "Désactivation de la pagination (terminal length 0)",
+      "reading_config": "Lecture de la running-config",
+      "restoring_paging": "Rétablissement de la pagination (terminal length {length})",
+      "user_mode": "{host} est en mode utilisateur ({host}>). Tapez « enable » pour passer en {host}#, puis relancez l’export.",
+      "device_stopped": "L’équipement a arrêté d’envoyer avant la fin de la configuration. Rien n’a été enregistré.",
+      "device_answered": "L’équipement a répondu : {detail}",
+      "not_a_config": "Le résultat ne ressemble pas à une running-config.",
+      "no_prompt": "Aucun prompt Cisco n’a répondu. Connectez-vous d’abord à l’équipement (jusqu’à voir un prompt comme R1#), puis réessayez.",
+      "sending_line": "Envoi de la ligne {line} sur {total}",
+      "done": "Terminé",
+      "stopped": "Arrêté",
+      "exported": {
+        "one": "{count} ligne exportée de la running-config de {hostname}",
+        "other": "{count} lignes exportées de la running-config de {hostname}"
+      },
+      "exported_paging": {
+        "one": "{count} ligne exportée de la running-config de {hostname} (la pagination n’a pas pu être désactivée : les pages --More-- ont été passées)",
+        "other": "{count} lignes exportées de la running-config de {hostname} (la pagination n’a pas pu être désactivée : les pages --More-- ont été passées)"
+      },
+      "sent": "Lignes envoyées : {sent} sur {total}",
+      "device_errors": {
+        "one": "{count} erreur de l’équipement (ligne {lines})",
+        "other": "{count} erreurs de l’équipement (lignes {lines})"
+      },
+      "no_prompt_after": {
+        "one": "Pas de prompt après la ligne {lines}",
+        "other": "Pas de prompt après les lignes {lines}"
+      },
+      "timeout": "L’équipement n’a pas répondu à temps.",
+      "no_task": "Une étape de console a été lancée hors d’une tâche : rien n’aurait été capturé.",
+      "no_break": "Cette ligne de console ne peut pas envoyer de BREAK.",
+      "bad_pattern": "Un motif d’attente doit être une expression régulière ou une fonction.",
+      "stopped_on_error": "Arrêt à la première erreur",
+      "waiting_for": "L’équipement attend une réponse : « {question} »"
+    }
+  },
+  "journal": {
+    "badge": "Console journalisée",
+    "badgeHint": "Ce que l’équipement affiche sur cette console est gardé dans un journal, avec qui avait la main."
+  },
+  "presence": {
+    "you": "Vous avez la main.",
+    "youShared": "Vous avez la main, clavier partagé.",
+    "pilot": "{name} a la main.",
+    "pilotShared": "{name} a la main, clavier partagé.",
+    "nobody": "Personne n’a la main.",
+    "watchOnly": "Vous pouvez regarder, pas taper.",
+    "task": "Tâche « {task} » en cours ({name}) : clavier suspendu.",
+    "waiting": "Demande envoyée…",
+    "request": "Demander la main",
+    "release": "Rendre la main",
+    "share": "Partager le clavier",
+    "unshare": "Reprendre le clavier",
+    "take": "Prendre la main",
+    "hangup": "Libérer la ligne",
+    "hangupTitle": "Libérer la ligne de {name} ?",
+    "hangupBody": {
+      "one": "{count} autre personne regarde cette console : elle sera coupée pour elle aussi.",
+      "other": "{count} autres personnes regardent cette console : elle sera coupée pour elles aussi."
+    },
+    "hangupAlone": "La console sera fermée et la ligne rendue au serveur de consoles.",
+    "ask": "{name} demande la main",
+    "askTask": "{name} veut lancer « {task} »",
+    "autoIn": {
+      "one": "Sans réponse, la main passe à {name} dans {count} s.",
+      "other": "Sans réponse, la main passe à {name} dans {count} s."
+    },
+    "grant": "Donner la main",
+    "deny": "Refuser",
+    "avatarPilot": "{name} a la main",
+    "typingHint": "Vous regardez cette console : demandez la main pour taper.",
+    "notice": {
+      "granted": "{name} vous a donné la main.",
+      "timeout": "Vous avez la main : pas de réponse dans le délai.",
+      "idle": "Vous avez la main : le pilote était inactif.",
+      "takeover": "Vous avez pris la main.",
+      "released": "{name} vous a rendu la main.",
+      "left": "Vous avez la main : {name} est parti.",
+      "denied": "{name} garde la main.",
+      "superseded": "Votre demande est remplacée par une tâche automatique.",
+      "takenOver": "{name} (administrateur) a pris la main."
+    }
+  },
+  "taskNames": {
+    "export": "export",
+    "inject": "injection",
+    "paste": "collage",
+    "broadcast": "envoi à plusieurs consoles",
+    "check:lines": "vérification des lignes",
+    "check:cabling": "vérification du câblage",
+    "check:ping": "matrice de ping",
+    "check:interfaces": "lecture des interfaces",
+    "job:backup": "sauvegarde",
+    "job:inject": "injection",
+    "job:reset": "réinitialisation",
+    "job:compare": "comparaison",
+    "recovery": "récupération de mot de passe",
+    "recovery: put back": "remise en état"
+  },
+  "paste": {
+    "tooLarge": "Le texte collé dépasse 256 Ko : il n’a pas été envoyé.",
+    "taskRunning": "Une tâche tourne sur cette console : attendez qu’elle se termine pour coller."
+  },
+  "broadcast": {
+    "title": "Envoyer à plusieurs consoles",
+    "intro": "Les mêmes lignes partent une par une sur chaque console cochée, au rythme d’une injection. Seules les consoles où vous avez la main peuvent être cochées.",
+    "consoles": "Consoles",
+    "commands": "Commandes à envoyer aux consoles cochées",
+    "hint": "{max} lignes au plus. Une ligne vide est un appui sur Entrée.",
+    "tooMany": "Pas plus de {max} lignes à la fois.",
+    "send": {
+      "one": "Envoyer à {count} console",
+      "other": "Envoyer à {count} consoles"
+    },
+    "reasonOffline": "pas connectée",
+    "reasonNotPilot": "vous n’avez pas la main",
+    "reasonBusy": "une tâche tourne dessus",
+    "waiting": "Envoyé, en attente de la console…",
+    "lost": "La connexion à cette console s’est coupée.",
+    "running": "Envoi en cours. Chaque console va à son rythme.",
+    "summary": {
+      "one": "{count} console : {ok} sans erreur.",
+      "other": "{count} consoles : {ok} sans erreur."
+    },
+    "stopAll": "Tout arrêter",
+    "goesOn": "L’envoi continue sur les consoles : suivez-le dans leur bandeau."
+  },
+  "history": {
+    "title": "Historique de {title}",
+    "intro": "Cherche dans ce que la console a affiché : d’abord ce que la plateforme en garde en mémoire, puis le journal des jours que vous avez le droit de lire. Le texte est cherché tel quel, sans tenir compte des majuscules.",
+    "placeholder": "Texte à chercher",
+    "search": "Chercher",
+    "matchCase": "Respecter les majuscules",
+    "screen": "Sur la console",
+    "downloadScreen": "Télécharger",
+    "notOnIt": "Seules les personnes présentes sur cette console peuvent lire ce qu’elle affiche : rouvrez-la ou rejoignez-la.",
+    "closed": "Plus personne n’a cette console ouverte : seul le journal garde sa trace.",
+    "screenLines": {
+      "one": "{count} ligne en mémoire (environ les 200 derniers Ko). Tapez un texte pour chercher dedans.",
+      "other": "{count} lignes en mémoire (environ les 200 derniers Ko). Tapez un texte pour chercher dedans."
+    },
+    "journal": "Journal",
+    "noJournal": "Aucun journal pour cette console pour l’instant.",
+    "journalDenied": "Ce journal existe, mais seules les personnes qui étaient sur cette console ce jour-là, leur équipe et les administrateurs peuvent le lire.",
+    "found": {
+      "one": "{count} ligne trouvée",
+      "other": "{count} lignes trouvées"
+    },
+    "nothing": "Rien de trouvé.",
+    "truncated": {
+      "one": "Seule la première ligne est affichée.",
+      "other": "Seules les {count} premières lignes sont affichées : précisez la recherche."
+    },
+    "line": "ligne {line}",
+    "sessions": {
+      "one": "{count} session",
+      "other": "{count} sessions"
+    },
+    "downloadDay": "Télécharger ce jour"
+  },
+  "actionHints": {
+    "break": "Envoyer un BREAK (récupération de mot de passe, ROMMON)",
+    "export": "Exporter la config : télécharge le show running-config dans un fichier .txt",
+    "inject": "Injecter un script : envoie une liste de commandes, ligne par ligne",
+    "broadcast": "Envoyer à plusieurs consoles : les mêmes commandes sur toutes celles où vous avez la main",
+    "history": "Historique : chercher dans ce que la console a affiché, et le télécharger"
+  },
+  "keys": {
+    "label": "Touches spéciales",
+    "field": "Ligne à envoyer à la console",
+    "placeholder": "Tapez une commande",
+    "send": "Envoyer (Entrée)",
+    "esc": "Échap",
+    "tab": "Tab",
+    "ctrl": "Ctrl",
+    "toLine": "Passer à la ligne de saisie",
+    "toDirect": "Taper directement dans le terminal",
+    "modeLine": "Mode de saisie : ligne",
+    "modeDirect": "Mode de saisie : direct",
+    "pasteRefused": "Le navigateur n’a pas donné le presse-papiers : collez dans la ligne de saisie.",
+    "short": {
+      "break": "Break",
+      "space": "Espace",
+      "paste": "Coller",
+      "mode": "Clavier"
+    },
+    "names": {
+      "esc": "Échap",
+      "tab": "Tab",
+      "ctrl": "Ctrl",
+      "up": "Flèche haut",
+      "down": "Flèche bas",
+      "left": "Flèche gauche",
+      "right": "Flèche droite",
+      "help": "Point d’interrogation",
+      "ctrlC": "Ctrl+C",
+      "ctrlZ": "Ctrl+Z",
+      "break": "Interrompre (Ctrl+Maj+6)",
+      "space": "Espace",
+      "paste": "Coller",
+      "mode": "Mode de saisie"
+    },
+    "hints": {
+      "esc": "Échap",
+      "tab": "Tab : complète la commande IOS",
+      "ctrl": "Ctrl : la touche suivante part avec Ctrl (deux appuis : bloqué)",
+      "up": "Commande précédente",
+      "down": "Commande suivante",
+      "left": "Curseur à gauche",
+      "right": "Curseur à droite",
+      "help": "? : ce qui peut suivre",
+      "ctrlC": "Ctrl+C : annuler",
+      "ctrlZ": "Ctrl+Z : sortir du mode configuration",
+      "break": "Ctrl+Maj+6 : interrompre un ping ou un traceroute",
+      "space": "Espace : page suivante de --More--",
+      "paste": "Coller le presse-papiers",
+      "mode": "Ligne de saisie ou frappe directe"
+    }
+  }
+}

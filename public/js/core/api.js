@@ -1,53 +1,129 @@
 /** HTTP + live-event access to the backend. */
+import { t, tError } from './i18n.js';
+import { toast } from './dom.js';
+
+let leaving = false;
+
+/** The page is going away on purpose (sign-out): a request refused meanwhile must not send it elsewhere */
+export function leavingPage() {
+  leaving = true;
+}
 
 export async function getJson(url) {
   return request('GET', url);
 }
 
-/** JSON request; errors carry the server's message and HTTP status. */
-export async function request(method, url, body) {
-  const res = await fetch(url, {
-    method,
-    headers: { Accept: 'application/json', ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}) },
-    body: body !== undefined ? JSON.stringify(body) : undefined,
-    credentials: 'same-origin',
-  });
+/**
+ * JSON request; errors carry the HTTP status and the server's `code` and
+ * `params`. The message is the translation of `code` when the dictionaries
+ * know it, else the server's own sentence (kept in `serverMessage`).
+ * A Blob or File body is sent as it is, with `type` as its Content-Type
+ * (an upload: `request('POST', url, file, { type: 'application/zip' })`).
+ * A server that cannot be reached throws an error with code 'network'.
+ * `as: 'file'` answers { blob, filename } instead of JSON.
+ */
+export async function request(method, url, body, { type, as } = {}) {
+  const raw = body instanceof Blob;
+  const contentType = raw ? (type ?? (body.type || 'application/octet-stream')) : 'application/json';
+  let res;
+  try {
+    res = await fetch(url, {
+      method,
+      headers: { Accept: 'application/json', ...(body !== undefined ? { 'Content-Type': contentType } : {}) },
+      body: body === undefined ? undefined : raw ? body : JSON.stringify(body),
+      credentials: 'same-origin',
+    });
+  } catch (cause) {
+    // The browser says "Failed to fetch" (in English) for an unreachable server: say it in the user's language
+    const err = new Error(t('common.errors.network'), { cause });
+    err.code = 'network';
+    err.status = 0;
+    err.params = {};
+    err.serverMessage = err.message;
+    throw err;
+  }
+  // A file: its bytes and the name the server gave it (`as: 'file'`, see core/downloads.js)
+  if (as === 'file' && res.ok) {
+    const name = /filename\*?=(?:UTF-8'')?"?([^";]+)"?/i.exec(res.headers.get('Content-Disposition') ?? '')?.[1];
+    return { blob: await res.blob(), filename: name ? decodeURIComponent(name) : decodeURIComponent(new URL(res.url).pathname.split('/').pop()) };
+  }
   let data = null;
   try { data = await res.json(); } catch { /* empty or non-JSON body */ }
   if (!res.ok) {
-    const err = new Error(data?.error || `${url} answered HTTP ${res.status}`);
+    // The session ended (signed out elsewhere, revoked, expired): back to the sign-in page, then here again
+    if (res.status === 401 && data?.code === 'auth.required' && !leaving && location.pathname !== '/login') {
+      leaving = true;
+      location.assign(`/login${location.hash}`);
+    }
+    const fallback = data?.error || `${url} answered HTTP ${res.status}`;
+    const err = new Error(data?.code ? tError(data.code, data.params, fallback) : fallback);
     err.status = res.status;
+    err.code = data?.code ?? null;
+    err.params = data?.params ?? {};
+    err.serverMessage = fallback;
     throw err;
   }
   return data;
 }
 
 /**
+ * A request whose failure is only shown: on failure the translated error as
+ * a toast (unless `quiet`), and null. `type`: as for request()
+ */
+export async function callOrToast(method, url, body, { quiet = false, type } = {}) {
+  try {
+    return await request(method, url, body, { type });
+  } catch (err) {
+    if (!quiet) toast(err.message, 'error', 7000);
+    return null;
+  }
+}
+
+/**
  * One shared EventSource for the whole app; modules subscribe by topic.
  *   const off = live.on('consoles:busy', (targets) => …)
+ *
+ * Sticky topics are replayed by the server when a stream opens, and a named
+ * event that has no listener yet is lost. So when a section subscribes to a
+ * new topic after the stream is open (the announcement banner opens it at
+ * start-up, before any section is mounted), the stream is opened again, once
+ * for the topics added in the same turn, and every topic is replayed.
  */
 class LiveEvents {
   #source = null;
   #handlers = new Map();
   #last = new Map();
+  #reopen = null;
 
   on(topic, fn) {
-    this.#connect();
     if (!this.#handlers.has(topic)) {
       this.#handlers.set(topic, new Set());
-      this.#source.addEventListener(topic, (e) => {
-        const data = JSON.parse(e.data);
-        this.#last.set(topic, data);
-        for (const h of this.#handlers.get(topic)) h(data);
-      });
+      if (this.#source) this.#scheduleReopen();
+      else this.#open();
     }
     this.#handlers.get(topic).add(fn);
     if (this.#last.has(topic)) fn(this.#last.get(topic));
     return () => this.#handlers.get(topic).delete(fn);
   }
 
-  #connect() {
-    if (!this.#source) this.#source = new EventSource('/api/events');
+  #open() {
+    this.#source = new EventSource('/api/events');
+    for (const topic of this.#handlers.keys()) {
+      this.#source.addEventListener(topic, (e) => {
+        const data = JSON.parse(e.data);
+        this.#last.set(topic, data);
+        for (const h of this.#handlers.get(topic)) h(data);
+      });
+    }
+  }
+
+  #scheduleReopen() {
+    if (this.#reopen) return;
+    this.#reopen = setTimeout(() => {
+      this.#reopen = null;
+      this.#source.close();
+      this.#open();
+    }, 0);
   }
 }
 export const live = new LiveEvents();

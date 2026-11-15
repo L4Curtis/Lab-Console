@@ -1,0 +1,220 @@
+/* The administration (docs/v2/UX.md §4.3, §10.7), Machines et switchs and État du labo.
+   A list of the screens at the left from 720 px, the hub on a phone; each screen is
+   cards and lists made of the shell's components. Tokens only, so both themes work */
+
+/* ── The area: a list at the left, the screen at the right ─────────────── */
+.admin-layout { flex: 1; min-height: 0; display: flex; }
+.admin-nav {
+  flex: none; width: 220px; overflow-y: auto; overscroll-behavior: contain;
+  padding: var(--sp-2) var(--sp-2) var(--sp-8) var(--gutter); display: grid; gap: var(--sp-5); align-content: start;
+}
+.admin-content { flex: 1; min-width: 0; padding-inline: var(--gutter); }
+.admin-content > .tab-panels { display: block; }
+.admin-page { display: grid; gap: var(--sp-4); max-width: 1100px; align-content: start; }
+.admin-page > * { min-width: 0; }
+.panel-intro { margin: 0; max-width: 75ch; font: var(--fs-small); color: var(--text-muted); }
+.small-note { font: var(--fs-small); }
+.admin-section { display: grid; gap: var(--sp-3); }
+.admin-section > h2 { font: var(--fs-heading); }
+.admin-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); }
+.admin-toolbar .filter { flex: 1 1 220px; max-width: 360px; }
+.check.inline { display: inline-flex; align-items: center; gap: var(--sp-2); min-height: var(--tap); color: var(--text-2); }
+
+.admin-group { display: grid; gap: var(--sp-1); }
+.admin-group-title { padding: 0 var(--sp-3); font: 500 12px/16px var(--font); letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); }
+.admin-group ul { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.admin-link {
+  display: flex; align-items: center; gap: var(--sp-2); min-height: max(40px, var(--tap)); padding: 0 var(--sp-3);
+  border-radius: var(--r-md); color: var(--text-2); font: var(--fs-label); text-decoration: none;
+}
+.admin-link:hover { background: var(--surface-2); color: var(--text); }
+.admin-link[aria-current="page"] { background: var(--accent-soft); color: var(--on-accent-soft); }
+.admin-link-label { flex: 1; min-width: 0; }
+.admin-link > .icon { display: none; width: 20px; height: 20px; color: var(--text-muted); }
+.admin-link .count { flex: none; }
+
+/* From 720 px to 1199 px a column of 220 px would leave the tables too little: the list becomes a strip above the screen */
+@media (min-width: 720px) and (max-width: 1199.98px) and (not ((max-height: 499.98px) and (pointer: coarse))) {
+  .admin-layout { flex-direction: column; }
+  .admin-nav {
+    flex: none; width: auto; display: flex; flex-wrap: nowrap; align-items: center; gap: var(--sp-4);
+    overflow-x: auto; overflow-y: hidden; scrollbar-width: none; padding: var(--sp-2) var(--gutter) var(--sp-3);
+  }
+  .admin-nav::-webkit-scrollbar { display: none; }
+  .admin-group { display: flex; flex: none; align-items: center; gap: var(--sp-2); }
+  .admin-group:not(:last-child) { padding-right: var(--sp-4); border-right: 1px solid var(--border); }
+  .admin-group-title { padding: 0; }
+  .admin-group ul { display: flex; gap: var(--sp-1); }
+  .admin-link { white-space: nowrap; }
+  .admin-layout > .split-body { flex: 1; min-height: 0; }
+}
+
+/* The tabs of Machines et switchs, État du labo and Toutes les équipes sit in the content column, beside the list (nav.js tabsBesideNav) */
+.admin-content > .ph-tabs, .infra-primary > .ph-tabs { grid-column: auto; margin: 0 0 var(--sp-4) calc(-1 * var(--sp-3)); border-bottom: 1px solid var(--border); }
+
+/* The page header's back arrow only makes sense on a phone, inside a screen of the area */
+.admin-area .ph-back, .admin-sub .ph-back { display: none; }
+
+@media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) {
+  .admin-layout { display: block; overflow: auto; overscroll-behavior: contain; }
+  /* Machines et switchs and État du labo: a back arrow to the hub instead of the list */
+  .admin-sub .admin-nav { display: none; }
+  .admin-sub .admin-layout { display: flex; overflow: visible; }
+  .admin-layout > .admin-content { overflow: visible; }
+  .admin-area[data-mode="hub"] .admin-content { display: none; }
+  .admin-area[data-mode="tab"] .admin-nav { display: none; }
+  .admin-area[data-mode="tab"] .ph-back, .admin-sub .ph-back { display: inline-grid; }
+  .admin-area[data-mode="hub"] .page-header.has-back, .admin-sub:not(.is-admin) .page-header.has-back { padding-left: var(--gutter); }
+  /* The hub: groups of 52 px rows with their counts */
+  .admin-nav { width: auto; padding: var(--sp-2) var(--gutter) var(--sp-8); gap: var(--sp-6); }
+  .admin-link { min-height: 52px; padding-inline: var(--sp-4); background: var(--surface); border: 1px solid var(--border); border-radius: 0; font: var(--fs-body); color: var(--text); }
+  .admin-group ul { gap: 0; }
+  .admin-group li:first-child .admin-link { border-radius: var(--r-lg) var(--r-lg) 0 0; }
+  .admin-group li:last-child .admin-link { border-radius: 0 0 var(--r-lg) var(--r-lg); }
+  .admin-group li + li .admin-link { border-top-width: 0; }
+  .admin-group li:only-child .admin-link { border-radius: var(--r-lg); }
+  .admin-link > .icon { display: inline-grid; }
+  .admin-link[aria-current="page"] { background: var(--surface); color: var(--text); }
+  .admin-group-title { padding-inline: var(--sp-1); }
+  .admin-content { padding-inline: var(--gutter); }
+}
+
+/* ── Forms: SSO, lab parameters, announcement, audit filters ───────────── */
+.fld { display: grid; gap: var(--sp-1); min-width: 0; }
+.fld > label, .lab-label label { font: var(--fs-label); color: var(--text); }
+.fld .hint { font: var(--fs-small); color: var(--text-muted); }
+.fld .hint:empty { display: none; }
+.field-problem { color: var(--danger-text); font: var(--fs-small); }
+.field-problem:empty { display: none; }
+.form-grid .fld > label { display: block; }
+.form-grid label.check { display: flex; align-items: center; gap: var(--sp-3); min-height: var(--tap); font: var(--fs-label); }
+.mono, textarea.field.mono { font: var(--fs-mono); }
+textarea.field.mono { padding-block: var(--sp-2); }
+.sso-panel, .lab-panel { max-width: 760px; }
+.sso-form, .lab-form { display: grid; gap: var(--sp-4); }
+.card.sso-form { gap: var(--sp-4); }
+.sso-state .card-head { margin-bottom: var(--sp-3); }
+.link-row { display: flex; gap: var(--sp-2); align-items: center; }
+.link-field { flex: 1; font: var(--fs-mono); }
+.link-dialog { display: grid; gap: var(--sp-4); }
+/* The footer of a long form: the save button stays in reach, above the tab bar on a phone */
+.form-footer {
+  position: sticky; bottom: 0; z-index: var(--z-sticky);
+  display: grid; gap: var(--sp-2); margin: 0; padding: var(--sp-3) 0;
+  background: var(--bg); border-top: 1px solid var(--border);
+}
+/* The scroll container pads its bottom: the footer sticks above that padding unless it is told to go down to the edge */
+@media (min-width: 720px) and (not ((max-height: 499.98px) and (pointer: coarse))) { .form-footer { bottom: calc(-1 * var(--sp-10)); padding-bottom: calc(var(--sp-3) + var(--sp-2)); } }
+.form-footer .form-actions { justify-content: flex-end; }
+.sso-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); justify-content: flex-end; }
+.sso-result { display: grid; gap: var(--sp-2); padding: var(--sp-4) var(--sp-5); border: 1px solid var(--border); border-left: 4px solid var(--success); border-radius: var(--r-lg); background: var(--surface); }
+.sso-result[data-ok="false"] { border-left-color: var(--danger); }
+.sso-result h3 { font: var(--fs-subheading); }
+.sso-result p { margin: 0; }
+.sso-endpoints { margin: 0; display: grid; gap: var(--sp-2); font: var(--fs-small); }
+.sso-endpoints div { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: var(--sp-3); }
+.sso-endpoints dt { color: var(--text-muted); }
+.sso-endpoints dd { margin: 0; font: var(--fs-mono); overflow-wrap: anywhere; }
+.sso-claims { margin: var(--sp-2) 0 0; padding: var(--sp-3); max-height: 320px; overflow: auto; border-radius: var(--r-md); background: var(--term-bg); color: var(--term-head-ink); font: 12px/1.45 var(--mono); }
+.notice { margin: 0; padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); border-left: 4px solid var(--accent); background: var(--surface-2); font: var(--fs-small); }
+.notice.warn { border-left-color: var(--warning); background: var(--warning-bg); }
+.notice.error { display: flex; align-items: flex-start; gap: var(--sp-2); border-left-color: var(--danger); background: var(--danger-bg); color: var(--text); }
+.notice.error > .icon { color: var(--danger-text); margin-top: 1px; }
+.notice[hidden] { display: none; }
+
+.lab-row.check-row .lab-label { margin: 0; }
+.lab-label { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2); }
+/* A value nobody changed says nothing (the page's sentence says it once); one saved here, or on its way back, is marked */
+.origin-pill[data-origin="environment"] { display: none; }
+.origin-pill[data-origin="saved"] { background: var(--accent-soft); color: var(--on-accent-soft); }
+.origin-pill[data-origin="resetting"] { background: var(--warning-bg); color: var(--warning-text); }
+.range-pair { display: flex; align-items: center; gap: var(--sp-2); }
+.range-pair .field { width: 120px; }
+.lab-proxmox { display: grid; gap: var(--sp-3); }
+
+.announcement-options { display: grid; gap: var(--sp-4); grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.announcement-preview { display: flex; gap: var(--sp-3); align-items: flex-start; padding: var(--sp-3) var(--sp-4); border-radius: var(--r-lg); background: var(--info-bg); border: 1px solid var(--border); }
+.announcement-preview[data-level="warning"] { background: var(--warning-bg); }
+.announcement-preview > .icon { margin-top: 2px; }
+.announcement-preview p { margin: var(--sp-1) 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.announcement-preview .muted { font: var(--fs-small); }
+
+.audit-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.audit-filters > summary { display: flex; align-items: center; justify-content: space-between; min-height: var(--tap); font: var(--fs-heading); cursor: pointer; list-style: none; }
+.audit-filters > summary::-webkit-details-marker { display: none; }
+.audit-filters[open] > summary { margin-bottom: var(--sp-4); }
+@media (min-width: 720px) and (not ((max-height: 499.98px) and (pointer: coarse))) { .audit-filters > summary { display: none; } }
+.audit-filters .form-actions { margin-top: var(--sp-4); }
+.audit-details { margin: var(--sp-2) 0 0; padding: var(--sp-2); max-width: 520px; max-height: 240px; overflow: auto; border-radius: var(--r-sm); background: var(--surface-2); font: 12px/1.4 var(--mono); white-space: pre-wrap; }
+.audit-table td { vertical-align: top; }
+.audit-time, .audit-table summary { white-space: nowrap; } /* a date and "détails" stay on one line */
+.no-bench .audit-table :is(th, td)[data-col="bench"] { display: none; }
+
+/* ── Schéma ────────────────────────────────────────────────────────────── */
+.diagram-preview { display: grid; gap: var(--sp-3); }
+.diagram-preview[hidden] { display: none; }
+.preview-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; }
+.preview-head h3 { font: var(--fs-subheading); }
+.preview-pages { flex-wrap: wrap; }
+.preview-canvas { position: relative; height: 420px; border: 1px solid var(--border); border-radius: var(--r-md); overflow: hidden; background: var(--canvas); }
+.diff { display: grid; gap: var(--sp-3); grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+.diff-group h4 { margin: 0 0 var(--sp-1); font: var(--fs-label); }
+.diff-group ul, .diagram-preview .notice ul { margin: 0; padding-left: var(--sp-5); font: var(--fs-small); }
+.data-list tr[data-active="true"] { background: var(--success-bg); }
+@media (min-width: 720px) and (not ((max-height: 499.98px) and (pointer: coarse))) { .data-list tr[data-active="true"] td { background: var(--success-bg); } }
+
+/* ── Switchs d'admin: one card per switch ──────────────────────────────── */
+.sw-rows { display: grid; gap: var(--sp-4); }
+.sw-row { display: grid; gap: var(--sp-3); grid-template-columns: minmax(0, 1fr); padding-bottom: var(--sp-4); border-bottom: 1px solid var(--border); }
+.sw-row:last-child { padding-bottom: 0; border-bottom: 0; }
+.sw-row .btn { justify-self: end; }
+/* Narrow: a card per switch, the bay and the port side by side; wide enough: one line per switch, the labels once above */
+@media (max-width: 1199.98px) {
+  .sw-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .sw-row > .sw-cell { grid-column: 1 / -1; }
+  .sw-row > .sw-cell[data-cell="bay"], .sw-row > .sw-cell[data-cell="port"] { grid-column: auto; }
+  .sw-row > .btn { grid-column: 1 / -1; }
+}
+@media (min-width: 1200px) {
+  .sw-row { grid-template-columns: 7rem minmax(0, 1.2fr) 6rem minmax(0, 1.2fr) 6rem auto; align-items: start; border-bottom: 0; padding-bottom: 0; }
+  .sw-row .fld > label { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); }
+  .sw-rows > .sw-row:first-child .fld > label { position: static; width: auto; height: auto; margin: 0; clip-path: none; font: var(--fs-caption); color: var(--text-muted); }
+  .sw-row > .btn { margin-top: 0; align-self: end; }
+  .sw-rows > .sw-row:first-child > .btn { margin-top: calc(var(--sp-1) + 16px); }
+  .sw-remove-text { display: none; }
+}
+
+/* ── État du labo ─────────────────────────────────────────────────────── */
+.health-summary { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-4) var(--sp-5); border: 1px solid var(--border); border-left: 4px solid var(--success); border-radius: var(--r-lg); background: var(--surface); font: var(--fs-heading); }
+.health-summary[data-state="problem"] { border-left-color: var(--danger); background: var(--danger-bg); }
+.health-summary[data-state="unknown"] { border-left-color: var(--led-off); }
+.health-summary .icon { width: 24px; height: 24px; color: var(--success-text); }
+.health-summary[data-state="problem"] .icon { color: var(--danger-text); }
+.health-cards { display: grid; gap: var(--sp-4); grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 720px) and (not ((max-height: 499.98px) and (pointer: coarse))) { .health-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.health-card { display: flex; gap: var(--sp-3); align-items: center; padding: var(--sp-4) var(--sp-5); }
+.health-card strong { display: block; font: var(--fs-subheading); }
+.health-state { font: var(--fs-small); color: var(--text-2); }
+.health-led { width: 12px; height: 12px; border-radius: 50%; flex: none; background: var(--led-off); }
+.health-card[data-state="ok"] .health-led { background: var(--success); }
+.health-card[data-state="partial"] .health-led { background: var(--warning); }
+.health-card[data-state="down"] .health-led { background: var(--danger); }
+.health-details { margin-top: var(--sp-2); }
+.journaling { display: grid; gap: var(--sp-4); }
+.journaling .card h2 { margin-bottom: var(--sp-2); }
+.journaling .card p { margin: 0 0 var(--sp-2); }
+
+/* The state words of a list */
+.account-cell { display: grid; gap: 2px; min-width: 0; }
+.account-cell strong { font: var(--fs-label); overflow-wrap: anywhere; }
+.account-notes { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-1); }
+.vm-meta { font: 400 12px/16px var(--mono); color: var(--text-muted); overflow-wrap: anywhere; }
+.admin-page .data-list { overflow-x: auto; }
+/* The Users table is 870 px wide with the sign-in columns: a tablet and a 1280 px laptop (the admin menu takes 180 px of it)
+   leave it less, and the actions at its right end must never wait behind a sideways scroll. The columns wait for a wider
+   window; what they held is under the name */
+.account-signin { display: none; }
+@media (min-width: 720px) and (max-width: 1359.98px) and (not ((max-height: 499.98px) and (pointer: coarse))) {
+  .admin-area :is(th, td):is([data-col="passkeys"], [data-col="lastSignIn"]) { display: none; }
+  .admin-area .account-signin { display: block; }
+}

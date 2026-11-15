@@ -1,4 +1,5 @@
 /** Tiny DOM helpers shared by every module */
+import { t } from './i18n.js';
 
 /**
  * h('button.btn.primary', { onclick, title: 'x' }, 'Label', childNode)
@@ -73,6 +74,57 @@ const ICONS = {
   upload: '<path d="M12 15V4M7.5 8.5L12 4l4.5 4.5M5 19h14"/>',
   script: '<path d="M7 4h8l4 4v12H7z"/><path d="M15 4v4h4M10 12l2 2-2 2M13.5 16H16"/>',
   stop: '<rect x="7" y="7" width="10" height="10" rx="1.5"/>',
+  team: '<circle cx="9" cy="8" r="3"/><circle cx="17" cy="9.5" r="2.3"/><path d="M3.5 19a5.5 5.5 0 0 1 11 0M14.5 15.2a4.2 4.2 0 0 1 6 3.8"/>',
+  calendar: '<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M8.5 3v4M15.5 3v4"/>',
+  chevronLeft: '<path d="M14.5 6l-6 6 6 6"/>',
+  chevronRight: '<path d="M9.5 6l6 6-6 6"/>',
+  shield: '<path d="M12 3l7 3v5c0 4.5-3 8.2-7 10-4-1.8-7-5.5-7-10V6z"/><path d="M9 12l2 2 4-4"/>',
+  user: '<circle cx="12" cy="8" r="3.5"/><path d="M5 20c.8-3.6 3.6-5.5 7-5.5s6.2 1.9 7 5.5"/>',
+  key: '<circle cx="8" cy="12" r="3.5"/><path d="M11.5 12H21M17.5 12v3M20.5 12v2"/>',
+  link: '<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>',
+  copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3"/>',
+  pulse: '<path d="M3 12h4l2.5-6 4 12 2.5-6H21"/>',
+  trash: '<path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3"/>',
+  archive: '<rect x="3.5" y="4" width="17" height="5" rx="1"/><path d="M5 9v10a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V9M10 13h4"/>',
+  broadcast: '<circle cx="5.5" cy="12" r="2"/><path d="M8 12h4l5-6M12 12h5M12 12l5 6"/><circle cx="19" cy="6" r="1.6"/><circle cx="19" cy="12" r="1.6"/><circle cx="19" cy="18" r="1.6"/>',
+  history: '<path d="M4 12a8 8 0 1 0 2.4-5.7"/><path d="M4 4.5V8h3.5M12 8v4.2l3 1.8"/>',
+  library: '<path d="M5 4h4v16H5zM11 4h4v16h-4z"/><path d="M17.2 5.6l3.4 1-3.6 13.2-3.4-1"/>',
+  edit: '<path d="M5 19l1-4L16.5 4.5a1.8 1.8 0 0 1 2.5 0l.5.5a1.8 1.8 0 0 1 0 2.5L9 18z"/><path d="M14.5 6.5l3 3"/>',
+  note: '<path d="M5 4h14v11l-5 5H5z"/><path d="M14 20v-5h5M8.5 9h7M8.5 12.5h4"/>',
+  chat: '<path d="M4 5h16v11H9l-5 4z"/><path d="M8 9.5h8M8 12.5h5"/>',
+  bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>',
+  send: '<path d="M4 12l16-8-6 16-2.5-6.5z"/>',
+  home: '<path d="M4 11l8-7 8 7"/><path d="M6 10v9a1 1 0 0 0 1 1h3.5v-5.5h3V20H17a1 1 0 0 0 1-1v-9"/>',
+  dashboard: '<rect x="4" y="4" width="7" height="9" rx="1"/><rect x="13" y="4" width="7" height="5" rx="1"/><rect x="13" y="11" width="7" height="9" rx="1"/><rect x="4" y="15" width="7" height="5" rx="1"/>',
+  help: '<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.6 2.6 0 0 1 5 1c0 1.8-2.5 2.2-2.5 4M12 17.5v.01"/>',
+  // The redesign's shell and parts (docs/v2/UX.md §6.9)
+  menu: '<path d="M4 7h16M4 12h16M4 17h16"/>',
+  back: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
+  chevronDown: '<path d="M6 9.5l6 6 6-6"/>',
+  chevronUp: '<path d="M6 14.5l6-6 6 6"/>',
+  collapse: '<path d="M11 7l-5 5 5 5M18 7l-5 5 5 5"/>',
+  expand: '<path d="M13 7l5 5-5 5M6 7l5 5-5 5"/>',
+  dock: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 15h18M7 17.5h4"/>',
+  clipboard: '<rect x="6" y="5" width="12" height="16" rx="2"/><path d="M9 5V3.5h6V5M9 11h6M9 15h4"/>',
+  record: '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="3.2"/>',
+  filter: '<path d="M4 5h16l-6 7.5V19l-4-2v-4.5z"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M4.6 4.6l1.4 1.4M18 18l1.4 1.4M2.5 12h2M19.5 12h2M4.6 19.4L6 18M18 6l1.4-1.4"/>',
+  moon: '<path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z"/>',
+  auto: '<circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17A8.5 8.5 0 0 0 12 3.5z" fill="currentColor"/>',
+  escape: '<path d="M9 5H5v4M5 5l6 6"/><path d="M13 5h5a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1v-5"/>',
+  tab: '<path d="M4 12h12M12 7l5 5-5 5M20 6v12"/>',
+  arrowUp: '<path d="M12 19V5M6 11l6-6 6 6"/>',
+  arrowDown: '<path d="M12 5v14M6 13l6 6 6-6"/>',
+  arrowLeft: '<path d="M19 12H5M11 6l-6 6 6 6"/>',
+  arrowRight: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  enter: '<path d="M19 5v7a2 2 0 0 1-2 2H6M10 10l-4 4 4 4"/>',
+  'phone-rotate': '<rect x="7" y="2.5" width="10" height="19" rx="2"/><path d="M11 18.5h2M20.5 9a6 6 0 0 0-3.5-4.5M3.5 15a6 6 0 0 0 3.5 4.5"/>',
+  info: '<circle cx="12" cy="12" r="9"/><path d="M12 11v5.5M12 7.5v.01"/>',
+  error: '<circle cx="12" cy="12" r="9"/><path d="M9 9l6 6M15 9l-6 6"/>',
+  success: '<circle cx="12" cy="12" r="9"/><path d="M8 12.5l2.8 2.8L16 10"/>',
+  logout: '<path d="M14 4h4a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-4M10 16l4-4-4-4M14 12H4"/>',
+  language: '<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.7 5.6 3.7 9s-1.2 6.4-3.7 9c-2.5-2.6-3.7-5.6-3.7-9S9.5 5.6 12 3z"/>',
+  tour: '<path d="M12 21s-6.5-5.8-6.5-11a6.5 6.5 0 0 1 13 0c0 5.2-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.3"/>',
 };
 export function icon(name, cls = '') {
   const span = document.createElement('span');
@@ -82,13 +134,53 @@ export function icon(name, cls = '') {
   return span;
 }
 
-/** Non-blocking notification. kind: 'info' | 'warn' | 'error' */
-export function toast(message, kind = 'info', ms = 4500) {
+/**
+ * Non-blocking notification (docs/v2/UX.md §7.10)
+ *
+ *   toast(message, kind = 'info', ms = 4500, { action: { label, run } })
+ *
+ * kind: 'info' | 'success' | 'warn' | 'error'. An error is announced at once
+ * (role="alert"); an error that comes with an action stays until it is
+ * dismissed or the action is taken. Every toast has a close button
+ */
+const TOAST_ICONS = { info: 'info', success: 'success', warn: 'warning', error: 'error' };
+export function toast(message, kind = 'info', ms = 4500, { action } = {}) {
   const host = document.getElementById('toasts');
-  const el = h(`div.toast.${kind}`, message);
+  if (!host) return null;
+  let timer = 0;
+  const dismiss = () => {
+    clearTimeout(timer);
+    el.classList.remove('in');
+    setTimeout(() => el.remove(), 250);
+  };
+  const actionBtn = action ? h('button.btn.ghost.sm.toast-action', { type: 'button', onclick: () => { dismiss(); action.run?.(); } }, action.label) : null;
+  const close = h('button.icon-btn.toast-close', { type: 'button', title: t('common.actions.close'), 'aria-label': t('common.actions.close'), onclick: dismiss }, icon('close'));
+  const el = h(`div.toast.${kind}`, { role: kind === 'error' ? 'alert' : 'status' },
+    icon(TOAST_ICONS[kind] ?? 'info', 'toast-icon'), h('div.toast-text', message), actionBtn, close);
   host.append(el);
   requestAnimationFrame(() => el.classList.add('in'));
-  setTimeout(() => { el.classList.remove('in'); setTimeout(() => el.remove(), 250); }, ms);
+  if (!(kind === 'error' && action)) timer = setTimeout(dismiss, ms);
+  return { el, dismiss };
+}
+
+const stylesheets = new Map(); // href → promise
+
+/**
+ * Load a module's stylesheet once: loadCss('benches') → /css/benches.css,
+ * under the same release prefix as this script (/v/<build id>/css/benches.css
+ * when the page was served with it). Resolves when the rules apply, so a
+ * screen can wait before it shows; a stylesheet that fails to load resolves
+ * too (an unstyled screen still works)
+ */
+export function loadCss(name) {
+  const href = name.includes('/') ? name : new URL(`../../css/${name}.css`, import.meta.url).pathname;
+  if (!stylesheets.has(href)) {
+    stylesheets.set(href, new Promise((resolve) => {
+      const link = h('link', { rel: 'stylesheet', href, onload: () => resolve(true), onerror: () => resolve(false) });
+      document.head.append(link);
+    }));
+  }
+  return stylesheets.get(href);
 }
 
 /** localStorage that never throws (private windows, blocked storage…) */

@@ -1,0 +1,53 @@
+/* Machines et switchs: the VM list and the admin switches (docs/v2/UX.md §10.8).
+   Tokens only, so both themes work */
+
+.infra-primary { container-type: inline-size; }
+.admin-layout > .split-body { flex: 1; min-width: 0; }
+.vm-panel { gap: var(--sp-3); }
+.vm-cell { display: flex; align-items: center; gap: var(--sp-3); min-width: 0; }
+.vm-cell strong { display: block; font: var(--fs-label); overflow-wrap: anywhere; }
+.vm-cell .vm-meta { display: block; }
+.vm-led { width: 9px; height: 9px; border-radius: 50%; background: var(--led-off); flex: none; }
+.vm-list tr[data-status="running"] .vm-led { background: var(--success); box-shadow: 0 0 0 3px var(--success-bg); }
+.vm-list tr[data-status="paused"] .vm-led { background: var(--warning); }
+.vm-list:not(.selecting) th[data-col="select"], .vm-list:not(.selecting) td[data-col="select"] { display: none; }
+.vm-list th[data-col="select"], .vm-list td[data-col="select"] { width: 1%; padding-right: 0; }
+.vm-list tr.picked td { background: var(--accent-soft); }
+.vlan-edit { display: flex; align-items: center; gap: var(--sp-2); }
+.vlan-input { width: 100px; font: 500 13px/18px var(--mono); }
+.vlan-input::placeholder { font-family: var(--font); font-weight: 400; color: var(--text-muted); }
+.table-foot { margin: 0; font: var(--fs-small); color: var(--text-muted); }
+.table-foot:empty { display: none; }
+.vm-notice:empty, .vm-empty[hidden] { display: none; }
+.vm-notice .load-failure { margin: 0; }
+
+.bulk-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); padding: var(--sp-2) var(--sp-3); border: 1px dashed var(--border-input); border-radius: var(--r-md); color: var(--text-2); }
+.bulk-bar.active { border-style: solid; border-color: var(--accent); background: var(--accent-soft); color: var(--on-accent-soft); }
+.bulk-count { margin-right: auto; font: var(--fs-label); }
+
+.jobs { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-2); }
+.jobs:empty { display: none; }
+.job { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); background: var(--surface); border: 1px solid var(--border); }
+.job strong { font-weight: 600; }
+.job span:last-child { color: var(--text-2); }
+.job.done .icon { color: var(--success-text); }
+.job.error { border-color: var(--danger); }
+.job.error .icon { color: var(--danger-text); }
+
+/* Admin switches: a card per switch, by bay */
+.switch-bays { display: grid; gap: var(--sp-6); grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); align-items: start; }
+.bay h3 { margin: 0 0 var(--sp-2); font: var(--fs-subheading); }
+.bay-cards { display: grid; gap: var(--sp-2); }
+.switch-card { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-4); }
+.switch-card .btn { grid-column: 1 / -1; justify-self: stretch; }
+.switch-led { width: 9px; height: 9px; border-radius: 50%; background: var(--led-off); }
+.switch-card[data-state="open"] .switch-led { background: var(--accent); }
+.switch-card[data-state="idle"] .switch-led { background: var(--success); }
+.switch-card[data-state="busy"] .switch-led { background: var(--warning); }
+.switch-text { display: grid; gap: 1px; min-width: 0; }
+.switch-text strong { font: var(--fs-label); }
+.switch-text code { font: var(--fs-mono); color: var(--text-muted); }
+@media (min-width: 720px) and (not ((max-height: 499.98px) and (pointer: coarse))) {
+  .switch-card { grid-template-columns: auto minmax(0, 1fr) auto auto; }
+  .switch-card .btn { grid-column: auto; justify-self: auto; }
+}

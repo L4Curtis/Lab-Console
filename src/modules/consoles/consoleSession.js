@@ -1,102 +1,177 @@
 /**
- * One terminal = one ConsoleSession = one SSH connection to the jump server
- * running exactly one command: `telnet <host> <port>`
+ * One console line = one ConsoleSession = one `exec` channel on a pooled SSH
+ * connection to the jump server, running exactly one command:
+ * `telnet <host> <port>`. It is the transport of a ConsoleRoom: the room
+ * decides who may type, the session only moves bytes and says what happens
  *
  * Why `exec` instead of an interactive shell (as the old draft did):
  *   - The student never gets a shell on the jump server; When telnet exits
  *     (device closes the line, network error…), the SSH channel closes with it
  *   - No prompt-scraping to know when the shell is ready; no stray commands
  *
- * The telnet escape character (Ctrl+]) is filtered from student input so the
- * `telnet>` command mode - which can spawn a local shell with `!` on many
- * clients - is unreachable. The server uses it itself, only to send a BREAK
- * (needed for Cisco password recovery / ROMMON)
+ * The telnet escape character (Ctrl+]) never reaches telnet from anything but
+ * sendBreak(): every byte bound for the device (keystrokes, pastes, injected
+ * scripts, job passwords, auto-login, the wake-up Enter) goes through #send(),
+ * which drops it. Telnet's `telnet>` command mode can open a connection to any
+ * host (`open`) and spawn a shell on the jump server (`!`), so it must stay
+ * unreachable. The server uses it itself, only to send a BREAK (needed for
+ * Cisco password recovery / ROMMON); while a BREAK is on its way, every other
+ * byte waits (see sendBreak())
  *
- * Events:  'data' (Buffer) · 'status' ({phase, message}) · 'close' ({reason, code})
+ * What can go wrong, told apart for the student:
+ *   - the jump server cannot be reached or refuses us: `consoles.ssh_*`;
+ *   - the console server refuses the line (someone outside the application
+ *     holds it, or the line is dead): `consoles.line_refused`;
+ *   - the console server cannot be reached from the jump server:
+ *     `consoles.console_server_unreachable`;
+ *   - the line is accepted but the device answers nothing within `silentMs`
+ *     of an Enter (powered off, cable unplugged, hung): a 'status' with phase
+ *     'silent' and `consoles.device_silent`. The line stays open; the next
+ *     output brings the phase back to 'connected'.
+ *
+ * Events:  'data' (Buffer) · 'status' ({phase, message, code, params}) · 'close' ({reason, code, info})
+ *          'ready' once telnet is connected and the console server's login is done
+ *
+ * Texts meant for the student come with a stable message `code` and its `params`
+ * next to the English sentence; the browser translates by code. On 'close', `code`
+ * is the telnet exit code and `info` is { code, params } of the reason
  */
 import { EventEmitter } from 'node:events';
 import { StringDecoder } from 'node:string_decoder';
-import { Client } from 'ssh2';
-import { sshConnectOptions, describeSshError } from '../../lib/ssh.js';
+import { sshErrorInfo } from '../../lib/ssh.js';
+import { SshPool } from '../../lib/sshPool.js';
 import { CliAutomation } from '../../lib/cliAutomation.js';
 
 const TELNET_ESCAPE = '\x1d'; // Ctrl+]
 const HOST_RE = /^(?:\d{1,3}(?:\.\d{1,3}){3}|[a-zA-Z0-9](?:[a-zA-Z0-9.-]{0,251}[a-zA-Z0-9])?)$/;
 // Printed by the telnet client once the TCP connection to the console port is up
 const TELNET_CONNECTED = /Escape character is|Connected to /i;
+// Printed by the telnet client when the console server says no
+const LINE_REFUSED = /Unable to connect to remote host: Connection refused/i;
+const SERVER_UNREACHABLE = /Unable to connect to remote host: (?:No route to host|Connection timed out|Network is unreachable)|Could not resolve|Unknown host/i;
 const DEFAULT_WAKE_IDLE_MS = 2500;
+const DEFAULT_SILENT_MS = 6000;
+// The escape alone first, so that telnet switches its terminal to command mode before it reads
+// the command; then the time it needs to run that command and go back to the session
+const BREAK_COMMAND_DELAY_MS = 150;
+const BREAK_SETTLE_MS = 150;
+const MAX_HELD_BYTES = 64 * 1024;
 
 export class ConsoleSession extends EventEmitter {
-  #conn = null;
   #stream = null;
   #closed = false;
   #autoLogin = null;
   #nudge = null;
   #telnetUp = false;
+  #ready = false;
+  #exitCode = undefined;
   #bannerTail = '';
+  #silentTimer = null;
+  #silent = false;
+  #breaking = false;    // a BREAK is on its way: telnet is in command mode, or not back from it yet
+  #held = [];           // what was sent meanwhile, written once telnet is back in the session
+  #heldBytes = 0;
+  #answered = true;
 
-  constructor({ target, cols = 80, rows = 24, ssh, telnet, logger }) {
+  /**
+   * @param target   { host, port } from the server's registry
+   * @param name     the device's name, for the messages
+   * @param ssh      jump server settings (settings.get('lab').ssh, read by the caller now)
+   * @param telnet   console server login (settings.get('lab').telnet)
+   * @param pool     the SshPool the channel is taken from (default: a connection of its own)
+   * @param silentMs how long a device may stay mute after an Enter before it is reported silent
+   */
+  constructor({ target, name = '', cols = 80, rows = 24, ssh, telnet, pool = null, logger, silentMs = DEFAULT_SILENT_MS }) {
     super();
     // Defense in depth: the target comes from the server-side registry, but it
     // is interpolated into a remote command line, so validate it strictly anyway
     if (!HOST_RE.test(target.host)) throw new Error(`Invalid console host "${target.host}"`);
     if (!Number.isInteger(target.port) || target.port < 1 || target.port > 65535) throw new Error('Invalid console port');
     this.target = target;
+    this.name = name || `${target.host}:${target.port}`;
     this.size = { cols: clampSize(cols, 80), rows: clampSize(rows, 24) };
     this.ssh = ssh;
-    this.telnet = telnet;
+    this.telnet = telnet ?? {};
+    this.pool = pool ?? new SshPool({ channelsPerConnection: 1, idleMs: 0, logger });
     this.log = logger;
+    this.silentMs = silentMs;
     this.lastActivity = Date.now();
-    // Export config / inject script; Its writes bypass write()'s lock
+    this.phase = 'ssh';
+    // Resolves once the line can be driven (telnet up, console server login done); rejects if it closes first
+    this.ready = new Promise((resolve, reject) => {
+      this.once('ready', resolve);
+      this.once('close', (info) => reject(Object.assign(new Error(info.reason), { code: info.info?.code, params: info.info?.params })));
+    });
+    this.ready.catch(() => {});
+    // Export config / inject script / bench jobs. Its writes bypass write()'s lock, not #send()'s filter
     this.cli = new CliAutomation({
-      write: (text) => { this.lastActivity = Date.now(); this.#stream?.write(text); },
-      onStart: () => { this.#nudge?.cancel(); this.#autoLogin?.cancel(); },
+      write: (text) => { this.lastActivity = Date.now(); this.#send(text); },
+      onStart: () => { this.#nudge?.cancel(); },
+      sendBreak: () => this.sendBreak(),
     });
     this.decoder = new StringDecoder('utf8'); // multi-byte characters split across chunks stay intact
   }
 
+  get telnetUp() { return this.#telnetUp; }
+  get silent() { return this.#silent; }
+
   start() {
-    this.#status('ssh', `Connecting to jump server ${this.ssh.host}…`);
-    const conn = (this.#conn = new Client());
-
-    conn.on('ready', () => {
-      this.#status('telnet', `Opening console ${this.target.host}:${this.target.port}…`);
-      const command = `telnet ${this.target.host} ${this.target.port}`;
-      conn.exec(command, { pty: { term: 'xterm-256color', ...this.size } }, (err, stream) => {
-        if (err) return this.close(`Could not start telnet on the jump server: ${err.message}`);
-        this.#stream = stream;
-        const write = (s) => this.#stream?.write(s);
-        if (this.telnet.autoLogin && this.telnet.password) {
-          this.#autoLogin = new AutoLogin(this.telnet, write, (m) => this.#status('login', m));
-        }
-        this.#nudge = new WakeNudge({ idleMs: this.telnet.wakeIdleMs ?? DEFAULT_WAKE_IDLE_MS, write });
-        stream.on('data', (buf) => this.#onOutput(buf));
-        stream.stderr.on('data', (buf) => this.#onOutput(buf));
-        stream.on('exit', (code) => { this.exitCode = code; });
-        stream.on('close', () => this.close(this.exitCode ? `Console closed (telnet exit code ${this.exitCode})` : 'Console closed', this.exitCode));
-      });
+    this.#status('ssh', `Connecting to jump server ${this.ssh.host}…`, 'consoles.status_ssh', { host: this.ssh.host });
+    const command = `telnet ${this.target.host} ${this.target.port}`;
+    const attach = (stream) => {
+      if (this.#closed) return;
+      this.#stream = stream;
+      this.#status('telnet', `Opening console ${this.target.host}:${this.target.port}…`, 'consoles.status_telnet', { target: `${this.target.host}:${this.target.port}` });
+      const write = (s) => this.#send(s);
+      if (this.telnet.autoLogin && this.telnet.password) {
+        this.#autoLogin = new AutoLogin(this.telnet, write, (m) => this.#status('login', m, 'consoles.status_login'), () => this.#loginDone());
+      }
+      this.#nudge = new WakeNudge({ idleMs: this.telnet.wakeIdleMs ?? DEFAULT_WAKE_IDLE_MS, write });
+      stream.on('data', (buf) => this.#onOutput(buf));
+      stream.stderr.on('data', (buf) => this.#onOutput(buf));
+      stream.on('exit', (code) => { this.#exitCode = code ?? 0; });
+      stream.on('close', () => this.#onChannelClosed());
+    };
+    this.pool.exec(this.ssh, command, { pty: { term: 'xterm-256color', ...this.size } }, attach).then((stream) => {
+      if (this.#closed && this.#stream !== stream) { try { stream.close(); } catch { /* gone */ } }
+    }, (err) => {
+      if (err.channelRefused) {
+        return this.close(`The jump server refused one more console: ${err.message}`, null, { code: 'consoles.telnet_failed', params: { detail: err.message } });
+      }
+      const { message, ...info } = sshErrorInfo(err, this.ssh);
+      this.close(message, null, info);
     });
-
-    conn.on('error', (err) => this.close(describeSshError(err, this.ssh)));
-    conn.on('close', () => this.close('Connection to the jump server closed'));
-
-    conn.connect(sshConnectOptions(this.ssh, this.log));
   }
 
-  /** Keystrokes from the browser */
+  #onChannelClosed() {
+    const target = `${this.target.host}:${this.target.port}`;
+    if (!this.#telnetUp && LINE_REFUSED.test(this.#bannerTail)) {
+      return this.close(`The console server refused the line of ${this.name} (${target}): someone outside the application is using it, or the line is out of order`, this.#exitCode ?? null,
+        { code: 'consoles.line_refused', params: { name: this.name, target } });
+    }
+    if (!this.#telnetUp && SERVER_UNREACHABLE.test(this.#bannerTail)) {
+      return this.close(`The jump server cannot reach the console server ${this.target.host}`, this.#exitCode ?? null,
+        { code: 'consoles.console_server_unreachable', params: { host: this.target.host } });
+    }
+    // No exit status at all: the channel went down with its SSH connection
+    if (this.#exitCode === undefined) return this.close('Connection to the jump server closed', null, { code: 'consoles.ssh_closed' });
+    if (this.#exitCode) return this.close(`Console closed (telnet exit code ${this.#exitCode})`, this.#exitCode, { code: 'consoles.closed_exit', params: { code: this.#exitCode } });
+    return this.close('Console closed', null, { code: 'consoles.closed' });
+  }
+
+  /** Keystrokes from the person at the keyboard (the room checks who that may be) */
   write(data) {
-    if (!this.#stream || typeof data !== 'string') return;
+    if (!this.#stream || typeof data !== 'string') return false;
     // While an export or a script runs, the student's keys are held back so
     // they can't interleave with the automated commands
-    if (this.cli.running) return;
+    if (this.cli.running) return false;
     this.lastActivity = Date.now();
     this.#nudge?.cancel(); // the student is driving now: never inject keys behind their back
     // Typing real characters means the student is answering prompts themselves:
     // auto-login stands down so both don't answer the same "Username:"
     // A bare Enter (the usual "wake the console" key) keeps auto-login on
     if (/[^\r\n]/.test(data)) this.#autoLogin?.cancel();
-    const safe = data.replaceAll(TELNET_ESCAPE, '');
-    if (safe) this.#stream.write(safe);
+    return this.#send(data);
   }
 
   resize(cols, rows) {
@@ -104,38 +179,108 @@ export class ConsoleSession extends EventEmitter {
     try { this.#stream?.setWindow(this.size.rows, this.size.cols, 0, 0); } catch { /* channel gone */ }
   }
 
-  /** Serial BREAK through telnet's command mode, then straight back to the session */
+  /**
+   * Serial BREAK through telnet's command mode, then straight back to the session.
+   * The only writer of the telnet escape. From the escape until telnet is back in
+   * the session, nothing else is written (#send() holds it): a key typed in
+   * between would otherwise be read by telnet as a command
+   */
   sendBreak() {
-    if (!this.#stream) return;
+    // One at a time: a second escape while telnet waits for its command would end up in that command
+    if (!this.#stream || this.#breaking) return;
+    this.#breaking = true;
     this.lastActivity = Date.now();
     this.#nudge?.cancel();
     this.#stream.write(TELNET_ESCAPE);
-    setTimeout(() => this.#stream?.write('send brk\r'), 150);
+    setTimeout(() => {
+      this.#stream?.write('send brk\r');
+      setTimeout(() => this.#breakDone(), BREAK_SETTLE_MS).unref?.();
+    }, BREAK_COMMAND_DELAY_MS).unref?.();
   }
 
-  close(reason = 'Session closed', code = null) {
+  #breakDone() {
+    this.#breaking = false;
+    const held = this.#held.join('');
+    this.#held = [];
+    this.#heldBytes = 0;
+    if (held) this.#send(held);
+  }
+
+  close(reason = 'Session closed', code = null, info = { code: 'consoles.session_closed' }) {
     if (this.#closed) return;
     this.#closed = true;
     this.#nudge?.cancel();
+    this.#autoLogin?.cancel();
+    clearTimeout(this.#silentTimer);
     // Closing the channel hangs up telnet on the jump server, which frees the
-    // console line on the terminal server for the next student
+    // console line on the terminal server for the next student; the pooled
+    // SSH connection stays for the other lines
     try { this.#stream?.close(); } catch { /* ignore */ }
-    try { this.#conn?.end(); } catch { /* ignore */ }
     this.#stream = null;
-    this.#conn = null;
-    this.emit('close', { reason, code });
+    this.phase = 'closed';
+    this.emit('close', { reason, code, info: { params: {}, ...info } });
   }
 
   get closed() { return this.#closed; }
+
+  /**
+   * Every byte to the device goes through here, whoever sends it: the telnet
+   * escape is dropped, what comes during a BREAK waits for its end, and an
+   * Enter starts the "is anybody there?" watch. False when nothing was taken
+   */
+  #send(raw) {
+    if (!this.#stream) return false;
+    const text = String(raw).replaceAll(TELNET_ESCAPE, '');
+    if (!text) return false;
+    if (this.#breaking) {
+      if (this.#heldBytes + text.length > MAX_HELD_BYTES) return false;
+      this.#held.push(text);
+      this.#heldBytes += text.length;
+      return true;
+    }
+    this.#stream.write(text);
+    if (this.#telnetUp && text.includes('\r') && this.silentMs > 0) {
+      // Each Enter starts the count again: silent means "nothing visible since the last Enter"
+      // (the console server's own "\r\n" after its login does not count as an answer)
+      this.#answered = false;
+      clearTimeout(this.#silentTimer);
+      this.#silentTimer = setTimeout(() => this.#goneSilent(), this.silentMs);
+      this.#silentTimer.unref?.();
+    }
+    return true;
+  }
+
+  #goneSilent() {
+    this.#silentTimer = null;
+    if (this.#closed || this.#silent || this.#answered) return;
+    this.#silent = true;
+    const seconds = Math.round(this.silentMs / 1000);
+    this.#status('silent', `${this.name} does not answer: the console server accepted the line, but nothing came back ${seconds} s after Enter. Check that the device is powered on and that its console cable is plugged in`,
+      'consoles.device_silent', { name: this.name, seconds });
+  }
+
+  #loginDone() {
+    if (this.#ready || this.#closed || !this.#telnetUp) return;
+    this.#ready = true;
+    this.emit('ready');
+  }
 
   #onOutput(buf) {
     this.emit('data', buf);
     const text = buf.toString('latin1');
     if (!this.#telnetUp) {
-      this.#bannerTail = (this.#bannerTail + text).slice(-200); // the banner may arrive split across chunks
+      this.#bannerTail = (this.#bannerTail + text).slice(-300); // the banner may arrive split across chunks
       if (TELNET_CONNECTED.test(this.#bannerTail)) {
         this.#telnetUp = true;
-        this.#status('connected', 'Console connected');
+        this.#status('connected', 'Console connected', 'consoles.status_connected');
+        if (!this.#autoLogin || this.#autoLogin.done) this.#loginDone();
+      }
+    } else {
+      // The device talks: whatever Enter was waiting got its answer
+      if (/[^\s]/.test(text.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, ''))) this.#answered = true;
+      if (this.#silent && this.#answered) {
+        this.#silent = false;
+        this.#status('connected', 'Console connected', 'consoles.status_connected');
       }
     }
     // Auto-login first: if it answers a prompt, the nudge sees that prompt too and stands down
@@ -144,8 +289,10 @@ export class ConsoleSession extends EventEmitter {
     this.cli.feed(this.decoder.write(buf));
   }
 
-  #status(phase, message) {
-    this.emit('status', { phase, message });
+  #status(phase, message, code, params = {}) {
+    this.phase = phase === 'login' ? 'connected' : phase;
+    this.lastStatus = { phase, message, code, params };
+    this.emit('status', this.lastStatus);
   }
 }
 
@@ -224,12 +371,13 @@ export class AutoLogin {
   #sentUser = false;
   #done = false;
 
-  constructor({ username, password }, write, notify) {
+  constructor({ username, password }, write, notify, onDone = () => {}) {
     this.username = username;
     this.password = password;
     this.write = write;
     this.notify = notify;
-    this.timer = setTimeout(() => { this.#done = true; }, 30_000);
+    this.onDone = onDone;
+    this.timer = setTimeout(() => this.#stop(), 30_000);
     this.timer.unref?.();
   }
 
@@ -256,9 +404,13 @@ export class AutoLogin {
   /** The student took over the login */
   cancel() { this.#stop(); }
 
+  get done() { return this.#done; }
+
   #stop() {
+    if (this.#done) return;
     this.#done = true;
     clearTimeout(this.timer);
+    this.onDone();
   }
 }
 

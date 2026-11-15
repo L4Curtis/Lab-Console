@@ -1,29 +1,46 @@
 {
   "name": "lab-console",
-  "version": "1.1.1",
+  "version": "2.3.0",
   "private": true,
   "description": "Web platform giving students console access to physical lab equipment (SSH jump host -> Telnet console server)",
   "type": "module",
   "engines": {
-    "node": ">=20.12"
+    "node": ">=22.13"
   },
   "scripts": {
     "start": "node src/server.js",
-    "dev": "node --watch src/server.js",
+    "dev": "node --watch-path=src --watch-path=public src/server.js",
+    "gen-config-doc": "node scripts/gen-config-doc.js",
     "check-diagram": "node scripts/check-diagram.js",
+    "setup-admin": "node scripts/setup-admin.js",
+    "forget-browsers": "node scripts/forget-browsers.js",
     "mock-lab": "node dev/mock-lab.js",
-    "test": "node --test test/*.test.js",
+    "mock-oidc": "node dev/mock-oidc.js",
+    "lint": "eslint .",
+    "test": "node --test --test-concurrency=12 \"test/**/*.test.js\"",
+    "test:e2e": "node --test --test-concurrency=1 \"test/e2e/*.e2e.js\"",
     "mock-proxmox": "node dev/mock-proxmox.js"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "^5.3.0",
     "@fontsource/ibm-plex-sans": "^5.3.0",
     "@novnc/novnc": "^1.7.0",
+    "@simplewebauthn/browser": "~14.0.0",
+    "@simplewebauthn/server": "~14.0.3",
     "@xmldom/xmldom": "^0.9.8",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
+    "diff": "^9.0.0",
     "express": "^5.1.0",
+    "fflate": "^0.8.3",
+    "openid-client": "^6.8.9",
     "ssh2": "^1.17.0",
     "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.14.0",
+    "globals": "^17.14.0",
+    "playwright-core": "^1.65.0"
   }
 }

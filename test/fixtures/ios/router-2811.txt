@@ -1,0 +1,126 @@
+Building configuration...
+
+Current configuration : 2307 bytes
+!
+! Last configuration change at 10:42:17 UTC Thu Nov 12 2026 by admin
+! NVRAM config last updated at 10:42:20 UTC Thu Nov 12 2026 by admin
+!
+version 12.4
+service timestamps debug datetime msec
+service timestamps log datetime msec
+service password-encryption
+!
+hostname R1
+!
+boot-start-marker
+boot-end-marker
+!
+logging message-counter syslog
+enable secret 5 $1$mERr$hx5rVt7rPNoS4wqbXKX7m0
+!
+no aaa new-model
+dot11 syslog
+ip source-route
+!
+!
+ip cef
+ip dhcp excluded-address 192.168.10.1 192.168.10.9
+!
+ip dhcp pool LAN10
+   network 192.168.10.0 255.255.255.0
+   default-router 192.168.10.1 
+   dns-server 8.8.8.8 
+!
+!
+no ip domain lookup
+ip domain name lab.local
+!
+multilink bundle-name authenticated
+!
+!
+username admin privilege 15 secret 5 $1$Xk2c$4b7l3QdGvTtKfqk6W2JxL/
+archive
+ log config
+  hidekeys
+! 
+!
+!
+!
+interface Loopback0
+ ip address 1.1.1.1 255.255.255.255
+!
+interface FastEthernet0/0
+ no ip address
+ duplex auto
+ speed auto
+!
+interface FastEthernet0/0.10
+ description VLAN 10 - etudiants
+ encapsulation dot1Q 10
+ ip address 192.168.10.1 255.255.255.0
+!
+interface FastEthernet0/0.99
+ encapsulation dot1Q 99 native
+ ip address 192.168.99.1 255.255.255.0
+!
+interface FastEthernet0/1
+ ip address 10.0.0.1 255.255.255.252
+ shutdown
+ duplex auto
+ speed auto
+!
+interface Serial0/0/0
+ description Lien vers R2
+ ip address 10.1.1.1 255.255.255.252
+ clock rate 64000
+!
+interface Serial0/0/1
+ no ip address
+ shutdown
+ clock rate 2000000
+!
+router ospf 1
+ router-id 1.1.1.1
+ log-adjacency-changes
+ network 10.1.1.0 0.0.0.3 area 0
+ network 192.168.10.0 0.0.0.255 area 0
+!
+ip forward-protocol nd
+ip route 0.0.0.0 0.0.0.0 10.1.1.2
+!
+!
+no ip http server
+no ip http secure-server
+!
+access-list 10 permit 192.168.10.0 0.0.0.255
+!
+!
+!
+!
+control-plane
+!
+!
+!
+banner login ^CAcces reserve aux etudiants^C
+banner motd ^C
+*****************************************
+*  Labo A - R1 - TP OSPF                *
+! Ne pas modifier sans prevenir !
+*****************************************
+^C
+!
+line con 0
+ exec-timeout 0 0
+ password 7 0822455D0A16
+ logging synchronous
+ login
+line aux 0
+line vty 0 4
+ password 7 0822455D0A16
+ login
+ transport input telnet ssh
+!
+scheduler allocate 20000 1000
+ntp clock-period 17208606
+ntp server 10.1.1.2
+end

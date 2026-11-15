@@ -1,0 +1,60 @@
+/* The help section (public/js/modules/help/index.js) and the guided tour (tour.js)
+   (docs/v2/UX.md §10.10). Tokens only, so both themes work */
+
+.help-body { display: grid; grid-template-columns: 220px minmax(0, 720px); gap: var(--sp-8); align-items: start; }
+.help-toc { position: sticky; top: 0; display: grid; gap: var(--sp-2); font: var(--fs-small); }
+.help-toc strong { padding: 0 var(--sp-3); font: 500 12px/16px var(--font); letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); }
+.help-toc ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.help-toc a { display: block; padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); color: var(--text-2); font: var(--fs-label); text-decoration: none; }
+.help-toc a:hover { background: var(--surface-2); color: var(--text); }
+.help-main { display: grid; gap: var(--sp-4); min-width: 0; }
+.help-summary { display: none; justify-self: start; }
+.help-sections { display: grid; gap: var(--sp-4); }
+.help-section { scroll-margin-top: var(--sp-2); }
+.help-section > h2 { margin: 0; font: var(--fs-heading); }
+.help-toggle { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); width: 100%; padding: 0; border: 0; background: none; color: inherit; font: var(--fs-heading); text-align: left; cursor: default; }
+.help-text { display: grid; gap: var(--sp-3); margin-top: var(--sp-3); }
+.help-text h3 { margin: var(--sp-2) 0 0; font: var(--fs-subheading); }
+.help-text p, .help-text li { margin: 0; line-height: 1.55; }
+.help-text ul, .help-text ol { margin: 0; padding-left: var(--sp-5); display: grid; gap: var(--sp-2); }
+.help-note { padding: var(--sp-3); border-left: 4px solid var(--warning); background: var(--warning-bg); border-radius: var(--r-sm); font-weight: 500; }
+.help-keys { border-collapse: collapse; font: var(--fs-small); }
+.help-keys th, .help-keys td { text-align: left; padding: var(--sp-2) var(--sp-3); border-bottom: 1px solid var(--border); vertical-align: top; }
+.help-keys th { color: var(--text-muted); font-weight: 500; }
+.help-keys kbd { padding: 1px var(--sp-2); border: 1px solid var(--border-input); border-radius: var(--r-sm); background: var(--surface-2); white-space: nowrap; }
+
+@media (max-width: 899.98px) {
+  .help-body { grid-template-columns: minmax(0, 1fr); }
+  .help-toc { display: none; }
+  .help-summary { display: inline-flex; }
+}
+/* A phone: the sections are folded, their title is the button */
+@media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) {
+  .help-sections { gap: var(--sp-2); }
+  .help-section { padding: 0; }
+  .help-toggle { min-height: 52px; padding: 0 var(--sp-4); cursor: pointer; }
+  .help-text { margin: 0; padding: 0 var(--sp-4) var(--sp-4); }
+  .help-text[hidden] { display: none; }
+}
+@media (min-width: 720px) and (not ((max-height: 499.98px) and (pointer: coarse))) {
+  .help-text[hidden] { display: grid !important; } /* from 720 px every section is open */
+}
+
+/* Guided tour: a card that stays out of the way, with a ring around what it talks about */
+.tour-card {
+  position: fixed; z-index: 90;
+  width: min(340px, calc(100vw - 24px));
+  display: grid; gap: var(--sp-2); padding: var(--sp-4);
+  background: var(--surface-raised); color: var(--text);
+  border: 1px solid var(--accent); border-radius: var(--r-lg);
+  box-shadow: var(--elev-3);
+}
+.tour-card[hidden] { display: none; }
+.tour-count { margin: 0; font: var(--fs-small); color: var(--text-muted); }
+.tour-card h2 { margin: 0; font: var(--fs-heading); }
+.tour-card p { margin: 0; line-height: 1.5; }
+.tour-actions { display: flex; gap: var(--sp-2); align-items: center; margin-top: var(--sp-1); }
+.tour-actions .tour-skip { margin-right: auto; }
+.tour-target { outline: 3px solid var(--accent); outline-offset: 3px; border-radius: var(--r-sm); animation: tour-pulse 1.6s ease-in-out infinite; }
+@keyframes tour-pulse { 50% { outline-color: var(--accent-soft); } }
+@media (prefers-reduced-motion: reduce) { .tour-target { animation: none; } }

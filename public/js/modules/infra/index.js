@@ -1,57 +1,67 @@
 /**
- * "Infrastructure" section: Proxmox VMs and admin switches, next to the same
- * shared terminal workspace as the lab consoles
+ * "Machines et switchs" (#/infra/<tab>): Proxmox VMs and the admin switches,
+ * next to the same shared terminal workspace as the lab consoles
  *
- * Routes: #/infra/vms · #/infra/switches
+ * Underline tabs: Machines virtuelles (a list, with the consoles, the power and
+ * the VLAN of each VM as row actions) and Switchs d'admin (one card per
+ * switch). For an administrator the page belongs to the administration (its
+ * list at the left, ← to the hub on a phone); for a student it is reached from
+ * Plus. Routes: #/infra/vms · #/infra/switches
  */
-import { h } from '../../core/dom.js';
+import { h, loadCss } from '../../core/dom.js';
 import { getJson } from '../../core/api.js';
+import { t, loadNamespace } from '../../core/i18n.js';
+import { session } from '../../core/session.js';
+import { mountTabs } from '../../shared/tabs.js';
+import { pageHeader } from '../../shared/pageHeader.js';
 import { SplitView } from '../../shared/splitView.js';
+import { adminNav, tabsBesideNav } from '../admin/nav.js';
 import { VmPanel } from './vmPanel.js';
 import { SwitchPanel } from './switchPanel.js';
 
-const TABS = [
-  { id: 'vms', label: 'Virtual machines' },
-  { id: 'switches', label: 'Admin switches' },
-];
+export async function mount(el, { navigate }) {
+  await Promise.all([loadNamespace('infra', 'admin'), loadCss('infra'), loadCss('admin')]);
+  const admin = session.isAdmin;
+  if (admin) el.classList.add('admin-sub');
 
-export function mount(el, { navigate }) {
-  let tab = 'vms';
-  const tabBtns = Object.fromEntries(TABS.map((t) => [t.id,
-    h('button.seg-btn', { type: 'button', role: 'tab', onclick: () => select(t.id) }, t.label)]));
-  el.append(h('header.view-head',
-    h('div.view-title', h('h1', 'Infrastructure'), h('p', 'Proxmox VMs and admin switches')),
-    h('div.seg', { role: 'tablist', 'aria-label': 'Infrastructure' }, Object.values(tabBtns))));
-
-  const primary = h('div.infra-primary');
-  const split = new SplitView(el, primary, { label: 'Infrastructure' });
+  const header = pageHeader({ title: 'infra.title', context: 'infra.subtitle', back: admin ? '#/admin' : undefined, tabs: true });
+  const primary = h('div.view-body.infra-primary');
+  const layout = admin ? h('div.admin-layout', adminNav({ current: 'infra' }).el) : el;
+  el.append(header.el);
+  if (admin) el.append(layout);
+  const split = new SplitView(layout, primary, { labelKey: 'infra.title' });
+  if (admin) tabsBesideNav(header, primary, el);
   const panels = { vms: null, switches: new SwitchPanel() };
 
   // The VM panel needs to know whether Proxmox is configured (and how it is reached)
-  getJson('/api/proxmox/status')
+  const vmsReady = getJson('/api/proxmox/status')
     .catch(() => ({ proxmox: false }))
-    .then((status) => { panels.vms = new VmPanel(status); render(); });
+    .then((status) => {
+      panels.vms = new VmPanel({ ...status, admin: status.admin ?? session.isAdmin }); // an unconfigured Proxmox answers { proxmox: false } to everyone
+      panels.vms.onActionsChange = () => applyActions('vms');
+      return panels.vms;
+    });
 
-  function select(id) {
-    tab = id;
-    navigate(`#/infra/${id}`);
-    render();
-  }
-
-  function render() {
-    for (const [id, b] of Object.entries(tabBtns)) b.setAttribute('aria-selected', String(id === tab));
-    const panel = panels[tab];
-    if (!panel) return;
-    primary.replaceChildren(panel.el);
-    panel.show();
-  }
-
-  render();
+  let shownTab = null;
+  const applyActions = (id) => { if (id === shownTab) header.update({ actions: panels[id]?.actions() ?? [] }); };
+  const tab = (id, titleKey) => ({
+    id,
+    title: () => t(titleKey),
+    load: async () => ({
+      mount: async (host) => {
+        const panel = panels[id] ?? await vmsReady;
+        host.append(panel.el);
+        return { show() { shownTab = id; header.update({ actions: panel.actions() }); panel.show(); } };
+      },
+    }),
+  });
+  const tabs = mountTabs(primary, [tab('vms', 'infra.tabs.vms'), tab('switches', 'infra.tabs.switches')], { navigate, base: '#/infra', label: t('infra.title'), bar: header.tabBar });
 
   return {
-    show([sub] = []) {
-      if (sub && TABS.some((t) => t.id === sub) && sub !== tab) { tab = sub; render(); }
+    show(params = []) {
+      tabs.show(params);
       split.activate();
     },
+    hide() { tabs.hide(); },
   };
 }

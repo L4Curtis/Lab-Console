@@ -5,6 +5,9 @@
  */
 import crypto from 'node:crypto';
 
+/** A host key fingerprint as `ssh-keygen -lf` prints it */
+export const SSH_FINGERPRINT = /^SHA256:[A-Za-z0-9+/]{43}=?$/;
+
 let warnedUnpinned = false;
 
 export function sshConnectOptions(ssh, log) {
@@ -21,9 +24,19 @@ export function sshConnectOptions(ssh, log) {
   };
 }
 
-function verifyHostKey(key, ssh, log) {
+/**
+ * Is this the jump server? Its key must have the pinned fingerprint. Without
+ * one, a production platform connects nowhere (whoever sits on the path would
+ * collect the jump server's password and every console); elsewhere it goes on,
+ * with a warning that shows the fingerprint to pin
+ */
+export function verifyHostKey(key, ssh, log) {
   const fingerprint = 'SHA256:' + crypto.createHash('sha256').update(key).digest('base64').replace(/=+$/, '');
   if (!ssh.hostFingerprint) {
+    if (ssh.hostKeyRequired) {
+      log.error(`The jump server's host key is not pinned: no connection. Set SSH_HOST_FINGERPRINT or the fingerprint on the lab parameters page. Observed: ${fingerprint}`);
+      return false;
+    }
     if (!warnedUnpinned) {
       warnedUnpinned = true;
       log.warn(`SSH_HOST_FINGERPRINT is not set - jump server identity is NOT verified. Observed: ${fingerprint}`);
@@ -35,11 +48,21 @@ function verifyHostKey(key, ssh, log) {
   return ok;
 }
 
-export function describeSshError(err, ssh) {
-  if (err.level === 'client-authentication') return 'Jump server rejected the SSH credentials (check SSH_USERNAME / SSH_PASSWORD)';
-  if (err.code === 'ECONNREFUSED') return `Jump server ${ssh.host}:${ssh.port} refused the connection`;
-  if (err.code === 'ETIMEDOUT' || /timed out/i.test(err.message)) return `Jump server ${ssh.host} did not answer in time`;
-  if (err.code === 'EHOSTUNREACH' || err.code === 'ENETUNREACH') return `Jump server ${ssh.host} is unreachable from the platform`;
-  if (/host key|verification/i.test(err.message)) return 'Jump server identity check failed (SSH_HOST_FINGERPRINT mismatch)';
-  return `SSH error: ${err.message}`;
+/**
+ * Why an SSH connection to the jump server failed: the English sentence plus a
+ * stable `code` and `params` for the browser to translate (ARCHITECTURE §4)
+ */
+export function sshErrorInfo(err, ssh) {
+  const host = ssh.host;
+  if (err.level === 'client-authentication') return { code: 'consoles.ssh_rejected', params: {}, message: 'Jump server rejected the SSH credentials (check SSH_USERNAME / SSH_PASSWORD)' };
+  if (err.code === 'ECONNREFUSED') return { code: 'consoles.ssh_refused', params: { host, port: ssh.port }, message: `Jump server ${ssh.host}:${ssh.port} refused the connection` };
+  if (err.code === 'ETIMEDOUT' || /timed out/i.test(err.message)) return { code: 'consoles.ssh_timeout', params: { host }, message: `Jump server ${ssh.host} did not answer in time` };
+  if (err.code === 'EHOSTUNREACH' || err.code === 'ENETUNREACH') return { code: 'consoles.ssh_unreachable', params: { host }, message: `Jump server ${ssh.host} is unreachable from the platform` };
+  if (/host key|verification/i.test(err.message)) {
+    if (!ssh.hostFingerprint) return { code: 'consoles.ssh_unpinned', params: {}, message: "The jump server's identity is not pinned (SSH_HOST_FINGERPRINT): no connection is made without it" };
+    return { code: 'consoles.ssh_identity', params: {}, message: 'Jump server identity check failed (SSH_HOST_FINGERPRINT mismatch)' };
+  }
+  return { code: 'consoles.ssh_error', params: { detail: err.message }, message: `SSH error: ${err.message}` };
 }
+
+export const describeSshError = (err, ssh) => sshErrorInfo(err, ssh).message;

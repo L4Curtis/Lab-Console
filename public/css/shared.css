@@ -1,0 +1,237 @@
+/* Shared components with behaviour (public/js/shared/*): dialogs and bottom
+   sheets, menus, side panels, tabs, lists, load states. main.js loads this
+   file at start-up (loadCss('shared')); the components load it again, which
+   costs nothing. Tokens only (css/tokens.css), so both themes work.
+   Usage: docs/v2/UX.md, "Using the components" */
+
+/* Text for assistive technology only (an actions column header, a skip link target) */
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+
+/* ── Dialogs (§7.7): centred from 720 px, bottom sheets below ──────────── */
+dialog.modal {
+  --dlg-w: 560px;
+  width: min(var(--dlg-w), calc(100vw - 32px)); max-width: none; max-height: min(90vh, calc(100dvh - 48px));
+  padding: 0; border: 1px solid var(--border); border-radius: var(--r-lg);
+  background: var(--surface-raised); color: var(--text); box-shadow: var(--elev-3);
+  overflow: hidden;
+}
+dialog.modal[open] { display: flex; flex-direction: column; animation: dlg-in var(--dur-3) var(--ease-out); }
+dialog.modal::backdrop { background: var(--scrim); animation: fade-in var(--dur-3) var(--ease-out); }
+dialog.modal[data-size="sm"] { --dlg-w: 420px; }
+dialog.modal[data-size="lg"], dialog.modal.wide { --dlg-w: 800px; }
+dialog.modal[data-size="full"] { --dlg-w: 95vw; height: 90vh; max-height: 90vh; }
+dialog.modal > * { flex: none; }
+/* The content scrolls; the header stays */
+dialog.modal > :not(.modal-head):not(.sheet-handle) { flex: 1 1 auto; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.sheet-handle { display: none; }
+.modal-head { display: flex; align-items: center; gap: var(--sp-2); min-height: 56px; padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-5); border-bottom: 1px solid var(--border); }
+.modal-head h2 { flex: 1; min-width: 0; margin: 0; font: var(--fs-heading); }
+.modal-head .icon-btn { width: max(40px, var(--tap)); height: max(40px, var(--tap)); }
+.modal-body { padding: var(--sp-5); display: grid; gap: var(--sp-4); align-content: start; }
+.modal-body > p { margin: 0; }
+.dialog-text { display: grid; gap: var(--sp-2); }
+.dialog-text p { margin: 0; }
+.require-text span { font-weight: 400; color: var(--text-2); }
+/* The footer: sticky at the bottom of the scrolling body, primary last (at the right) */
+.form-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: var(--sp-2); }
+.modal .form-actions {
+  position: sticky; bottom: calc(-1 * var(--sp-5)); z-index: 1;
+  margin: 0 calc(-1 * var(--sp-5)) calc(-1 * var(--sp-5)); padding: var(--sp-4) var(--sp-5);
+  border-top: 1px solid var(--border); background: var(--surface-raised);
+}
+.btn.danger-solid:focus-visible, .modal .btn:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+@keyframes dlg-in { from { opacity: 0; transform: scale(.98); } }
+@keyframes fade-in { from { opacity: 0; } }
+@keyframes sheet-in { from { transform: translateY(100%); } }
+
+@media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) {
+  dialog.modal, dialog.modal.wide, dialog.modal[data-size] {
+    width: 100%; max-width: 100%; height: fit-content; max-height: calc(var(--vvh, 100dvh) - 24px);
+    margin: auto 0 0; border-width: 1px 0 0; border-radius: var(--r-xl) var(--r-xl) 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  dialog.modal[open] { animation: sheet-in var(--dur-3) var(--ease-out); }
+  .sheet-handle { display: block; width: 36px; height: 4px; margin: var(--sp-2) auto 0; border-radius: var(--r-pill); background: var(--border-input); }
+  .modal-head { min-height: 52px; padding-left: var(--sp-4); border-bottom: 0; }
+  .modal-body { padding: var(--sp-2) var(--sp-4) var(--sp-4); }
+  .modal .form-actions {
+    display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: var(--sp-2);
+    bottom: calc(-1 * var(--sp-4)); margin: 0 calc(-1 * var(--sp-4)) calc(-1 * var(--sp-4)); padding: var(--sp-3) var(--sp-4);
+  }
+  .modal .form-actions .btn { min-height: 48px; font: 600 15px/20px var(--font); }
+  /* Three buttons or more: stacked, the primary on top */
+  .modal .form-actions:has(> :nth-child(3)) { grid-auto-flow: row; }
+  .modal .form-actions:has(> :nth-child(3)) > .primary, .modal .form-actions:has(> :nth-child(3)) > .danger-solid { order: -1; }
+  /* Large sheets take the whole height: ✕ at the left as "back", title centred */
+  dialog.modal[data-size="lg"], dialog.modal.wide, dialog.modal[data-size="full"] { height: calc(var(--vvh, 100dvh) - 8px); max-height: calc(var(--vvh, 100dvh) - 8px); }
+  dialog.modal[data-size="lg"] .sheet-handle, dialog.modal.wide .sheet-handle, dialog.modal[data-size="full"] .sheet-handle { display: none; }
+  dialog.modal[data-size="lg"] .modal-head, dialog.modal.wide .modal-head, dialog.modal[data-size="full"] .modal-head { flex-direction: row-reverse; padding: var(--sp-1) 48px var(--sp-1) var(--sp-1); border-bottom: 1px solid var(--border); }
+  dialog.modal[data-size="lg"] .modal-head h2, dialog.modal.wide .modal-head h2, dialog.modal[data-size="full"] .modal-head h2 { text-align: center; }
+}
+
+/* ── Menus (§7.8): a popover, or a sheet of 52 px rows on compact ──────── */
+.menu-pop {
+  position: fixed; inset: auto; margin: 0; z-index: var(--z-popover);
+  min-width: 200px; max-width: min(320px, calc(100vw - 16px)); max-height: min(70vh, 480px); overflow: auto;
+  padding: var(--sp-1); border: 1px solid var(--border); border-radius: var(--r-lg);
+  background: var(--surface-raised); color: var(--text); box-shadow: var(--elev-2);
+  animation: fade-in var(--dur-2) var(--ease-out);
+}
+.menu-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.menu-item {
+  display: flex; align-items: center; gap: var(--sp-3); width: 100%;
+  min-height: max(36px, var(--tap)); padding: 0 var(--sp-3);
+  border: 0; border-radius: var(--r-md); background: none; color: var(--text);
+  font: var(--fs-body); text-align: left; text-decoration: none; cursor: pointer;
+}
+.menu-item .icon { width: 20px; height: 20px; color: var(--text-2); }
+.menu-item:hover, .menu-item:focus-visible { background: var(--surface-2); outline-offset: -2px; }
+.menu-item[aria-disabled="true"] { opacity: .5; cursor: not-allowed; }
+.menu-item.danger, .menu-item.danger .icon { color: var(--danger-text); }
+.menu-item .menu-label { flex: 1; min-width: 0; }
+.menu-item .menu-hint { display: block; font: var(--fs-small); color: var(--text-muted); }
+.menu-item .menu-check { margin-left: auto; color: var(--accent-text); }
+.menu-item .menu-trail { margin-left: auto; display: inline-flex; align-items: center; gap: var(--sp-2); color: var(--text-muted); }
+.menu-sep { height: 1px; margin: var(--sp-1) 0; background: var(--border); }
+.menu-group { padding: var(--sp-2) var(--sp-3) var(--sp-1); font: 500 12px/16px var(--font); letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); }
+.sheet-menu .menu-item { min-height: 52px; padding-inline: var(--sp-4); }
+.sheet-menu .menu-list { padding: 0 var(--sp-2) var(--sp-2); }
+
+/* ── Side panels (§7.9) ─────────────────────────────────────────────────── */
+.side-host { display: flex; min-width: 0; min-height: 0; }
+.side-host > .side-main { flex: 1; min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.side-panel {
+  flex: none; width: 360px; min-height: 0;
+  display: flex; flex-direction: column;
+  border-left: 1px solid var(--border); background: var(--surface);
+}
+.side-panel[hidden] { display: none; }
+.side-head { display: flex; align-items: center; gap: var(--sp-2); min-height: 56px; padding: 0 var(--sp-2) 0 var(--sp-4); border-bottom: 1px solid var(--border); }
+.side-head h2 { flex: 1; min-width: 0; font: var(--fs-heading); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side-body { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: var(--sp-4); }
+.side-foot { flex: none; padding: var(--sp-3) var(--sp-4); border-top: 1px solid var(--border); }
+.side-foot:empty { display: none; }
+.side-scrim { display: none; }
+@media (max-width: 1199.98px) {
+  .side-host { position: relative; }
+  .side-panel { position: absolute; top: 0; right: 0; bottom: 0; z-index: var(--z-popover); box-shadow: var(--elev-3); animation: side-in var(--dur-3) var(--ease-out); }
+  .side-scrim:not([hidden]) { display: block; position: absolute; inset: 0; z-index: var(--z-popover); background: var(--scrim); }
+}
+@media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) {
+  .side-panel { position: fixed; inset: 0; width: auto; z-index: var(--z-popover); padding-bottom: env(safe-area-inset-bottom); border: 0; animation: sheet-in var(--dur-3) var(--ease-out); }
+  .side-head { flex-direction: row-reverse; padding: 0 48px 0 var(--sp-1); }
+  .side-head h2 { text-align: center; }
+  .side-scrim:not([hidden]) { display: none; }
+}
+@keyframes side-in { from { transform: translateX(100%); } }
+
+/* ── Tabs (§7.4): underline tabs for the screens of a section ──────────── */
+.tabs {
+  position: relative; display: flex; gap: var(--sp-1); min-width: 0; max-width: 100%;
+  overflow-x: auto; scrollbar-width: none; overscroll-behavior-x: contain;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tab {
+  position: relative; flex: none;
+  min-height: 44px; padding: 0 var(--sp-3);
+  border: 0; background: none; color: var(--text-2);
+  font: var(--fs-label); white-space: nowrap; cursor: pointer;
+}
+.tab::after { content: ""; position: absolute; left: var(--sp-3); right: var(--sp-3); bottom: 0; height: 2px; border-radius: 2px 2px 0 0; background: var(--accent); transform: scaleX(0); transition: transform var(--dur-2) var(--ease-out); }
+.tab:hover { color: var(--text); }
+.tab[aria-selected="true"] { color: var(--text); }
+.tab[aria-selected="true"]::after { transform: none; }
+.tab:focus-visible { outline-offset: -2px; }
+/* Faded edges when the strip scrolls sideways (compact) */
+@media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) {
+  .tabs { mask-image: linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%); padding-inline: var(--sp-2); }
+}
+.tab-panels { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.tab-panel { flex: 1; min-height: 0; }
+.tab-panel[hidden] { display: none; }
+.tab-panel:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.tab-error { margin: var(--sp-6); color: var(--danger-text); font: var(--fs-small); }
+
+/* ── Lists (§7.3): a table from 720 px, stacked cards below ────────────── */
+.data-list { width: 100%; }
+.dl-table { width: 100%; border-collapse: separate; border-spacing: 0; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); overflow: hidden; }
+.dl-table th {
+  height: 40px; padding: 0 var(--sp-4); text-align: left; vertical-align: middle;
+  background: var(--surface-2); color: var(--text-muted); font: var(--fs-caption);
+  border-bottom: 1px solid var(--border);
+}
+.dl-table td { height: 52px; padding: var(--sp-2) var(--sp-4); vertical-align: middle; border-bottom: 1px solid var(--border); }
+.data-list.dense .dl-table td { height: 44px; }
+.dl-table tbody tr:last-child td { border-bottom: 0; }
+.dl-table tbody tr:hover td { background: var(--surface-2); }
+.dl-table tr.dl-open { cursor: pointer; }
+.dl-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.dl-primary { font-weight: 600; }
+.dl-meta { color: var(--text-muted); }
+.dl-actions { width: 1%; white-space: nowrap; text-align: right; }
+.dl-actions-inner { display: inline-flex; align-items: center; gap: var(--sp-2); }
+.dl-empty { padding: var(--sp-2) 0; }
+@media (min-width: 720px) and (not ((max-height: 499.98px) and (pointer: coarse))) { .dl-compact-only { display: none; } }
+/* Between 720 and 1199 px a table has little room: an action with an icon shows the icon only (its label is its title and stays its name) */
+@media (min-width: 720px) and (max-width: 1199.98px) and (not ((max-height: 499.98px) and (pointer: coarse))) {
+  .dl-actions .btn:has(> .icon) > .dl-action-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .dl-actions .btn:has(> .icon) { padding-inline: var(--sp-2); }
+}
+/* From 1200 to 1359 px (a laptop with the admin menu beside the table) the main action keeps its word; the second one, shown beside ⋯, is the icon alone */
+@media (min-width: 1200px) and (max-width: 1359.98px) {
+  .dl-actions .btn.dl-table-only:has(> .icon) > .dl-action-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .dl-actions .btn.dl-table-only:has(> .icon) { padding-inline: var(--sp-2); }
+}
+@media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) {
+  .dl-table, .dl-table tbody { display: block; border: 0; background: none; border-radius: 0; overflow: visible; }
+  .dl-table thead { display: none; }
+  .dl-table tbody { display: grid; gap: var(--sp-2); }
+  .dl-table tr {
+    display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: var(--sp-1) var(--sp-3);
+    padding: var(--sp-3) var(--sp-4); border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface);
+  }
+  .dl-table td { display: block; height: auto; padding: 0; border: 0; grid-column: 1 / -1; }
+  .dl-table tbody tr:hover td { background: none; }
+  .dl-table td.dl-primary { grid-column: 1; grid-row: 1; font: var(--fs-subheading); }
+  .dl-table td.dl-badge { grid-column: 2; grid-row: 1; }
+  .dl-table td.dl-meta { font: var(--fs-small); color: var(--text-muted); }
+  .dl-table td.dl-hide-compact { display: none; }
+  .data-list.dense .dl-table td { height: auto; } /* the 44 px of a dense table row is not a card's height */
+  .dl-table td.dl-actions { width: auto; text-align: left; margin-top: var(--sp-2); }
+  .dl-table .num { text-align: left; }
+  .dl-table .dl-table-only { display: none; }
+  /* dense: one card with dividers */
+  .data-list.dense .dl-table tbody { gap: 0; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); }
+  .data-list.dense .dl-table tr { border: 0; border-radius: 0; background: none; border-bottom: 1px solid var(--border); }
+  .data-list.dense .dl-table tr:last-child { border-bottom: 0; }
+}
+
+/* ── Load states (§7.6) ─────────────────────────────────────────────────── */
+.load-state { margin: var(--sp-6) var(--gutter); }
+.skeleton { display: grid; gap: var(--sp-3); margin: var(--sp-6) var(--gutter); }
+.skeleton[data-ready="false"] { visibility: hidden; } /* the first 300 ms: nothing, no flash */
+.skeleton-bar { height: 14px; border-radius: var(--r-sm); background: var(--skeleton); }
+.skeleton-bar:nth-child(1) { width: 40%; height: 18px; }
+.skeleton-bar:nth-child(2) { width: 92%; }
+.skeleton-bar:nth-child(3) { width: 74%; }
+.skeleton-bar {
+  background-image: linear-gradient(90deg, transparent 0, rgb(255 255 255 / .35) 50%, transparent 100%);
+  background-size: 200% 100%; background-repeat: no-repeat; animation: shimmer 1.4s linear infinite;
+}
+:root[data-theme="dark"] .skeleton-bar { background-image: linear-gradient(90deg, transparent 0, rgb(255 255 255 / .05) 50%, transparent 100%); }
+@keyframes shimmer { from { background-position: 150% 0; } to { background-position: -50% 0; } }
+@media (prefers-reduced-motion: reduce) { .skeleton-bar { background-image: none; } }
+
+.load-failure {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-4);
+  margin: var(--sp-5) var(--gutter); padding: var(--sp-4) var(--sp-5);
+  border: 1px solid var(--danger); border-radius: var(--r-lg);
+  background: var(--danger-bg); color: var(--text);
+}
+.load-failure p { flex: 1 1 240px; margin: 0; }
+
+.empty-state { display: grid; justify-items: center; gap: var(--sp-2); padding: var(--sp-10) var(--sp-4); text-align: center; }
+.empty-state > .icon { width: 40px; height: 40px; color: var(--text-muted); }
+.empty-state h3 { font: var(--fs-subheading); }
+.empty-state p { margin: 0; max-width: 46ch; color: var(--text-2); }
+.empty-state .btn { margin-top: var(--sp-2); }

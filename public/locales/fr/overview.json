@@ -1,0 +1,149 @@
+{
+  "loading": "Chargement…",
+  "loadError": "Impossible de lire l’état du labo.",
+  "state": {
+    "free": "Libre",
+    "taken": "Prise",
+    "locked": "Verrouillée"
+  },
+  "lab": {
+    "title": "Le labo",
+    "empty": "Aucune baie ne correspond.",
+    "filters": {
+      "label": "Filtrer les baies",
+      "all": "Toutes",
+      "free": "Libres",
+      "taken": "Prises",
+      "locked": "Verrouillées",
+      "mine": "La nôtre"
+    },
+    "cols": {
+      "bench": "Baie",
+      "state": "État",
+      "detail": "Équipe et consoles"
+    }
+  },
+  "card": {
+    "yours": "Votre baie",
+    "heldBy": "Prise par l’équipe {team} depuis {time}",
+    "free": "Libre",
+    "locked": "Verrouillée :",
+    "guest": "invité",
+    "onBench": "Sur la baie",
+    "consolesOpen": "Consoles ouvertes",
+    "lines": {
+      "one": "{count} console ouverte sur {total}",
+      "other": "{count} consoles ouvertes sur {total}"
+    },
+    "job": "{kind} en cours : {name}, {done}/{total}",
+    "nextSlot": "Prochain créneau : {slot}",
+    "pilot": "piloté par {name}",
+    "noPilot": "personne n’a la main",
+    "releaseAt": "libération automatique vers {time}",
+    "open": "Ouvrir",
+    "busy": {
+      "one": "{count} occupée hors de l’application",
+      "other": "{count} occupées hors de l’application"
+    },
+    "busyHint": "Le serveur de consoles a refusé la ligne : quelqu’un d’autre l’utilise en dehors de l’application.",
+    "silent": {
+      "one": "{count} muette",
+      "other": "{count} muettes"
+    },
+    "silentHint": "L’équipement ne répond pas sur sa ligne (console ouverte, ou dernière vérification des lignes) : éteint, câble débranché ou planté.",
+    "freeLines": {
+      "one": "{count} libre",
+      "other": "{count} libres"
+    },
+    "freeHint": "La dernière vérification des lignes a trouvé la ligne libre et l’équipement a répondu.",
+    "checkedAt": "lignes vérifiées à {time}",
+    "task": "tâche en cours"
+  },
+  "activity": {
+    "consoleOpen": "{who} a ouvert la console de {device}",
+    "consoleJoin": "{who} a rejoint la console de {device}",
+    "consoleFreed": "La ligne de {device} a été libérée"
+  },
+  "attention": {
+    "title": "À traiter",
+    "request": "{name} demande à rejoindre la baie {bench}",
+    "accept": "Accepter",
+    "refuse": "Refuser",
+    "accepted": "{name} a rejoint la baie.",
+    "join": "Rejoindre",
+    "joined": "Vous êtes dans l’équipe {team}.",
+    "release": {
+      "one": "La baie {bench} est libérée automatiquement dans {count} minute.",
+      "other": "La baie {bench} est libérée automatiquement dans {count} minutes."
+    },
+    "stay": "On est toujours là",
+    "stayed": "La baie reste à vous.",
+    "job": "Une tâche tourne sur la baie {bench} : {name}, {done}/{total} équipements.",
+    "see": "Voir",
+    "locked": "La baie {bench} est verrouillée : {reason}",
+    "accounts": {
+      "one": "{count} compte attend votre validation.",
+      "other": "{count} comptes attendent votre validation."
+    },
+    "validate": "Valider",
+    "health": "Un élément du labo a un problème (rebond, serveur de consoles ou Proxmox)."
+  },
+  "home": {
+    "title": "Accueil",
+    "greeting": "Bonjour {name}",
+    "team": {
+      "title": "Mon équipe",
+      "members": "Membres de l’équipe",
+      "count": {
+        "one": "{count} membre",
+        "other": "{count} membres"
+      },
+      "noneHint": "Créez votre équipe pour prendre une baie, ou acceptez l’invitation d’un camarade.",
+      "create": "Créer une équipe"
+    },
+    "invitations": {
+      "item": "{by} vous invite dans l’équipe {team}"
+    },
+    "bench": {
+      "title": "Ma baie",
+      "open": "Ouvrir les consoles",
+      "backup": "Sauvegarder",
+      "none": "Vous ne travaillez sur aucune baie.",
+      "noneTeam": "Votre équipe n’a pas de baie. Prenez-en une libre :",
+      "nonFree": "Aucune baie n’est libre pour l’instant.",
+      "take": "Prendre",
+      "taken": "La baie {bench} est à votre équipe.",
+      "seeAll": "Voir toutes les baies"
+    },
+    "backups": {
+      "title": "Nos dernières sauvegardes",
+      "devices": {
+        "one": "{count} équipement",
+        "other": "{count} équipements"
+      },
+      "empty": "Aucune sauvegarde pour l’instant.",
+      "all": "Toutes les sauvegardes",
+      "download": "Télécharger"
+    },
+    "activity": {
+      "title": "Activité récente",
+      "empty": "Rien pour l’instant.",
+      "more": "Voir plus",
+      "less": "Voir moins"
+    },
+    "slots": {
+      "title": "Nos prochains créneaux",
+      "empty": "Aucun créneau réservé.",
+      "book": "Réserver"
+    },
+    "admin": {
+      "title": "Raccourcis d’administration",
+      "invite": "Inviter",
+      "announce": "Publier une annonce",
+      "lab": "Paramètres du labo"
+    }
+  },
+  "errors": {
+    "unavailable": "La vue d’ensemble n’est pas disponible pour l’instant."
+  }
+}

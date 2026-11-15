@@ -1,0 +1,111 @@
+/* The public pages: sign-in, invitation / reset link, 404 (docs/v2/UX.md §10.12).
+   Served without a session, so only tokens.css and app.css (the buttons, fields
+   and segmented control) are shared. A card from 720 px; on a phone no card, the
+   brand block in the upper third and the controls full width */
+
+.login-page {
+  min-height: 100vh; min-height: 100dvh;
+  display: grid; place-items: center;
+  padding: var(--sp-6) var(--sp-4);
+  background: var(--bg);
+  background-image: radial-gradient(var(--canvas-dot) 1px, transparent 1px);
+  background-size: 18px 18px;
+}
+
+.login-card {
+  width: min(440px, 100%);
+  display: grid; gap: var(--sp-5);
+  padding: var(--sp-8) var(--sp-8) var(--sp-5);
+  background: var(--surface);
+  border: 1px solid var(--border); border-radius: var(--r-lg);
+  box-shadow: var(--elev-2);
+  color: var(--text);
+}
+
+.login-brand { display: flex; align-items: center; gap: var(--sp-4); }
+.login-mark { width: 48px; height: 48px; flex: none; }
+.login-mark rect { fill: var(--accent-strong); }
+.login-mark path { fill: none; stroke: #fff; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.login-brand h1 { font: var(--fs-title); }
+.login-sub { margin: 2px 0 0; color: var(--text-2); font: var(--fs-small); }
+
+.login-message {
+  margin: 0; padding: var(--sp-3) var(--sp-4);
+  border-radius: var(--r-md); border-left: 4px solid var(--warning);
+  background: var(--warning-bg); color: var(--text);
+  font: var(--fs-small); line-height: 1.45;
+}
+
+.login-message[data-tone="success"] { border-left-color: var(--success); background: var(--success-bg); }
+
+.login-sso .btn, .login-local .btn, .join-done .btn, .login-card > .btn { text-decoration: none; }
+.login-extra:empty { display: none; }
+
+.login-local summary {
+  display: flex; align-items: center; justify-content: center; gap: var(--sp-2);
+  min-height: var(--tap); cursor: pointer; list-style: none;
+  border-radius: var(--r-md); color: var(--text-2); font: var(--fs-label);
+}
+.login-local summary::-webkit-details-marker { display: none; }
+.login-local summary::after { content: ""; width: 8px; height: 8px; margin-top: -4px; border: solid currentColor; border-width: 0 2px 2px 0; transform: rotate(45deg); transition: transform var(--dur-1); }
+.login-local[open] summary::after { margin-top: 4px; transform: rotate(-135deg); }
+.login-local summary:hover { color: var(--text); background: var(--surface-2); }
+.login-local[open] summary { color: var(--text); margin-bottom: var(--sp-2); }
+.login-hint { margin: 0 0 var(--sp-4); color: var(--text-muted); font: var(--fs-small); line-height: 1.4; }
+
+.login-local form { display: grid; gap: var(--sp-1); }
+.login-local label { margin-top: var(--sp-3); font: var(--fs-label); color: var(--text); }
+.login-local label:first-child { margin-top: 0; }
+.login-local .field { width: 100%; min-height: 44px; }
+#local-code { font-family: var(--mono); letter-spacing: .3em; }
+.login-local small { color: var(--text-muted); font: var(--fs-small); }
+.login-local .btn { margin-top: var(--sp-4); }
+
+.login-error { margin: var(--sp-1) 0 0; color: var(--danger-text); font: var(--fs-small); line-height: 1.4; }
+
+.login-langs { justify-self: center; }
+.login-langs .seg-btn { min-width: 96px; }
+
+/* One click with a passkey */
+.login-extra { display: grid; gap: var(--sp-2); }
+.login-extra .btn { gap: var(--sp-2); }
+.login-key { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+
+/* The passkey a password sign-in still owes */
+.login-step { display: grid; gap: var(--sp-3); }
+.login-step h2 { font: var(--fs-heading); }
+.login-step p { margin: 0; color: var(--text-2); line-height: 1.45; }
+.login-step .login-error { color: var(--danger-text); }
+
+/* The page of an invitation or a reset link (join.html) uses the same card */
+.join-signup { display: grid; gap: var(--sp-1); }
+.join-signup[hidden] { display: none; }
+#join-form { display: grid; gap: var(--sp-1); }
+#join-form label { margin-top: var(--sp-3); font: var(--fs-label); }
+#join-form .join-signup label:first-child { margin-top: 0; }
+#join-form .field { width: 100%; min-height: 44px; }
+#join-form small { color: var(--text-muted); font: var(--fs-small); }
+#join-form .btn { margin-top: var(--sp-4); }
+.join-done { margin: 0; }
+/* A link that cannot be used, and the 404 page: an empty state with the way out */
+#join-page[data-state="invalid"] .login-brand, .login-empty .login-brand { flex-direction: column; text-align: center; gap: var(--sp-3); padding-top: var(--sp-4); }
+#join-page[data-state="invalid"] .login-mark, .login-empty .login-mark { width: 56px; height: 56px; }
+#join-page[data-state="invalid"] .login-message { background: var(--danger-bg); border-left-color: var(--danger); text-align: center; border-left-width: 0; }
+.login-empty { text-align: center; }
+
+/* A phone: no card, the brand in the upper third, the controls full width above the safe area */
+@media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) {
+  .login-page { place-items: stretch; padding: 0; background-image: none; }
+  .login-card {
+    width: 100%; align-content: start; gap: var(--sp-5);
+    padding: 12vh var(--sp-4) calc(var(--sp-6) + env(safe-area-inset-bottom));
+    background: none; border: 0; border-radius: 0; box-shadow: none;
+  }
+  .login-brand { flex-direction: column; text-align: center; gap: var(--sp-3); }
+  .login-sub { font: var(--fs-body); }
+  .login-local .field { font-size: 16px; min-height: 48px; }
+  .login-langs { justify-self: stretch; margin-top: auto; }
+  .login-langs .seg-btn { flex: 1; }
+  .login-card { min-height: 100dvh; grid-auto-rows: min-content; }
+  .login-card > .login-langs { align-self: end; }
+}

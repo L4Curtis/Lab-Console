@@ -1,0 +1,92 @@
+{
+  "actions": {
+    "ok": "OK",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "close": "Close",
+    "retry": "Try again"
+  },
+  "dialog": {
+    "typeToConfirm": "Type {text} to confirm"
+  },
+  "tabs": {
+    "loadFailed": "This screen could not be loaded. Reload the page."
+  },
+  "shell": {
+    "appTitle": "Lab Console",
+    "sections": "Sections",
+    "home": "Home",
+    "consoles": "Consoles",
+    "team": "Team",
+    "jobs": "Backups",
+    "infra": "Machines and switches",
+    "off": "off",
+    "turnedOff": "{title} (turned off)",
+    "language": {
+      "label": "Language",
+      "fr": "Français",
+      "en": "English"
+    },
+    "admin": "Admin",
+    "account": "My account",
+    "help": "Help",
+    "status": "Lab status",
+    "skip": "Skip to content",
+    "adminShort": "Admin",
+    "loadFailed": "This section could not be loaded: a new version may just have been released. Reload the page.",
+    "reload": "Reload the page"
+  },
+  "errors": {
+    "server": {
+      "internal": "Internal server error.",
+      "not_found": "Not found.",
+      "bad_request": "Invalid request.",
+      "too_large": "Upload too large.",
+      "cross_origin": "Request refused: it does not come from this page."
+    },
+    "auth": {
+      "required": "Sign in to continue.",
+      "forbidden": "You are not allowed to do this."
+    },
+    "settings": {
+      "invalid": "Some values are not valid."
+    },
+    "network": "Cannot reach the server: check your connection."
+  },
+  "announcement": {
+    "hide": "Hide the announcement",
+    "more": "Read",
+    "less": "Show less"
+  },
+  "columns": {
+    "actions": "Actions"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "text": "The requested address does not exist on this platform.",
+    "home": "Back to home",
+    "pageTitle": "Page not found · Lab Console"
+  },
+  "loading": "Loading…",
+  "nav": {
+    "back": "Back",
+    "collapse": "Collapse the menu",
+    "expand": "Expand the menu",
+    "badge": {
+      "one": "{count} waiting",
+      "other": "{count} waiting"
+    }
+  },
+  "plus": {
+    "label": "More"
+  },
+  "theme": {
+    "label": "Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "auto": "Auto"
+  },
+  "menu": {
+    "more": "More actions"
+  }
+}

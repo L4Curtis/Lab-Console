@@ -1,0 +1,511 @@
+{
+  "title": "Administration",
+  "subtitle": "Accounts, lab parameters, diagram and monitoring",
+  "tabs": {
+    "users": "Users",
+    "invitations": "Invitations",
+    "sso": "Sign-in (SSO)",
+    "lab": "Lab parameters",
+    "diagram": "Diagram",
+    "switches": "Admin switches",
+    "sessions": "Sessions",
+    "audit": "Audit trail",
+    "announcement": "Announcement"
+  },
+  "confirm": {
+    "title": "Confirm the change",
+    "totpIntro": "This change controls who reaches the lab or who administers it. Type your password again and a code from your authenticator app.",
+    "password": "Password",
+    "code": "6-digit code",
+    "submit": "Confirm",
+    "passkeyIntro": "This change controls who reaches the lab or who administers it. Confirm with your passkey.",
+    "passkey": "Use my passkey",
+    "unavailable": "This account cannot confirm this change here. Sign in with the local administrator, an administrator account with a passkey, or through the identity provider once it is enabled.",
+    "ssoIntro": "This change controls who reaches the lab or who administers it. You will be sent to your identity provider to sign in again. Back here, what you typed is filled in again (secrets must be typed again) and you have 5 minutes to make the change.",
+    "sso": "Sign in again"
+  },
+  "lab": {
+    "intro": "How Lab Console reaches the consoles: SSH jump server, the console server’s login, allowed addresses. A change applies to the next consoles opened, without a restart; lines already open stay as they are.",
+    "sections": {
+      "ssh": "Jump server (SSH)",
+      "telnet": "Console server login",
+      "consoles": "Allowed consoles"
+    },
+    "fields": {
+      "ssh": {
+        "host": "Address",
+        "port": "Port",
+        "username": "User name",
+        "password": "Password",
+        "privateKey": "Private key",
+        "passphrase": "Key passphrase",
+        "hostFingerprint": "Host key fingerprint"
+      },
+      "telnet": {
+        "username": "User name",
+        "password": "Password",
+        "autoLogin": "Answer the login automatically",
+        "wakeIdleMs": "Wake-up delay (ms)"
+      },
+      "consoles": {
+        "allowedHosts": "Allowed console servers",
+        "portRange": "Port range"
+      }
+    },
+    "hints": {
+      "ssh": {
+        "host": "Name or IP address of the jump server.",
+        "password": "Leave empty to keep the current password.",
+        "privateKey": "PEM format (-----BEGIN … PRIVATE KEY-----). Leave empty to keep the current key.",
+        "passphrase": "Only if the key is encrypted.",
+        "hostFingerprint": "\"SHA256:…\", as printed by ssh-keygen -lf. Strongly advised: without it, the jump server’s identity is not checked."
+      },
+      "telnet": {
+        "username": "Empty for lines that only ask for a password.",
+        "password": "Leave empty to keep the current password.",
+        "wakeIdleMs": "Silence after connecting before one wake-up Enter; 0 turns it off."
+      },
+      "consoles": {
+        "allowedHosts": "Comma-separated. A console elsewhere stays on the diagram but does not open."
+      }
+    },
+    "origin": {
+      "environment": "environment",
+      "saved": "set here",
+      "resetting": "back to the environment"
+    },
+    "reset": "Back to the environment",
+    "keepSaved": "Cancel",
+    "secretKept": "set — leave empty to keep it",
+    "secretNone": "not set",
+    "save": "Save",
+    "saved": "Parameters saved: the next console uses them.",
+    "ssoConfirmed": "Identity confirmed until {time}: save your changes before then.",
+    "nothing": "Nothing changed.",
+    "updated": "Changed on {date} by {by}.",
+    "fromEnvironment": "Nothing was changed here: these are the server’s original settings.",
+    "unreadable": "These saved secrets can no longer be read (APP_SECRET changed): {fields}. The environment’s value is used; type them again.",
+    "problems": {
+      "type": "Invalid value.",
+      "required": "Required.",
+      "too_long": "Too long.",
+      "format": "Invalid format.",
+      "out_of_range": "Out of range.",
+      "too_many": "Too many items.",
+      "range_order": "The start must come before the end.",
+      "unknown": "Unknown field.",
+      "credentials_required": "A password or a private key is needed.",
+      "key_format": "Unreadable private key (PEM or OpenSSH format expected).",
+      "fingerprint_required": "Required in production: the jump server's fingerprint (ssh-keyscan -t ed25519 <host> | ssh-keygen -lf -).",
+      "key_passphrase": "The passphrase does not open this key."
+    },
+    "proxmox": {
+      "title": "Proxmox",
+      "note": "For reference: the Proxmox module still reads these values from the environment. Its tunnel reconnects when the jump server changes.",
+      "url": "Address",
+      "username": "User",
+      "password": "Password",
+      "fingerprint": "Certificate fingerprint",
+      "state": "State",
+      "off": "not configured"
+    },
+    "range": {
+      "min": "Lowest port",
+      "max": "Highest port"
+    }
+  },
+  "diagram": {
+    "intro": "The diagram students open consoles from. An imported file is checked and kept as a version, without changing anything: preview it, compare, then activate. Every version stays available; “Roll back” restores the diagram that was active just before.",
+    "import": "Import a .drawio",
+    "rollback": "Roll back",
+    "preview": "Preview",
+    "download": "Download",
+    "activate": "Activate",
+    "active": "active",
+    "fromEnvironment": "original file (DIAGRAM_PATH)",
+    "deviceCount": {
+      "one": "{count} device",
+      "other": "{count} devices"
+    },
+    "columns": {
+      "name": "File",
+      "devices": "Devices",
+      "by": "By",
+      "at": "Date",
+      "state": "State"
+    },
+    "none": "No version.",
+    "pages": "Diagram pages",
+    "previewTitle": "Preview: {name}",
+    "previewMeta": "Benches: {labs} · devices: {count}",
+    "warnings": {
+      "one": "{count} warning",
+      "other": "{count} warnings"
+    },
+    "diff": {
+      "labsAdded": "Benches added",
+      "labsRemoved": "Benches removed",
+      "devicesAdded": "Devices added",
+      "devicesRemoved": "Devices removed",
+      "devicesMoved": "Consoles moved",
+      "same": "Same as the active diagram.",
+      "none": "No bench or console changes (only the drawing differs)."
+    },
+    "activateTitle": "Activate this diagram?",
+    "activateBody": "“{name}” becomes everyone’s diagram, right away. Open consoles stay open.",
+    "activated": "Diagram activated.",
+    "imported": "File checked and kept. Look at the preview before activating it.",
+    "rollbackTitle": "Go back to the previous diagram?",
+    "rollbackBody": "The diagram that was active just before becomes everyone’s again, right away.",
+    "rolledBack": "Previous diagram restored.",
+    "outsideAllowList": {
+      "one": "{count} device has a console outside the allow-list: it would show, but stay disabled for students until the lab parameters allow it.",
+      "other": "{count} devices have a console outside the allow-list: they would show, but stay disabled for students until the lab parameters allow them."
+    },
+    "versionsTitle": "Diagram versions",
+    "context": "Active diagram: {name} · {count} devices"
+  },
+  "switches": {
+    "intro": "Consoles that are not on the diagram (the benches’ administration switches), shown in Machines and switches. Saved as a whole, used at once.",
+    "columns": {
+      "id": "Id",
+      "name": "Name",
+      "bay": "Bench",
+      "host": "Console server",
+      "port": "Port"
+    },
+    "add": "Add",
+    "remove": "Remove",
+    "save": "Save the list",
+    "done": "List saved.",
+    "saved": "Changed on {date} by {by}.",
+    "fromEnvironment": "Original list (INFRA_CONFIG_PATH).",
+    "problems": {
+      "type": "Invalid.",
+      "format": "Invalid format.",
+      "duplicate": "Already used.",
+      "required": "Required.",
+      "out_of_range": "1 to 65535.",
+      "too_many": "Too many lines."
+    },
+    "none": "No administration switch",
+    "noneText": "Add the consoles of the switches that are not on the diagram."
+  },
+  "sessions": {
+    "intro": "Every browser signed in right now. Ending a session signs that browser out at once, with its consoles.",
+    "columns": {
+      "user": "Person",
+      "browser": "Browser",
+      "ip": "Address",
+      "since": "Since",
+      "lastSeen": "Last activity"
+    },
+    "count": {
+      "one": "{count} session",
+      "other": "{count} sessions"
+    },
+    "sockets": {
+      "one": "{count} console or stream open",
+      "other": "{count} consoles or streams open"
+    },
+    "none": "No session.",
+    "thisOne": "this session",
+    "end": "End",
+    "endAll": "All their sessions",
+    "endTitle": "End this session?",
+    "endBody": "{name} will be signed out of this browser, their consoles closed.",
+    "endOwn": "This is your session: you will be signed out.",
+    "endAllTitle": "End all their sessions?",
+    "endAllBody": "{name} will be signed out of every browser.",
+    "ended": "Session ended.",
+    "endedAll": {
+      "one": "{count} session ended.",
+      "other": "{count} sessions ended."
+    },
+    "title": "Sessions",
+    "seen": "seen {date}"
+  },
+  "audit": {
+    "intro": "Who did what, and when: sign-ins, consoles, administration actions. Newest first.",
+    "filters": {
+      "action": "Action",
+      "actor": "Person (name or id)",
+      "bench": "Bench",
+      "since": "Since",
+      "until": "Until",
+      "limit": "Lines"
+    },
+    "actionHint": "e.g. console or admin.diagram",
+    "apply": "Filter",
+    "clear": "Clear",
+    "more": "details",
+    "columns": {
+      "ts": "Date",
+      "actor": "Who",
+      "action": "Action",
+      "bench": "Bench",
+      "details": "Details"
+    },
+    "count": {
+      "one": "{count} entry",
+      "other": "{count} entries"
+    },
+    "none": "No entry for these filters.",
+    "title": "Audit trail",
+    "filtersTitle": "Filters",
+    "actions": {
+      "accounts_approve": "Account approved",
+      "accounts_invitation_create": "Invitation created",
+      "accounts_invitation_revoke": "Invitation revoked",
+      "accounts_name": "Name changed",
+      "accounts_passkey_add": "Passkey added",
+      "accounts_passkey_add_failed": "Passkey could not be added",
+      "accounts_passkey_remove": "Passkey removed",
+      "accounts_passkey_rename": "Passkey renamed",
+      "accounts_passkeys_clear": "Passkeys cleared",
+      "accounts_password_change": "Password changed",
+      "accounts_password_change_failed": "Password change failed",
+      "accounts_password_reset": "Password reset",
+      "accounts_reject": "Account rejected",
+      "accounts_reset_link_create": "Reset link created",
+      "accounts_role": "Role changed",
+      "accounts_sessions_end": "Session ended",
+      "accounts_sessions_end_others": "Other sessions ended",
+      "accounts_signup": "Sign-up",
+      "accounts_sso_test": "SSO test",
+      "accounts_sso_trial": "SSO sign-in trial",
+      "accounts_sso_update": "SSO changed",
+      "accounts_state": "Account state changed",
+      "admin_announcement_publish": "Announcement published",
+      "admin_announcement_remove": "Announcement removed",
+      "admin_confirm_fail": "Confirmation refused",
+      "admin_confirm_sso": "Confirmation through SSO",
+      "admin_confirm_failed": "Confirmation failed",
+      "admin_diagram": "Diagram",
+      "admin_diagram_activate": "Diagram activated",
+      "admin_diagram_import": "Diagram imported",
+      "admin_diagram_refuse": "Diagram refused",
+      "admin_diagram_rollback": "Previous diagram restored",
+      "admin_session_revoke": "Session revoked",
+      "admin_session_revoke_user": "A person’s sessions revoked",
+      "admin_switches_update": "Admin switches changed",
+      "auth_login": "Sign-in",
+      "auth_login_failed": "Sign-in failed",
+      "auth_login_step": "Sign-in step",
+      "auth_logout": "Sign-out",
+      "bench_assign": "Bench assigned",
+      "bench_guest_remove": "Guest removed from a bench",
+      "bench_join_accept": "Request accepted",
+      "bench_join_refuse": "Request refused",
+      "bench_join_request": "Request to join a bench",
+      "bench_leave": "Bench left",
+      "bench_lock": "Bench locked",
+      "bench_release": "Bench released",
+      "bench_release_idle": "Bench released (idle)",
+      "bench_reservation_cancel": "Slot cancelled",
+      "bench_reserve": "Slot booked",
+      "bench_take": "Bench taken",
+      "bench_unlock": "Bench unlocked",
+      "collab_chat_delete": "Message deleted",
+      "collab_note_clear": "Note cleared",
+      "collab_note_set": "Note edited",
+      "console_history_download": "Console history downloaded",
+      "console_journal_download": "Console journal downloaded",
+      "console_open": "Console opened",
+      "console_task": "Task run on a console",
+      "diagram_drawio": "Diagram read",
+      "job_folder_download": "Backups folder downloaded",
+      "job_snapshot_delete": "Backup deleted",
+      "job_snapshot_download": "Backup downloaded",
+      "job_snapshot_import": "Backup imported",
+      "job_template_delete": "Lab template deleted",
+      "job_template_publish": "Lab template published",
+      "job_template_update": "Lab template edited",
+      "recovery_cancel": "Recovery cancelled",
+      "recovery_confirm": "Recovery confirmed",
+      "recovery_end": "Recovery ended",
+      "recovery_put_back": "Configuration put back",
+      "recovery_start": "Recovery started",
+      "recovery_step": "Recovery step",
+      "script_create": "Script created",
+      "script_delete": "Script deleted",
+      "script_update": "Script edited",
+      "settings_invalid": "Settings refused",
+      "settings_update": "Settings changed",
+      "system": "System",
+      "team_create": "Team created",
+      "team_dissolve": "Team dissolved",
+      "team_invite": "Team invitation",
+      "team_invite_decline": "Invitation declined",
+      "team_invite_revoke": "Invitation withdrawn",
+      "team_join": "Team joined",
+      "team_leave": "Team left",
+      "team_member_remove": "Member removed",
+      "team_rename": "Team renamed"
+    },
+    "dynamic": {
+      "jobStart": "Task started ({kind})",
+      "jobCancel": "Task cancelled ({kind})",
+      "jobEnd": "Task ended ({kind})",
+      "checkStart": "Check started ({kind})",
+      "checkCancel": "Check cancelled ({kind})",
+      "checkEnd": "Check ended ({kind})"
+    }
+  },
+  "announcement": {
+    "intro": "A message shown in a banner to everyone signed in, right away, until you remove it or its time is over.",
+    "text": "Message",
+    "textHint": "Plain text, 500 characters at most.",
+    "level": "Tone",
+    "levels": {
+      "info": "Information",
+      "warning": "Warning"
+    },
+    "duration": "Duration",
+    "untilRemoved": "Until I remove it",
+    "hours": {
+      "one": "{count} hour",
+      "other": "{count} hours"
+    },
+    "publish": "Publish",
+    "remove": "Remove",
+    "published": "Announcement published.",
+    "removed": "Announcement removed.",
+    "current": "Showing now:",
+    "until": "(until {date})",
+    "noEnd": "(no end)",
+    "nothing": "No announcement right now.",
+    "live": "An announcement is showing"
+  },
+  "status": {
+    "title": "Lab status",
+    "subtitle": "Health of the access chain and what is recorded",
+    "tabs": {
+      "health": "Health",
+      "journaling": "What is recorded"
+    },
+    "intro": "What the server sees: the SSH jump server, the console servers behind it, and Proxmox. Checked every 30 seconds at most.",
+    "refresh": "Check now",
+    "checked": "Check done.",
+    "checkedAt": "Checked on {date}.",
+    "parts": {
+      "jump": "SSH jump server",
+      "consoleServers": "Console servers",
+      "consoleServer": "Console server",
+      "proxmox": "Proxmox",
+      "proxmoxTunnel": "Proxmox tunnel",
+      "lines": "Console lines",
+      "journal": "Console journal",
+      "poolConnection": "Shared SSH connection"
+    },
+    "states": {
+      "ok": "answering",
+      "down": "not answering",
+      "unknown": "unknown",
+      "off": "not configured",
+      "partial": "partly",
+      "connected": "connected",
+      "idle": "idle (connects on first use)"
+    },
+    "serversUp": {
+      "one": "{ok} of {count} answering",
+      "other": "{ok} of {count} answering"
+    },
+    "columns": {
+      "part": "Part",
+      "address": "Address",
+      "state": "State",
+      "error": "Error"
+    },
+    "tunnel": "tunnel {state}",
+    "linesOpen": {
+      "one": "{count} line open · SSH connections: {connections}",
+      "other": "{count} lines open · SSH connections: {connections}"
+    },
+    "journalUsed": "{used} MB of {max} MB",
+    "journalSize": "{used} MB",
+    "poolChannels": "{count} of {capacity} channels in use",
+    "tunnelDetail": {
+      "one": "{connections} connection, {channels} open channels",
+      "other": "{connections} connections, {channels} open channels"
+    },
+    "loadFailed": "Could not read the lab status.",
+    "allWell": "Everything works",
+    "problems": {
+      "one": "{count} problem",
+      "other": "{count} problems"
+    },
+    "detailsTitle": "Details"
+  },
+  "journaling": {
+    "intro": "What the platform keeps of what you do, and for how long.",
+    "audit": {
+      "title": "Audit trail",
+      "what": "Sign-ins and sign-outs, consoles opened and control handovers, administration actions (accounts, parameters, diagram, sessions, announcements), with the person, the time and the address.",
+      "kept": "Kept in the server’s database, never deleted automatically; only administrators read it."
+    },
+    "consoles": {
+      "title": "Console journal",
+      "what": "What the devices print on the consoles opened from the platform, with who had the keyboard. No keystroke is kept as such, but what the device echoes back, so your commands, is in it; a password typed without echo never is.",
+      "kept": {
+        "one": "Kept {count} day. Read access covers the whole day of a console: whoever was on it that day with the right to drive it, even for a minute (watching only does not count), and the teams that held its bench that day read every session of that day; administrators read everything.",
+        "other": "Kept {count} days. Read access covers the whole day of a console: whoever was on it that day with the right to drive it, even for a minute (watching only does not count), and the teams that held its bench that day read every session of that day; administrators read everything."
+      },
+      "limits": "At most {day} MB per device and per day, {total} MB for every journal together: past that, the oldest days are deleted first."
+    },
+    "noConsoleJournal": {
+      "title": "Console journal",
+      "what": "This version does not record what the consoles print yet.",
+      "kept": "Nothing is kept."
+    },
+    "sessions": {
+      "title": "Sessions",
+      "what": "Your session keeps your identity, your address and your browser; administrators see them.",
+      "kept": "It ends after {idle} h without activity and after {max} h at most."
+    },
+    "never": {
+      "title": "Never kept",
+      "what": "Your passwords (only a hash), one-time codes, what you type without echo in the consoles (a password). Commands the device echoes back do appear in the console journal."
+    },
+    "loadFailed": "Could not read what the platform records."
+  },
+  "errors": {
+    "confirm_method": "This account confirms another way: sign in with the local administrator, an administrator account with a passkey, or through the identity provider.",
+    "confirm_unavailable": "Confirmation is not possible right now: this account's way of confirming is switched off.",
+    "confirm_throttled": "Too many confirmation attempts: wait a few minutes.",
+    "confirm_failed": "Confirmation refused.",
+    "confirm_required": "Confirm the change first (passkey, or password and code).",
+    "confirm_sso_required": "Sign in again at the identity provider first: a confirmation lasts 5 minutes.",
+    "diagram_empty_file": "The file is empty.",
+    "diagram_too_large": "The diagram is too large: 5 MB at most, and its pages may not inflate to more than 20 MB.",
+    "diagram_doctype": "Refused: a diagram may not declare a DOCTYPE or entities.",
+    "diagram_invalid": "Not a readable draw.io diagram: {detail}",
+    "diagram_no_device": "This diagram has no device with a console.",
+    "diagram_unknown": "No such version.",
+    "diagram_already_active": "This version is already the active diagram.",
+    "diagram_no_previous": "There is no previous diagram.",
+    "switches_invalid": "Some lines are not valid.",
+    "session_unknown": "This session no longer exists.",
+    "audit_bad_filter": "Invalid filter.",
+    "announcement_empty": "Write the message first.",
+    "announcement_invalid": "An announcement is plain text, 500 characters at most, for 1 hour to 30 days.",
+    "diagram_lint": {
+      "one": "Refused: {count} console line is shared by different devices ({lines}). Fix the diagram.",
+      "other": "Refused: {count} console lines are shared by different devices ({lines}). Fix the diagram."
+    },
+    "sso_confirm_failed": "The identity provider did not confirm your sign-in. Nothing was changed.",
+    "sso_confirm_mismatch": "The sign-in at the identity provider was not yours, or not an administrator’s. Nothing was changed.",
+    "sso_confirm_expired": "Your session ended while you were at the identity provider. Nothing was changed.",
+    "sso_unreachable": "The identity provider could not be reached."
+  },
+  "groups": {
+    "accounts": "Accounts",
+    "lab": "Lab",
+    "monitoring": "Monitoring"
+  },
+  "nav": {
+    "teams": "Teams",
+    "infra": "Machines and switches",
+    "status": "Lab status"
+  }
+}

@@ -1,0 +1,45 @@
+/* Group work: notes on the diagram, the notes and chat panel, the note dialog, the alerts bell */
+
+/* ── On the diagram ───────────────────────────────────────────────────── */
+.deco-badge.badge-note circle { fill: var(--warning); }
+.deco-badge.badge-note text { font-size: 9px; }
+
+/* ── The alerts bell, in the rail ─────────────────────────────────────── */
+#notify-toggle[data-state="on"] { color: #fff; }
+#notify-toggle[data-state="on"] .icon { color: var(--success-text); }
+#notify-toggle:disabled { opacity: .5; cursor: not-allowed; }
+
+/* ── The Discussion panel (a side panel; the live panel's sections) ───── */
+.collab-btn[aria-pressed="true"] { border-color: var(--accent); color: var(--on-accent-soft); }
+.collab-notes { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.collab-note { padding: 7px 9px; border: 1px solid var(--border); border-radius: 6px; background: var(--surface-2); }
+.collab-note-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.collab-note-text { margin: 4px 0 2px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; color: var(--text); }
+.collab-note-by { font-size: 12px; }
+
+.chat-hint { margin: 0 0 6px; font-size: 12.5px; }
+.chat-log { list-style: none; margin: 0 0 8px; padding: 0; flex: 1; min-height: 80px; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
+.chat-message { display: flex; gap: 8px; align-items: flex-start; }
+.chat-message .avatar { flex: none; width: 24px; height: 24px; font-size: 12px; }
+.chat-body { min-width: 0; flex: 1; }
+.chat-meta { display: flex; align-items: center; gap: 6px; font-size: 12px; }
+.chat-meta time { color: var(--text-muted); font: 12px var(--mono); }
+.chat-meta .icon-btn { margin-left: auto; }
+.chat-text { margin: 1px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }
+.chat-message[data-mine="true"] .chat-meta strong { color: var(--on-accent-soft); }
+.chat-form { display: grid; gap: 6px; }
+.chat-input { width: 100%; min-height: 0; height: auto; padding: var(--sp-2) var(--sp-3); resize: vertical; }
+.chat-form-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.chat-problem, .note-problem { margin: 0; font-size: 12.5px; color: var(--danger-text); }
+
+/* ── The note dialog ──────────────────────────────────────────────────── */
+.note-meta { margin: 0; font-size: 12.5px; }
+.note-form { display: grid; gap: 8px; }
+.note-text-input {
+  box-sizing: border-box; width: 100%; resize: vertical; padding: 8px 10px; font: 13px/1.45 var(--mono); color: var(--text);
+  background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+}
+.note-text-input:focus { outline: 2px solid var(--accent); border-color: transparent; }
+.note-foot { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; }
+.note-text { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 13px/1.45 var(--mono); }
+.note-dialog .modal-actions { display: flex; justify-content: flex-end; gap: 8px; }

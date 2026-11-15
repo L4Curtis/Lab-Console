@@ -1,0 +1,45 @@
+-------------------------
+Device ID: SW1-3005
+Entry address(es): 
+  IP address: 192.168.10.2
+Platform: cisco C9300L-24T-4G,  Capabilities: Router Switch IGMP 
+Interface: GigabitEthernet0/0/2,  Port ID (outgoing port): GigabitEthernet1/0/24
+Holdtime : 133 sec
+
+Version :
+Cisco IOS Software [Bengaluru], Catalyst L3 Switch Software (CAT9K_IOSXE), Version 17.6.4, RELEASE SOFTWARE (fc1)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2022 by Cisco Systems, Inc.
+Compiled Sun 14-Aug-22 08:57 by mcpre
+
+advertisement version: 2
+VTP Management Domain: ''
+Native VLAN: 1
+Duplex: full
+Management address(es): 
+  IP address: 192.168.10.2
+
+Spare Pair PoE: No
+
+-------------------------
+Device ID: R2-3012
+Entry address(es): 
+  IP address: 10.0.12.2
+  IPv6 address: FE80::2A3:D1FF:FE12:3402  (link-local)
+Platform: cisco ISR4331/K9,  Capabilities: Router Switch IGMP 
+Interface: GigabitEthernet0/0/0,  Port ID (outgoing port): GigabitEthernet0/0/0
+Holdtime : 167 sec
+
+Version :
+Cisco IOS Software [Amsterdam], ISR Software (X86_64_LINUX_IOSD-UNIVERSALK9-M), Version 17.3.4a, RELEASE SOFTWARE (fc3)
+Technical Support: http://www.cisco.com/techsupport
+Copyright (c) 1986-2021 by Cisco Systems, Inc.
+Compiled Tue 20-Jul-21 04:59 by mcpre
+
+advertisement version: 2
+Duplex: full
+Management address(es): 
+  IP address: 10.0.12.2
+
+
+Total cdp entries displayed : 2

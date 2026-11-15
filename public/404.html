@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex, nofollow" />
+  <title data-i18n="common.notFound.pageTitle">Lab Console</title>
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/vendor/fonts/plex-sans/400.css" />
+  <link rel="stylesheet" href="/vendor/fonts/plex-sans/600.css" />
+  <link rel="stylesheet" href="/css/tokens.css" />
+  <link rel="stylesheet" href="/css/app.css" />
+  <link rel="stylesheet" href="/css/login.css" />
+  <script type="module" src="/js/notFound.js"></script>
+</head>
+<body class="login-page">
+  <main class="login-card login-empty" aria-labelledby="nf-title">
+    <div class="login-brand">
+      <svg class="login-mark" viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="6" width="24" height="20" rx="4" /><path d="M10 14l4 3-4 3M16 21h6" /></svg>
+      <div>
+        <h1 id="nf-title" data-i18n="common.notFound.title">Page introuvable</h1>
+        <p class="login-sub" data-i18n="common.notFound.text"></p>
+      </div>
+    </div>
+    <a class="btn primary lg block" href="/" data-i18n="common.notFound.home"></a>
+  </main>
+</body>
+</html>

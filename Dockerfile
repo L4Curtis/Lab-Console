@@ -1,4 +1,6 @@
 # Lab Console - small + unprivileged production image
+# Node 22.13 or later: the database uses the built-in node:sqlite, which needs
+# no flag from that version on (package.json "engines")
 FROM node:22-alpine
 
 ENV NODE_ENV=production
@@ -14,6 +16,16 @@ COPY public ./public
 COPY scripts ./scripts
 COPY diagrams ./diagrams
 COPY config ./config
+
+# State lives in DATA_DIR and nowhere else (the database lab-console.db and its
+# -wal / -shm files, configuration backups, journals…): run the container with a read-only
+# root filesystem (`read_only: true`) and a volume on /data. The directory is
+# created here, owned by the unprivileged user, so that a fresh named volume
+# inherits that ownership; a bind-mounted host folder must be writable by
+# uid 1000 (node) itself
+ENV DATA_DIR=/data
+RUN mkdir -p /data && chown node:node /data && chmod 700 /data
+VOLUME /data
 
 USER node
 EXPOSE 3000

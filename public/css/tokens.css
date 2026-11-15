@@ -1,0 +1,191 @@
+/* ==========================================================================
+   Lab Console design tokens (docs/v2/UX.md §6)
+
+   Linked by every page before app.css. Roles, not colours: a screen uses
+   --surface or --text-2, never a hexadecimal value, so that both themes work.
+   The theme is data-theme="light|dark" on <html> (core/theme.js resolves the
+   "auto" preference to one of them, live).
+
+   Breakpoints (the same numbers are in core/viewport.js; JavaScript only reads
+   them to choose between a popover and a sheet, never to lay out):
+     compact   < 720 px      bottom tab bar, one column, dialogs as bottom sheets
+               (or a touch screen shorter than 500 px: a phone on its side; the query is
+               `(max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse)`, and
+               the 720 px rules say `and (not ((max-height: 499.98px) and (pointer: coarse)))`)
+     medium    720–1199 px   collapsed rail (72 px)
+     expanded  ≥ 1200 px     expanded rail (232 px, collapsible), content max 1280 px centred
+   @media (pointer: coarse) raises every interactive element to --tap (44 px).
+   ========================================================================== */
+
+:root {
+  /* ── Spacing: 4 px base, use only these for margin, padding and gap ── */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+  --sp-12: 48px;
+  --gutter: 32px;
+
+  /* ── Type: size / line height ── */
+  --font: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+  --fs-display: 600 28px/34px var(--font);
+  --fs-title: 600 22px/28px var(--font);
+  --fs-heading: 600 17px/24px var(--font);
+  --fs-subheading: 600 15px/22px var(--font);
+  --fs-body: 400 14px/20px var(--font);
+  --fs-label: 500 14px/20px var(--font);
+  --fs-small: 400 13px/18px var(--font);
+  --fs-caption: 500 12px/16px var(--font);
+  --fs-mono: 400 13px/18px var(--mono);
+  --fs-input: 14px;
+
+  /* ── Radii ── */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 14px;
+  --r-xl: 20px;
+  --r-pill: 999px;
+
+  /* ── Touch ── */
+  --tap: 32px;
+
+  /* ── Motion ── */
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 280ms;
+  --ease-out: cubic-bezier(.2, .8, .2, 1);
+  --ease-in: cubic-bezier(.4, 0, 1, 1);
+
+  /* ── Layers (dialogs and sheets use the top layer) ── */
+  --z-sticky: 10;
+  --z-nav: 20;
+  --z-float: 30;
+  --z-popover: 40;
+  --z-toast: 80;
+
+  /* ── Sizes of the shell ── */
+  --rail-w: 232px;
+  --rail-w-collapsed: 72px;
+  --tabbar-h: 56px;
+  --appbar-h: 56px;
+  --content-max: 1280px;
+
+  /* ── Colour roles, light ── */
+  --bg: #EEF1F4;
+  --surface: #FFFFFF;
+  --surface-2: #F4F6F8;
+  --surface-raised: #FFFFFF;
+  --canvas: #E8ECF0;
+  --canvas-dot: #C6CFD8;
+  --border: #D5DCE3;
+  --border-input: #8796A5;
+  --text: #18222D;
+  --text-2: #4A5867;
+  --text-muted: #5A6673;
+  --accent: #3E8FC9;
+  --accent-strong: #23699E;
+  --accent-strong-hover: #1B5683;
+  --accent-text: #23699E;
+  --accent-soft: #DCEBF6;
+  --on-accent-soft: #1D5F92;
+  --success: #1FA35A;
+  --success-text: #13743A;
+  --success-bg: #E6F4EC;
+  --warning: #D48C12;
+  --warning-text: #8A5A00;
+  --warning-bg: #FBF1DE;
+  --danger: #D0463B;
+  --danger-text: #B8352B;
+  --danger-bg: #FCE9E7;
+  --danger-strong: #B8352B;
+  --info-bg: var(--accent-soft);
+  --neutral-bg: #E7EBEF;
+  --nav-bg: #1B2631;
+  --nav-ink: #AEBBC7;
+  --nav-hover-bg: #263443;
+  --nav-active-bg: #263443;
+  --nav-accent: #5BA9E0;
+  --scrim: rgb(15 24 33 / .45);
+  --focus: #2F7FBA;
+  --focus-on-dark: #5BA9E0;
+  --toast-bg: var(--surface-raised);
+  --skeleton: #E4E9EE;
+  --led-off: #B4BEC8;
+  --elev-0: none;
+  --elev-1: 0 1px 2px rgb(24 34 45 / .06), 0 1px 3px rgb(24 34 45 / .08);
+  --elev-2: 0 4px 12px rgb(24 34 45 / .10), 0 2px 4px rgb(24 34 45 / .06);
+  --elev-3: 0 16px 48px rgb(24 34 45 / .18);
+
+  /* terminals: dark in both themes */
+  --term-bg: #0F1821;
+  --term-head: #172430;
+  --term-head-ink: #C7D2DC;
+  --term-key-bg: #1D2B38;
+  --term-key-ink: #DCE4EB;
+
+  /* the diagram: a device is recognised by its 2 px stroke (≥ 3:1 on the canvas and on the tile) */
+  --device-tile: #FFFFFF;
+  --device-stroke: #5D6E7F;
+
+
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg: #0F151B;
+  --surface: #161E26;
+  --surface-2: #1C2630;
+  --surface-raised: #1F2A35;
+  --canvas: #121A22;
+  --canvas-dot: #23303C;
+  --border: #2A3744;
+  --border-input: #6B7C8C;
+  --text: #E3E9EF;
+  --text-2: #A9B6C2;
+  --text-muted: #93A1AD;
+  --accent: #5BA9E0;
+  --accent-strong: #2A6FA6;
+  --accent-strong-hover: #235F91;
+  --accent-text: #5BA9E0;
+  --accent-soft: #1C3346;
+  --on-accent-soft: #86C3EE;
+  --success-text: #5FCB8A;
+  --success-bg: #16302A;
+  --warning-text: #E5B04A;
+  --warning-bg: #342A17;
+  --danger-text: #EF7B71;
+  --danger-bg: #3A2022;
+  --neutral-bg: #25313D;
+  --nav-bg: #0D141A;
+  --nav-hover-bg: #1A2530;
+  --nav-active-bg: #1A2530;
+  --scrim: rgb(0 0 0 / .6);
+  --focus: #5BA9E0;
+  --toast-bg: #25313D;
+  --skeleton: #22303C;
+  --led-off: #4A5865;
+  --elev-1: 0 1px 2px rgb(0 0 0 / .4);
+  --elev-2: 0 6px 16px rgb(0 0 0 / .45);
+  --elev-3: 0 16px 48px rgb(0 0 0 / .6);
+  --term-bg: #0A1118;
+  --term-head: #131E28;
+  --device-tile: #223040;
+  --device-stroke: #A7B6C4;
+  color-scheme: dark;
+}
+
+/* Gutters by breakpoint */
+@media (max-width: 1199.98px) { :root { --gutter: 24px; } }
+@media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) {
+  :root { --gutter: 16px; --fs-title: 600 18px/24px var(--font); }
+}
+
+/* Touch screens, whatever their width: 44 px targets, larger body text, 16 px inputs (no zoom on focus) */
+@media (pointer: coarse) {
+  :root { --tap: 44px; --fs-body: 400 15px/22px var(--font); --fs-input: 16px; }
+}

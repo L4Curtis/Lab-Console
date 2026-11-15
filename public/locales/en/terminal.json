@@ -1,0 +1,406 @@
+{
+  "pane": {
+    "starting": "Starting…",
+    "console": "Console",
+    "label": "{subtitle} of {title}",
+    "reconnect": "Reconnect",
+    "maximize": "Maximize",
+    "restore": "Restore layout",
+    "disconnectAndClose": "Disconnect and close",
+    "couldNotConnect": "Could not connect",
+    "disconnected": "Disconnected",
+    "tryAgain": "Try again",
+    "connectionLost": "Connection to the platform was lost",
+    "sessionClosed": "Session closed",
+    "notifyFree": "Tell me when it is free",
+    "notifyArmed": "Noted: you will be told when the line of {name} is free (for 30 minutes at most).",
+    "menu": "Actions of the {title} console",
+    "back": "Back to the bench",
+    "copyScreen": "Copy the screen",
+    "copyLines": {
+      "one": "Copy the last line",
+      "other": "Copy the last {count} lines"
+    },
+    "copied": "Copied to the clipboard.",
+    "copyFailed": "The browser refused access to the clipboard."
+  },
+  "phase": {
+    "ssh": "Reaching jump server",
+    "telnet": "Opening console",
+    "proxmox": "Opening VM console",
+    "connected": "Connected",
+    "login": "Connected",
+    "silent": "Device silent"
+  },
+  "actions": {
+    "break": "Send a BREAK",
+    "export": "Export the configuration",
+    "inject": "Inject a script",
+    "ctrlAltDel": "Send Ctrl+Alt+Del",
+    "broadcast": "Send to several consoles",
+    "history": "History"
+  },
+  "vnc": {
+    "opening": "Opening screen",
+    "closed": "Screen session closed",
+    "lost": "Connection to the VM screen was lost",
+    "credentials": "The VM asked for a password the platform did not expect"
+  },
+  "session": {
+    "serial": "Serial console",
+    "screen": "Screen",
+    "vmAddress": "VM {vmid} on {node}"
+  },
+  "split": {
+    "sidePanel": "Side panel",
+    "resize": "Resize panel and consoles"
+  },
+  "workspace": {
+    "label": "Open consoles",
+    "togglePanel": "Show or hide the diagram",
+    "layoutGroup": "Layout",
+    "layout": {
+      "grid": "Grid layout",
+      "columns": "Columns layout",
+      "rows": "Rows layout"
+    },
+    "closeAll": "Close all",
+    "count": {
+      "one": "{count} console open",
+      "other": "{count} consoles open"
+    },
+    "display": "Display",
+    "smallerSize": "Smaller text ({size} px)",
+    "largerSize": "Larger text ({size} px)",
+    "keys": "Key bar and input line",
+    "switcher": "Open consoles"
+  },
+  "task": {
+    "stop": "Stop",
+    "showErrors": "Show errors",
+    "hideErrors": "Hide errors",
+    "dismiss": "Dismiss",
+    "keyboardPaused": "Keyboard paused until it finishes",
+    "line": "line {line}",
+    "startingExport": "Starting the export",
+    "startingScript": "Starting the script",
+    "connectFirst": "Connect to the device first.",
+    "startingPaste": "Pasting"
+  },
+  "script": {
+    "title": "Inject a script into {title}",
+    "commands": "Commands to send",
+    "upload": "Upload file",
+    "hint": "One command per line, as you would type them. Blank lines are sent as Enter (to answer questions like \"[confirm]\"). You can also drop a .txt file here.",
+    "count": {
+      "one": "{count} line to send",
+      "other": "{count} lines to send"
+    },
+    "fileTooLarge": "{name} is larger than 256 KB.",
+    "tooLarge": "The script is larger than 256 KB.",
+    "pacing": "Pacing",
+    "waitPrompt": "Wait for the prompt after each line",
+    "waitPromptHint": "Recommended. The next line goes only once the device has answered.",
+    "delay": "Delay between lines",
+    "delayLabel": "Delay between lines in milliseconds",
+    "ms": "ms",
+    "skipComments": "Skip comment lines starting with \"!\"",
+    "stopOnError": "Stop at the first device error (\"% Invalid input…\")",
+    "send": "Send commands",
+    "library": "Library",
+    "keep": "Keep in the library",
+    "replaceTitle": "Replace the text?",
+    "replaceBody": "The text in the window will be replaced by the script \"{title}\".",
+    "replace": "Replace",
+    "fromLibrary": "Library: {title}"
+  },
+  "server": {
+    "consoles": {
+      "status_ssh": "Connecting to jump server {host}…",
+      "status_telnet": "Opening console {target}…",
+      "status_connected": "Console connected",
+      "status_login": "Signed in to the console automatically",
+      "telnet_failed": "Could not start telnet on the jump server: {detail}",
+      "closed": "Console closed",
+      "closed_exit": "Console closed (telnet exit code {code})",
+      "session_closed": "Session closed",
+      "browser_gone": "Browser disconnected",
+      "restarting": "Platform is restarting",
+      "idle_timeout": "Closed after {minutes} minutes without input. {name}'s console is free again.",
+      "platform_full": "The platform has reached its maximum number of open consoles. Try again shortly.",
+      "client_full": "You can keep at most {max} consoles open. Close one first.",
+      "rate_limited": "Too many consoles opened in the last minute. Wait a moment and try again.",
+      "device_gone": "This device no longer exists. Reload the page.",
+      "not_allowed": "{name}'s console address is not on the platform's allow-list.",
+      "invalid_target": "Invalid console address: {detail}",
+      "ssh_rejected": "Jump server rejected the SSH credentials (check SSH_USERNAME / SSH_PASSWORD)",
+      "ssh_refused": "Jump server {host}:{port} refused the connection",
+      "ssh_timeout": "Jump server {host} did not answer in time",
+      "ssh_unreachable": "Jump server {host} is unreachable from the platform",
+      "ssh_identity": "Jump server identity check failed (SSH_HOST_FINGERPRINT mismatch)",
+      "ssh_unpinned": "The jump server's identity is not pinned (SSH_HOST_FINGERPRINT): no connection is made without it. An administrator sets it on the lab parameters page.",
+      "ssh_error": "SSH error: {detail}",
+      "ssh_closed": "Connection to the jump server closed",
+      "diagram_load_failed": "Diagram could not be loaded: {detail}",
+      "warn_not_allowed": "{lab}/{name}: {target} is outside the allow-list (disabled)",
+      "warn_different_devices": "Console {target} is used by different devices: {devices}",
+      "warn_several_pages": "Console {target} ({name}) appears on several pages: {labs} — treated as shared equipment",
+      "line_refused": "The console server refuses the line of {name} ({target}): someone outside Lab Console is connected to it, or the line is out of order.",
+      "console_server_unreachable": "The jump server cannot reach the console server {host}.",
+      "device_silent": "{name} does not answer: the console server opened the line, but nothing comes back {seconds} s after Enter. Check on site that the device is powered on and that its console cable is plugged in.",
+      "open_locked": "{name} is on bench {bench}, locked by an administrator: {reason}",
+      "open_not_allowed": "{name} belongs to a bench taken by another team: you can watch its console once they open it.",
+      "room_gone": "Nobody has the console of {name} open any more.",
+      "room_closed": "This console has just closed.",
+      "control_not_allowed": "You may watch the console of {name}, not drive it.",
+      "control_pending": "{name} has already asked for the keyboard: wait for the answer.",
+      "control_not_pilot": "Only the person at the keyboard (or an admin) can do that.",
+      "control_no_request": "Nobody is asking for the keyboard right now.",
+      "control_admin_only": "Only an admin can take the keyboard over.",
+      "control_gone": "The person asking for the keyboard has left.",
+      "wall_read_only": "A bench wall tile only watches: open the console to ask for the keyboard.",
+      "control_refused": "{name} keeps the keyboard of this console.",
+      "task_running": "A task ({task}) holds this console: wait until it ends.",
+      "no_task": "No task is running on this console.",
+      "freed": "{name} freed the line of {device}.",
+      "too_many_watches": "You are already waiting for {max} lines. Cancel one first.",
+      "no_watch": "You were not waiting for this line.",
+      "bad_journal": "Unknown journal.",
+      "no_journal": "This console journal does not exist (any more).",
+      "journal_forbidden": "Only the people who were on this console that day, their team and the admins may read this journal.",
+      "paste_not_allowed": "You cannot type on {name} right now: ask for the keyboard first. Nothing was pasted.",
+      "broadcast_not_pilot": "You do not hold the keyboard of {name}: nothing was sent there.",
+      "history_forbidden": "Only the people on this console can read what it shows.",
+      "too_many_searches": "Too many searches in the last minute. Wait a moment.",
+      "bad_query": "A search is 1 to {max} characters."
+    },
+    "automation": {
+      "busy": "Another task is still running on this console.",
+      "busy_task": "Another task ({task}) is still running on this console.",
+      "export_unsupported": "Config export is available on Cisco console devices only.",
+      "script_empty": "The script is empty.",
+      "script_too_large": "The script is larger than 256 KB.",
+      "script_too_long": "The script has more than {max} lines.",
+      "script_control": "The script holds control characters (Ctrl+], Esc…): remove them.",
+      "looking_for_prompt": "Looking for the device prompt",
+      "leaving_config": "Leaving configuration mode",
+      "paging_off": "Turning paging off (terminal length 0)",
+      "reading_config": "Reading the running configuration",
+      "restoring_paging": "Restoring paging (terminal length {length})",
+      "user_mode": "{host} is in user mode ({host}>). Type \"enable\" to reach {host}#, then export again.",
+      "device_stopped": "The device stopped sending before the end of the configuration. Nothing was saved.",
+      "device_answered": "The device answered: {detail}",
+      "not_a_config": "The output does not look like a running configuration.",
+      "no_prompt": "No Cisco prompt answered. Log in to the device first (until you see a prompt such as R1#), then try again.",
+      "sending_line": "Sending line {line} of {total}",
+      "done": "Done",
+      "stopped": "Stopped",
+      "exported": {
+        "one": "Exported {count} line of {hostname}'s running-config",
+        "other": "Exported {count} lines of {hostname}'s running-config"
+      },
+      "exported_paging": {
+        "one": "Exported {count} line of {hostname}'s running-config (paging could not be disabled; --More-- pages were skipped through)",
+        "other": "Exported {count} lines of {hostname}'s running-config (paging could not be disabled; --More-- pages were skipped through)"
+      },
+      "sent": "Sent {sent} of {total} lines",
+      "device_errors": {
+        "one": "{count} device error (line {lines})",
+        "other": "{count} device errors (lines {lines})"
+      },
+      "no_prompt_after": {
+        "one": "No prompt after line {lines}",
+        "other": "No prompt after lines {lines}"
+      },
+      "timeout": "Timed out waiting for the device.",
+      "no_task": "A console step ran outside a task: nothing would be captured.",
+      "no_break": "This console line cannot send a BREAK.",
+      "bad_pattern": "A wait pattern must be a regular expression or a function.",
+      "stopped_on_error": "Stopped at the first error",
+      "waiting_for": "The device is waiting for an answer: \"{question}\""
+    }
+  },
+  "journal": {
+    "badge": "Journaled console",
+    "badgeHint": "What the device prints on this console is kept in a journal, with who had the keyboard."
+  },
+  "presence": {
+    "you": "You have the keyboard.",
+    "youShared": "You have the keyboard, shared.",
+    "pilot": "{name} has the keyboard.",
+    "pilotShared": "{name} has the keyboard, shared.",
+    "nobody": "Nobody has the keyboard.",
+    "watchOnly": "You may watch, not type.",
+    "task": "Task “{task}” running ({name}): keyboard paused.",
+    "waiting": "Request sent…",
+    "request": "Ask for the keyboard",
+    "release": "Give the keyboard back",
+    "share": "Share the keyboard",
+    "unshare": "Take the keyboard back",
+    "take": "Take the keyboard",
+    "hangup": "Free the line",
+    "hangupTitle": "Free the line of {name}?",
+    "hangupBody": {
+      "one": "{count} other person is watching this console: it will close for them too.",
+      "other": "{count} other people are watching this console: it will close for them too."
+    },
+    "hangupAlone": "The console will close and the line goes back to the console server.",
+    "ask": "{name} asks for the keyboard",
+    "askTask": "{name} wants to run “{task}”",
+    "autoIn": {
+      "one": "With no answer, {name} gets the keyboard in {count} s.",
+      "other": "With no answer, {name} gets the keyboard in {count} s."
+    },
+    "grant": "Give the keyboard",
+    "deny": "Refuse",
+    "avatarPilot": "{name} has the keyboard",
+    "typingHint": "You are watching this console: ask for the keyboard to type.",
+    "notice": {
+      "granted": "{name} gave you the keyboard.",
+      "timeout": "You have the keyboard: no answer in time.",
+      "idle": "You have the keyboard: the pilot was idle.",
+      "takeover": "You took the keyboard.",
+      "released": "{name} gave the keyboard back to you.",
+      "left": "You have the keyboard: {name} left.",
+      "denied": "{name} keeps the keyboard.",
+      "superseded": "Your request was replaced by an automatic task.",
+      "takenOver": "{name} (admin) took the keyboard."
+    }
+  },
+  "taskNames": {
+    "export": "export",
+    "inject": "injection",
+    "paste": "paste",
+    "broadcast": "send to several consoles",
+    "check:lines": "line check",
+    "check:cabling": "cabling check",
+    "check:ping": "ping matrix",
+    "check:interfaces": "interface reading",
+    "job:backup": "backup",
+    "job:inject": "injection",
+    "job:reset": "reset",
+    "job:compare": "comparison",
+    "recovery": "password recovery",
+    "recovery: put back": "restoring the device"
+  },
+  "paste": {
+    "tooLarge": "The pasted text is larger than 256 KB: it was not sent.",
+    "taskRunning": "A task is running on this console: wait until it ends to paste."
+  },
+  "broadcast": {
+    "title": "Send to several consoles",
+    "intro": "The same lines go one by one to every ticked console, paced like an injection. Only the consoles where you hold the keyboard can be ticked.",
+    "consoles": "Consoles",
+    "commands": "Commands to send to the ticked consoles",
+    "hint": "At most {max} lines. A blank line is an Enter.",
+    "tooMany": "No more than {max} lines at a time.",
+    "send": {
+      "one": "Send to {count} console",
+      "other": "Send to {count} consoles"
+    },
+    "reasonOffline": "not connected",
+    "reasonNotPilot": "you do not hold the keyboard",
+    "reasonBusy": "a task is running on it",
+    "waiting": "Sent, waiting for the console…",
+    "lost": "The connection to this console dropped.",
+    "running": "Sending. Each console goes at its own pace.",
+    "summary": {
+      "one": "{count} console: {ok} without an error.",
+      "other": "{count} consoles: {ok} without an error."
+    },
+    "stopAll": "Stop all",
+    "goesOn": "The sending goes on on the consoles: follow it in their bars."
+  },
+  "history": {
+    "title": "History of {title}",
+    "intro": "Searches what the console showed: first what the platform keeps in memory, then the journal of the days you may read. The text is searched as is, ignoring case.",
+    "placeholder": "Text to search for",
+    "search": "Search",
+    "matchCase": "Match case",
+    "screen": "On the console",
+    "downloadScreen": "Download",
+    "notOnIt": "Only the people on this console can read what it shows: reopen it or join it.",
+    "closed": "Nobody has this console open any more: only the journal keeps its trace.",
+    "screenLines": {
+      "one": "{count} line in memory (about the last 200 KB). Type a text to search it.",
+      "other": "{count} lines in memory (about the last 200 KB). Type a text to search it."
+    },
+    "journal": "Journal",
+    "noJournal": "No journal for this console yet.",
+    "journalDenied": "This journal exists, but only the people who were on this console that day, their team and the administrators can read it.",
+    "found": {
+      "one": "{count} line found",
+      "other": "{count} lines found"
+    },
+    "nothing": "Nothing found.",
+    "truncated": {
+      "one": "Only the first line is shown.",
+      "other": "Only the first {count} lines are shown: narrow the search."
+    },
+    "line": "line {line}",
+    "sessions": {
+      "one": "{count} session",
+      "other": "{count} sessions"
+    },
+    "downloadDay": "Download this day"
+  },
+  "actionHints": {
+    "break": "Send BREAK (password recovery, ROMMON)",
+    "export": "Export config: download show running-config as a .txt file",
+    "inject": "Inject script: send a list of commands, line by line",
+    "broadcast": "Send to several consoles: the same commands on every console where you hold the keyboard",
+    "history": "History: search what the console showed, and download it"
+  },
+  "keys": {
+    "label": "Special keys",
+    "field": "Line to send to the console",
+    "placeholder": "Type a command",
+    "send": "Send (Enter)",
+    "esc": "Esc",
+    "tab": "Tab",
+    "ctrl": "Ctrl",
+    "toLine": "Switch to the input line",
+    "toDirect": "Type straight into the terminal",
+    "modeLine": "Input mode: line",
+    "modeDirect": "Input mode: direct",
+    "pasteRefused": "The browser did not hand over the clipboard: paste into the input line.",
+    "short": {
+      "break": "Break",
+      "space": "Space",
+      "paste": "Paste",
+      "mode": "Keyboard"
+    },
+    "names": {
+      "esc": "Escape",
+      "tab": "Tab",
+      "ctrl": "Ctrl",
+      "up": "Up arrow",
+      "down": "Down arrow",
+      "left": "Left arrow",
+      "right": "Right arrow",
+      "help": "Question mark",
+      "ctrlC": "Ctrl+C",
+      "ctrlZ": "Ctrl+Z",
+      "break": "Interrupt (Ctrl+Shift+6)",
+      "space": "Space",
+      "paste": "Paste",
+      "mode": "Input mode"
+    },
+    "hints": {
+      "esc": "Escape",
+      "tab": "Tab: completes the IOS command",
+      "ctrl": "Ctrl: the next key goes with Ctrl (twice: locked)",
+      "up": "Previous command",
+      "down": "Next command",
+      "left": "Cursor left",
+      "right": "Cursor right",
+      "help": "?: what may follow",
+      "ctrlC": "Ctrl+C: cancel",
+      "ctrlZ": "Ctrl+Z: leave configuration mode",
+      "break": "Ctrl+Shift+6: stop a ping or a traceroute",
+      "space": "Space: next page of --More--",
+      "paste": "Paste the clipboard",
+      "mode": "Input line or direct typing"
+    }
+  }
+}

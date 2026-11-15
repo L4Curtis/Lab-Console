@@ -3,14 +3,15 @@
  */
 import { h, icon, toast } from '../../core/dom.js';
 import { request } from '../../core/api.js';
+import { t, tAttr, tNode } from '../../core/i18n.js';
 
 export function openCloneDialog({ templates, nodes }) {
-  const tpl = h('select.field', { required: true }, templates.map((t) => h('option', { value: t.vmid }, `${t.name} (${t.vmid}, ${t.node})`)));
-  const name = h('input.field', { required: true, pattern: '[A-Za-z0-9]([A-Za-z0-9\\-]{0,61}[A-Za-z0-9])?', placeholder: 'e.g. vpc-5h1', autocomplete: 'off' });
-  const node = h('select.field', h('option', { value: '' }, 'Same node as the template'), nodes.map((n) => h('option', { value: n }, n)));
-  const vlan = h('input.field', { type: 'number', min: 1, max: 4094, placeholder: 'Untagged' });
+  const tpl = h('select.field', { required: true }, templates.map((tm) => h('option', { value: tm.vmid }, `${tm.name} (${tm.vmid}, ${tm.node})`)));
+  const name = h('input.field', { required: true, pattern: '[A-Za-z0-9]([A-Za-z0-9\\-]{0,61}[A-Za-z0-9])?', ...tAttr('placeholder', 'infra.clone.namePlaceholder'), autocomplete: 'off' });
+  const node = h('select.field', h('option', { value: '' }, tNode('infra.clone.sameNode')), nodes.map((n) => h('option', { value: n }, n)));
+  const vlan = h('input.field', { type: 'number', min: 1, max: 4094, ...tAttr('placeholder', 'infra.clone.untagged') });
   const error = h('p.form-error', { role: 'alert' });
-  const submit = h('button.btn.primary', { type: 'submit' }, 'Clone');
+  const submit = h('button.btn.primary', { type: 'submit' }, tNode('infra.clone.submit'));
 
   const form = h('form.modal-body.form-grid', {
     onsubmit: async (e) => {
@@ -22,7 +23,7 @@ export function openCloneDialog({ templates, nodes }) {
           template: Number(tpl.value), name: name.value.trim(), node: node.value || undefined,
           vlan: vlan.value === '' ? null : Number(vlan.value),
         });
-        toast(`Cloning ${name.value.trim()}. Progress shows above the VM list.`);
+        toast(t('infra.clone.started', { name: name.value.trim() }));
         dlg.close();
       } catch (err) {
         error.textContent = err.message;
@@ -30,16 +31,16 @@ export function openCloneDialog({ templates, nodes }) {
       }
     },
   },
-  h('label', h('span', 'Template'), tpl),
-  h('label', h('span', 'Name'), name, h('small', 'Letters, digits and dashes. Becomes the VM hostname.')),
-  h('label', h('span', 'Node'), node),
-  h('label', h('span', 'VLAN tag of net0'), vlan, h('small', 'Leave empty for no tag.')),
+  h('label', tNode('infra.clone.template'), tpl),
+  h('label', tNode('infra.clone.name'), name, h('small', tNode('infra.clone.nameHint'))),
+  h('label', tNode('infra.clone.node'), node),
+  h('label', tNode('infra.clone.vlan'), vlan, h('small', tNode('infra.clone.vlanHint'))),
   error,
-  h('div.form-actions', h('button.btn', { type: 'button', onclick: () => dlg.close() }, 'Cancel'), submit));
+  h('div.form-actions', h('button.btn', { type: 'button', onclick: () => dlg.close() }, tNode('common.actions.cancel')), submit));
 
-  const dlg = h('dialog.modal', { 'aria-label': 'Clone template' },
-    h('header.modal-head', h('h2', 'Clone template'),
-      h('button.icon-btn', { type: 'button', title: 'Close', onclick: () => dlg.close() }, icon('close'))),
+  const dlg = h('dialog.modal', tAttr('aria-label', 'infra.clone.title'),
+    h('header.modal-head', h('h2', tNode('infra.clone.title')),
+      h('button.icon-btn', { type: 'button', ...tAttr('title', 'common.actions.close'), onclick: () => dlg.close() }, icon('close'))),
     form);
   dlg.addEventListener('close', () => dlg.remove());
   document.body.append(dlg);

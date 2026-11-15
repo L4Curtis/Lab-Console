@@ -1,0 +1,75 @@
+/**
+ * Local sign-in goes through account providers
+ *
+ * A provider is a small object:
+ *
+ *   {
+ *     id: 'env-admin',
+ *     async verify({ username, password, code }) → { user } | null
+ *   }
+ *
+ * The first one is the administrator of the environment (envAdmin.js).
+ * Later ones (the directory of the accounts module: accounts created through
+ * invitations) are added with auth.accounts.add(provider) and need no change
+ * here. A provider that wants a further proof before a session is opened (a
+ * passkey: every account of the directory) answers
+ * `{ user, requires: ['passkey'] }` or `['passkey-enrol']`: the sign-in then
+ * continues as a step (auth.steps, index.js) instead of opening a session.
+ * It may add `binding`: whatever it needs to tell later that the credentials
+ * the step was started with are still the account's (a fingerprint of the
+ * password hash, the passkeys it had); the step keeps it and auth.steps.peek()
+ * hands it back, untouched. A provider that recognised the credentials but
+ * cannot let the account in on this site whatever it proves next (a local
+ * account where passkeys cannot be offered) answers `{ user, refused: {
+ * status, code, message } }`: the form shows that error instead of the
+ * generic refusal, since the person already proved who they are.
+ *
+ * The contract every provider keeps: the same work, the same answer and the
+ * same time whether or not the user name exists (hash a dummy password for
+ * an unknown name). Every provider is asked on every attempt, so the time an
+ * answer takes does not say which one knows the name either
+ */
+export function createAccountProviders(initial = []) {
+  const providers = [];
+
+  const add = (provider) => {
+    if (!provider || typeof provider.verify !== 'function' || !provider.id) throw new TypeError('An account provider needs an id and verify()');
+    if (providers.some((p) => p.id === provider.id)) throw new Error(`Account provider "${provider.id}" is already registered`);
+    providers.push(provider);
+    return () => {
+      const i = providers.indexOf(provider);
+      if (i !== -1) providers.splice(i, 1);
+    };
+  };
+  for (const provider of initial) add(provider);
+
+  return {
+    add,
+    get ids() { return providers.map((p) => p.id); },
+
+    /** → { user, requires, binding, refused } from the one provider that recognises these credentials, or null */
+    async verify(credentials, { logger } = {}) {
+      const answers = await Promise.all(providers.map((p) => Promise.resolve()
+        .then(() => p.verify(credentials))
+        .catch((err) => {
+          logger?.error(`account provider ${p.id} failed: ${err.message}`);
+          return null;
+        })));
+      const matches = answers.filter((a) => a?.user);
+      // Two providers claiming the same credentials is a configuration error, never a sign-in
+      if (matches.length !== 1) return null;
+      const [{ user, requires, binding, refused }] = matches;
+      return {
+        user,
+        requires: Array.isArray(requires) ? requires.filter((r) => typeof r === 'string') : [],
+        binding: binding ?? null,
+        // A refusal stays one even when malformed: the generic answer, never a session
+        refused: refused ? {
+          status: Number.isInteger(refused.status) ? refused.status : 401,
+          code: typeof refused.code === 'string' ? refused.code : 'auth.invalid_credentials',
+          message: typeof refused.message === 'string' ? refused.message : 'Sign-in failed',
+        } : null,
+      };
+    },
+  };
+}

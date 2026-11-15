@@ -1,0 +1,181 @@
+Building configuration...
+
+Current configuration : 6412 bytes
+!
+! Last configuration change at 22:31:07 UTC Thu Nov 12 2026
+!
+version 17.3
+service timestamps debug datetime msec
+service timestamps log datetime msec
+platform qfp utilization monitor load 80
+platform punt-keepalive disable-kernel-core
+!
+hostname R1
+!
+boot-start-marker
+boot system bootflash:isr4300-universalk9.17.03.04a.SPA.bin
+boot-end-marker
+!
+!
+vrf definition Mgmt-intf
+ !
+ address-family ipv4
+ exit-address-family
+ !
+ address-family ipv6
+ exit-address-family
+!
+enable secret 9 $9$3Pz1oWZcKqVkUE$Lw7c3W.jxwUuSA1r0eGbn2Tgg9w2eHq5iQ0bS7mF0Xo
+!
+no aaa new-model
+!
+!
+!
+!
+!
+!
+!
+ip domain name tp.lab
+!
+!
+!
+login on-success log
+!
+!
+!
+!
+!
+!
+!
+subscriber templating
+! 
+! 
+! 
+! 
+!
+!
+!
+multilink bundle-name authenticated
+!
+!
+!
+!
+!
+!
+!
+!
+!
+crypto pki trustpoint TP-self-signed-2138794470
+ enrollment selfsigned
+ subject-name cn=IOS-Self-Signed-Certificate-2138794470
+ revocation-check none
+ rsakeypair TP-self-signed-2138794470
+!
+crypto pki trustpoint SLA-TrustPoint
+ enrollment pkcs12
+ revocation-check crl
+!
+!
+crypto pki certificate chain TP-self-signed-2138794470
+ certificate self-signed 01
+  3082032E 30820216 A0030201 02020101 300D0609 2A864886 F70D0101 05050030 
+  30312E30 2C060355 04031325 494F532D 53656C66 2D536967 6E65642D 43657274 
+  69666963 6174652D 32313338 37393434 3730301E 170D3236 31313132 32313030 
+  D4B0A6E7 4F2C9B1A 77E0C8F3 1E66B0E2 9A
+  	quit
+crypto pki certificate chain SLA-TrustPoint
+ certificate ca 01
+  30820321 30820209 A0030201 02020101 300D0609 2A864886 F70D0101 0B050030 
+  32310E30 0C060355 040A1305 43697363 6F312030 1E060355 04031317 43697363 
+  6F204C69 63656E73 696E6720 526F6F74 20434130 1E170D31 33303533 30313934 
+  8B2F6A3C 0D
+  	quit
+!
+license udi pid ISR4331/K9 sn FDO21230ABC
+license boot level appxk9
+memory free low-watermark processor 69574
+diagnostic bootup level minimal
+!
+spanning-tree extend system-id
+!
+username admin privilege 15 secret 9 $9$wd2n7Pz9TxW1bE$9cUq8Tq3t9k5k3Rk1oH9u8cG6v0Yb2q6nqPz9rS1aUk
+!
+redundancy
+ mode none
+!
+!
+!
+!
+!
+!
+interface Loopback0
+ ip address 2.2.2.2 255.255.255.255
+!
+interface GigabitEthernet0/0/0
+ description Vers S1 Gi1/0/24
+ ip address 192.168.1.1 255.255.255.0
+ negotiation auto
+!
+interface GigabitEthernet0/0/1
+ no ip address
+ shutdown
+ negotiation auto
+!
+interface GigabitEthernet0/0/2
+ ip address 10.0.12.1 255.255.255.252
+ shutdown
+ negotiation auto
+!
+interface Serial0/1/0
+ ip address 10.1.1.2 255.255.255.252
+!
+interface Serial0/1/1
+ no ip address
+ shutdown
+!
+interface GigabitEthernet0
+ vrf forwarding Mgmt-intf
+ no ip address
+ shutdown
+ negotiation auto
+!
+router ospf 1
+ router-id 2.2.2.2
+ network 10.1.1.0 0.0.0.3 area 0
+ network 192.168.1.0 0.0.0.255 area 0
+!
+ip forward-protocol nd
+ip http server
+ip http authentication local
+ip http secure-server
+ip route 0.0.0.0 0.0.0.0 10.1.1.1
+!
+ip ssh bulk-mode 131072
+ip ssh version 2
+!
+!
+!
+!
+!
+control-plane
+!
+!
+banner motd ^CR1 : routeur du labo # TP OSPF^C
+!
+line con 0
+ exec-timeout 0 0
+ logging synchronous
+ transport input none
+ stopbits 1
+line aux 0
+ stopbits 1
+line vty 0 4
+ login local
+ transport input ssh
+!
+!
+!
+!
+!
+!
+end

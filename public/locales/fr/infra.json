@@ -1,0 +1,119 @@
+{
+  "title": "Machines et switchs",
+  "subtitle": "Les VM Proxmox et les switchs d’administration du labo",
+  "tabs": {
+    "vms": "Machines virtuelles",
+    "switches": "Switchs d’admin"
+  },
+  "switches": {
+    "none": "Aucun switch d’administration n’est listé pour l’instant.",
+    "other": "Autres",
+    "open": "Ouvrir la console",
+    "show": "Afficher la console",
+    "busy": "La console de {name} est utilisée par une autre session. Réessayez quand elle sera libre.",
+    "state": {
+      "idle": "Libre",
+      "open": "Ouvert dans votre espace de travail",
+      "busy": "Utilisée par une autre session",
+      "disabled": "Hors de la liste autorisée"
+    }
+  },
+  "vm": {
+    "filter": "Filtrer par nom, ID de VM ou VLAN",
+    "filterLabel": "Filtrer les machines virtuelles",
+    "selectAll": "Sélectionner toutes les VM affichées",
+    "startSelected": "Démarrer la sélection",
+    "stopSelected": "Arrêter la sélection",
+    "reachedVia": "Proxmox est joint par le serveur de rebond SSH",
+    "hostVia": "{host} via {via}",
+    "reload": "Recharger depuis Proxmox",
+    "clone": "Cloner un modèle",
+    "colVm": "VM",
+    "colVlan": "VLAN (net0)",
+    "unavailable": "Proxmox n’est pas disponible pour le moment.",
+    "notConfigured": "Proxmox n’est pas configuré",
+    "notConfiguredHint": "Renseignez PROXMOX_URL, PROXMOX_USERNAME et PROXMOX_PASSWORD dans le fichier .env, puis redémarrez la plateforme.",
+    "adminOnly": "Les machines virtuelles sont réservées aux administrateurs",
+    "adminOnlyHint": "Demandez à un administrateur de démarrer, d’arrêter ou de cloner une VM.",
+    "reloaded": "Liste des VM rechargée",
+    "unreachable": "Proxmox est injoignable : {error}",
+    "noMatch": "Aucune VM ne correspond à ce filtre.",
+    "none": "Utilisez « Cloner un modèle » pour en créer une.",
+    "count": {
+      "one": "{count} VM",
+      "other": "{count} VM"
+    },
+    "templateCount": {
+      "one": "{count} modèle",
+      "other": "{count} modèles"
+    },
+    "foot": "{vms}. {templates} à cloner.",
+    "rowLabel": "{action} {name}",
+    "serial": "Console série",
+    "vnc": "VNC",
+    "noSerial": "Pas de port série sur cette VM (ajoutez serial0: socket dans Proxmox)",
+    "startFirst": "Démarrez d’abord la VM",
+    "start": "Démarrer",
+    "stop": "Arrêter",
+    "forceStop": "Forcer l’arrêt",
+    "select": "Sélectionner",
+    "status": {
+      "running": "En marche",
+      "stopped": "Arrêtée",
+      "paused": "En pause"
+    },
+    "location": "{vmid} sur {node}",
+    "noNet0": "pas de net0",
+    "vlanNone": "aucun",
+    "vlanLabel": "Tag VLAN de net0 pour {name}",
+    "vlanTitle": "net0 sur {bridge}. Vide = sans tag.",
+    "vlanSet": "Appliquer",
+    "vlanNowUntagged": "{name} : net0 n’est plus taggé",
+    "vlanNowTagged": "{name} : net0 est maintenant sur le VLAN {vlan}",
+    "selected": {
+      "one": "{count} sélectionnée ({running} en marche, {stopped} à l’arrêt)",
+      "other": "{count} sélectionnées ({running} en marche, {stopped} à l’arrêt)"
+    },
+    "tickHint": "Cochez des VM pour en démarrer ou en arrêter plusieurs d’un coup",
+    "confirmStop": {
+      "one": "Éteindre {count} VM ?",
+      "other": "Éteindre {count} VM ?"
+    },
+    "bulkStarting": {
+      "one": "Démarrage de {count} VM. La progression s’affiche au-dessus de la liste.",
+      "other": "Démarrage de {count} VM. La progression s’affiche au-dessus de la liste."
+    },
+    "bulkStopping": {
+      "one": "Arrêt de {count} VM. La progression s’affiche au-dessus de la liste.",
+      "other": "Arrêt de {count} VM. La progression s’affiche au-dessus de la liste."
+    },
+    "bulkFailedStart": "Impossible de démarrer {names}",
+    "bulkFailedStop": "Impossible d’arrêter {names}",
+    "confirmForceStop": "Forcer l’arrêt de {name} ? C’est comme débrancher le câble d’alimentation.",
+    "powerStarting": "{name} : démarrage en cours",
+    "powerStopping": "{name} : arrêt en cours",
+    "powerForceStopping": "{name} : arrêt forcé en cours",
+    "noTemplate": "Aucun modèle trouvé. Convertissez d’abord une VM en modèle dans Proxmox.",
+    "selectDone": "Terminer la sélection",
+    "listLabel": "Machines virtuelles",
+    "colStatus": "État",
+    "noneTitle": "Aucune VM"
+  },
+  "clone": {
+    "title": "Cloner un modèle",
+    "template": "Modèle",
+    "name": "Nom",
+    "nameHint": "Lettres, chiffres et tirets. Devient le nom d’hôte de la VM.",
+    "namePlaceholder": "ex. vpc-5h1",
+    "node": "Nœud",
+    "sameNode": "Même nœud que le modèle",
+    "vlan": "Tag VLAN de net0",
+    "vlanHint": "Laisser vide pour ne pas taguer.",
+    "untagged": "Sans tag",
+    "submit": "Cloner",
+    "started": "Clonage de {name} en cours. La progression s’affiche au-dessus de la liste des VM."
+  },
+  "errors": {
+    "unreachable": "Proxmox est injoignable pour le moment. Réessayez dans un instant ; les administrateurs trouvent la cause dans le journal."
+  }
+}

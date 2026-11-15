@@ -1,0 +1,196 @@
+{
+  "title": "Consoles",
+  "find": "Find a device",
+  "topology": "Topology",
+  "noLabs": "No labs found in the diagram file",
+  "loadFailed": "The diagram could not be loaded.",
+  "hint": {
+    "one": "Click the device to open its console.",
+    "other": "Click a device to open its console."
+  },
+  "noDevice": "This page has no device with a console address.",
+  "notAllowed": "{name}'s console address is not on the platform's allow-list.",
+  "notes": {
+    "one": "{count} diagram note",
+    "other": "{count} diagram notes"
+  },
+  "notesIntro": "Found while reading the diagram file:",
+  "picker": {
+    "label": "Benches",
+    "none": "Bench",
+    "button": "Bench {name}, {state}. Change bench",
+    "bay": "Bay {bay}",
+    "ours": "Your bench",
+    "you": "you",
+    "devices": {
+      "one": "{count} device",
+      "other": "{count} devices"
+    },
+    "open": {
+      "one": "{count} console open",
+      "other": "{count} consoles open"
+    },
+    "state": {
+      "free": "Free",
+      "taken": "Taken",
+      "mine": "Your bench",
+      "locked": "Locked"
+    }
+  },
+  "quickOpen": {
+    "placeholder": "Find a device by name, lab or port",
+    "label": "Find a device",
+    "hint": "Enter opens the console. Esc closes.",
+    "empty": "No device matches. Try a lab name like B4B or a port like 2001."
+  },
+  "diagram": {
+    "zoomOut": "Zoom out",
+    "zoomIn": "Zoom in",
+    "fit": "Fit diagram to view",
+    "topology": "Topology of {name}",
+    "device": "{name}: {state}",
+    "watchers": {
+      "one": "Watching: {names}",
+      "other": "Watching: {names}"
+    }
+  },
+  "state": {
+    "idle": "Free. Open it to drive the console",
+    "open": "Open in your workspace",
+    "live": "Open by someone else: you can join it",
+    "busy": "Busy outside Lab Console: the console server refused the line",
+    "disabled": "Console address not allowed by the platform"
+  },
+  "live": {
+    "button": "Live",
+    "title": "Live",
+    "count": {
+      "one": "{count} open console",
+      "other": "{count} open consoles"
+    },
+    "open": "Open consoles",
+    "activity": "Activity",
+    "none": "No console is open right now.",
+    "quiet": "Nothing new yet.",
+    "join": "Open or join the console of {name}",
+    "task": "Task “{task}” started by {name}",
+    "pilot": "{name} has the keyboard",
+    "noPilot": "Nobody has the keyboard",
+    "lastCommand": "Last command typed",
+    "someone": "Someone",
+    "elsewhere": "{name} ({bench}) is not on the diagram."
+  },
+  "activity": {
+    "open": "{name} opened {device} ({bench})",
+    "join": "{name} joined {device} ({bench})",
+    "leave": "{name} left {device} ({bench})",
+    "freed": "{name} freed the line of {device} ({bench})",
+    "close": "The console of {device} ({bench}) closed",
+    "control": {
+      "granted": "{name} has the keyboard of {device} ({bench})",
+      "timeout": "{name} took the keyboard of {device}: no answer in time",
+      "idle": "{name} took the keyboard of {device}: the pilot was idle",
+      "takeover": "{name} took the keyboard of {device} over (admin)",
+      "released": "{name} has the keyboard of {device} ({bench})",
+      "left": "{name} has the keyboard of {device} ({bench})",
+      "request": "{name} asks for the keyboard of {device} ({bench})",
+      "shared": "{name} shared the keyboard of {device}",
+      "unshared": "{name} took the keyboard of {device} back for themselves",
+      "free": "{name} has the keyboard of {device} ({bench})",
+      "task": "{name} has the keyboard of {device} after their task",
+      "denied": "{name} keeps the keyboard of {device}",
+      "returned": "{name} has the keyboard of {device} back"
+    },
+    "task": {
+      "start": "{name} starts “{task}” on {device}",
+      "done": "“{task}” finished on {device}",
+      "cancelled": "“{task}” stopped on {device}",
+      "failed": "“{task}” failed on {device}"
+    }
+  },
+  "wall": {
+    "title": "Console wall {bench}",
+    "intro": "Every open console of the bench, live and read-only.",
+    "empty": "No console of this bench is open right now.",
+    "open": "Open"
+  },
+  "journal": {
+    "title": "My console journals",
+    "intro": "What the devices printed, session by session. You read the whole day of a console you were on with the right to drive it (watching only does not count), or that your team’s bench held that day: every session of that day, other people’s included (all of them for an admin). Kept {days} days.",
+    "none": "No journal for you yet.",
+    "download": "Download",
+    "truncated": "Cut short",
+    "truncatedHint": "The journal reached its size limit for the day: the end is missing.",
+    "ongoing": "ongoing",
+    "bytes": {
+      "one": "{count} byte",
+      "other": "{count} bytes"
+    },
+    "kb": {
+      "one": "{count} KB",
+      "other": "{count} KB"
+    },
+    "mb": {
+      "one": "{count} MB",
+      "other": "{count} MB"
+    },
+    "notice": "Consoles are journaled for {days} days: what the devices print, not what you type without echo.",
+    "noticeShort": "Consoles are journaled for {days} days.",
+    "dismiss": "Got it",
+    "noneTitle": "No journal",
+    "loadFailed": "The journals could not be loaded.",
+    "downloadOf": "Download the journal of {device}, {day}",
+    "more": "Learn more"
+  },
+  "notify": {
+    "free": "The console of {name} ({bench}) is free: you can open it.",
+    "open": "The console of {name} ({bench}) is now open in Lab Console: you can join it.",
+    "expired": "The console of {name} ({bench}) is still busy after 30 minutes: we stopped watching."
+  },
+  "noLabsHint": "An administrator imports the lab diagram in Admin › Diagram.",
+  "hintTouch": {
+    "one": "Tap the device to open its console.",
+    "other": "Tap a device to open its console. Long press: its details."
+  },
+  "unknownDevice": "There is no {name} on bench {bench}.",
+  "view": {
+    "label": "Bench view",
+    "diagram": "Diagram",
+    "list": "List"
+  },
+  "list": {
+    "idle": "Free",
+    "open": "Open here",
+    "live": "Open",
+    "with": "With {name} (keyboard)",
+    "busy": "Busy outside the app",
+    "disabled": "Unavailable"
+  },
+  "device": {
+    "title": "{name} · {bench}",
+    "note": "Note",
+    "open": "Open the console"
+  },
+  "dock": {
+    "count": {
+      "one": "{count} console open",
+      "other": "{count} consoles open"
+    },
+    "label": {
+      "one": "{count} console open: back to {name}",
+      "other": "{count} consoles open: back to {name}"
+    }
+  },
+  "rotate": {
+    "hint": "Turn your phone to see more columns.",
+    "dismiss": "Got it"
+  },
+  "tools": {
+    "title": "Tools",
+    "checks": "Checks",
+    "wall": "Console wall",
+    "wallNone": "No console of this bench is open.",
+    "journals": "Journals",
+    "scripts": "Script library"
+  }
+}

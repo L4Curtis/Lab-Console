@@ -7,26 +7,35 @@ import { h, icon, toast } from '../../core/dom.js';
 import { getJson, live } from '../../core/api.js';
 import { workspace } from '../../shared/workspace.js';
 import { consoleSession } from '../../shared/sessions.js';
+import { emptyState, loading } from '../../shared/loadState.js';
+import { t, onLocaleChange } from '../../core/i18n.js';
 
-const STATE_TEXT = { idle: 'Free', open: 'Open in your workspace', busy: 'In use by another session', disabled: 'Not on the allow-list' };
+const STATE_TONES = { idle: 'success', open: 'info', busy: 'warning', disabled: 'neutral' };
 
 export class SwitchPanel {
   switches = [];
   busy = new Set();
+  loaded = false;
   #cards = new Map();
 
   constructor() {
     this.grid = h('div.switch-bays');
-    this.el = h('div.panel', this.grid);
+    this.el = h('div.admin-page.switch-panel', this.grid);
     live.on('consoles:busy', (targets) => { this.busy = new Set(targets); this.#refresh(); });
     workspace.addEventListener('change', () => this.#refresh());
+    onLocaleChange(() => { if (this.loaded) this.#render(); });
   }
 
+  /** The page header has no action for this tab */
+  actions() { return []; }
+
   async show() {
+    if (!this.loaded) this.grid.replaceChildren(loading());
     try {
       ({ switches: this.switches } = await getJson('/api/consoles/admin-switches'));
+      this.loaded = true;
     } catch (err) {
-      this.grid.replaceChildren(h('p.form-error', err.message));
+      this.grid.replaceChildren(h('div.load-failure', { role: 'alert' }, h('p', err.message), h('button.btn.sm', { type: 'button', dataset: { action: 'retry' }, onclick: () => this.show() }, t('common.actions.retry'))));
       return;
     }
     this.#render();
@@ -35,18 +44,19 @@ export class SwitchPanel {
   #render() {
     this.#cards.clear();
     if (!this.switches.length) {
-      this.grid.replaceChildren(h('p.muted', 'No admin switch is listed in config/infrastructure.json.'));
+      this.grid.replaceChildren(emptyState({ icon: 'network', title: 'infra.switches.none' }));
       return;
     }
-    const bays = Map.groupBy(this.switches, (s) => s.bay || 'Other');
+    const bays = Map.groupBy(this.switches, (s) => s.bay || t('infra.switches.other'));
     this.grid.replaceChildren(...[...bays].map(([bay, list]) => h('section.bay',
       h('h3', bay),
       h('div.bay-cards', list.map((s) => {
-        const btn = h('button.btn.primary.small', { type: 'button', onclick: () => this.#open(s) }, icon('terminal'), 'Open console');
-        const state = h('span.switch-state');
-        const card = h('article.switch-card',
+        const btn = h('button.btn.sm', { type: 'button', onclick: () => this.#open(s) }, icon('terminal'), h('span.lbl', t('infra.switches.open')));
+        const state = h('span.badge.switch-state');
+        const card = h('article.card.switch-card',
           h('span.switch-led', { 'aria-hidden': 'true' }),
-          h('div.switch-text', h('strong', s.name), h('code', `${s.target.host}:${s.target.port}`), state),
+          h('div.switch-text', h('strong', s.name), h('code', `${s.target.host}:${s.target.port}`)),
+          state,
           btn);
         this.#cards.set(s.key, { card, state, btn, s });
         return card;
@@ -57,7 +67,7 @@ export class SwitchPanel {
   #open(s) {
     const session = consoleSession(s, s.bay);
     if (!workspace.panes.has(session.key) && this.busy.has(`${s.target.host}:${s.target.port}`)) {
-      return toast(`${s.labName} is in use by another session. Try again when it is free.`, 'warn');
+      return toast(t('infra.switches.busy', { name: s.labName }), 'warn');
     }
     workspace.open(session);
   }
@@ -65,12 +75,13 @@ export class SwitchPanel {
   #refresh() {
     const mine = workspace.liveTargets();
     for (const { card, state, btn, s } of this.#cards.values()) {
-      const t = `${s.target.host}:${s.target.port}`;
-      const st = !s.allowed ? 'disabled' : mine.has(t) ? 'open' : this.busy.has(t) ? 'busy' : 'idle';
+      const target = `${s.target.host}:${s.target.port}`;
+      const st = !s.allowed ? 'disabled' : mine.has(target) ? 'open' : this.busy.has(target) ? 'busy' : 'idle';
       card.dataset.state = st;
-      state.textContent = STATE_TEXT[st];
+      state.textContent = t(`infra.switches.state.${st}`);
+      state.dataset.tone = STATE_TONES[st];
       btn.disabled = st === 'disabled';
-      btn.lastChild.textContent = st === 'open' ? 'Show console' : 'Open console';
+      btn.querySelector('.lbl').textContent = t(st === 'open' ? 'infra.switches.show' : 'infra.switches.open');
     }
   }
 }

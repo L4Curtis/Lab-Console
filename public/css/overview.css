@@ -1,0 +1,125 @@
+/* Accueil: attention, "Ma baie", "Le labo" and the cards of the bottom row
+   (docs/v2/UX.md §10.1). Tokens only, so both themes work */
+
+.ov-home { display: grid; gap: var(--sp-8); align-content: start; }
+.ov-home > * { min-width: 0; }
+.ov-home h2 { font: var(--fs-heading); }
+.ov-status { margin: 0; font: var(--fs-small); }
+.ov-eyebrow { margin: 0; font: var(--fs-caption); color: var(--text-muted); }
+.ov-meta { margin: 0; font: var(--fs-small); color: var(--text-muted); }
+
+/* ── Attention: one line, one action ───────────────────────────────────── */
+.ov-attention-list { display: grid; gap: var(--sp-2); margin: 0; padding: 0; list-style: none; }
+.ov-attention-item {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3);
+  padding: var(--sp-3) var(--sp-4); border-left-width: 4px;
+}
+.ov-attention-item > .icon { width: 20px; height: 20px; }
+.ov-attention-item p { flex: 1 1 14em; margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.ov-attention-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-left: auto; }
+.ov-attention-item[data-tone="warning"] { border-left-color: var(--warning); background: var(--warning-bg); }
+.ov-attention-item[data-tone="warning"] > .icon { color: var(--warning-text); }
+.ov-attention-item[data-tone="danger"] { border-left-color: var(--danger); background: var(--danger-bg); }
+.ov-attention-item[data-tone="danger"] > .icon { color: var(--danger-text); }
+.ov-attention-item[data-tone="info"] { border-left-color: var(--accent); background: var(--info-bg); }
+.ov-attention-item[data-tone="info"] > .icon { color: var(--on-accent-soft); }
+
+/* ── Ma baie and Mon équipe ───────────────────────────────────────────── */
+.ov-top { display: grid; gap: var(--sp-4); align-items: start; }
+.ov-hero { display: grid; gap: var(--sp-3); align-content: start; }
+.ov-hero-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); }
+.ov-hero-name { font: var(--fs-display); letter-spacing: -.02em; }
+.ov-holder { margin: 0; color: var(--text-2); overflow-wrap: anywhere; }
+.ov-lock { display: flex; align-items: flex-start; gap: var(--sp-2); margin: 0; padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); background: var(--danger-bg); color: var(--text); }
+.ov-lock .icon { color: var(--danger-text); margin-top: 1px; }
+.ov-hero-people:empty { display: none; }
+.ov-devices { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin: 0; padding: 0; list-style: none; }
+.ov-device { display: inline-flex; align-items: center; gap: var(--sp-2); padding: var(--sp-1) var(--sp-3) var(--sp-1) var(--sp-2); border-radius: var(--r-pill); background: var(--surface-2); font: var(--fs-mono); }
+.ov-device .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--led-off); }
+.ov-device[data-state="connected"] .dot { background: var(--success); }
+.ov-device[data-state="connecting"] .dot { background: var(--warning); }
+.ov-device[data-state="silent"] .dot { background: var(--danger); }
+.ov-task { font: var(--fs-caption); color: var(--text-muted); }
+.ov-hero-actions { margin-top: var(--sp-1); justify-content: flex-start; }
+.ov-take { display: grid; gap: var(--sp-2); margin: 0; padding: 0; list-style: none; }
+.ov-take li { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); padding: var(--sp-2) 0; border-bottom: 1px solid var(--border); }
+.ov-take li:last-child { border-bottom: 0; }
+.ov-team { display: grid; gap: var(--sp-2); align-content: start; }
+.ov-team-name { margin: 0; font: var(--fs-heading); overflow-wrap: anywhere; }
+.ov-members { display: flex; align-items: center; }
+.ov-members:empty { display: none; }
+
+/* ── Le labo ───────────────────────────────────────────────────────────── */
+.ov-lab { display: grid; gap: var(--sp-3); align-content: start; }
+.ov-filters { gap: var(--sp-2); }
+.ov-grid { display: grid; gap: var(--sp-4); grid-template-columns: repeat(auto-fill, minmax(min(100%, 300px), 1fr)); align-items: stretch; }
+.ov-card {
+  display: grid; gap: var(--sp-2); align-content: start; min-width: 0; padding: var(--sp-4);
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-lg);
+  box-shadow: inset 4px 0 0 var(--led-off);
+}
+.ov-card[data-state="free"] { box-shadow: inset 4px 0 0 var(--success); }
+.ov-card[data-state="taken"] { box-shadow: inset 4px 0 0 var(--warning); }
+.ov-card[data-state="taken"][data-mine="true"] { box-shadow: inset 4px 0 0 var(--accent); }
+.ov-card[data-state="locked"] { box-shadow: inset 4px 0 0 var(--danger); }
+.ov-card p { margin: 0; }
+.ov-card-head { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.ov-bench { font: var(--fs-heading); margin-right: auto; }
+.ov-card .ov-holder { font: var(--fs-body); }
+.ov-card .ov-lock { display: block; font: var(--fs-small); }
+.ov-open { justify-self: start; margin-top: var(--sp-1); text-decoration: none; }
+.ov-lab .dl-table td:empty { display: none; }
+/* The list of a phone: 64 px rows with a chevron, the whole row is the way into the bench */
+.ov-chevron { display: none; }
+@media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) {
+  .ov-lab .dl-table tr { position: relative; padding: 0 calc(var(--sp-4) + 24px) var(--sp-1) var(--sp-4); gap: 0 var(--sp-3); cursor: pointer; }
+  .ov-lab .dl-table td.dl-badge { padding-top: var(--sp-3); }
+  .ov-lab .dl-table td.dl-meta { overflow-wrap: anywhere; }
+  .ov-lab .ov-chevron { display: inline-grid; position: absolute; right: var(--sp-3); top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; }
+}
+.ov-link { display: flex; align-items: center; min-height: var(--tap); color: inherit; text-decoration: none; }
+.ov-link:hover { text-decoration: underline; }
+.ov-lines { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
+.ov-slot[data-mine="true"] { color: var(--on-accent-soft); }
+
+/* The hero keeps its own frame (4 px bar from .card.hero) */
+.card.hero.ov-card { box-shadow: var(--elev-1); padding: var(--sp-5) var(--sp-5) var(--sp-5) calc(var(--sp-5) + 4px); border: 1px solid var(--border); }
+.ov-bench-panel { display: grid; align-content: start; }
+.ov-bench-panel > .card-foot { justify-content: flex-start; }
+
+/* ── The cards of the bottom row ──────────────────────────────────────── */
+.ov-trio { display: grid; gap: var(--sp-4); grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); align-items: start; }
+.ov-panel { display: grid; align-content: start; }
+.ov-panel .card-foot { justify-content: flex-start; margin-top: var(--sp-3); }
+.ov-list { display: grid; margin: 0; padding: 0; list-style: none; }
+.ov-list li { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-1) var(--sp-3); padding: var(--sp-2) 0; border-bottom: 1px solid var(--border); }
+.ov-list li:last-child { border-bottom: 0; }
+.ov-list li > strong { margin-right: auto; }
+.ov-list-text { display: grid; flex: 1 1 10em; min-width: 0; }
+.ov-list-text a { color: var(--accent-text); overflow-wrap: anywhere; }
+.ov-list-text .muted { font: var(--fs-small); overflow-wrap: anywhere; }
+.ov-activity { display: grid; gap: var(--sp-2); margin: 0; padding: 0; list-style: none; max-height: 360px; overflow: auto; }
+.ov-activity li { display: grid; gap: 0; }
+.ov-activity time { font: var(--fs-small); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.ov-activity span { overflow-wrap: anywhere; }
+.ov-shortcuts { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+
+@media (min-width: 720px) and (not ((max-height: 499.98px) and (pointer: coarse))) {
+  .ov-top { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
+  .ov-top:has(> :only-child) { grid-template-columns: minmax(0, 1fr); }
+  .ov-activity li { grid-template-columns: 9.5em 1fr; gap: var(--sp-3); }
+}
+@media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) {
+  .ov-home { gap: var(--sp-6); }
+  .ov-hero-name { font: 600 24px/30px var(--font); }
+  .ov-attention-actions { width: 100%; margin-left: 0; }
+  .ov-attention-actions .btn { flex: 1; }
+  .ov-hero-actions { display: grid; grid-template-columns: 1fr; }
+  .ov-hero-actions .btn { width: 100%; }
+  .ov-hero-actions .btn.primary { order: -1; min-height: 48px; }
+  /* Mon équipe is one line under the bench on a phone */
+  .ov-team .ov-members, .ov-team .ov-eyebrow { display: none; }
+  .ov-team { gap: 0; padding-block: var(--sp-3); }
+  .ov-filters { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; margin-inline: calc(-1 * var(--gutter)); padding-inline: var(--gutter); }
+  .ov-filters .chip { flex: none; }
+}

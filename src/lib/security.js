@@ -1,7 +1,19 @@
 /** HTTP hardening helpers shared by every module */
+import net from 'node:net';
+import { sendError } from './httpError.js';
 
-/** Strict security headers; The UI is fully self-hosted, so 'self' is enough */
-export function securityHeaders(req, res, next) {
+/**
+ * Strict security headers on every response; the UI is fully self-hosted, so
+ * 'self' is enough. `https`: the platform is published on https
+ * (PUBLIC_URL), so browsers are told to never come back over plain http (HSTS,
+ * one year, subdomains included): a first visit through an attacker on the
+ * path can then no longer be kept on http
+ */
+export function securityHeaders({ https = false } = {}) {
+  return (req, res, next) => setSecurityHeaders(req, res, next, https);
+}
+
+function setSecurityHeaders(req, res, next, https) {
   const host = req.headers.host || '';
   res.setHeader('Content-Security-Policy', [
     "default-src 'self'",
@@ -18,6 +30,7 @@ export function securityHeaders(req, res, next) {
   res.setHeader('Referrer-Policy', 'no-referrer');
   res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  if (https) res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   next();
 }
 
@@ -38,14 +51,14 @@ export function isOriginAllowed(req, allowedOrigins = []) {
 }
 
 /** Fixed-window rate limiter keyed by client (IP) */
-export function createRateLimiter({ limit, windowMs }) {
+export function createRateLimiter({ limit, windowMs, now: clock = Date.now }) {
   const hits = new Map();
   setInterval(() => {
-    const now = Date.now();
+    const now = clock();
     for (const [k, v] of hits) if (now - v.start > windowMs) hits.delete(k);
   }, windowMs).unref();
   return (key) => {
-    const now = Date.now();
+    const now = clock();
     const entry = hits.get(key);
     if (!entry || now - entry.start > windowMs) {
       hits.set(key, { start: now, count: 1 });
@@ -56,10 +69,103 @@ export function createRateLimiter({ limit, windowMs }) {
   };
 }
 
-export function clientIp(req, trustProxy) {
-  if (trustProxy) {
-    const fwd = req.headers['x-forwarded-for'];
-    if (fwd) return String(fwd).split(',')[0].trim();
+/**
+ * Middleware form of the same-origin rule, for state-changing requests: another
+ * website must not be able to make a visitor's browser act on the platform
+ * (cross-site request forgery). GET and HEAD pass, they never change state
+ */
+export function requireSameOrigin(allowedOrigins = []) {
+  return (req, res, next) => {
+    if (req.method === 'GET' || req.method === 'HEAD' || isOriginAllowed(req, allowedOrigins)) return next();
+    sendError(res, 403, 'server.cross_origin', 'Cross-origin request refused');
+  };
+}
+
+// ── Client address behind reverse proxies ───────────────────────────────────
+//
+// X-Forwarded-For is written by whoever sends the request, so it is only
+// believed when the TCP peer is a proxy we were told about (TRUSTED_PROXIES).
+// Anyone else could put a classmate's address there to dodge a rate limit or
+// to sign the audit trail with it
+
+/** "::ffff:192.0.2.7" (IPv4 seen through a dual-stack socket) → "192.0.2.7" */
+export function normalizeIp(address) {
+  const ip = String(address ?? '').trim();
+  const mapped = /^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i.exec(ip);
+  return mapped ? mapped[1] : ip;
+}
+
+/**
+ * Compile TRUSTED_PROXIES entries (single addresses or CIDR blocks, IPv4 or
+ * IPv6) into a matcher. Throws on the first entry that is not an address, so
+ * the configuration can refuse to start
+ */
+export function parseTrustedProxies(entries = []) {
+  const blocks = new net.BlockList();
+  for (const entry of entries) {
+    const [address, prefix, extra] = String(entry).trim().split('/');
+    const ip = normalizeIp(address);
+    const family = net.isIP(ip);
+    const bits = prefix === undefined ? null : Number(prefix);
+    const max = family === 4 ? 32 : 128;
+    if (!family || extra !== undefined || (bits !== null && (!/^\d{1,3}$/.test(prefix) || bits > max))) {
+      throw new Error(`"${entry}" is not an IP address or CIDR block`);
+    }
+    if (bits === null) blocks.addAddress(ip, family === 4 ? 'ipv4' : 'ipv6');
+    else blocks.addSubnet(ip, bits, family === 4 ? 'ipv4' : 'ipv6');
   }
-  return req.socket.remoteAddress || 'unknown';
+  return (address) => {
+    const ip = normalizeIp(address);
+    const family = net.isIP(ip);
+    return family !== 0 && blocks.check(ip, family === 4 ? 'ipv4' : 'ipv6');
+  };
+}
+
+const trustCache = new WeakMap();
+
+/**
+ * Turn the server configuration into `{ isTrusted(address), clientIp(req) }`.
+ * `trust` is `config.server` ({ trustedProxies }). Nothing else makes a peer
+ * trusted: without a list (or with anything that is not a configuration
+ * object, such as the upstream boolean) the TCP peer is the client
+ */
+export function proxyTrust(trust) {
+  const key = trust !== null && typeof trust === 'object' ? trust : null;
+  if (key && trustCache.has(key)) return trustCache.get(key);
+
+  const isTrusted = key?.trustedProxies?.length ? parseTrustedProxies(key.trustedProxies) : () => false;
+
+  const resolved = {
+    isTrusted,
+    clientIp(req) {
+      const peer = normalizeIp(req.socket?.remoteAddress) || 'unknown';
+      if (!isTrusted(peer)) return peer;
+      const hops = String(req.headers?.['x-forwarded-for'] ?? '').split(',').map(normalizeIp).filter(Boolean);
+      // Walk back from our own proxy: the first hop that is not one of our
+      // proxies is the client; whatever precedes it was written by the client
+      let client = peer;
+      for (let i = hops.length - 1; i >= 0; i--) {
+        if (!net.isIP(hops[i])) break;
+        client = hops[i];
+        if (!isTrusted(client)) break;
+      }
+      return client;
+    },
+  };
+  if (key) trustCache.set(key, resolved);
+  return resolved;
+}
+
+/** The address a request really comes from; see proxyTrust for `trust` */
+export function clientIp(req, trust) {
+  return proxyTrust(trust).clientIp(req);
+}
+
+/**
+ * Middleware: the answers of this router are private to the person who asked
+ * (their team's configurations, their rights) and are never kept by a cache
+ */
+export function noStore(_req, res, next) {
+  res.set('Cache-Control', 'no-store');
+  next();
 }
