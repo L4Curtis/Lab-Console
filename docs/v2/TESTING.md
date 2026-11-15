@@ -43,7 +43,12 @@ own, start it with `await h.ready`.
 - `await h.session(page, 'student1')`: no sign-in page at all; a real session
   opened by the test helper is put in the browser as its cookie. Use it when
   the sign-in is not what the scenario is about.
-- `await signOut(page)`: the user menu's button, until `/login`.
+- `await signOut(page)`: the account menu's button (the Plus sheet's on a
+  phone), until `/login`. `await openAccountMenu(page)` opens that menu and
+  returns it (theme, language, the tour); `setLanguage(page, lang)` goes
+  through it in the application.
+- `await h.newPhonePage()` (or `h.newPage({ phone: true })`): a touch page of
+  390 × 844, the phone of the redesign's audit (tab bar, sheets).
 - The guided tour opens by itself for a person who never saw it, which every
   fresh test user is, and it would sit over the page. `h.newPage()` therefore
   tells the page (in the browser only) that the tour was already seen; a
@@ -80,7 +85,9 @@ AA text contrast in both themes, and the shell works from the keyboard (skip
 link, page title, focus on the heading, unknown address, 404 page).
 `test/e2e/contrast.js` holds the measuring helpers (`contrastFailures(page)`
 composites the real background of each text node; `tinyText(page)` lists text
-under 11 px): use them for a new screen rather than looking by eye.
+under 12 px): use them for a new screen rather than looking by eye. A sheet,
+a menu or a dialog animates in: wait for its animations to finish before
+measuring it (`settled()` in `ui-layout.e2e.js`).
 `test/e2e/ui-failures.e2e.js` forces an HTTP 500 and a cut network on each
 section's data (`page.route`) and expects the shared failure block with its
 "Réessayer" button (`public/js/shared/loadState.js`), then that the retry

@@ -2,7 +2,7 @@
 <html lang="fr">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content" />
   <title data-i18n="common.shell.appTitle">Lab Console</title>
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect x='4' y='6' width='24' height='20' rx='4' fill='%233E8FC9'/%3E%3Cpath d='M10 14l4 3-4 3M16 21h6' stroke='white' stroke-width='2.4' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E" />
   <!-- Everything is self-hosted: the platform works on isolated lab networks -->
@@ -12,28 +12,27 @@
   <link rel="stylesheet" href="/vendor/fonts/plex-mono/400.css" />
   <link rel="stylesheet" href="/vendor/fonts/plex-mono/500.css" />
   <link rel="stylesheet" href="/vendor/xterm/css/xterm.css" />
+  <link rel="stylesheet" href="/css/tokens.css" />
   <link rel="stylesheet" href="/css/app.css" />
   <script type="module" src="/js/main.js"></script>
 </head>
-<body>
+<body class="app-page">
   <a class="skip-link" href="#/home" id="skip-link" data-i18n="common.shell.skip">Aller au contenu</a>
   <div class="app">
-    <nav class="rail" aria-label="Sections" data-i18n-aria-label="common.shell.sections">
-      <a class="rail-brand" href="#/home" title="Lab Console" data-i18n-title="common.shell.appTitle">
-        <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="6" width="24" height="20" rx="4" /><path d="M10 14l4 3-4 3M16 21h6" /></svg>
-      </a>
-      <div class="rail-items" id="rail-items"></div>
-      <div class="rail-lang" role="group" aria-label="Langue" data-i18n-aria-label="common.shell.language.label">
-        <button class="lang-btn" type="button" data-lang="fr" lang="fr" title="Français" data-i18n-title="common.shell.language.fr" aria-pressed="true">FR</button>
-        <button class="lang-btn" type="button" data-lang="en" lang="en" title="English" data-i18n-title="common.shell.language.en" aria-pressed="false">EN</button>
+    <!-- Built by core/nav.js from main.js's MODULES: the rail from 720 px, the tab bar below -->
+    <nav class="rail" id="rail" aria-label="Sections" data-i18n-aria-label="common.shell.sections">
+      <div class="rail-top">
+        <a class="rail-brand" href="#/home" title="Lab Console" data-i18n-title="common.shell.appTitle" data-nav="brand">
+          <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="6" width="24" height="20" rx="4" /><path d="M10 14l4 3-4 3M16 21h6" /></svg>
+          <span class="rail-brand-name" data-i18n="common.shell.appTitle">Lab Console</span>
+        </a>
       </div>
-      <button class="rail-btn" id="theme-toggle" type="button" title="Basculer entre clair et sombre" data-i18n-title="common.shell.theme.toggle">
-        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3a9 9 0 1 0 9 9 7 7 0 0 1-9-9z" /></svg>
-        <span data-i18n="common.shell.theme.label">Thème</span>
-      </button>
+      <div class="rail-items" id="rail-items"></div>
+      <div class="rail-foot" id="rail-foot"></div>
     </nav>
     <main class="views" id="views" tabindex="-1"></main>
+    <nav class="tabbar" id="tabbar" aria-label="Sections" data-i18n-aria-label="common.shell.sections"></nav>
   </div>
-  <div class="toasts" id="toasts" role="status" aria-live="polite"></div>
+  <div class="toasts" id="toasts" aria-live="polite"></div>
 </body>
 </html>

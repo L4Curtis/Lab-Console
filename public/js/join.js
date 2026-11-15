@@ -13,7 +13,7 @@
  *   - reset: a new password twice; the account's sessions end, and the
  *     person signs in again on the login page
  */
-import { prefs } from './core/dom.js';
+import { initTheme } from './core/theme.js';
 import { request } from './core/api.js';
 import { loadSession } from './core/session.js';
 import { initI18n, setLocale, getLocale, onLocaleChange, t, tError } from './core/i18n.js';
@@ -25,7 +25,7 @@ const token = location.hash.replace(/^#/, '');
 // Out of the address bar: not in the history, not on a screen someone photographs
 history.replaceState(null, '', location.pathname);
 
-document.documentElement.dataset.theme = prefs.get('theme', matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+initTheme(); // light, dark, or the system's choice (core/theme.js)
 const session = await loadSession();
 await initI18n({ defaultLocale: session.locale, namespaces: ['common', 'auth', 'accounts'] });
 

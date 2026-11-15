@@ -19,7 +19,7 @@
  * application's screens are #/routes, which never reach the server). The
  * server checks it again: only a path on this site is accepted
  */
-import { prefs } from './core/dom.js';
+import { initTheme } from './core/theme.js';
 import { request } from './core/api.js';
 import { loadSession } from './core/session.js';
 import { initI18n, setLocale, getLocale, onLocaleChange, t, tError, has } from './core/i18n.js';
@@ -30,7 +30,7 @@ const params = new URLSearchParams(location.search);
 const next = params.get('next') || `/${location.hash}`;
 const reason = params.get('error');
 
-document.documentElement.dataset.theme = prefs.get('theme', matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+initTheme(); // light, dark, or the system's choice (core/theme.js)
 
 const session = await loadSession();
 await initI18n({ defaultLocale: session.locale, namespaces: ['common', 'auth'] });

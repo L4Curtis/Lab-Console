@@ -20,13 +20,9 @@
     "overview": "Vue d’ensemble",
     "team": "Équipe",
     "jobs": "Sauvegardes",
-    "infra": "Infra",
+    "infra": "Machines et switchs",
     "off": "off",
     "turnedOff": "{title} (désactivé)",
-    "theme": {
-      "toggle": "Basculer entre clair et sombre",
-      "label": "Thème"
-    },
     "language": {
       "label": "Langue",
       "fr": "Français",
@@ -59,7 +55,9 @@
     "network": "Impossible de joindre le serveur : vérifiez votre connexion."
   },
   "announcement": {
-    "hide": "Masquer l’annonce"
+    "hide": "Masquer l’annonce",
+    "more": "Lire",
+    "less": "Réduire"
   },
   "columns": {
     "actions": "Actions"
@@ -70,5 +68,26 @@
     "home": "Retour à l’accueil",
     "pageTitle": "Page introuvable · Lab Console"
   },
-  "loading": "Chargement…"
+  "loading": "Chargement…",
+  "nav": {
+    "back": "Retour",
+    "collapse": "Réduire le menu",
+    "expand": "Déplier le menu",
+    "badge": {
+      "one": "{count} en attente",
+      "other": "{count} en attente"
+    }
+  },
+  "plus": {
+    "label": "Plus"
+  },
+  "theme": {
+    "label": "Thème",
+    "light": "Clair",
+    "dark": "Sombre",
+    "auto": "Auto"
+  },
+  "menu": {
+    "more": "Plus d’actions"
+  }
 }

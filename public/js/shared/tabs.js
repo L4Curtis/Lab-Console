@@ -16,15 +16,18 @@
  *
  * Options: navigate + base keep the address in step (#/admin/audit); label
  * names the tab list for screen readers; bar is an existing element to put
- * the tab buttons in (default: at the top of the container); ctx is passed
- * on to every tab
+ * the tab buttons in (default: at the top of the container; pageHeader({ tabs:
+ * true }).tabBar is made for it); ctx is passed on to every tab; style is
+ * 'underline' (the default: the screens of a section, docs/v2/UX.md §7.4) or
+ * 'segmented' (a .seg control, for two to four views of one screen). The
+ * underline strip scrolls sideways on a phone and keeps the selected tab in view
  */
 import { h, loadCss } from '../core/dom.js';
 import { t, onLocaleChange } from '../core/i18n.js';
 
 let serial = 0;
 
-export function mountTabs(container, tabs, { navigate, base = '', label, bar, ctx = {} } = {}) {
+export function mountTabs(container, tabs, { navigate, base = '', label, bar, ctx = {}, style = 'underline' } = {}) {
   loadCss('shared');
   const uid = `tabs-${++serial}`;
   const shown = tabs.filter((tab) => tab.when?.() !== false);
@@ -33,11 +36,12 @@ export function mountTabs(container, tabs, { navigate, base = '', label, bar, ct
   let visible = false;
 
   const titleOf = (tab) => (typeof tab.title === 'function' ? tab.title() : tab.title);
-  const list = h('div.seg', { role: 'tablist', 'aria-label': label });
+  const segmented = style === 'segmented';
+  const list = h(segmented ? 'div.seg' : 'div.tabs', { role: 'tablist', 'aria-label': label });
   const panels = h('div.tab-panels');
 
   for (const tab of shown) {
-    const button = h('button.seg-btn', {
+    const button = h(segmented ? 'button.seg-btn' : 'button.tab', {
       type: 'button', role: 'tab', id: `${uid}-tab-${tab.id}`, 'aria-controls': `${uid}-panel-${tab.id}`,
       'aria-selected': 'false', tabindex: '-1', dataset: { tab: tab.id },
       onclick: () => select(tab.id),
@@ -96,6 +100,7 @@ export function mountTabs(container, tabs, { navigate, base = '', label, bar, ct
       s.button.tabIndex = on ? 0 : -1;
       s.panel.hidden = !on;
     }
+    if (!segmented && list.scrollWidth > list.clientWidth) entry.button.scrollIntoView({ block: 'nearest', inline: 'nearest' });
     if (previous) previous.api?.hide?.();
     if (!silent && navigate && base) navigate(`${base}/${entry.tab.id}`);
     const api = await ensureMounted(entry);

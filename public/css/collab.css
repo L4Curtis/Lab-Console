@@ -19,15 +19,15 @@
 .collab-note { padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2); }
 .collab-note-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .collab-note-text { margin: 4px 0 2px; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; color: var(--ink); }
-.collab-note-by { font-size: 11.5px; }
+.collab-note-by { font-size: 12px; }
 
 .chat-hint { margin: 0 0 6px; font-size: 12.5px; }
 .chat-log { list-style: none; margin: 0 0 8px; padding: 0; flex: 1; min-height: 80px; overflow: auto; display: flex; flex-direction: column; gap: 8px; }
 .chat-message { display: flex; gap: 8px; align-items: flex-start; }
-.chat-message .avatar { flex: none; width: 24px; height: 24px; font-size: 11px; }
+.chat-message .avatar { flex: none; width: 24px; height: 24px; font-size: 12px; }
 .chat-body { min-width: 0; flex: 1; }
 .chat-meta { display: flex; align-items: center; gap: 6px; font-size: 12px; }
-.chat-meta time { color: var(--ink-3); font: 11px var(--mono); }
+.chat-meta time { color: var(--ink-3); font: 12px var(--mono); }
 .chat-meta .icon-btn { margin-left: auto; }
 .chat-text { margin: 1px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 13px; }
 .chat-message[data-mine="true"] .chat-meta strong { color: var(--console-strong); }

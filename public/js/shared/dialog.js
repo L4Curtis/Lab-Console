@@ -11,9 +11,19 @@
  * On top of that, Tab cycles inside the dialog, focus goes back to where it
  * was, and the dialog is named for screen readers (aria-labelledby /
  * aria-describedby; a dangerous confirmation is an alertdialog)
+ *
+ * Presentation (docs/v2/UX.md §7.7): a centred dialog from 720 px, a bottom
+ * sheet below (css/shared.css). `size`: 'sm' 420 px (confirmations), 'md'
+ * 560 px (the default, forms), 'lg' 800 px (lists, reports; `wide: true` is
+ * the same), 'full' (an editor, a diff). A tap on the scrim closes a
+ * dismissible dialog. On a phone, Back closes the sheet on top: opening one
+ * adds an entry to the history (same address), closing it takes the entry
+ * back, and `closed` settles once that is done, so a caller may navigate
+ * right after `await dlg.closed`
  */
 import { h, icon, loadCss } from '../core/dom.js';
 import { t, onLocaleChange } from '../core/i18n.js';
+import { isCompact } from '../core/viewport.js';
 
 let serial = 0;
 const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -22,15 +32,53 @@ const visible = (el) => el.getClientRects().length > 0;
 const asNodes = (content) => [content].flat().filter((c) => c !== null && c !== undefined && c !== false)
   .map((c) => (c instanceof Node ? c : h('p', String(c))));
 
+const SIZES = ['sm', 'md', 'lg', 'full'];
+
+/**
+ * The history entry an open sheet added, so that Back closes it (compact
+ * only). Going back is asynchronous: a sheet opened while another one is
+ * still giving its entry back waits for that before it adds its own
+ */
+let pendingBack = Promise.resolve();
+function sheetHistory(id, close, dismissible) {
+  if (!isCompact()) return null;
+  let pushed = false;
+  let released = false;
+  const push = () => { history.pushState({ ...(history.state ?? {}), sheet: id }, ''); pushed = true; };
+  pendingBack.then(() => { if (!released) push(); });
+  const onPop = () => {
+    if (!pushed || history.state?.sheet === id) return;
+    if (dismissible) close();
+    else push(); // a sheet that cannot be dismissed keeps its entry
+  };
+  addEventListener('popstate', onPop);
+  return {
+    /** The dialog closed: take its entry back if it is still the current one; → once done */
+    release() {
+      released = true;
+      removeEventListener('popstate', onPop);
+      if (!pushed || history.state?.sheet !== id) return Promise.resolve();
+      pendingBack = new Promise((resolve) => {
+        const done = () => { removeEventListener('popstate', done); clearTimeout(timer); resolve(); };
+        const timer = setTimeout(done, 500); // a browser that never answers must not hold the caller
+        addEventListener('popstate', done);
+        history.back();
+      });
+      return pendingBack;
+    },
+  };
+}
+
 /**
  * Show `node` in a modal. `node` is the dialog's content, or a ready-made
  * <dialog> element. Options: title (adds the header and its close button; a
  * function is asked again when the language changes while the dialog is open),
- * label (accessible name when there is no title), wide, role, describedBy,
- * dismissible (false: Escape and the close button do nothing), initialFocus
- * (element or selector). Returns { el, close(value), closed: Promise<value> }
+ * label (accessible name when there is no title), size ('sm' | 'md' | 'lg' |
+ * 'full'), wide (= size 'lg'), role, describedBy, dismissible (false: Escape,
+ * the scrim and the close button do nothing), initialFocus (element or
+ * selector). Returns { el, close(value), closed: Promise<value> }
  */
-export function openDialog(node, { title, label, wide = false, role, describedBy, dismissible = true, initialFocus } = {}) {
+export function openDialog(node, { title, label, size, wide = false, role, describedBy, dismissible = true, initialFocus } = {}) {
   loadCss('shared');
   const id = `dlg-${++serial}`;
   const opener = document.activeElement;
@@ -39,6 +87,9 @@ export function openDialog(node, { title, label, wide = false, role, describedBy
   const closed = new Promise((resolve) => { settle = resolve; });
 
   const dlg = node instanceof HTMLDialogElement ? node : h(`dialog.modal${wide ? '.wide' : ''}`, node);
+  const chosen = wide ? 'lg' : size;
+  if (SIZES.includes(chosen)) dlg.dataset.size = chosen;
+  if (dlg.classList.contains('modal') && !dlg.querySelector(':scope > .sheet-handle')) dlg.prepend(h('div.sheet-handle', { 'aria-hidden': 'true' }));
   const close = (value) => {
     result = value;
     if (dlg.open) dlg.close();
@@ -47,8 +98,11 @@ export function openDialog(node, { title, label, wide = false, role, describedBy
   if (title !== undefined && !(node instanceof HTMLDialogElement)) {
     const heading = h('h2', { id: `${id}-title` }, typeof title === 'function' ? title() : title);
     if (typeof title === 'function') closed.then(onLocaleChange(() => { heading.textContent = title(); }));
-    dlg.prepend(h('header.modal-head', heading,
-      dismissible ? h('button.icon-btn', { type: 'button', title: t('common.actions.close'), 'aria-label': t('common.actions.close'), onclick: () => close() }, icon('close')) : null));
+    const head = h('header.modal-head', heading,
+      dismissible ? h('button.icon-btn', { type: 'button', title: t('common.actions.close'), 'aria-label': t('common.actions.close'), onclick: () => close() }, icon('close')) : null);
+    const handle = dlg.querySelector(':scope > .sheet-handle');
+    if (handle) handle.after(head);
+    else dlg.prepend(head);
     dlg.setAttribute('aria-labelledby', `${id}-title`);
   } else if (label) {
     dlg.setAttribute('aria-label', label);
@@ -70,14 +124,29 @@ export function openDialog(node, { title, label, wide = false, role, describedBy
     if (e.shiftKey && (active === first || !dlg.contains(active))) { e.preventDefault(); last.focus(); }
     else if (!e.shiftKey && (active === last || !dlg.contains(active))) { e.preventDefault(); first.focus(); }
   });
-  dlg.addEventListener('close', () => {
+  // A tap on the scrim (the dialog element itself, outside its box) closes it
+  let downOnScrim = false;
+  const onScrim = (e) => {
+    if (e.target !== dlg) return false;
+    const r = dlg.getBoundingClientRect();
+    return e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom;
+  };
+  dlg.addEventListener('pointerdown', (e) => { downOnScrim = onScrim(e); });
+  dlg.addEventListener('click', (e) => {
+    if (dismissible && downOnScrim && onScrim(e)) close();
+    downOnScrim = false;
+  });
+  let entry = null;
+  dlg.addEventListener('close', async () => {
     dlg.remove();
     if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
+    await entry?.release();
     settle(result);
   }, { once: true });
 
   if (!dlg.isConnected) document.body.append(dlg);
   dlg.showModal();
+  entry = sheetHistory(id, () => close(), dismissible);
   const target = typeof initialFocus === 'string' ? dlg.querySelector(initialFocus) : initialFocus;
   if (target) target.focus();
 
@@ -89,7 +158,7 @@ export function openDialog(node, { title, label, wide = false, role, describedBy
  * button and puts the focus on Cancel; `requireText` makes the user type
  * that exact text (a bench name…) before the button unlocks
  */
-export function confirmDialog({ title, body, confirmLabel, cancelLabel, danger = false, requireText } = {}) {
+export function confirmDialog({ title, body, confirmLabel, cancelLabel, danger = false, requireText, size = 'sm' } = {}) {
   const id = `confirm-${++serial}`;
   const confirm = h(`button.btn.${danger ? 'danger-solid' : 'primary'}`, { type: 'submit', dataset: { action: 'confirm' } }, confirmLabel ?? t('common.actions.confirm'));
   const cancel = h('button.btn', { type: 'button', dataset: { action: 'cancel' }, onclick: () => dlg.close(false) }, cancelLabel ?? t('common.actions.cancel'));
@@ -116,6 +185,7 @@ export function confirmDialog({ title, body, confirmLabel, cancelLabel, danger =
 
   const dlg = openDialog(form, {
     title,
+    size,
     role: danger ? 'alertdialog' : undefined,
     describedBy: `${id}-body`,
     initialFocus: input ?? (danger ? cancel : confirm),
@@ -162,7 +232,7 @@ function readField(spec, control) {
  * message is shown and the dialog stays open, and what it returns (if
  * anything) becomes the result
  */
-export function formDialog({ title, intro, fields = [], submitLabel, cancelLabel, danger = false, wide = false, validate, onSubmit } = {}) {
+export function formDialog({ title, intro, fields = [], submitLabel, cancelLabel, danger = false, wide = false, size, validate, onSubmit } = {}) {
   const id = `form-${++serial}`;
   const built = fields.map((spec, i) => (spec instanceof Node ? { row: spec } : { spec, ...buildField(spec, `${id}-${i}`) }));
   const error = h('p.form-error', { role: 'alert' });
@@ -191,6 +261,6 @@ export function formDialog({ title, intro, fields = [], submitLabel, cancelLabel
   h('div.form-actions', cancel, submit));
 
   const first = built.find((f) => f.control)?.control;
-  const dlg = openDialog(form, { title, wide, initialFocus: first ?? submit });
+  const dlg = openDialog(form, { title, wide, size, initialFocus: first ?? submit });
   return dlg.closed.then((value) => (value === undefined ? null : value));
 }

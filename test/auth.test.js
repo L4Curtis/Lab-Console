@@ -548,7 +548,7 @@ describe('sign-out and the login page', () => {
     const script = await fetch(`${lab.url}/js/login.js`);
     assert.equal(script.status, 200);
     assert.match(script.headers.get('content-type'), /javascript/);
-    for (const asset of ['/css/login.css', '/css/auth.css', '/locales/fr/auth.json', '/locales/en/auth.json', '/js/core/userMenu.js']) {
+    for (const asset of ['/css/login.css', '/css/tokens.css', '/css/app.css', '/js/core/theme.js', '/locales/fr/auth.json', '/locales/en/auth.json', '/js/core/userMenu.js']) {
       assert.equal((await fetch(lab.url + asset)).status, 200, asset);
     }
   });

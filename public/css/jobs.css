@@ -58,7 +58,7 @@
 .jobs-devices legend { font-size: 13px; padding: 0 4px; }
 .jobs-devices ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; max-height: 40vh; overflow: auto; }
 .jobs-devices li { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
-.jobs-tag { margin-left: 6px; padding: 0 6px; border-radius: 99px; background: color-mix(in srgb, var(--led-amber) 18%, transparent); font-size: 11.5px; }
+.jobs-tag { margin-left: 6px; padding: 0 6px; border-radius: 99px; background: color-mix(in srgb, var(--led-amber) 18%, transparent); font-size: 12px; }
 .jobs-device-extra { display: inline-flex; align-items: center; gap: 12px; font-size: 12px; }
 .jobs-people { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-2); }
 .jobs-people .icon { width: 14px; height: 14px; }

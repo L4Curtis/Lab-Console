@@ -418,7 +418,8 @@ through `public/js/core/session.js` (`await loadSession()`, then
 `session.passkeys`; `signOut()` posts `/auth/logout`
 and follows its `redirect`, the provider's end-session page when it has one).
 `public/js/core/userMenu.js` (`mountUserMenu()`, called once from `main.js`)
-shows the user, the role and the sign-out button at the bottom of the rail.
+shows the user, the role, the preferences and the sign-out button: the
+account menu at the bottom of the rail, or the Plus sheet on a phone.
 
 Sessions are server-side, keyed by a random 256-bit token in a cookie named
 `__Host-lc_sid` when `PUBLIC_URL` is https (`Secure; HttpOnly; SameSite=Lax; Path=/`)
@@ -872,41 +873,58 @@ services.collab = {                            // lot collab
 
 ## 8. Front end
 
-- **Sections.** `public/js/main.js` keeps the `MODULES` array; a new rail
+- **Sections.** `public/js/main.js` keeps the `MODULES` array; a new
   section is one line there and one folder in `public/js/modules/`. `id` is
   the server module (`/api/modules`), `path` the address and the section's
   class (`section.view-<path>`); `when: () => session.isAdmin` keeps a section
-  away from students, `rail: false` leaves it out of the rail. The
-  **Administration** section (`#/admin/<tab>`, `modules/admin/index.js`) is
-  for administrators, built with `shared/tabs.js`; the accounts lot's tabs are
-  `users`, `invitations`, `sso`; the admin lot's are `lab`, `diagram`,
-  `switches`, `sessions`, `audit`, `announcement` (one file in
-  `modules/admin/tabs/`, one line each). **Lab status** (`#/status/<tab>`,
-  `modules/status/index.js`, every signed-in user): `health` and
-  `journaling`. The **announcement banner** (`shared/announcement.js`,
-  mounted once by `main.js`) follows the sticky SSE topic `admin:announcement`. **My account** (`#/account`) is
-  reached from the user menu. Passkeys in the browser go through
-  `core/passkeys.js` (public: the login page and `/join` use it).
-  **Accueil** (`#/home`, the landing page) and **Vue d'ensemble**
-  (`#/overview`) are the overview lot's (§9d).
-  **Sauvegardes** (`#/jobs/<bench>[/<action>]`, `modules/jobs/`, every
+  away from students. The **Administration** section (`#/admin/<tab>`,
+  `modules/admin/index.js`) is for administrators, built with
+  `shared/tabs.js`; the accounts lot's tabs are `users`, `invitations`,
+  `sso`; the admin lot's are `lab`, `diagram`, `switches`, `sessions`,
+  `audit`, `announcement` (one file in `modules/admin/tabs/`, one line each).
+  **Lab status** (`#/status/<tab>`, `modules/status/index.js`, every
+  signed-in user): `health` and `journaling`. The **announcement banner**
+  (`shared/announcement.js`, mounted once by `main.js`, placed under the
+  header of the section on screen) follows the sticky SSE topic
+  `admin:announcement`. **My account** (`#/account`) is reached from the
+  account menu. Passkeys in the browser go through `core/passkeys.js`
+  (public: the login page and `/join` use it). **Accueil** (`#/home`, the
+  landing page) and **Vue d'ensemble** (`#/overview`) are the overview lot's
+  (§9d). **Sauvegardes** (`#/jobs/<bench>[/<action>]`, `modules/jobs/`, every
   signed-in user; `#/jobs/B4M/backup` opens the backup dialog, which is where
   the release offer of the bench bar leads) holds the bench jobs, the
   snapshots and the templates (§9b). `main.js` also starts, for every
-  section, the diagram layer of the jobs (`modules/jobs/layer.js`) and the
-  group work (`modules/collab/index.js`: the notes layer, and the
-  notification bell `#notify-toggle`, placed in the rail before the theme
-  button, outside `#rail-items`). The consoles view mounts the collab
-  bench panel (notes and chat) beside the diagram, one side panel at a time
-  with the live panel, and a script library button in its header.
-  Wave 4 (as integrated): the rail is Accueil (`#/home`, the landing
-  page and the address no section answers), Consoles, Vue d'ensemble
-  (`#/overview`), Équipe, Infra, Administration (admins), Sauvegardes, État
-  du labo, Aide (`#/help`). `main.js` also starts the checks' diagram layers
-  (`modules/checks/layer.js`), the recovery assistant (`startRecovery()`: its
-  pane action and diagram badge) and, once the first screen is routed, the
-  guided tour (`maybeStartTour()`); the consoles view has a "Vérifications"
-  button in its header (`modules/checks/dialog.js`).
+  section, the diagram layer of the jobs (`modules/jobs/layer.js`), the
+  checks' diagram layers (`modules/checks/layer.js`), the group work
+  (`modules/collab/index.js`: the notes layer, and the notification bell
+  `#notify-toggle`, placed by `core/nav.js`), the recovery assistant
+  (`startRecovery()`) and, once the first screen is routed, the guided tour
+  (`maybeStartTour()`). The consoles view mounts the collab bench panel
+  (notes and chat) beside the diagram, one side panel at a time with the
+  live panel, a script library button and a "Vérifications" button.
+- **Navigation** (the ergonomics redesign, [UX.md](UX.md) §4, §5, §13). A
+  section never adds itself: `core/nav.js` builds the rail and the phone's
+  tab bar from `MODULES`, whose lines carry `nav` (`'main'`: a destination
+  of the rail and the tab bar; `'plus'`: reached from Plus; `'hidden'`:
+  links only), `order`, `icon`, `titleKey`, `navKey` (short label) and
+  `parent(params)` (the destination lit when it is on screen). Main
+  destinations: Accueil, Consoles, Équipe, Sauvegardes, and Admin for
+  administrators; Plus holds Machines et switchs (`#/infra`), État du labo
+  (`#/status`), Aide (`#/help`) and, on a phone, Admin, Alertes and Mon
+  compte. From 720 px the rail (232 px from 1200 px, collapsible, pref
+  `labconsole.rail`; 72 px below); under 720 px a tab bar of exactly five
+  items and a Plus bottom sheet. The account button at the bottom of the
+  rail opens the account menu (`core/userMenu.js`: Mon compte, Thème clair /
+  sombre / auto, Langue FR / EN, the guided tour, Se déconnecter); on a phone
+  the same pieces are in the Plus sheet. Every navigation item carries
+  `data-nav="<path>"`. Old addresses are redirected before routing, with
+  `history.replaceState`, by `core/routes.js` (`routeRedirect(hash, {
+  isAdmin, compact })`, pure, tested by `test/navRoutes.test.js`):
+  `#/overview[/<filter>]` → `#/home/lab[/<filter>]` (not applied while the
+  overview section still answers its address), `#/team` → `#/team/mine`,
+  `#/admin` → `#/admin/users` from 720 px. The page never scrolls as a
+  whole: each section scrolls inside itself (`.view-body`), and the shell
+  keeps each section's scroll position while it is hidden.
 - **Live events.** `live.on(topic, fn)` (`core/api.js`) shares one
   `EventSource`. A named event without a listener is lost, and sticky topics
   are only replayed when a stream opens: when a section subscribes to a new
@@ -977,10 +995,15 @@ services.collab = {                            // lot collab
     node inserted as is. `validate(values)` returns a message or nothing;
     `onSubmit(values)` may be async: if it throws, its message is shown and
     the dialog stays open; what it returns becomes the result.
-  - `openDialog(node, { title, label, wide, role, describedBy, dismissible, initialFocus })`
+  - `openDialog(node, { title, label, size, wide, role, describedBy, dismissible, initialFocus })`
     → `{ el, close(value), closed }` for anything else (a countdown, a report).
-  - All three trap Tab, close on Escape (unless `dismissible: false`), name
-    the dialog for screen readers and give the focus back on close.
+    `size` is `'sm'`, `'md'` (default), `'lg'` (= `wide`) or `'full'`;
+    `confirmDialog` defaults to `'sm'`, `formDialog` takes `size` too.
+  - All three trap Tab, close on Escape and on a tap on the scrim (unless
+    `dismissible: false`), name the dialog for screen readers and give the
+    focus back on close. Under 720 px they are bottom sheets, and Back closes
+    the sheet on top (it adds a history entry with the same address, taken
+    back on close; `closed` settles after that).
 - **Addresses of the front end's own files.** The pages load scripts and
   stylesheets under `/v/<build id>/` (§4, "Caching of the front end"). Import
   modules relatively (`./x.js`, `../core/dom.js`); a file that needs the
@@ -991,8 +1014,22 @@ services.collab = {                            // lot collab
   `main.js` shows `common.shell.loadFailed` with a reload button.
 - **Styles.** A module ships `public/css/<module>.css` and loads it with
   `loadCss('<module>')` from `core/dom.js` (once per page; resolves when the
-  rules apply; the address follows the prefix of `dom.js` itself). Use the existing custom properties
-  (`--surface`, `--ink`, `--console`, `--led-green`…) so both themes work.
+  rules apply; the address follows the prefix of `dom.js` itself). Colours,
+  spacing, type, radii, elevation and motion are the tokens of
+  `public/css/tokens.css` (linked by every page before `app.css`; roles such
+  as `--surface`, `--text-2`, `--accent-strong`, `--sp-4`, `--fs-title`), so
+  both themes work; the names used before the redesign (`--ink`, `--console`,
+  `--line`…) are aliases until the final cleanup. The shared components
+  (buttons, cards, badges, chips, avatars, segmented controls, forms, toasts
+  in `app.css`; dialogs and sheets, menus, side panels, tabs, lists and load
+  states in `shared.css`, which `main.js` loads at start-up) are described in
+  [UX.md](UX.md) §13 with their JavaScript helpers: `shared/pageHeader.js`,
+  `shared/dataList.js`, `shared/menu.js` (`openMenu`, `moreButton`),
+  `shared/sidePanel.js`, `loadState.js` `emptyState()`. Breakpoints: compact
+  under 720 px, medium to 1199 px, expanded from 1200 px;
+  `core/viewport.js` (`isCompact()`, `isCoarse()`, `--vvh`,
+  `data-keyboard`) is only for choosing a popover or a sheet. The theme is
+  `core/theme.js` (light, dark, or auto: the system's, live).
 - **DOM.** Build nodes with `h()`. Never assign user-controlled data to
   `innerHTML`. Add icons to the `ICONS` map in `core/dom.js`.
 - **Diagram decorations** (owned by the rooms lot): `DiagramView` exposes
@@ -1287,7 +1324,7 @@ opens the bench's jobs (`#/jobs/<bench>`), where the report is. No
 server-side subscription exists or is needed: SSE is the contract. A notification is a
 system notification, only when the window is hidden or not focused (the page
 says it itself otherwise), only when the person turned them on with the bell
-in the rail (which also asks the browser's permission, after a click); the
+(Alertes, in the rail, or in the Plus sheet on a phone; it also asks the browser's permission, after a click); the
 choice stays in the browser (`labconsole.notifications`). A tag per source
 keeps several tabs from showing it twice.
 
@@ -1759,7 +1796,8 @@ where a sign-in lands (`section.view-home .ov-home`), pick a bench
 (`.lab-picker`), take it with the team (`.bench-bar`), open a console
 (`.diagram-canvas`), ask for the keyboard (`.pane-presence`, only present once
 a shared console is open; the card is then shown without a pointer), back up
-(the rail's Sauvegardes link). A step whose target does not show within 2.5 s
+(the Sauvegardes entry, `[data-nav="jobs"]`, of the rail or of the phone's
+tab bar). A step whose target does not show within 2.5 s
 is shown without a pointer. A step's `route` is followed when the address is
 another section's; no address is the home page, as in `main.js`. The user menu's "Replay the guided tour" button and
 the help page's both call `startTour()`; a replay writes nothing but the
@@ -2075,10 +2113,14 @@ version (pre-production included) already wrote.
    `{ show?(params), hide?() }`. `mount` may be async: start it with
    `await Promise.all([loadNamespace('benches'), loadCss('benches')])`.
 2. One line in the `MODULES` array of `public/js/main.js`:
-   `{ id: 'benches', path: 'benches', title: …, icon: 'grid', load: () => import('./modules/benches/index.js') }`
-   (`id` is the server module that answers `/api/modules`, `path` the hash).
-3. `public/css/benches.css` and `public/locales/{fr,en}/benches.json`.
-4. A new icon is one entry in the `ICONS` map of `public/js/core/dom.js`.
+   `{ id: 'benches', path: 'benches', titleKey: 'common.shell.benches', icon: 'grid', nav: 'plus', order: 85, load: () => import('./modules/benches/index.js') }`
+   (`id` is the server module that answers `/api/modules`, `path` the hash;
+   `nav: 'main'` only for one of the five destinations of UX.md §4.1, which
+   is a decision of the owner).
+3. The section builds its header with `pageHeader()` and scrolls in a
+   `div.view-body` (UX.md §13.2).
+4. `public/css/benches.css` and `public/locales/{fr,en}/benches.json`.
+5. A new icon is one entry in the `ICONS` map of `public/js/core/dom.js`.
 
 ### Add a tab to a section
 

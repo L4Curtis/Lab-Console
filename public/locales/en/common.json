@@ -20,13 +20,9 @@
     "overview": "Overview",
     "team": "Team",
     "jobs": "Backups",
-    "infra": "Infra",
+    "infra": "Machines and switches",
     "off": "off",
     "turnedOff": "{title} (turned off)",
-    "theme": {
-      "toggle": "Switch between light and dark",
-      "label": "Theme"
-    },
     "language": {
       "label": "Language",
       "fr": "Français",
@@ -59,7 +55,9 @@
     "network": "Cannot reach the server: check your connection."
   },
   "announcement": {
-    "hide": "Hide the announcement"
+    "hide": "Hide the announcement",
+    "more": "Read",
+    "less": "Show less"
   },
   "columns": {
     "actions": "Actions"
@@ -70,5 +68,26 @@
     "home": "Back to home",
     "pageTitle": "Page not found · Lab Console"
   },
-  "loading": "Loading…"
+  "loading": "Loading…",
+  "nav": {
+    "back": "Back",
+    "collapse": "Collapse the menu",
+    "expand": "Expand the menu",
+    "badge": {
+      "one": "{count} waiting",
+      "other": "{count} waiting"
+    }
+  },
+  "plus": {
+    "label": "More"
+  },
+  "theme": {
+    "label": "Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "auto": "Auto"
+  },
+  "menu": {
+    "more": "More actions"
+  }
 }

@@ -107,7 +107,7 @@ const within = (promise, ms, what) => Promise.race([
  *   env      extra variables for the application
  *   publicHost  the host name of PUBLIC_URL (default 127.0.0.1); 'localhost' where
  *            the browser needs a domain name: passkeys (see addVirtualAuthenticator)
- * → { url, app, idp, lab, browser, marker, newPage({ locale, tour }), session(page, who), adminCode(), close() }
+ * → { url, app, idp, lab, browser, marker, newPage({ locale, tour, phone }), newPhonePage(options), session(page, who), adminCode(), close() }
  */
 export async function startHarness({ oidc = true, mockLab = true, env = {}, publicHost } = {}) {
   guardProcess();
@@ -189,8 +189,11 @@ export async function startHarness({ oidc = true, mockLab = true, env = {}, publ
    * fresh test user is: unless `tour: true`, the page is told (in the browser,
    * the application is untouched) that this person already went through it
    */
-  h.newPage = async ({ locale = 'fr-FR', tour = false } = {}) => {
-    const context = await h.browser.newContext({ locale });
+  h.newPage = async ({ locale = 'fr-FR', tour = false, phone = false } = {}) => {
+    // The audit's screens (docs/v2/UX.md §2): a desktop of 1440 × 900 (with the expanded rail, the content
+    // is as wide as it was at 1280 px with the old 72 px rail), or with `phone` a touch screen of 390 × 844
+    const screen = phone ? { viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 2 } : { viewport: { width: 1440, height: 900 } };
+    const context = await h.browser.newContext({ locale, ...screen });
     context.setDefaultTimeout(TIMEOUT);
     if (!tour) {
       await context.route('**/api/help/tour', (route) => (route.request().method() === 'GET'
@@ -214,6 +217,9 @@ export async function startHarness({ oidc = true, mockLab = true, env = {}, publ
     harnessOf.set(page, h);
     return page;
   };
+
+  /** A page on a phone: touch, 390 × 844 (the tab bar and the sheets instead of the rail and the popovers) */
+  h.newPhonePage = (options = {}) => h.newPage({ ...options, phone: true });
 
   /** Shortcut that skips the sign-in pages: a real session opened by the test helper, handed over as the cookie */
   h.session = async (page, who = 'admin') => {
@@ -310,11 +316,30 @@ export async function addVirtualAuthenticator(page, { credentials = [] } = {}) {
   };
 }
 
-/** The application shell is ready: the rail, the user menu, and the section on screen has drawn its content */
+/**
+ * The application shell is ready: the navigation (the rail, or the tab bar on
+ * a phone), the account menu, and the section on screen has drawn its content
+ */
 export async function waitForApp(page) {
-  await page.waitForSelector('#rail-items .rail-btn');
-  await page.waitForSelector('.user-menu-btn');
+  await page.waitForSelector('[data-nav="home"]:visible');
+  await page.waitForSelector('[data-nav="plus"]:visible');
+  await page.waitForSelector('.user-menu-btn', { state: 'attached' });
   await page.waitForSelector('#views > section.view:not([hidden]) > *');
+}
+
+/** On a phone the rail is hidden: what it holds is in the Plus sheet → whether this page shows the tab bar */
+const onPhone = (page) => page.locator('.tabbar').isVisible();
+
+/** Open the account's controls: the account menu (rail), or the Plus sheet (phone) → the locator holding them */
+export async function openAccountMenu(page) {
+  if (await onPhone(page)) {
+    if (!await page.locator('dialog[open] .plus-sheet').isVisible()) await page.click('.tabbar [data-nav="plus"]');
+    await page.waitForSelector('dialog[open] .plus-sheet');
+    return page.locator('dialog[open] .plus-sheet');
+  }
+  if (!await page.locator('#user-menu').isVisible()) await page.click('.user-menu-btn');
+  await page.waitForSelector('#user-menu:visible');
+  return page.locator('#user-menu');
 }
 
 /** Sign in through the login page and the mock provider's user picker; → the provider's user */
@@ -343,17 +368,35 @@ export async function signInAsAdmin(page, { username = TEST_ADMIN.username, pass
   await waitForApp(page);
 }
 
-/** Sign out from the user menu in the rail, and land on the login page */
+/** Sign out from the account menu (or the Plus sheet on a phone), and land on the login page */
 export async function signOut(page) {
-  if (!await page.locator('#user-menu').isVisible()) await page.click('.user-menu-btn');
-  await page.click('.user-menu-out');
+  const menu = await openAccountMenu(page);
+  await menu.locator('.user-menu-out').click();
   await page.waitForURL(/\/login(\?.*)?$/);
 }
 
-/** Click a language button (the rail's or the login page's) and wait until the page has switched */
+/**
+ * Choose a language and wait until the page has switched: the login page's
+ * buttons, or in the application the account menu's (the Plus sheet on a
+ * phone), which is closed again afterwards
+ */
 export async function setLanguage(page, lang) {
-  await page.locator(`button[data-lang="${lang}"]`).first().click();
+  const inApp = await page.locator('.user-menu-btn').count() > 0;
+  if (!inApp) {
+    await page.locator(`button[data-lang="${lang}"]`).first().click();
+  } else {
+    const menu = await openAccountMenu(page);
+    await menu.locator(`button[data-lang="${lang}"]`).click();
+  }
   await page.waitForFunction((l) => document.documentElement.lang === l, lang);
+  // Closed the way a person would, without Escape (the guided tour takes it as "stop")
+  if (inApp && await onPhone(page)) {
+    await page.goBack();
+    await page.waitForSelector('.plus-sheet', { state: 'detached' });
+  } else if (inApp) {
+    await page.click('.user-menu-btn');
+    await page.waitForSelector('#user-menu', { state: 'hidden' });
+  }
 }
 
 /**

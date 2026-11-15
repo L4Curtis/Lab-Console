@@ -57,8 +57,8 @@ export async function contrastFailures(page, { within = 'body' } = {}) {
   }, within);
 }
 
-/** Visible text drawn smaller than `min` px (the audit's floor is 11) */
-export async function tinyText(page, { within = 'body', min = 11 } = {}) {
+/** Visible text drawn smaller than `min` px (the floor of the redesign is 12, docs/v2/UX.md §6.2) */
+export async function tinyText(page, { within = 'body', min = 12 } = {}) {
   return page.evaluate(([root, floor]) => {
     const out = [];
     const walker = document.createTreeWalker(document.querySelector(root), NodeFilter.SHOW_TEXT);

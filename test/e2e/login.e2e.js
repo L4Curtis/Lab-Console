@@ -12,7 +12,7 @@ const h = useHarness({ mockLab: false });
 const pages = [];
 const failedRequests = []; // status and URL of every refused request, checked at the end
 
-/** Sign out from the rail; requests the page still had in flight may meet the ended session (401), which is expected */
+/** Sign out from the account menu; requests the page still had in flight may meet the ended session (401), which is expected */
 /** Forget the 401 answers of the API that came after `from` (the gate turning a signed-out page away); any other refusal stays on record */
 function forgetGateRefusals(from) {
   const during = failedRequests.splice(from);
@@ -56,7 +56,7 @@ test('the identity provider: pick a student, come back signed in, see the user m
   await page.waitForSelector('.user-menu-btn');
   assert.equal(new URL(page.url()).hash, '#/infra', 'back where the student was heading');
 
-  assert.equal(await page.textContent('.user-badge'), 'AM');
+  assert.equal(await page.textContent('.user-menu-btn .avatar'), 'AM');
   await page.click('.user-menu-btn');
   await page.waitForSelector('#user-menu:visible');
   assert.equal(await page.textContent('.user-menu-name'), 'Alice Martin');
