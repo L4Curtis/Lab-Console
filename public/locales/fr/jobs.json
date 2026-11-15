@@ -1,18 +1,17 @@
 {
-  "title": "Sauvegardes et tâches",
-  "subtitle": "Sauvegarder, injecter une configuration ou réinitialiser les équipements d’une baie",
+  "title": "Sauvegardes",
   "bench": "Baie",
   "actions": {
     "backup": "Sauvegarder",
-    "inject": "Injecter…",
-    "compare": "Comparer à la configuration en cours…",
-    "reset": "Réinitialiser…"
+    "inject": "Injecter",
+    "compare": "Comparer à la configuration en cours",
+    "reset": "Réinitialiser"
   },
   "notice": {
     "locked": "Baie verrouillée ({reason}) : seuls les administrateurs lancent des tâches dessus.",
     "offer": "Votre équipe vient de libérer {bench} : vous pouvez encore sauvegarder ses configurations.",
     "otherTeam": "L’équipe {team} occupe cette baie : vous voyez vos sauvegardes, mais seuls ses occupants lancent des tâches.",
-    "takeFirst": "Prenez la main sur la baie pour votre équipe (onglet Consoles) avant de lancer une tâche.",
+    "takeFirst": "Prenez la baie pour votre équipe (onglet Équipe) avant de lancer une tâche.",
     "base": "Configuration de base appliquée après une réinitialisation : {name}."
   },
   "kind": {
@@ -154,7 +153,8 @@
     },
     "stop": "Arrêter",
     "report": "Rapport",
-    "saved": "sauvegardé ({size})"
+    "saved": "sauvegardé ({size})",
+    "detail": "Détail"
   },
   "download": {
     "title": "Téléchargez cette sauvegarde maintenant.",
@@ -164,7 +164,7 @@
   "snapshots": {
     "title": "Sauvegardes de l’équipe",
     "notBackup": "Le serveur n’est pas une sauvegarde : téléchargez vos ZIP et gardez-les.",
-    "none": "Aucune sauvegarde pour l’instant.",
+    "none": "Sauvegardez la baie en fin de séance : la sauvegarde apparaît ici, avec son ZIP.",
     "import": "Importer un ZIP",
     "imported": {
       "one": "Sauvegarde importée ({count} équipement).",
@@ -180,22 +180,27 @@
       "date": "Date",
       "label": "Sauvegarde",
       "devices": "Équipements",
-      "by": "Par",
-      "actions": "Actions"
+      "by": "Par"
     },
     "view": "Voir",
     "zip": "ZIP",
-    "diff": "Différences…",
+    "diff": "Comparer à une autre sauvegarde",
     "live": "Comparer à la configuration en cours",
     "inject": "Injecter",
-    "folder": "Dossier de TP",
+    "folder": "Exporter en dossier de TP",
     "delete": "Supprimer",
     "deleteTitle": "Supprimer cette sauvegarde ?",
-    "deleteBody": "La sauvegarde du {date} est supprimée du serveur. Si vous n’avez pas son ZIP, elle est perdue."
+    "deleteBody": "La sauvegarde du {date} est supprimée du serveur. Si vous n’avez pas son ZIP, elle est perdue.",
+    "devices": {
+      "one": "{count} équipement",
+      "other": "{count} équipements"
+    },
+    "noneTitle": "Pas encore de sauvegarde",
+    "publish": "Publier comme modèle de TP"
   },
   "templates": {
     "title": "Modèles de TP",
-    "none": "Aucun modèle publié.",
+    "none": "Aucun modèle n’est publié pour l’instant. Un administrateur peut en publier à partir d’une sauvegarde ou d’un ZIP.",
     "import": "Importer un ZIP",
     "new": "Nouveau modèle",
     "newIntro": "Une configuration envoyée à chaque équipement (par exemple la configuration de base appliquée après une réinitialisation).",
@@ -214,14 +219,20 @@
     "every": "tous les équipements",
     "delete": "Supprimer",
     "deleteTitle": "Supprimer le modèle « {name} » ?",
-    "deleteBody": "Plus personne ne pourra l’injecter."
+    "deleteBody": "Plus personne ne pourra l’injecter.",
+    "noneTitle": "Aucun modèle"
   },
   "history": {
     "title": "Tâches récentes de la baie",
     "none": "Aucune tâche pour l’instant.",
-    "line": {
-      "one": "{kind} par {name}, {count} équipement",
-      "other": "{kind} par {name}, {count} équipements"
+    "noneTitle": "Aucune tâche",
+    "by": {
+      "one": "par {name} · {count} équipement",
+      "other": "par {name} · {count} équipements"
+    },
+    "col": {
+      "job": "Tâche",
+      "state": "État"
     }
   },
   "view": {
@@ -352,5 +363,11 @@
     "snapshot_delete": "{who} a supprimé une sauvegarde",
     "folder_download": "{who} a téléchargé le dossier de TP"
   },
-  "loadFailed": "Impossible de charger les sauvegardes et les tâches de la baie."
+  "loadFailed": "Impossible de charger les sauvegardes et les tâches de la baie.",
+  "picker": "Baie {bench}",
+  "tabs": {
+    "snapshots": "Sauvegardes",
+    "templates": "Modèles de TP",
+    "runs": "Tâches"
+  }
 }
