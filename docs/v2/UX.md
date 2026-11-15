@@ -24,6 +24,7 @@ Contents
 10. The other screens
 11. Implementation plan: shell, then three parts in parallel
 12. Acceptance checks
+13. Using the components (as delivered by the shell)
 
 ---
 
@@ -1484,3 +1485,189 @@ Measured with the audit scenes of section 2 (390×844 touch, 768×1024 touch,
   empty for every section).
 - Every new string exists in `fr` and `en` (the parity test passes).
 - `npm run lint`, `npm test`, `npm run test:e2e` (three runs in a row) pass.
+
+## 13. Using the components (as delivered by the shell)
+
+What part S built, and how a part uses it. Everything is in
+`public/css/tokens.css`, `public/css/app.css` (base components),
+`public/css/shared.css` (components with behaviour, loaded by `main.js` at
+start-up) and `public/js/shared/`, `public/js/core/`. A part does not
+restyle these in its own CSS file; it asks for a variant.
+
+### 13.1 Tokens
+
+Use the roles of 6.5 (`var(--surface)`, `var(--text-2)`, `var(--accent-strong)`…)
+and the spacing scale (`var(--sp-4)`), never a hexadecimal value or a pixel
+value outside the scale. Type tokens are full `font` shorthands:
+`font: var(--fs-title)`, `font: var(--fs-small)`; `--fs-body` and `--fs-title`
+already change on a phone and on a touch screen. `--tap` is the minimum
+height of anything interactive (32 px with a mouse, 44 px with a finger):
+`min-height: var(--tap)`. `--gutter` is the side margin of the breakpoint.
+The old names (`--ink`, `--line`, `--console`, `--paper`…) are aliases that
+go away in the final cleanup: do not write new code with them.
+
+The theme on screen is `data-theme="light|dark"` on `<html>`; the person's
+choice (`light`, `dark`, `auto`) is `core/theme.js` (`setTheme`,
+`themePref`), and `themechange` fires on `window` when the theme on screen
+changes. `core/viewport.js`: `isCompact()` (< 720 px), `isCoarse()`,
+`onViewportChange(fn)`; it keeps `--vvh` (visual viewport height) and
+`data-keyboard="open"` on `<html>`. `data-chrome="immersive"` on `<html>`
+hides the phone's tab bar (the full-screen console of part A sets it).
+
+### 13.2 A section's frame
+
+```js
+import { pageHeader } from '../../shared/pageHeader.js';
+
+const header = pageHeader({
+  title: 'jobs.title',                                  // key or function: the <h1>
+  context: () => t('jobs.context', { bench }),           // optional line under it
+  primary: { id: 'backup', label: 'jobs.actions.backup', icon: 'download', run: backup },
+  actions: [                                             // two buttons from 720 px, the rest in ⋯
+    { id: 'inject', label: 'jobs.actions.inject', icon: 'upload', run: inject },
+    { id: 'reset', label: 'jobs.actions.reset', icon: 'refresh', run: reset, danger: true },
+    { id: 'search', label: 'jobs.actions.search', icon: 'search', run: search, bar: true }, // stays an icon on a phone
+  ],
+  back: '#/admin',                                       // optional: a back arrow
+  tabs: true,                                            // optional: header.tabBar for mountTabs
+  full: false,                                           // true: no 1280 px limit (Consoles)
+});
+const body = h('div.view-body', …);                      // the section's only scroll container
+el.append(header.el, body);
+const tabs = mountTabs(body, [...], { navigate, base: '#/jobs', bar: header.tabBar });
+header.update({ context, primary, actions });           // later, any of them
+header.setBadge('search', 2);
+```
+
+- `.view-body` scrolls; the header above it never moves, and the shell keeps
+  each section's scroll position when the person goes elsewhere. Content is
+  centred and at most 1280 px wide; `.view-body.full` drops the limit,
+  `.view-body.flush` the padding (a canvas). `.stack` (24 px) and
+  `.stack.tight` (12 px) space blocks vertically.
+- On a phone the header is the 56 px app bar: the title, the back arrow, the
+  actions with `bar: true` as icons (two at most), ⋯ with every other
+  secondary action, and the primary as a full-width 48 px button under it.
+- The announcement banner is placed by the shell right under `.page-header`
+  (or the old `.view-head`) of the section on screen.
+- Sections not rebuilt yet keep `header.view-head`; it is restyled (22 px
+  title, no white band) but has no phone app bar.
+
+### 13.3 Buttons, cards, badges, chips, avatars, forms
+
+Classes, no JavaScript:
+
+| need | markup |
+|---|---|
+| the action of the screen | `button.btn.primary` (`.lg` on a phone footer, `.block` full width) |
+| another action | `button.btn`; `.ghost` without border; `.danger` (red text) leads to a destructive action; `.danger-solid` only confirms one |
+| a dense row | `.btn.sm` (32 px, 44 on touch) |
+| an icon alone | `button.icon-btn` with `aria-label` and `title`; `aria-pressed` for a toggle |
+| busy | `aria-busy="true"` on the button: its first icon becomes a spinner |
+| a block of content | `.card` › `.card-head` (`h2` + `.card-meta` + `.card-actions`), `.card-body`, `.card-foot`; `.card-section` for a group inside; `a.card.link` when the whole card leads somewhere; `.card.hero[data-tone="success|danger|warning"]` |
+| a status | `span.badge[data-tone="success|warning|danger|info|neutral"]` (a word, never colour alone; `span.dot` inside for the LED) |
+| a count | `span.count` (`data-tone="danger"` when it needs action) |
+| a filter | `button.chip[aria-pressed]` in a `.chips` row |
+| a person | `span.avatar` (24 px; `.md` 32, `.lg` 40; `.pilot` ring) with `style.background = user.color`; `.avatar-stack` + `.avatar-more` "+n" |
+| 2–4 views or filters | `.seg` › `button.seg-btn[aria-pressed|aria-selected|aria-checked]`; `.seg.fill` full width, `.seg.fill-compact` full width on a phone only |
+| a field | `input.field`, `select.field`, `textarea.field` in a `label` of a `.form-grid`; `small` or `.field-hint` under it, `.form-error` for the error, `span.optional` for "(facultatif)" |
+
+### 13.4 Lists: `dataList()`
+
+```js
+import { dataList } from '../../shared/dataList.js';
+const list = dataList({
+  label: () => t('jobs.snapshots.title'),
+  columns: [
+    { id: 'name', label: 'jobs.cols.name', cell: (r) => r.name, primary: true },
+    { id: 'when', label: 'jobs.cols.date', cell: (r) => fmtShort(r.at), meta: true },
+    { id: 'state', label: 'jobs.cols.state', cell: (r) => stateBadge(r), badge: true },
+    { id: 'devices', label: 'jobs.cols.devices', cell: (r) => r.devices.length, num: true, hideCompact: true },
+  ],
+  actions: (r) => [
+    { id: 'zip', label: 'jobs.actions.zip', icon: 'download', run: () => zip(r), primary: true },
+    { id: 'view', label: 'jobs.actions.view', icon: 'search', run: () => view(r) },
+    { id: 'delete', label: 'jobs.actions.delete', icon: 'trash', run: () => remove(r), danger: true },
+  ],
+  empty: { icon: 'archive', title: 'jobs.snapshots.noneTitle', text: 'jobs.snapshots.none', action: { label: 'jobs.actions.backup', run: backup } },
+  onOpen: (r) => openDetail(r),   // optional
+  dense: false,                   // admin tables: 44 px rows, one card with dividers on a phone
+});
+list.render(rows);
+```
+
+One `<table>` (so the header and the body always line up). From 720 px: a
+table, the primary action and the next safe one as buttons, the rest in ⋯.
+Below: one card per row (title = `primary`, `badge` at the right, `meta`
+lines, `hideCompact` left out), the primary action and ⋯ with the others.
+Row selection is not part of it yet: a part that needs it adds a checkbox
+column and a "Sélectionner" entry in its header's ⋯.
+
+### 13.5 Menus, dialogs, sheets, side panels
+
+```js
+import { openMenu, moreButton } from '../../shared/menu.js';
+const id = await openMenu(button, [
+  { group: 'consoles.tools.title' },
+  { id: 'checks', label: 'consoles.tools.checks', icon: 'check' },
+  'separator',
+  { id: 'reset', label: 'jobs.actions.reset', icon: 'refresh', danger: true, disabled: !may, hint: 'jobs.hints.reset' },
+], { label: t('consoles.tools.title') });           // → the id, or null
+toolbar.append(moreButton(() => items, { onSelect: (id) => … }));
+```
+
+A popover from 720 px (arrows, Home / End, a letter, Escape gives the focus
+back), a sheet of 52 px rows on a phone. An item may carry `run` or `href`.
+
+`shared/dialog.js` keeps its API (`openDialog`, `confirmDialog`,
+`formDialog`) and gains `size`: `'sm'` (confirmations, the default of
+`confirmDialog`), `'md'` (the default), `'lg'` (`wide: true`), `'full'`.
+From 720 px a centred dialog; on a phone a bottom sheet (`lg` and `full`:
+the whole height), with large footer buttons. A tap on the scrim closes a
+dismissible dialog. On a phone, Back closes the sheet on top: `closed`
+settles once the history is back in place, so `await dlg.closed; location.hash = …`
+is safe. The footer of `confirmDialog` / `formDialog` is `.form-actions`; a
+dialog of its own puts its buttons in a `.form-actions` at the end of its
+`.modal-body` to get the same sticky footer.
+
+```js
+import { sideHost, sidePanel } from '../../shared/sidePanel.js';
+const host = sideHost(canvasArea);                  // wraps the content that shrinks
+const live = sidePanel(host, { title: 'consoles.live.title', footer: composer });
+live.body.append(feed);  live.toggle();  live.setCount(2);  live.onToggle((open) => button.setAttribute('aria-pressed', open));
+```
+
+A 360 px column that resizes the content from 1200 px, a drawer over it with
+a scrim from 720 px, a full-height sheet on a phone; one open per host.
+
+### 13.6 Tabs, load states, toasts, navigation
+
+- `mountTabs(…, { style: 'underline' })` is the default now (sub-pages);
+  `style: 'segmented'` keeps a `.seg` (views of one screen). The strip
+  scrolls sideways on a phone and keeps the chosen tab in view.
+- `loading()` shows skeleton rows after 300 ms (nothing before);
+  `loadFailure()` is unchanged in behaviour; `emptyState({ icon, title, text,
+  action })` for every list or card that can be empty.
+- `toast(message, kind, ms, { action: { label, run } })`, kind `info`,
+  `success`, `warn` or `error`; every toast has ✕, an error with an action
+  stays until it is dismissed.
+- `core/nav.js`: `setNavBadge(path, { count } | { dot: true, tone } | null)`
+  puts a badge on a destination of the rail and the tab bar (the phone's
+  Plus shows a dot for what it holds); `registerPlusEntry({ id, icon, label,
+  hint, run, order })` adds a row to the phone's Plus sheet; `navSlot('alerts')`
+  is the rail's place for the bell. Items carry `data-nav="<path>"` in the
+  rail and in the tab bar alike (`data-nav="plus"` for Plus): the guided tour
+  and the tests target those.
+- Icons added for the parts (`ICONS` in `core/dom.js`): `menu`, `back`,
+  `chevronDown`, `chevronUp`, `collapse`, `expand`, `dock`, `clipboard`,
+  `record`, `filter`, `sun`, `moon`, `auto`, `escape`, `tab`, `arrowUp`,
+  `arrowDown`, `arrowLeft`, `arrowRight`, `enter`, `phone-rotate`, `info`,
+  `error`, `success`, `logout`, `language`, `tour`.
+
+### 13.7 Tests
+
+`h.newPhonePage()` (or `h.newPage({ phone: true })`) opens a touch page of
+390 × 844. `waitForApp()` waits for the navigation of either layout;
+`openAccountMenu(page)` opens the account menu (the Plus sheet on a phone);
+`signOut()` and `setLanguage()` go through it. `tinyText()` now reports text
+under 12 px. A sheet or a menu animates in: wait for its animations to finish
+before measuring it (`test/e2e/ui-layout.e2e.js`, `settled()`).
