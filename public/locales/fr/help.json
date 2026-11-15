@@ -18,7 +18,7 @@
       "infra": "Infra : les VM Proxmox quand Proxmox est configuré, et les switchs d’administration du labo.",
       "status": "État du labo : la chaîne d’accès répond-elle (rebond, serveurs de consoles), et ce qui est journalisé.",
       "admin": "Administration (administrateurs seulement) : comptes, invitations, connexion SSO, paramètres du labo, schéma, sessions, journal d’audit, annonce.",
-      "account": "Mon compte (menu de la pastille) : nom d’affichage, mot de passe et clés d’accès d’un compte local, sessions ouvertes.",
+      "account": "Mon compte (menu de la pastille) : sessions ouvertes ; pour un compte local, nom d’affichage, mot de passe et clés d’accès. Un compte local se connecte avec sa clé d’accès : ajoutez-en une par appareil ; un appareil perdu se remplace par un lien de réinitialisation donné par un administrateur.",
       "help": "Aide : cette page. Le menu du compte permet aussi de revoir la visite guidée.",
       "extras": "Toujours dans la barre de gauche : FR / EN change la langue, « Thème » bascule clair / sombre, et la cloche « Alertes » active les alertes du navigateur (clavier demandé, ligne libre, tâche terminée)."
     },

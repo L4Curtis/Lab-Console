@@ -6,7 +6,9 @@
  * approval, in the Users tab), and grants a role: student by default. The
  * link itself is shown once, when it is created; the list shows what each
  * one is for, how many times it was used, and lets an administrator
- * withdraw it
+ * withdraw it. Every local account signs in with a passkey, registered as
+ * part of the sign-up: where the site cannot offer passkeys (not https), no
+ * invitation can be made, and the tab says why
  */
 import { h, icon, toast } from '../../../core/dom.js';
 import { request, getJson, live } from '../../../core/api.js';
@@ -30,7 +32,7 @@ export function mount(el) {
       tbody))));
 
   let invitations = [];
-  let passkeysAvailable = false;
+  let passkeysAvailable = true; // until the server says otherwise
   let visible = false;
 
   async function load() {
@@ -44,8 +46,7 @@ export function mount(el) {
   }
 
   async function createInvitation() {
-    const roles = [{ value: 'student', label: t('auth.menu.roles.student') }];
-    if (passkeysAvailable) roles.push({ value: 'admin', label: t('auth.menu.roles.admin') });
+    const roles = ['student', 'admin'].map((value) => ({ value, label: t(`auth.menu.roles.${value}`) }));
     const created = await formDialog({
       title: t('accounts.invitations.createTitle'),
       intro: [t('accounts.invitations.createIntro')],
@@ -53,7 +54,7 @@ export function mount(el) {
         { name: 'note', label: t('accounts.invitations.note'), placeholder: t('accounts.invitations.notePlaceholder'), attrs: { maxlength: 120 } },
         { name: 'ttl', label: t('accounts.links.validity'), type: 'select', value: '24h', options: ['1h', '24h', '7d'].map((v) => ({ value: v, label: t(`accounts.links.ttl.${v}`) })) },
         { name: 'uses', label: t('accounts.invitations.uses'), type: 'number', value: 1, hint: t('accounts.invitations.usesHint'), attrs: { min: 1, max: 100, step: 1 } },
-        { name: 'role', label: t('accounts.invitations.role'), type: 'select', value: 'student', options: roles, hint: passkeysAvailable ? t('accounts.invitations.roleHint') : t('accounts.invitations.noAdminHint') },
+        { name: 'role', label: t('accounts.invitations.role'), type: 'select', value: 'student', options: roles, hint: t('accounts.invitations.roleHint') },
       ],
       submitLabel: t('accounts.invitations.create'),
       validate: (values) => (Number.isInteger(values.uses) && values.uses >= 1 && values.uses <= 100 ? '' : t('accounts.errors.bad_uses')),
@@ -102,7 +103,8 @@ export function mount(el) {
     labelColumns(el, (c) => t(`accounts.invitations.columns.${c}`));
     el.querySelector('.create-label').textContent = t('accounts.invitations.create');
     el.querySelector('.ended-label').textContent = t('accounts.invitations.showEnded');
-    el.querySelector('.panel-intro').textContent = t('accounts.invitations.intro');
+    el.querySelector('.panel-intro').textContent = t(passkeysAvailable ? 'accounts.invitations.intro' : 'accounts.invitations.noPasskeys');
+    create.disabled = !passkeysAvailable;
     const shown = invitations.filter((i) => showEnded.checked || i.state === 'active');
     tbody.replaceChildren(...(shown.length ? shown.map(row) : [h('tr', h('td.empty-row', { colspan: 7 }, t('accounts.invitations.none')))]));
   }

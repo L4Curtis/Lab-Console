@@ -9,9 +9,13 @@
  * native form submissions - and its fields go together, so a refusal never
  * says which one was wrong, nor whether the account exists.
  *
- * An administrator's local account owes a passkey after its password: the
- * server answers { step } instead of a session, and the page asks for the
- * passkey (or to register one, the first time) before going on.
+ * Every local account signs in with a passkey: after its password the server
+ * answers { step } instead of a session, and the page asks for the passkey
+ * (or to register one, when the account has none yet) before going on. The
+ * environment's administrator signs in with password and code. Where the
+ * site cannot offer passkeys (session.passkeys false), the hint says that
+ * only the administrator can sign in here, and the server refuses a local
+ * account with accounts.passkeys_unavailable.
  *
  * Errors coming back from the provider arrive as ?error=<reason> and are
  * shown in the visitor's language. Where to go afterwards is ?next=/path, or
@@ -33,7 +37,8 @@ const reason = params.get('error');
 document.documentElement.dataset.theme = prefs.get('theme', matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
 
 const session = await loadSession();
-await initI18n({ defaultLocale: session.locale, namespaces: ['common', 'auth'] });
+// accounts: the refusals of the passkey routes (accounts.passkey_refused, …) are translated there
+await initI18n({ defaultLocale: session.locale, namespaces: ['common', 'auth', 'accounts'] });
 
 const ssoButton = $('sso-button');
 const local = $('login-local');
@@ -48,7 +53,7 @@ const offerPasskeys = Boolean(session.passkeys) && passkeysSupported();
 let lastError = null;
 let passkeyError = null;
 let stepError = null;
-let step = null; // 'passkey' | 'passkey-enrol' while a password sign-in waits for its passkey
+let step = null; // 'passkey' | 'passkey-enrol' while a password sign-in waits for its passkey (every local account)
 let busy = false;
 
 const translate = (m) => (!m ? '' : m.code ? tError(m.code, m.params, m.fallback) : t(m.key));
@@ -63,7 +68,7 @@ function render() {
     ssoButton.textContent = t('auth.login.sso', { provider: session.providerName });
     ssoButton.href = `/auth/login?next=${encodeURIComponent(next)}`;
   }
-  $('local-hint').textContent = t(session.providerName ? 'auth.login.localHint' : 'auth.login.localHintAlone');
+  $('local-hint').textContent = t(!session.passkeys ? 'auth.login.localHintNoPasskeys' : session.providerName ? 'auth.login.localHint' : 'auth.login.localHintAlone');
   const message = $('login-message');
   const key = reason && has(`auth.messages.${reason}`) ? `auth.messages.${reason}` : null;
   message.hidden = !key;

@@ -3,7 +3,9 @@
  * menu at the bottom of the rail
  *
  *   - local accounts: display name, password change (the other sessions
- *     end), passkeys (add, rename, remove; an administrator keeps one);
+ *     end), passkeys (add, rename, remove; the last one stays: a local
+ *     account signs in with it, and a lost one is replaced through an
+ *     administrator's reset link);
  *   - SSO accounts: name and role as the provider gives them, nothing to
  *     change here;
  *   - the environment's administrator: changed in the server's
@@ -58,13 +60,15 @@ export async function mount(el) {
 
   function passkeysCard() {
     if (!me.canChangePassword) return null; // SSO accounts and the environment's administrator have none here
+    // The last passkey stays: it is how the account signs in (the server refuses it too)
+    const last = me.passkeys.length === 1;
     const list = h('ul.passkey-list', me.passkeys.map((p) => h('li', { dataset: { passkey: p.id } },
       icon('key'),
       h('div.passkey-text', h('strong', p.name), h('span.vm-meta', t('accounts.me.passkeyDates', { created: fmtLong(p.createdAt), used: fmtLong(p.lastUsedAt) }))),
       h('div.row-actions',
         h('button.btn.small', { type: 'button', dataset: { action: 'rename-passkey' }, onclick: () => renamePasskey(p) }, t('accounts.me.renamePasskey')),
-        h('button.btn.small.danger', { type: 'button', dataset: { action: 'remove-passkey' }, onclick: () => removePasskey(p) }, t('accounts.me.removePasskey'))))));
-    const intro = me.account.role === 'admin' ? t('accounts.me.passkeysAdmin') : t('accounts.me.passkeysStudent');
+        h('button.btn.small.danger', { type: 'button', dataset: { action: 'remove-passkey' }, disabled: last, title: last ? t('accounts.me.lastPasskey') : null, onclick: () => removePasskey(p) }, t('accounts.me.removePasskey'))))));
+    const intro = t('accounts.me.passkeysIntro');
     const add = h('button.btn.primary.small', { type: 'button', dataset: { action: 'add-passkey' }, disabled: !me.canAddPasskeys, onclick: () => register(add) }, icon('plus'), t('accounts.me.addPasskey'));
     return card('accounts.me.passkeys', h('p.muted', intro),
       me.passkeys.length ? list : h('p.muted', t('accounts.me.noPasskey')),
