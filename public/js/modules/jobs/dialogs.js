@@ -154,8 +154,8 @@ export async function injectDialog(bench, detail, { snapshots, templates, preset
   const pw = passwordFields();
   const typed = h('input.field', { type: 'text', autocomplete: 'off', spellcheck: 'false', name: 'confirm' });
   const typedRow = h('label.require-text', h('span', t('jobs.reset.typeBench', { bench })), typed);
-  const previewBox = h('div.jobs-preview', { hidden: true });
-  const choose = h('div.jobs-choose',
+  const previewBox = h('div.jobs-preview.form-grid', { hidden: true });
+  const choose = h('div.jobs-choose.form-grid',
     h('label', h('span', t('jobs.inject.source')), source),
     h('label', h('span', t('jobs.inject.mode')), mode),
     h('label.check', save, h('span', t('jobs.inject.save'))),
@@ -190,7 +190,8 @@ export async function injectDialog(bench, detail, { snapshots, templates, preset
     choose.hidden = true;
     previewBox.hidden = false;
     const back = h('button.btn.ghost.sm', { type: 'button', onclick: () => { preview = null; choose.hidden = false; previewBox.hidden = true; shell.go.textContent = t('jobs.inject.preview'); shell.go.classList.replace('danger-solid', 'primary'); } }, icon('chevronLeft'), t('jobs.inject.back'));
-    previewBox.replaceChildren(
+    // replaceChildren() writes a null as the word "null": only nodes go in
+    previewBox.replaceChildren(...[
       back,
       h('p.dialog-text', t(mode.value === 'reset' ? 'jobs.inject.previewReset' : 'jobs.inject.previewMerge', { source: preview.source.name })),
       preview.missing.length ? h('p.jobs-callout', { dataset: { tone: 'warning' } }, icon('warning'), h('span', t('jobs.inject.missing', { devices: preview.missing.map((m) => m.name).join(', ') }))) : null,
@@ -199,7 +200,7 @@ export async function injectDialog(bench, detail, { snapshots, templates, preset
         d.dropped.length ? h('ul.jobs-dropped', d.dropped.map((x) => h('li', h('code', x.text), ' — ', t(`jobs.dropped.${x.code}`)))) : null,
         h('pre.jobs-code', d.script)))),
       pw.el,
-      mode.value === 'reset' ? typedRow : null);
+      mode.value === 'reset' ? typedRow : null].filter(Boolean));
     shell.go.textContent = t('jobs.inject.go', { count: preview.devices.length });
     shell.go.disabled = !preview.devices.length;
     if (mode.value === 'reset') {

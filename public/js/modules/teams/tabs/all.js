@@ -77,12 +77,12 @@ export function mount(el, { header }) {
     const draw = () => {
       const now = teams.find((x) => x.id === team.id);
       if (!now) { dlg.close(); return; }
-      body.replaceChildren(
+      body.replaceChildren(...[
         h('ul.team-list', (now.people ?? []).map((p) => h('li', { dataset: { user: p.username } },
           personAvatar(p, '.md'),
           h('span.team-person', h('strong', p.name), h('span.card-meta', `@${p.username}`)),
           h('button.btn.sm.ghost.danger', { type: 'button', dataset: { action: 'remove-member' }, 'aria-label': `${t('teams.all.remove')} · ${p.name}`, onclick: async () => { await removeMember(now, p); draw(); } }, icon('close'), t('teams.all.removeShort'))))),
-        now.invitations?.length ? h('p.card-meta', t('teams.all.invited', { names: now.invitations.map((i) => i.username).join(', ') })) : null);
+        now.invitations?.length ? h('p.card-meta', t('teams.all.invited', { names: now.invitations.map((i) => i.username).join(', ') })) : null].filter(Boolean));
     };
     const dlg = openDialog(body, { title: () => t('teams.all.manageTitle', { team: team.name }), size: 'md' });
     draw();
