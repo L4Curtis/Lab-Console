@@ -38,7 +38,8 @@ export function mount(el, ctx) {
       { id: 'state', label: () => t('accounts.invitations.columns.state'), cell: (i) => stateBadge(i.state, t(`accounts.invitations.states.${i.state}`)), badge: true },
     ],
     actions: (i) => (i.state === 'active' ? [{ id: 'revoke', label: 'accounts.invitations.revoke', icon: 'trash', danger: true, run: () => revoke(i) }] : []),
-    empty: { icon: 'link', title: 'accounts.invitations.none', text: 'accounts.invitations.noneText' },
+    // Without passkeys the empty state does not invite to create a link: the notice above says why
+    empty: { icon: 'link', title: 'accounts.invitations.none', text: () => (passkeysAvailable ? t('accounts.invitations.noneText') : '') },
   });
   tagRows(list, (i) => ({ invitation: i.id, state: i.state }));
   el.append(h('div.admin-page', intro, h('div.admin-toolbar', h('label.check.inline', showEnded, h('span.ended-label'))), notice, list.el));

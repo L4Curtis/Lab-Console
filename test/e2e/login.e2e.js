@@ -132,6 +132,36 @@ test('a refusal from the sign-in flow is explained on the login page', async () 
   await page.context().close();
 });
 
+test('without https no local account: an invitation link says passkeys are unavailable, and Admin › Invitations explains why it cannot make one, on a PC and a phone', async () => {
+  // A link (whatever its token) is refused before it is read: the page says why, not that the link is wrong
+  const visitor = await h.newPage();
+  await visitor.goto(`${h.url}/join#${'a'.repeat(43)}`);
+  await visitor.waitForSelector('#join-done:not([hidden])');
+  assert.equal(await visitor.textContent('#join-title'), 'Clés d’accès indisponibles ici');
+  assert.match(await visitor.textContent('#join-message'), /servi en https/);
+  assert.equal(await visitor.locator('#join-box').isHidden(), true);
+  assert.equal(await visitor.locator('#join-step').isHidden(), true);
+  assert.deepEqual(visitor.errors, []);
+  await visitor.context().close();
+
+  for (const phone of [false, true]) {
+    const admin = await h.newPage({ phone });
+    await h.session(admin, 'ada');
+    // The form asked for by the address does not open either
+    await admin.goto(`${h.url}/#/admin/invitations/new`);
+    const intro = admin.locator('section.view-admin .panel-intro.notice.warn');
+    await intro.waitFor();
+    assert.match(await intro.textContent(), /^Les comptes locaux se connectent avec une clé d’accès.*PUBLIC_URL/);
+    const create = admin.locator('section.view-admin button[data-action="create"]:visible');
+    assert.equal(await create.count(), 1);
+    assert.equal(await create.isDisabled(), true, 'no invitation can be made');
+    assert.equal(await admin.locator('dialog.modal[open]').count(), 0, '#/admin/invitations/new opened no form');
+    assert.equal(await admin.locator('section.view-admin .empty-state').textContent(), 'Aucune invitation en cours.', 'the empty state does not invite to create a link');
+    assert.deepEqual(admin.errors, []);
+    await admin.context().close();
+  }
+});
+
 test('no errors in the pages, and no request refused but the expected ones', () => {
   assert.deepEqual(pages.flatMap((p) => p.errors), []);
   const unexpected = failedRequests.filter((r) => !/^401 .*\/auth\/local$/.test(r));
