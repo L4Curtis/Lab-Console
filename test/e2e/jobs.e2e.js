@@ -154,6 +154,7 @@ test('injection: the preview shows the exact script of each device; once the ben
   await dialog(page).locator('button[data-action="confirm"]').click();
   const script = dialog(page).locator('details.jobs-script[data-device="S1"]');
   await script.waitFor();
+  assert.doesNotMatch(await dialog(page).locator('.jobs-preview').innerText(), /null/, 'only what there is to say is in the preview');
   await script.locator('summary').click();
   const text = await script.locator('pre.jobs-code').textContent();
   assert.match(text, /^configure terminal$/m);

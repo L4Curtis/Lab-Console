@@ -72,12 +72,25 @@
 @media (max-width: 719.98px) {
   .jobs-device-list > li { grid-template-columns: 1fr auto; }
   .jobs-device-list .jobs-step { grid-column: 1 / -1; }
-  .jobs-download a.btn { flex: 1 1 100%; }
+  /* The icon, the words and the ✕ on a first row; the button under them, full width */
+  .jobs-download { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; }
+  .jobs-download > .icon { grid-row: 1; grid-column: 1; margin-top: 2px; }
+  .jobs-download > p { grid-row: 1; grid-column: 2; }
+  .jobs-download > .icon-btn { grid-row: 1; grid-column: 3; margin: calc(-1 * var(--sp-2)) calc(-1 * var(--sp-2)) 0 0; }
+  .jobs-download > a.btn { grid-row: 2; grid-column: 1 / -1; }
   .jobs-search-form { display: none; }
   .jobs-toolbar:has(> .jobs-search-form:only-child) { display: none; }
   /* A sheet scrolls as a whole: no second scroll inside it */
   .jobs-devices ul, .jobs-scripts { max-height: none; overflow: visible; }
 }
+
+/* A folded block says so: a chevron where the browser's marker would be (the summaries are flex boxes, which lose it) */
+.jobs-detail summary::before, .jobs-script summary::before, .jobs-passwords summary::before {
+  content: ""; flex: none; width: 7px; height: 7px; margin: 0 var(--sp-2) 2px 0;
+  border-right: 2px solid currentColor; border-bottom: 2px solid currentColor;
+  transform: rotate(-45deg); transition: transform var(--dur-1);
+}
+.jobs-detail[open] > summary::before, .jobs-script[open] > summary::before, .jobs-passwords[open] > summary::before { transform: rotate(45deg); }
 
 /* ── Dialogs ──────────────────────────────────────────────────────────── */
 .jobs-devices { border: 1px solid var(--border); border-radius: var(--r-md); padding: var(--sp-2) var(--sp-3) var(--sp-3); margin: 0; min-width: 0; }
