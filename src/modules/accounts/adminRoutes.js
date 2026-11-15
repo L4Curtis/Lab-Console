@@ -6,12 +6,18 @@
  *   PATCH  /users/:id                  { role } and / or { state: 'active' | 'disabled' }   (+ confirmation ✱)
  *                                      SSO accounts: role null = back to the groups
  *   POST   /users/:id/approve | /reject   a pending account (rejected = removed)   (approve: + confirmation ✱)
- *   POST   /users/:id/reset-link       { ttl: '1h' | '24h' } → { url, expiresAt }   local accounts
- *   DELETE /users/:id/passkeys         a lost device: a promoted administrator registers anew at the next sign-in
+ *   POST   /users/:id/reset-link       { ttl: '1h' | '24h' } → { url, expiresAt }   local accounts; the link sets a
+ *                                      new password and replaces the passkeys (publicRoutes.js)
+ *   DELETE /users/:id/passkeys         the account registers a new one at its next password sign-in
  *                                      (an administrator's: { confirmation })
  *   GET    /invitations                { invitations }
  *   POST   /invitations                { ttl: '1h' | '24h' | '7d', uses: 1…100, role, note } → { invitation, url }
  *                                      (role 'admin': + confirmation)
+ *
+ * Where this site cannot offer passkeys, nothing here makes a local account
+ * usable: invitations, reset links and making a local administrator are
+ * refused with 409 accounts.passkeys_unavailable (local accounts sign in with
+ * a passkey, docs/v2/AUTH.md §2b)
  *   DELETE /invitations/:id            revoke
  *   GET    /sso                        { locked, source, settings (no secret), callbackUrl, encrypted, secretUnreadable }
  *   PUT    /sso                        save and apply (refused when the environment sets the provider)   (+ confirmation)
@@ -144,6 +150,8 @@ export function adminRoutes(ctx) {
     if (account.via !== 'local') throw httpError(400, 'accounts.not_local', 'This account signs in through the identity provider');
     const ttl = body(req).ttl ?? '1h';
     if (!Object.hasOwn(RESET_TTLS, ttl)) throw httpError(400, 'accounts.bad_ttl', 'Unknown duration');
+    // The link ends in registering a passkey, which this site cannot offer
+    if (!rp.available) throw httpError(409, 'accounts.passkeys_unavailable', 'Local accounts sign in with a passkey, which needs Lab Console to be served over https');
     const { link, token } = await links.create({ kind: 'reset', accountId: account.id, ttlMs: RESET_TTLS[ttl], createdBy: actorOf(req) });
     audit.log(req, 'accounts.reset_link.create', { account: account.id, username: account.username, link: link.id, expiresAt: link.expiresAt });
     res.json({ url: linkUrl('reset', token), expiresAt: link.expiresAt });
@@ -173,7 +181,8 @@ export function adminRoutes(ctx) {
       if (!Object.hasOwn(LINK_TTLS, ttl)) throw httpError(400, 'accounts.bad_ttl', 'Unknown duration');
       if (!Number.isInteger(uses) || uses < 1 || uses > MAX_USES) throw httpError(400, 'accounts.bad_uses', 'Between 1 and 100 people', { max: MAX_USES });
       if (!ROLES.includes(role)) throw httpError(400, 'accounts.bad_role', 'Unknown role');
-      if (role === 'admin' && !rp.available) throw httpError(409, 'accounts.passkeys_unavailable', 'A local account can only be an administrator when passkeys are available (https)');
+      // A local account signs in with a passkey: without them on this site, an invitation leads nowhere
+      if (!rp.available) throw httpError(409, 'accounts.passkeys_unavailable', 'Local accounts sign in with a passkey, which needs Lab Console to be served over https');
     });
     const note = typeof input.note === 'string' ? input.note.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 120) : '';
     const { link, token } = await links.create({ kind: 'invite', role, maxUses: uses, ttlMs: LINK_TTLS[ttl], createdBy: actorOf(req), note });

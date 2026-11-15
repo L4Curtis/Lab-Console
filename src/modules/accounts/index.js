@@ -2,6 +2,13 @@
  * Accounts: the directory, invitations, password reset links, passkeys and
  * the identity provider's settings (SPEC, lot accounts)
  *
+ * Every local account signs in with a passkey (owner decision, 15 Nov,
+ * docs/v2/AUTH.md §2b): registered as part of the sign-up, or at the next
+ * password sign-in of an account that has none, and again after a password
+ * reset link (which removes the old ones). Its password alone never opens a
+ * session. Without passkeys on this site, local accounts are refused
+ * outright, with accounts.passkeys_unavailable
+ *
  * Built on the sign-in module's extension points (ARCHITECTURE §5), never
  * around them:
  *   - auth.accounts.add(directory.provider)   local accounts sign in on the same form
@@ -53,10 +60,13 @@ function createMutex() {
 export function createAccountsModule({ config, logger, events, repos, audit, auth, services, assets = appAssets() }, { passwordCost = SCRYPT_DEFAULTS, now = Date.now, fetchOptions } = {}) {
   const log = logger?.child ? logger.child('accounts') : logger ?? { info() {}, warn() {}, error() {} };
   const publicUrl = config.server.publicUrl;
-  const directory = createDirectory({ repos, envAdminName: config.auth.localAdmin.username, now, passwordCost, logger: log });
+  // Every local account signs in with a passkey: where this site cannot offer
+  // them (PUBLIC_URL not https on a name), no local account is created or signs in
+  const rp = relyingParty(publicUrl);
+  if (!rp.available) log.warn(`passkeys need PUBLIC_URL to be https on a domain name (or http://localhost): ${publicUrl} offers none, so local accounts can neither be created nor sign in; the local administrator and the identity provider still work`);
+  const directory = createDirectory({ repos, envAdminName: config.auth.localAdmin.username, now, passwordCost, logger: log, passkeysAvailable: rp.available });
   const links = createLinks({ repos, now });
   const sso = createSso({ config, repos, auth, logger: log, now, fetchOptions });
-  const rp = relyingParty(publicUrl);
   const ceremonies = createCeremonies({ now });
   const refusals = createRefusalAudit({ audit, now });
   const housekeeping = setInterval(() => refusals.flush(), 5 * 60_000);

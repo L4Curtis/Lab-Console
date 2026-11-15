@@ -7,7 +7,9 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import http from 'node:http';
 import { TestBrowser } from './helpers/browser.js';
-import { startAccountsApp, call, confirmed, invite, signUp, localSignIn, createLocalAccount, testClock, PASSWORD } from './helpers/accounts.js';
+import {
+  startAccountsApp, call, confirmed, invite, signUp, localSignIn, createLocalAccount, enrol, signInWithPassword, passkeySignIn, authenticator, testClock, PASSWORD,
+} from './helpers/accounts.js';
 import { TEST_ADMIN, adminCode, confirmTicket } from './helpers/app.js';
 import { checkUsername, checkPassword, cleanDisplayName, usernameKey } from '../src/modules/accounts/policy.js';
 import { createLinks } from '../src/modules/accounts/links.js';
@@ -90,10 +92,11 @@ describe('links: hashed tokens, constant-time lookup, expiry, uses, revocation',
 describe('invitations and sign-up', () => {
   let lab;
   let clock;
+  let aliceKey;
   before(async () => { clock = testClock(); lab = await startAccountsApp({ clock }); });
   after(() => lab.close());
 
-  test('a single-use link gives an active account, signed in at once', async () => {
+  test('a single-use link gives an active account, signed in once its passkey is registered', async () => {
     const { url, token, invitation } = await invite(lab, { note: 'Alice' });
     assert.equal(url, `${lab.url}/join#${token}`, 'the token travels in the fragment');
     assert.equal(invitation.maxUses, 1);
@@ -107,7 +110,9 @@ describe('invitations and sign-up', () => {
     const browser = new TestBrowser();
     const res = await signUp(lab, token, { username: 'Alice', name: 'Alice Martin' }, browser);
     assert.equal(res.status, 200);
-    assert.deepEqual(res.body, { redirect: '/' });
+    assert.deepEqual(res.body, { step: 'passkey-enrol' }, 'the passkey first (test/passkeys.test.js)');
+    aliceKey = authenticator(lab);
+    assert.deepEqual((await enrol(lab, browser, aliceKey)).body, { redirect: '/' });
     const me = await call(lab, browser, 'GET', '/api/accounts/me');
     assert.equal(me.status, 200, 'the new session works');
     assert.equal(me.body.account.id, 'local:Alice');
@@ -128,9 +133,9 @@ describe('invitations and sign-up', () => {
     assert.ok(!(await auditText(lab)).includes(token), 'the token never reaches the audit trail');
   });
 
-  test('the account signs in on the local form with its password, whatever the case of its name', async () => {
+  test('the account signs in on the local form with its password and its passkey, whatever the case of its name', async () => {
     const browser = new TestBrowser();
-    const res = await localSignIn(lab, browser, 'alice');
+    const res = await signInWithPassword(lab, browser, 'alice', aliceKey);
     assert.equal(res.status, 200);
     assert.equal(res.body.redirect, '/');
     assert.equal((await call(lab, browser, 'GET', '/api/accounts/me')).body.account.username, 'Alice');
@@ -142,10 +147,13 @@ describe('invitations and sign-up', () => {
   test('a link for several people gives accounts that wait for approval; approve or reject in one click', async () => {
     const { token } = await invite(lab, { uses: 3 });
     assert.equal((await call(lab, null, 'POST', '/auth/invitation', { token })).body.approval, true);
-    const bilal = await signUp(lab, token, { username: 'bilal', name: 'Bilal Haddad' });
+    const browser = new TestBrowser();
+    const bilal = await signUp(lab, token, { username: 'bilal', name: 'Bilal Haddad' }, browser);
     assert.equal(bilal.status, 200);
-    assert.deepEqual(bilal.body, { pending: true });
-    assert.equal(bilal.res.headers.getSetCookie().length, 0, 'no session for a pending account');
+    assert.deepEqual(bilal.body, { step: 'passkey-enrol', pending: true }, 'the passkey is registered at sign-up all the same');
+    const bilalKey = authenticator(lab);
+    assert.deepEqual((await enrol(lab, browser, bilalKey)).body, { pending: true });
+    assert.equal(browser.cookie(lab.url, lab.deps.auth.cookieName), null, 'no session for a pending account');
     assert.equal((await signUp(lab, token, { username: 'chloe' })).status, 200);
 
     // A pending account cannot sign in, and the refusal is the usual one
@@ -156,7 +164,7 @@ describe('invitations and sign-up', () => {
     const users = (await call(lab, 'admin', 'GET', '/api/accounts/users')).body.users;
     assert.equal(users.find((u) => u.id === 'local:bilal').state, 'pending');
     assert.equal((await call(lab, 'admin', 'POST', '/api/accounts/users/local%3Abilal/approve')).status, 200);
-    assert.equal((await localSignIn(lab, new TestBrowser(), 'bilal')).status, 200);
+    assert.equal((await passkeySignIn(lab, new TestBrowser(), bilalKey)).status, 200);
     assert.equal((await call(lab, 'admin', 'POST', '/api/accounts/users/local%3Abilal/approve')).status, 409, 'approved once');
 
     assert.equal((await call(lab, 'admin', 'POST', '/api/accounts/users/local%3Achloe/reject')).status, 200);
@@ -215,15 +223,14 @@ describe('invitations and sign-up', () => {
     assert.equal(blocked.body.code, 'accounts.throttled');
   });
 
-  test('invitations: bad input refused; an administrator invitation needs passkeys, which plain http on an address has not', async () => {
+  test('invitations: bad input refused; an administrator invitation is confirmed first', async () => {
     for (const body of [{ ttl: '2h' }, { uses: 0 }, { uses: 101 }, { uses: 1.5 }, { role: 'root' }]) {
       assert.equal((await call(lab, 'admin', 'POST', '/api/accounts/invitations', body)).status, 400, JSON.stringify(body));
     }
     const unconfirmed = await call(lab, 'admin', 'POST', '/api/accounts/invitations', { role: 'admin' });
     assert.deepEqual([unconfirmed.status, unconfirmed.body.code], [403, 'admin.confirm_required'], 'an administrator invitation is confirmed first');
-    const admin = await confirmed(lab, 'POST', '/api/accounts/invitations', { role: 'admin' });
-    assert.equal(admin.status, 409);
-    assert.equal(admin.body.code, 'accounts.passkeys_unavailable');
+    assert.equal((await confirmed(lab, 'POST', '/api/accounts/invitations', { role: 'admin' })).status, 200);
+    // Without https, no invitation at all: test/passkeys.test.js
   });
 });
 
@@ -254,7 +261,7 @@ describe('roles, states and the last administrator', () => {
     const res = await confirmed(lab, 'PATCH', `/api/accounts/users/${encodeURIComponent(id)}`, { role: 'admin' });
     assert.equal(res.status, 200);
     assert.equal(res.body.account.role, 'admin');
-    assert.equal(res.body.account.needsPasskey, true);
+    assert.equal(res.body.account.needsPasskey, false, 'the passkey of the sign-up serves the administrator too');
     assert.equal(res.body.sessionsEnded, 1);
     await ended;
     assert.equal((await call(lab, browser, 'GET', '/api/accounts/me')).status, 401, 'the session is gone');
@@ -284,7 +291,7 @@ describe('roles, states and the last administrator', () => {
     assert.equal(refused.status, 401);
     assert.equal(refused.body.code, 'auth.invalid_credentials', 'nothing says the account exists');
     assert.equal((await call(lab, 'admin', 'PATCH', path_, { state: 'active' })).status, 200);
-    assert.equal((await localSignIn(lab, new TestBrowser(), 'gina')).status, 200);
+    assert.deepEqual((await localSignIn(lab, new TestBrowser(), 'gina')).body, { step: 'passkey' }, 'on to her passkey');
     for (const body of [{}, { state: 'deleted' }, { role: 'root' }, { role: null }]) {
       assert.equal((await call(lab, 'admin', 'PATCH', path_, body)).status, 400, JSON.stringify(body));
     }
@@ -293,7 +300,7 @@ describe('roles, states and the last administrator', () => {
 
   test('a change of role and state together is all or nothing: a pending account keeps its role', async () => {
     const { token } = await invite(lab, { uses: 2 });
-    assert.deepEqual((await signUp(lab, token, { username: 'hugo' })).body, { pending: true });
+    assert.deepEqual((await signUp(lab, token, { username: 'hugo' })).body, { step: 'passkey-enrol', pending: true });
     const res = await confirmed(lab, 'PATCH', '/api/accounts/users/local%3Ahugo', { role: 'admin', state: 'active' });
     assert.equal(res.status, 409);
     assert.equal(res.body.code, 'accounts.pending');
@@ -358,7 +365,7 @@ describe('a stolen administrator session alone cannot make lasting administrator
 
   test('approving a pending administrator is confirmed; a pending student is not', async () => {
     const admins = await invite(lab, { role: 'admin', uses: 2 });
-    assert.deepEqual((await signUp(lab, admins.token, { username: 'nadia' })).body, { pending: true });
+    assert.deepEqual((await signUp(lab, admins.token, { username: 'nadia' })).body, { step: 'passkey-enrol', pending: true });
     unconfirmed(await call(lab, 'admin', 'POST', '/api/accounts/users/local%3Anadia/approve'), 'approval of an administrator');
     assert.equal(user('local:nadia').state, 'pending');
     assert.equal((await confirmed(lab, 'POST', '/api/accounts/users/local%3Anadia/approve')).status, 200);
@@ -473,10 +480,10 @@ describe('password reset links', () => {
 
     assert.equal((await call(lab, null, 'POST', '/auth/reset', { token, password: 'motdepasse' })).body.code, 'accounts.password_common');
     const done = await call(lab, null, 'POST', '/auth/reset', { token, password: 'a brand new passphrase' });
-    assert.deepEqual(done.body, { ok: true });
+    assert.deepEqual(done.body, { step: 'passkey-enrol' }, 'then a new passkey (test/passkeys.test.js)');
     assert.equal((await call(lab, browser, 'GET', '/api/accounts/me')).status, 401, 'signed out everywhere');
     assert.equal((await localSignIn(lab, new TestBrowser(), 'ivan')).status, 401, 'old password');
-    assert.equal((await localSignIn(lab, new TestBrowser(), 'ivan', 'a brand new passphrase')).status, 200);
+    assert.deepEqual((await localSignIn(lab, new TestBrowser(), 'ivan', 'a brand new passphrase')).body, { step: 'passkey-enrol' }, 'the new one, then a passkey');
     assert.equal((await call(lab, null, 'POST', '/auth/reset', { token, password: 'yet another passphrase' })).status, 404, 'single use');
     assert.ok(!(await auditText(lab)).includes(token));
   });
@@ -503,9 +510,9 @@ describe('My account', () => {
   after(() => lab.close());
 
   test('a local account changes its name and its password; the other sessions end, this one stays', async () => {
-    const { browser } = await createLocalAccount(lab, 'kim');
+    const { browser, key } = await createLocalAccount(lab, 'kim');
     const other = new TestBrowser();
-    assert.equal((await localSignIn(lab, other, 'kim')).status, 200);
+    assert.equal((await signInWithPassword(lab, other, 'kim', key)).status, 200);
 
     const renamed = await call(lab, browser, 'PATCH', '/api/accounts/me', { name: '  Kim  Lee ' });
     assert.equal(renamed.body.account.name, 'Kim Lee');
@@ -531,9 +538,9 @@ describe('My account', () => {
   });
 
   test('sessions: listed with the current one marked, the others closed in one click', async () => {
-    const { browser } = await createLocalAccount(lab, 'max');
+    const { browser, key } = await createLocalAccount(lab, 'max');
     const other = new TestBrowser();
-    await localSignIn(lab, other, 'max');
+    assert.equal((await passkeySignIn(lab, other, key)).status, 200);
     const me = await call(lab, browser, 'GET', '/api/accounts/me');
     assert.equal(me.body.sessions.length, 2);
     assert.equal(me.body.sessions.filter((s) => s.current).length, 1);
