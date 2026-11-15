@@ -23,7 +23,8 @@
     "created": "Votre compte est créé.",
     "pending": "Votre compte est créé. Un administrateur doit le valider : vous pourrez vous connecter ensuite.",
     "stepExpired": "Votre compte est créé, mais l’enregistrement de la clé d’accès a expiré. Connectez-vous avec votre identifiant et votre mot de passe : la clé vous sera redemandée.",
-    "toLogin": "Aller à la page de connexion"
+    "toLogin": "Retour à la connexion",
+    "invalidTitle": "Ce lien ne fonctionne pas"
   },
   "reset": {
     "title": "Nouveau mot de passe",
@@ -72,7 +73,6 @@
     "roleDone": "Rôle changé.",
     "signedOut": "La personne est déconnectée partout tout de suite, consoles comprises.",
     "adminNeedsPasskey": "À sa prochaine connexion, elle devra enregistrer une clé d’accès : son mot de passe seul ne suffira plus.",
-    "environment": "Défini dans la configuration du serveur",
     "viaEnvironment": "administrateur du serveur",
     "viaSso": "SSO",
     "viaLocal": "compte local",
@@ -102,7 +102,16 @@
       "one": "La clé d’accès de {name} est effacée ({count}). Un administrateur en enregistrera une nouvelle à sa prochaine connexion.",
       "other": "Les {count} clés d’accès de {name} sont effacées. Un administrateur en enregistrera une nouvelle à sa prochaine connexion."
     },
-    "cleared": "Clés d’accès effacées."
+    "cleared": "Clés d’accès effacées.",
+    "title": "Comptes",
+    "invite": "Inviter",
+    "changeRole": "Changer le rôle",
+    "roleNext": "Continuer",
+    "waitingTitle": {
+      "one": "{count} compte attend votre validation",
+      "other": "{count} comptes attendent votre validation"
+    },
+    "waitingText": "Ces personnes se sont inscrites avec un lien pour plusieurs personnes. Elles ne peuvent pas se connecter avant que vous les validiez ou les refusiez."
   },
   "invitations": {
     "intro": "Un lien d’invitation permet de créer un compte local. Pour une seule personne, le compte est actif tout de suite ; pour plusieurs, chaque compte attend votre validation dans l’onglet Utilisateurs.",
@@ -144,7 +153,13 @@
     "revoke": "Retirer",
     "revokeTitle": "Retirer cette invitation",
     "revokeBody": "Le lien ne fonctionnera plus. Les comptes déjà créés avec lui ne changent pas.",
-    "revoked": "Invitation retirée."
+    "revoked": "Invitation retirée.",
+    "title": "Invitations",
+    "noneText": "Créez un lien pour qu’un camarade se fasse un compte local.",
+    "count": {
+      "one": "{count} invitation en cours",
+      "other": "{count} invitations en cours"
+    }
   },
   "sso": {
     "intro": "Le fournisseur d’identité (OpenID Connect) avec lequel étudiants et enseignants se connectent. Les changements s’appliquent tout de suite, sans redémarrage ; les sessions ouvertes ne bougent pas. L’administrateur du serveur peut toujours se connecter.",
@@ -212,12 +227,23 @@
     "trialRole": "Rôle obtenu",
     "trialForced": "Rôle forcé dans l’annuaire",
     "trialRefused": "refusé : aucun groupe autorisé",
-    "trialClaims": "Revendications reçues"
+    "trialClaims": "Revendications reçues",
+    "stateTitle": "État",
+    "groups": {
+      "provider": "Fournisseur d’identité",
+      "groups": "Groupes et rôles",
+      "advanced": "Avancé"
+    },
+    "state": {
+      "on": "Connexion SSO activée",
+      "off": "Connexion SSO désactivée",
+      "locked": "Fixée par la configuration du serveur"
+    }
   },
   "me": {
     "title": "Mon compte",
-    "subtitle": "Votre identité, votre mot de passe, vos clés d’accès et vos sessions",
-    "identity": "Identité",
+    "subtitle": "Votre profil, vos clés d’accès, vos sessions et vos préférences",
+    "identity": "Profil",
     "name": "Nom affiché",
     "username": "Identifiant",
     "role": "Rôle",
@@ -252,7 +278,6 @@
     "sessions": "Sessions ouvertes",
     "thisSession": "Cette session",
     "unknownBrowser": "Navigateur inconnu",
-    "sessionDates": "{ip} · ouverte le {since} · dernière activité le {seen}",
     "endSession": "Fermer",
     "endOthers": "Fermer les autres sessions",
     "endOthersBody": "Vous serez déconnecté partout ailleurs ; cette session reste ouverte.",
@@ -260,7 +285,17 @@
       "one": "{count} session fermée.",
       "other": "{count} sessions fermées."
     },
-    "loadFailed": "Impossible de lire votre compte."
+    "loadFailed": "Impossible de lire votre compte.",
+    "password": "Mot de passe",
+    "passwordCard": "Changez votre mot de passe quand vous voulez : vos autres sessions sont alors fermées.",
+    "preferences": "Préférences",
+    "columns": {
+      "device": "Appareil",
+      "ip": "Adresse",
+      "since": "Ouverte le",
+      "seen": "Activité"
+    },
+    "seen": "vue le {date}"
   },
   "errors": {
     "link_invalid": "Ce lien n’est pas valable : il a peut-être expiré, déjà servi ou été retiré. Demandez-en un nouveau.",

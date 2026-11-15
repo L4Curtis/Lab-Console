@@ -186,6 +186,7 @@ dialog.modal > :not(.modal-head):not(.sheet-handle) { flex: 1 1 auto; min-height
   .dl-table td.dl-badge { grid-column: 2; grid-row: 1; }
   .dl-table td.dl-meta { font: var(--fs-small); color: var(--text-muted); }
   .dl-table td.dl-hide-compact { display: none; }
+  .data-list.dense .dl-table td { height: auto; } /* the 44 px of a dense table row is not a card's height */
   .dl-table td.dl-actions { width: auto; text-align: left; margin-top: var(--sp-2); }
   .dl-table .num { text-align: left; }
   .dl-table .dl-table-only { display: none; }

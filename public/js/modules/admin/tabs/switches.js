@@ -1,61 +1,68 @@
 /**
  * Administration › Admin switches: the console devices that are not on the
- * lab diagram (the bays' administration switches), shown in the
- * Infrastructure section. Edited as a table; saved as a whole, used by the
- * consoles at once. A line outside the allowed console addresses stays
- * listed but cannot be opened (the lab parameters say which are allowed).
+ * lab diagram (the bays' administration switches), shown with the machines
+ * under Machines et switchs. Edited as a list, one card per switch; saved as a
+ * whole, used by the consoles at once. A line outside the allowed console
+ * addresses stays listed but cannot be opened (the lab parameters say which
+ * are allowed).
  */
 import { h, icon, toast } from '../../../core/dom.js';
 import { request, getJson } from '../../../core/api.js';
 import { t, onLocaleChange } from '../../../core/i18n.js';
-import { columnHeads, labelColumns } from '../common.js';
+import { emptyState } from '../../../shared/loadState.js';
 import { fmtLong } from '../../../core/format.js';
 
 const COLUMNS = ['id', 'name', 'bay', 'host', 'port'];
 
-export function mount(el) {
-  const tbody = h('tbody');
+export function mount(el, ctx) {
+  const rows = h('div.sw-rows');
+  const empty = h('div', { hidden: true });
   const notice = h('p.form-error', { role: 'alert' });
-  const meta = h('p.muted.small-note');
   const intro = h('p.muted.panel-intro');
-  const add = h('button.btn', { type: 'button', dataset: { action: 'add' } }, icon('plus'), h('span.lbl'));
-  const save = h('button.btn.primary', { type: 'button', dataset: { action: 'save' } });
-  el.append(h('div.panel.switches-panel', intro, meta,
-    h('div.table-wrap', h('table.vm-table.switches-table',
-      h('thead', h('tr', columnHeads((c) => t(`admin.switches.columns.${c}`), [...COLUMNS, 'actions']))),
-      tbody)),
-    notice,
-    h('div.form-actions', add, save)));
+  let metaText = '';
+  el.append(h('div.admin-page.switches-panel', intro, h('section.card.sw-card', rows, empty), notice));
 
   function line(s = { id: '', name: '', bay: '', host: '', port: '' }) {
-    const cells = COLUMNS.map((c) => h('td', h('input.field', {
-      type: c === 'port' ? 'number' : 'text',
-      value: s[c] ?? '',
-      dataset: { col: c },
-      'aria-label': t(`admin.switches.columns.${c}`),
-      spellcheck: 'false',
-    }), h('small.field-problem', { role: 'alert', dataset: { problem: c } })));
-    const remove = h('button.btn.small.subtle', { type: 'button', dataset: { action: 'remove' }, 'aria-label': t('admin.switches.remove'), title: t('admin.switches.remove') }, icon('trash'));
-    const tr = h('tr', cells, h('td.right', remove));
-    remove.addEventListener('click', () => tr.remove());
+    const cells = COLUMNS.map((c) => h('div.fld.sw-cell', { dataset: { cell: c } },
+      h('label', { dataset: { col: c } }, t(`admin.switches.columns.${c}`)),
+      h('input.field', {
+        type: c === 'port' ? 'number' : 'text',
+        value: s[c] ?? '',
+        dataset: { col: c },
+        'aria-label': t(`admin.switches.columns.${c}`),
+        spellcheck: 'false',
+      }),
+      h('small.field-problem', { role: 'alert', dataset: { problem: c } })));
+    const remove = h('button.btn.sm.ghost.danger', { type: 'button', dataset: { action: 'remove' }, 'aria-label': t('admin.switches.remove'), title: t('admin.switches.remove') }, icon('trash'), h('span.sw-remove-text', t('admin.switches.remove')));
+    const tr = h('div.sw-row', cells, remove);
+    remove.addEventListener('click', () => { tr.remove(); sync(); });
     return tr;
   }
 
+  const sync = () => {
+    const none = rows.children.length === 0;
+    rows.hidden = none;
+    empty.hidden = !none;
+    if (none) empty.replaceChildren(emptyState({ icon: 'network', title: 'admin.switches.none', text: 'admin.switches.noneText', action: { label: 'admin.switches.add', icon: 'plus', run: add } }));
+  };
+
   function fill(data) {
-    tbody.replaceChildren(...data.switches.map((s) => line(s)));
-    meta.textContent = data.source === 'saved'
+    rows.replaceChildren(...data.switches.map((s) => line(s)));
+    metaText = data.source === 'saved'
       ? t('admin.switches.saved', { date: fmtLong(data.updatedAt), by: data.updatedBy ?? '—' })
       : t('admin.switches.fromEnvironment');
+    sync();
+    render();
   }
 
   function values() {
-    return [...tbody.children].map((tr) => Object.fromEntries([...tr.querySelectorAll('input[data-col]')].map((i) => [i.dataset.col, i.dataset.col === 'port' ? Number(i.value) : i.value.trim()])));
+    return [...rows.children].map((tr) => Object.fromEntries([...tr.querySelectorAll('input[data-col]')].map((i) => [i.dataset.col, i.dataset.col === 'port' ? Number(i.value) : i.value.trim()])));
   }
 
   function showProblems(list = []) {
-    for (const p of tbody.querySelectorAll('[data-problem]')) p.textContent = '';
+    for (const p of rows.querySelectorAll('[data-problem]')) p.textContent = '';
     for (const { index, field, code } of list) {
-      const cell = tbody.children[index]?.querySelector(`[data-problem="${field}"]`);
+      const cell = rows.children[index]?.querySelector(`[data-problem="${field}"]`);
       if (cell) cell.textContent = t(`admin.switches.problems.${code}`);
     }
   }
@@ -69,16 +76,13 @@ export function mount(el) {
     }
   }
 
-  function render() {
-    intro.textContent = t('admin.switches.intro');
-    add.querySelector('.lbl').textContent = t('admin.switches.add');
-    save.textContent = t('admin.switches.save');
-    labelColumns(el, (c) => t(`admin.switches.columns.${c}`));
+  function add() {
+    rows.append(line());
+    sync();
+    rows.lastElementChild.querySelector('input')?.focus();
   }
 
-  add.addEventListener('click', () => tbody.append(line()));
-  save.addEventListener('click', async () => {
-    save.disabled = true;
+  async function save() {
     notice.textContent = '';
     showProblems();
     try {
@@ -87,10 +91,18 @@ export function mount(el) {
     } catch (err) {
       showProblems(err.params?.problems);
       notice.textContent = err.message;
-    } finally {
-      save.disabled = false;
     }
-  });
+  }
+
+  function render() {
+    intro.textContent = t('admin.switches.intro');
+    for (const label of rows.querySelectorAll('label[data-col]')) label.textContent = t(`admin.switches.columns.${label.dataset.col}`);
+    ctx.setHeader(ctx.tab, {
+      context: () => metaText,
+      primary: { id: 'save', label: 'admin.switches.save', icon: 'check', run: save },
+      actions: [{ id: 'add', label: 'admin.switches.add', icon: 'plus', run: add }],
+    });
+  }
 
   onLocaleChange(render);
   render();

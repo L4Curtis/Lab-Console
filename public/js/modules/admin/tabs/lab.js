@@ -30,9 +30,9 @@ const SECTIONS = [
 const get = (obj, path) => path.split('.').reduce((at, k) => at?.[k], obj);
 const domId = (path) => `lab-${path.replace('.', '-')}`;
 
-export function mount(el) {
+export function mount(el, ctx) {
   const status = h('p.form-error', { role: 'alert' });
-  const meta = h('p.muted.small-note');
+  let metaText = '';
   const secretNotice = h('p.notice.warn', { hidden: true });
   const save = h('button.btn.primary', { type: 'submit', dataset: { action: 'save' } });
   const form = h('form.lab-form', { novalidate: true });
@@ -40,7 +40,9 @@ export function mount(el) {
   const rows = new Map(); // path → { kind, control(s), origin, reset, problem }
 
   for (const section of SECTIONS) {
-    const box = h('fieldset.lab-section', { dataset: { section: section.id } }, h('legend', { dataset: { text: `sections.${section.id}` } }));
+    const box = h('section.card.lab-section', { dataset: { section: section.id } },
+      h('div.card-head', h('h2', { dataset: { text: `sections.${section.id}` } })));
+    const grid = h('div.form-grid');
     for (const [name, kind] of section.fields) {
       const path = `${section.id}.${name}`;
       const id = domId(path);
@@ -49,8 +51,8 @@ export function mount(el) {
       else if (kind === 'check') control = h('input', { id, type: 'checkbox' });
       else if (kind === 'range') control = h('div.range-pair', h('input.field', { id, type: 'number', min: 1, max: 65535, ...tAttr('aria-label', 'admin.lab.range.min') }), h('span', { 'aria-hidden': 'true' }, '–'), h('input.field', { id: `${id}-max`, type: 'number', min: 1, max: 65535, ...tAttr('aria-label', 'admin.lab.range.max') }));
       else control = h('input.field', { id, type: kind === 'secret' ? 'password' : kind === 'number' ? 'number' : 'text', autocomplete: kind === 'secret' ? 'new-password' : 'off', spellcheck: 'false' });
-      const origin = h('span.origin-pill');
-      const reset = h('button.btn.small.subtle', { type: 'button', dataset: { action: 'reset', field: path }, hidden: true });
+      const origin = h('span.badge.origin-pill');
+      const reset = h('button.btn.sm.ghost', { type: 'button', dataset: { action: 'reset', field: path }, hidden: true });
       const problem = h('small.field-problem', { role: 'alert' });
       const hint = h('small.hint', { dataset: { hint: path } });
       reset.addEventListener('click', () => {
@@ -59,15 +61,16 @@ export function mount(el) {
         renderRow(path);
       });
       rows.set(path, { kind, control, origin, reset, problem, resetting: false });
-      box.append(h(`div.lab-row${kind === 'check' ? '.check-row' : ''}`, { dataset: { field: path } },
+      grid.append(h(`div.fld.lab-row${kind === 'check' ? '.check-row' : ''}`, { dataset: { field: path } },
         h('div.lab-label', h('label', { for: id, dataset: { text: `fields.${path}` } }), origin, reset),
         control, hint, problem));
     }
+    box.append(grid);
     form.append(box);
   }
-  form.append(status, h('div.form-actions', save));
-  el.append(h('div.panel.lab-panel', h('p.muted.panel-intro', { dataset: { text: 'intro' } }), secretNotice, meta, form,
-    h('section.lab-proxmox', h('h3', { dataset: { text: 'proxmox.title' } }), h('p.muted.small-note', { dataset: { text: 'proxmox.note' } }), proxmox)));
+  form.append(h('div.form-footer', status, h('div.form-actions', save)));
+  el.append(h('div.admin-page.lab-panel', h('p.muted.panel-intro', { dataset: { text: 'intro' } }), secretNotice, form,
+    h('section.card.lab-proxmox', h('div.card-head', h('h2', { dataset: { text: 'proxmox.title' } })), h('p.muted.small-note', { dataset: { text: 'proxmox.note' } }), proxmox)));
 
   let page = null;
 
@@ -106,7 +109,8 @@ export function mount(el) {
     save.textContent = t('admin.lab.save');
     for (const path of rows.keys()) renderRow(path);
     if (!page) return;
-    meta.textContent = page.settings.updatedAt ? t('admin.lab.updated', { date: fmtLong(page.settings.updatedAt), by: page.settings.updatedBy ?? '—' }) : t('admin.lab.fromEnvironment');
+    metaText = page.settings.updatedAt ? t('admin.lab.updated', { date: fmtLong(page.settings.updatedAt), by: page.settings.updatedBy ?? '—' }) : t('admin.lab.fromEnvironment');
+    ctx.setHeader(ctx.tab, { context: () => metaText });
     secretNotice.hidden = !page.settings.unreadable.length;
     secretNotice.textContent = t('admin.lab.unreadable', { fields: page.settings.unreadable.map((p) => t(`admin.lab.fields.${p}`)).join(', ') });
     const p = page.proxmox;

@@ -161,7 +161,9 @@
     "outsideAllowList": {
       "one": "{count} device has a console outside the allow-list: it would show, but stay disabled for students until the lab parameters allow it.",
       "other": "{count} devices have a console outside the allow-list: they would show, but stay disabled for students until the lab parameters allow them."
-    }
+    },
+    "versionsTitle": "Diagram versions",
+    "context": "Active diagram: {name} · {count} devices"
   },
   "switches": {
     "intro": "Consoles that are not on the diagram (the benches’ administration switches), shown in the Infra section. Saved as a whole, used at once.",
@@ -185,7 +187,9 @@
       "required": "Required.",
       "out_of_range": "1 to 65535.",
       "too_many": "Too many lines."
-    }
+    },
+    "none": "No administration switch",
+    "noneText": "Add the consoles of the switches that are not on the diagram."
   },
   "sessions": {
     "intro": "Every browser signed in right now. Ending a session signs that browser out at once, with its consoles.",
@@ -217,7 +221,9 @@
     "endedAll": {
       "one": "{count} session ended.",
       "other": "{count} sessions ended."
-    }
+    },
+    "title": "Sessions",
+    "seen": "seen {date}"
   },
   "audit": {
     "intro": "Who did what, and when: sign-ins, consoles, administration actions. Newest first.",
@@ -244,7 +250,8 @@
       "one": "{count} entry",
       "other": "{count} entries"
     },
-    "none": "No entry for these filters."
+    "none": "No entry for these filters.",
+    "title": "Audit trail"
   },
   "announcement": {
     "intro": "A message shown in a banner to everyone signed in, right away, until you remove it or its time is over.",
@@ -268,7 +275,8 @@
     "current": "Showing now:",
     "until": "(until {date})",
     "noEnd": "(no end)",
-    "nothing": "No announcement right now."
+    "nothing": "No announcement right now.",
+    "live": "An announcement is showing"
   },
   "status": {
     "title": "Lab status",
@@ -322,7 +330,13 @@
       "one": "{connections} connection, {channels} open channels",
       "other": "{connections} connections, {channels} open channels"
     },
-    "loadFailed": "Could not read the lab status."
+    "loadFailed": "Could not read the lab status.",
+    "allWell": "Everything works",
+    "problems": {
+      "one": "{count} problem",
+      "other": "{count} problems"
+    },
+    "detailsTitle": "Details"
   },
   "journaling": {
     "intro": "What the platform keeps of what you do, and for how long.",
@@ -384,5 +398,15 @@
     "sso_confirm_mismatch": "The sign-in at the identity provider was not yours, or not an administrator’s. Nothing was changed.",
     "sso_confirm_expired": "Your session ended while you were at the identity provider. Nothing was changed.",
     "sso_unreachable": "The identity provider could not be reached."
+  },
+  "groups": {
+    "accounts": "Accounts",
+    "lab": "Lab",
+    "monitoring": "Monitoring"
+  },
+  "nav": {
+    "teams": "Teams",
+    "infra": "Machines and switches",
+    "status": "Lab status"
   }
 }

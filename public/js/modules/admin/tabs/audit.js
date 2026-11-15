@@ -6,24 +6,46 @@
 import { h } from '../../../core/dom.js';
 import { getJson } from '../../../core/api.js';
 import { t, onLocaleChange } from '../../../core/i18n.js';
+import { dataList } from '../../../shared/dataList.js';
 import { fmtLong } from '../../../core/format.js';
 
 const FILTERS = [['action', 'text'], ['actor', 'text'], ['bench', 'text'], ['since', 'datetime-local'], ['until', 'datetime-local']];
 
-export function mount(el) {
+export function mount(el, ctx) {
   const inputs = Object.fromEntries(FILTERS.map(([name, type]) => [name, h('input.field', { type, id: `audit-${name}`, name, spellcheck: 'false' })]));
   const limit = h('select.field', { id: 'audit-limit' }, [100, 200, 500, 1000].map((n) => h('option', { value: n, selected: n === 200 }, String(n))));
   const apply = h('button.btn.primary', { type: 'submit', dataset: { action: 'filter' } });
   const clear = h('button.btn', { type: 'button', dataset: { action: 'clear' } });
-  const form = h('form.audit-filters', FILTERS.map(([name]) => h('label.audit-filter', h('span', { dataset: { label: name } }), inputs[name])),
-    h('label.audit-filter', h('span', { dataset: { label: 'limit' } }), limit), h('div.row-actions', clear, apply));
+  const form = h('form.card.audit-filters', { novalidate: true },
+    h('div.form-grid.audit-grid',
+      FILTERS.map(([name]) => h('div.fld', h('label', { for: `audit-${name}`, dataset: { label: name } }), inputs[name])),
+      h('div.fld', h('label', { for: 'audit-limit', dataset: { label: 'limit' } }), limit)),
+    h('div.form-actions', clear, apply));
   const notice = h('p.form-error', { role: 'alert' });
-  const count = h('p.muted.small-note');
-  const tbody = h('tbody');
-  el.append(h('div.panel', h('p.muted.panel-intro', { dataset: { text: 'intro' } }), form, notice, count,
-    h('div.table-wrap', h('table.vm-table.audit-table',
-      h('thead', h('tr', ['ts', 'actor', 'action', 'bench', 'details'].map((c) => h('th', { dataset: { col: c } })))),
-      tbody))));
+
+  const list = dataList({
+    label: () => t('admin.audit.title'),
+    dense: true,
+    columns: [
+      { id: 'ts', label: () => t('admin.audit.columns.ts'), cell: (e) => fmtLong(e.ts), meta: true },
+      {
+        id: 'actor', label: () => t('admin.audit.columns.actor'), meta: true,
+        cell: (e) => h('div.account-cell', h('strong', e.actor?.name || e.actor?.username || e.actor?.id), h('span.vm-meta', [e.actor?.id, e.ip].filter(Boolean).join(' · '))),
+      },
+      { id: 'action', label: () => t('admin.audit.columns.action'), cell: (e) => h('span.mono', e.action), primary: true },
+      { id: 'bench', label: () => t('admin.audit.columns.bench'), cell: (e) => (e.details ?? {}).bench ?? '', meta: true },
+      {
+        id: 'details', label: () => t('admin.audit.columns.details'), meta: true,
+        cell: (e) => {
+          const { bench: _bench, ...rest } = e.details ?? {};
+          return Object.keys(rest).length ? h('details', h('summary', t('admin.audit.more')), h('pre.audit-details', JSON.stringify(rest, null, 2))) : '';
+        },
+      },
+    ],
+    empty: { icon: 'history', title: 'admin.audit.none' },
+  });
+  list.el.querySelector('table').classList.add('audit-table');
+  el.append(h('div.admin-page', h('p.muted.panel-intro', { dataset: { text: 'intro' } }), form, notice, list.el));
 
   let entries = [];
 
@@ -45,26 +67,14 @@ export function mount(el) {
     render();
   }
 
-  function row(e) {
-    const { bench, ...rest } = e.details ?? {};
-    const detail = Object.keys(rest).length ? h('details', h('summary', t('admin.audit.more')), h('pre.audit-details', JSON.stringify(rest, null, 2))) : '';
-    return h('tr', { dataset: { action: e.action } },
-      h('td', fmtLong(e.ts)),
-      h('td', h('div.account-cell', h('strong', e.actor?.name || e.actor?.username || e.actor?.id), h('span.vm-meta', [e.actor?.id, e.ip].filter(Boolean).join(' · ')))),
-      h('td.mono', e.action),
-      h('td', bench ?? ''),
-      h('td', detail));
-  }
-
   function render() {
     for (const node of el.querySelectorAll('[data-text]')) node.textContent = t(`admin.audit.${node.dataset.text}`);
     for (const node of el.querySelectorAll('[data-label]')) node.textContent = t(`admin.audit.filters.${node.dataset.label}`);
-    for (const th of el.querySelectorAll('th[data-col]')) th.textContent = t(`admin.audit.columns.${th.dataset.col}`);
     inputs.action.placeholder = t('admin.audit.actionHint');
     apply.textContent = t('admin.audit.apply');
     clear.textContent = t('admin.audit.clear');
-    count.textContent = t('admin.audit.count', { count: entries.length });
-    tbody.replaceChildren(...(entries.length ? entries.map(row) : [h('tr', h('td.empty-row', { colspan: 5 }, t('admin.audit.none')))]));
+    list.render(entries);
+    ctx.setHeader(ctx.tab, { context: () => t('admin.audit.count', { count: entries.length }) });
   }
 
   form.addEventListener('submit', (event) => { event.preventDefault(); load(); });

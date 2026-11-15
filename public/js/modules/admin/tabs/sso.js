@@ -19,7 +19,7 @@ import { withConfirmation, keepDraft, takeDraft } from '../confirm.js';
 
 const TEXT_FIELDS = ['providerName', 'issuer', 'clientId', 'scopes', 'groupsClaim', 'adminGroups', 'allowedGroups'];
 
-export function mount(el) {
+export function mount(el, ctx) {
   const form = h('form.sso-form', { novalidate: true });
   const lockNotice = h('p.notice', { hidden: true });
   const secretNotice = h('p.notice.warn', { hidden: true });
@@ -27,12 +27,13 @@ export function mount(el) {
   const testResult = h('div.sso-result', { hidden: true, 'aria-live': 'polite' });
   const trialResult = h('div.sso-result', { hidden: true, 'aria-live': 'polite' });
   const callback = h('input.field.link-field', { type: 'text', readonly: true, id: 'sso-callback' });
+  const stateBadgeEl = h('span.badge', { dataset: { sso: 'state' } });
 
   const inputs = {};
   const problems = {};
   const row = (name, control, { hint } = {}) => {
     problems[name] = h('small.field-problem', { role: 'alert' });
-    return h('div.sso-row', { dataset: { field: name } },
+    return h('div.fld', { dataset: { field: name } },
       h('label', { for: control.id, dataset: { label: name } }),
       control,
       hint ? h('small.hint', { dataset: { hint: name } }) : null,
@@ -49,32 +50,36 @@ export function mount(el) {
   const save = h('button.btn.primary', { type: 'submit', dataset: { action: 'save' } });
   const test = h('button.btn', { type: 'button', dataset: { action: 'test' } });
   const trial = h('button.btn', { type: 'button', dataset: { action: 'trial' } });
-  const copy = h('button.btn.small', { type: 'button' }, icon('copy'), h('span.copy-label'));
+  const copy = h('button.btn.sm', { type: 'button' }, icon('copy'), h('span.copy-label'));
+  const check = (input, label) => h('label.check', input, h('span', { dataset: { label } }));
+  const group = (key, ...children) => h('section.card', { dataset: { group: key } }, h('div.card-head', h('h2', { dataset: { group: key } })), h('div.form-grid', children));
 
   form.append(
-    h('label.check', inputs.enabled, h('span', { dataset: { label: 'enabled' } })),
-    row('providerName', inputs.providerName, { hint: true }),
-    row('issuer', inputs.issuer, { hint: true }),
-    row('clientId', inputs.clientId),
-    row('clientSecret', inputs.clientSecret, { hint: true }),
-    h('label.check', inputs.clearClientSecret, h('span', { dataset: { label: 'clearClientSecret' } })),
-    row('clientAuthMethod', inputs.clientAuthMethod),
-    row('scopes', inputs.scopes, { hint: true }),
-    row('groupsClaim', inputs.groupsClaim, { hint: true }),
-    row('adminGroups', inputs.adminGroups, { hint: true }),
-    row('allowedGroups', inputs.allowedGroups, { hint: true }),
-    h('label.check', inputs.allowInsecure, h('span', { dataset: { label: 'allowInsecure' } })),
-    status,
-    h('div.form-actions.sso-actions', test, trial, save),
-  );
-  el.append(h('div.panel.sso-panel',
-    h('p.muted.panel-intro'),
-    lockNotice,
-    secretNotice,
-    h('div.sso-callback', h('label', { for: 'sso-callback', dataset: { label: 'callback' } }), h('div.link-row', callback, copy), h('small.hint', { dataset: { hint: 'callback' } })),
-    form,
+    group('provider',
+      check(inputs.enabled, 'enabled'),
+      row('providerName', inputs.providerName, { hint: true }),
+      row('issuer', inputs.issuer, { hint: true }),
+      row('clientId', inputs.clientId),
+      row('clientSecret', inputs.clientSecret, { hint: true }),
+      check(inputs.clearClientSecret, 'clearClientSecret'),
+      row('clientAuthMethod', inputs.clientAuthMethod)),
+    group('groups',
+      row('scopes', inputs.scopes, { hint: true }),
+      row('groupsClaim', inputs.groupsClaim, { hint: true }),
+      row('adminGroups', inputs.adminGroups, { hint: true }),
+      row('allowedGroups', inputs.allowedGroups, { hint: true })),
+    group('advanced', check(inputs.allowInsecure, 'allowInsecure')),
     testResult,
-    trialResult));
+    trialResult,
+    h('div.form-footer', status, h('div.form-actions.sso-actions', test, trial, save)));
+  el.append(h('div.admin-page.sso-panel',
+    h('p.muted.panel-intro'),
+    h('section.card.sso-state', { dataset: { panel: 'state' } },
+      h('div.card-head', h('h2', { dataset: { text: 'stateTitle' } }), stateBadgeEl),
+      lockNotice,
+      secretNotice,
+      h('div.fld', h('label', { for: 'sso-callback', dataset: { label: 'callback' } }), h('div.link-row', callback, copy), h('small.hint', { dataset: { hint: 'callback' } }))),
+    form));
 
   let current = null;
 
@@ -100,6 +105,15 @@ export function mount(el) {
 
   function render() {
     for (const label of el.querySelectorAll('[data-label]')) label.textContent = t(`accounts.sso.fields.${label.dataset.label}`);
+    for (const title of el.querySelectorAll('h2[data-group]')) title.textContent = t(`accounts.sso.groups.${title.dataset.group}`);
+    for (const title of el.querySelectorAll('h2[data-text]')) title.textContent = t(`accounts.sso.${title.dataset.text}`);
+    const mode = !current ? null : current.locked ? 'locked' : current.settings.enabled ? 'on' : 'off';
+    stateBadgeEl.hidden = !mode;
+    if (mode) {
+      stateBadgeEl.dataset.tone = { on: 'success', off: 'neutral', locked: 'info' }[mode];
+      stateBadgeEl.textContent = t(`accounts.sso.state.${mode}`);
+    }
+    ctx.setHeader(ctx.tab, { context: () => (current ? t(`accounts.sso.state.${mode}`) : '') });
     for (const hint of el.querySelectorAll('[data-hint]')) hint.textContent = t(`accounts.sso.hints.${hint.dataset.hint}`);
     el.querySelector('.panel-intro').textContent = t('accounts.sso.intro');
     el.querySelector('.copy-label').textContent = t('accounts.links.copy');

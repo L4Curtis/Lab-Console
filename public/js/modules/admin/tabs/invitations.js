@@ -6,28 +6,40 @@
  * approval, in the Users tab), and grants a role: student by default. The
  * link itself is shown once, when it is created; the list shows what each
  * one is for, how many times it was used, and lets an administrator
- * withdraw it
+ * withdraw it. #/admin/invitations/new opens the form at once (the Users
+ * tab's "Inviter" leads there)
  */
-import { h, icon, toast } from '../../../core/dom.js';
+import { h, toast } from '../../../core/dom.js';
 import { request, getJson, live } from '../../../core/api.js';
 import { t, onLocaleChange } from '../../../core/i18n.js';
 import { confirmDialog, formDialog } from '../../../shared/dialog.js';
-import { showLink, columnHeads, labelColumns } from '../common.js';
+import { dataList } from '../../../shared/dataList.js';
+import { showLink, tagRows, stateBadge } from '../common.js';
 import { withConfirmation } from '../confirm.js';
 import { fmtLong } from '../../../core/format.js';
 
-export function mount(el) {
-  const create = h('button.btn.primary', { type: 'button', dataset: { action: 'create' } }, icon('plus'), h('span.create-label'));
+export function mount(el, ctx) {
   const showEnded = h('input', { type: 'checkbox' });
-  const tbody = h('tbody');
   const notice = h('p.form-error', { role: 'alert' });
-  el.append(h('div.panel',
-    h('div.panel-toolbar', h('label.check.inline', showEnded, h('span.ended-label')), create),
-    h('p.muted.panel-intro'),
-    notice,
-    h('div.table-wrap', h('table.vm-table.invitations-table',
-      h('thead', h('tr', columnHeads((c) => t(`accounts.invitations.columns.${c}`), ['note', 'role', 'uses', 'expires', 'by', 'state', 'actions']))),
-      tbody))));
+  const intro = h('p.muted.panel-intro');
+
+  const list = dataList({
+    label: () => t('accounts.invitations.title'),
+    dense: true,
+    rowKey: (i) => i.id,
+    columns: [
+      { id: 'note', label: () => t('accounts.invitations.columns.note'), cell: (i) => (i.note ? h('strong', i.note) : h('span.muted', t('accounts.invitations.noNote'))), primary: true },
+      { id: 'role', label: () => t('accounts.invitations.columns.role'), cell: (i) => t(`auth.menu.roles.${i.role}`), meta: true },
+      { id: 'uses', label: () => t('accounts.invitations.columns.uses'), cell: (i) => [t('accounts.invitations.used', { uses: i.uses, max: i.maxUses }), i.maxUses > 1 ? ` · ${t('accounts.invitations.withApproval')}` : ''].join(''), meta: true },
+      { id: 'expires', label: () => t('accounts.invitations.columns.expires'), cell: (i) => fmtLong(i.expiresAt), meta: true },
+      { id: 'by', label: () => t('accounts.invitations.columns.by'), cell: (i) => i.createdBy?.username ?? '—', hideCompact: true },
+      { id: 'state', label: () => t('accounts.invitations.columns.state'), cell: (i) => stateBadge(i.state, t(`accounts.invitations.states.${i.state}`)), badge: true },
+    ],
+    actions: (i) => (i.state === 'active' ? [{ id: 'revoke', label: 'accounts.invitations.revoke', icon: 'trash', danger: true, run: () => revoke(i) }] : []),
+    empty: { icon: 'link', title: 'accounts.invitations.none', text: 'accounts.invitations.noneText' },
+  });
+  tagRows(list, (i) => ({ invitation: i.id, state: i.state }));
+  el.append(h('div.admin-page', intro, h('div.admin-toolbar', h('label.check.inline', showEnded, h('span.ended-label'))), notice, list.el));
 
   let invitations = [];
   let passkeysAvailable = false;
@@ -85,38 +97,34 @@ export function mount(el) {
     await load();
   }
 
-  function row(invitation) {
-    const active = invitation.state === 'active';
-    return h('tr', { dataset: { invitation: invitation.id, state: invitation.state } },
-      h('td', invitation.note ? h('strong', invitation.note) : h('span.muted', t('accounts.invitations.noNote'))),
-      h('td', t(`auth.menu.roles.${invitation.role}`)),
-      h('td', t('accounts.invitations.used', { uses: invitation.uses, max: invitation.maxUses }),
-        invitation.maxUses > 1 ? h('span.vm-meta', ` · ${t('accounts.invitations.withApproval')}`) : null),
-      h('td', fmtLong(invitation.expiresAt)),
-      h('td', invitation.createdBy?.username ?? '—'),
-      h('td', h('span.state-pill', { dataset: { state: invitation.state } }, t(`accounts.invitations.states.${invitation.state}`))),
-      h('td.right', active ? h('button.btn.small.danger', { type: 'button', dataset: { action: 'revoke' }, onclick: () => revoke(invitation) }, t('accounts.invitations.revoke')) : null));
-  }
+  const create = () => createInvitation().catch((err) => toast(err.message, 'error'));
 
   function render() {
-    labelColumns(el, (c) => t(`accounts.invitations.columns.${c}`));
-    el.querySelector('.create-label').textContent = t('accounts.invitations.create');
     el.querySelector('.ended-label').textContent = t('accounts.invitations.showEnded');
-    el.querySelector('.panel-intro').textContent = t('accounts.invitations.intro');
+    intro.textContent = t('accounts.invitations.intro');
     const shown = invitations.filter((i) => showEnded.checked || i.state === 'active');
-    tbody.replaceChildren(...(shown.length ? shown.map(row) : [h('tr', h('td.empty-row', { colspan: 7 }, t('accounts.invitations.none')))]));
+    list.render(shown);
+    const active = invitations.filter((i) => i.state === 'active').length;
+    ctx.setHeader(ctx.tab, {
+      context: () => t('accounts.invitations.count', { count: active }),
+      primary: { id: 'create', label: 'accounts.invitations.create', icon: 'plus', run: create },
+    });
   }
 
-  create.addEventListener('click', () => createInvitation().catch((err) => toast(err.message, 'error')));
   showEnded.addEventListener('change', render);
   onLocaleChange(render);
   live.on('accounts:changed', () => { if (visible) load(); });
   render();
 
   return {
-    show() {
+    show([sub] = []) {
       visible = true;
       load();
+      if (sub === 'new') {
+        // The address goes back to the list: Back does not reopen the form
+        ctx.navigate('#/admin/invitations');
+        create();
+      }
     },
     hide() { visible = false; },
   };
