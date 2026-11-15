@@ -161,10 +161,12 @@
     "outsideAllowList": {
       "one": "{count} équipement a une console hors de la liste autorisée : il serait affiché mais resterait désactivé pour les étudiants tant que les paramètres du labo ne l’autorisent pas.",
       "other": "{count} équipements ont une console hors de la liste autorisée : ils seraient affichés mais resteraient désactivés pour les étudiants tant que les paramètres du labo ne les autorisent pas."
-    }
+    },
+    "versionsTitle": "Versions du schéma",
+    "context": "Schéma actif : {name} · {count} équipements"
   },
   "switches": {
-    "intro": "Les consoles qui ne sont pas sur le schéma (switchs d’administration des baies), visibles dans la section Infra. Enregistrées d’un bloc, utilisées tout de suite.",
+    "intro": "Les consoles qui ne sont pas sur le schéma (switchs d’administration des baies), visibles dans Machines et switchs. Enregistrées d’un bloc, utilisées tout de suite.",
     "columns": {
       "id": "Identifiant",
       "name": "Nom",
@@ -185,7 +187,9 @@
       "required": "Obligatoire.",
       "out_of_range": "1 à 65535.",
       "too_many": "Trop de lignes."
-    }
+    },
+    "none": "Aucun switch d’administration",
+    "noneText": "Ajoutez les consoles des switchs qui ne sont pas sur le schéma."
   },
   "sessions": {
     "intro": "Tous les navigateurs connectés en ce moment. Fermer une session déconnecte ce navigateur tout de suite, avec ses consoles.",
@@ -217,7 +221,9 @@
     "endedAll": {
       "one": "{count} session fermée.",
       "other": "{count} sessions fermées."
-    }
+    },
+    "title": "Sessions",
+    "seen": "vue le {date}"
   },
   "audit": {
     "intro": "Qui a fait quoi, et quand : connexions, consoles, actions d’administration. Le plus récent d’abord.",
@@ -244,7 +250,9 @@
       "one": "{count} entrée",
       "other": "{count} entrées"
     },
-    "none": "Aucune entrée pour ces filtres."
+    "none": "Aucune entrée pour ces filtres.",
+    "title": "Journal d’audit",
+    "filtersTitle": "Filtres"
   },
   "announcement": {
     "intro": "Un message affiché en bandeau à toutes les personnes connectées, tout de suite, jusqu’à ce que vous le retiriez ou que sa durée soit passée.",
@@ -268,7 +276,8 @@
     "current": "En ce moment :",
     "until": "(jusqu’au {date})",
     "noEnd": "(sans fin)",
-    "nothing": "Aucune annonce en ce moment."
+    "nothing": "Aucune annonce en ce moment.",
+    "live": "Une annonce est affichée"
   },
   "status": {
     "title": "État du labo",
@@ -322,7 +331,13 @@
       "one": "{connections} connexion, {channels} canaux ouverts",
       "other": "{connections} connexions, {channels} canaux ouverts"
     },
-    "loadFailed": "Impossible de lire l’état du labo."
+    "loadFailed": "Impossible de lire l’état du labo.",
+    "allWell": "Tout fonctionne",
+    "problems": {
+      "one": "{count} problème",
+      "other": "{count} problèmes"
+    },
+    "detailsTitle": "Détail"
   },
   "journaling": {
     "intro": "Ce que la plateforme garde de ce que vous faites, et combien de temps.",
@@ -384,5 +399,15 @@
     "sso_confirm_mismatch": "La connexion chez le fournisseur d’identité n’était pas la vôtre, ou pas celle d’un administrateur. Rien n’a été modifié.",
     "sso_confirm_expired": "Votre session s’est terminée pendant que vous étiez chez le fournisseur d’identité. Rien n’a été modifié.",
     "sso_unreachable": "Le fournisseur d’identité est injoignable."
+  },
+  "groups": {
+    "accounts": "Comptes",
+    "lab": "Labo",
+    "monitoring": "Suivi"
+  },
+  "nav": {
+    "teams": "Équipes",
+    "infra": "Machines et switchs",
+    "status": "État du labo"
   }
 }

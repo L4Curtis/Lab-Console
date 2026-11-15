@@ -32,6 +32,8 @@ const settled = (page, selector = 'dialog[open]') => page.waitForFunction((sel) 
   const el = document.querySelector(sel);
   return el && el.getAnimations({ subtree: true }).every((a) => a.playState === 'finished');
 }, selector);
+/** The screens of the administration, as their addresses name them (UX.md §4.3) */
+const ADMIN_TABS = ['users', 'invitations', 'sso', 'lab', 'diagram', 'switches', 'sessions', 'audit', 'announcement'];
 const go = async (page, route, ready) => {
   await page.evaluate((r) => { location.hash = `#/${r}`; }, route);
   await page.waitForSelector(ready ?? `section.view-${route.split('/')[0]}:not([hidden]) h1`);
@@ -39,10 +41,10 @@ const go = async (page, route, ready) => {
 
 test('administration > users: the header row and the body share their columns', async () => {
   const page = await open();
-  await go(page, 'admin');
-  await page.waitForSelector('table.accounts-table tbody tr td');
+  await go(page, 'admin/users');
+  await page.waitForSelector('section.view-admin table.dl-table tbody tr td');
   const cols = await page.evaluate(() => {
-    const table = document.querySelector('table.accounts-table');
+    const table = document.querySelector('section.view-admin table.dl-table');
     const head = [...table.querySelectorAll('thead th')].map((th) => Math.round(th.getBoundingClientRect().left));
     const body = [...table.querySelector('tbody tr').children].map((td) => Math.round(td.getBoundingClientRect().left));
     return { head, body, nested: document.querySelectorAll('thead > tbody').length };
@@ -128,25 +130,28 @@ test('a phone: nothing overflows the page, five items in the tab bar, every sect
     assert.ok(item.label <= 18 && !item.cut, `${item.nav}: the label holds on one line`);
   }
 
+  // Admin on a phone: #/admin is the hub (the list of the screens), each screen opens full height
   await go(page, 'admin');
-  const tabs = page.locator('section.view-admin [role="tab"]');
-  for (let i = 0; i < await tabs.count(); i++) {
-    await tabs.nth(i).click(); // the strip scrolls sideways and keeps the chosen tab in view
-    assert.equal(await overflow(), 0, `administration tab ${i}`);
+  assert.equal(await page.locator('section.view-admin[data-mode="hub"] .admin-nav .admin-link').count(), 12, 'the hub lists every screen of the administration');
+  assert.equal(await overflow(), 0, 'the hub');
+  for (const tab of ADMIN_TABS) {
+    await go(page, `admin/${tab}`);
+    await page.waitForSelector('section.view-admin[data-mode="tab"]');
+    assert.equal(await overflow(), 0, `administration ${tab}`);
   }
-  for (const route of ['jobs', 'team', 'status', 'help', 'account', 'overview', 'infra', 'consoles']) {
+  for (const route of ['jobs', 'team', 'status', 'help', 'account', 'home/lab', 'infra', 'consoles']) {
     await go(page, route);
     assert.equal(await overflow(), 0, route);
     // A long section scrolls inside itself: its heading is on screen, under nothing
     const heading = await page.evaluate((r) => {
       const h1 = document.querySelector(`section.view-${r} h1`).getBoundingClientRect();
       return { top: Math.round(h1.top), bottom: Math.round(h1.bottom), page: document.scrollingElement.scrollTop };
-    }, route);
+    }, route.split('/')[0]);
     assert.ok(heading.top >= 0 && heading.bottom < 844 - 56, `${route}: the heading is on screen (${heading.top}..${heading.bottom})`);
     assert.equal(heading.page, 0, `${route}: the page itself never scrolls`);
   }
-  // The longest section scrolls to its end, and back to its top
-  await go(page, 'help');
+  // The longest section scrolls to its end, and back to its top (on a phone the help's sections are folded: one is opened)
+  await go(page, 'help/backup');
   const scrolled = await page.evaluate(() => {
     const view = document.querySelector('section.view-help');
     const scroller = [...view.querySelectorAll('*')].find((el) => el.scrollHeight > el.clientHeight + 100 && /auto|scroll/.test(getComputedStyle(el).overflowY));
@@ -344,26 +349,28 @@ test('old addresses lead to the new ones without an extra history entry', async 
   // An administrator's lab screens light Admin
   await go(page, 'status');
   assert.equal(await page.locator('#rail-items .active').getAttribute('data-nav'), 'admin');
-  await go(page, 'overview');
-  assert.equal(await page.locator('#rail-items .active').getAttribute('data-nav'), 'home', 'the overview, still there until it moves to the home page, lights Home');
+  // The overview moved to the home page: its old address is replaced, and lights Home
+  assert.equal(await visit('#/overview/free'), '#/home/lab/free');
+  await page.waitForSelector('section.view-home:not([hidden]) h1');
+  assert.equal(await page.locator('#rail-items .active').getAttribute('data-nav'), 'home', 'Le labo lights Home');
   await page.context().close();
 });
 
 for (const theme of ['light', 'dark']) {
   test(`text contrast is AA in every section (${theme} theme)`, async () => {
     const page = await open({ width: 1440, height: 900, theme });
-    const routes = ['home', 'consoles', 'overview', 'team', 'infra', 'jobs', 'status', 'help', 'account', 'admin'];
+    const routes = ['home', 'consoles', 'team', 'infra', 'jobs', 'status', 'help', 'account', 'admin'];
     const failures = [];
     for (const route of routes) {
       await go(page, route);
       failures.push(...(await contrastFailures(page, { within: `section.view-${route}` })).map((f) => ({ route, ...f })));
       failures.push(...(await tinyText(page, { within: `section.view-${route}` })).map((f) => ({ route, ...f })));
     }
-    await go(page, 'admin');
-    const tabs = page.locator('section.view-admin .admin-tabs [role="tab"]');
-    for (let i = 0; i < await tabs.count(); i++) {
-      await tabs.nth(i).click();
-      failures.push(...(await contrastFailures(page, { within: 'section.view-admin' })).map((f) => ({ route: `admin tab ${i}`, ...f })));
+    for (const tab of ADMIN_TABS) {
+      await go(page, `admin/${tab}`);
+      await page.waitForSelector(`section.view-admin [role="tabpanel"]:not([hidden]) > *`);
+      failures.push(...(await contrastFailures(page, { within: 'section.view-admin' })).map((f) => ({ route: `admin ${tab}`, ...f })));
+      failures.push(...(await tinyText(page, { within: 'section.view-admin' })).map((f) => ({ route: `admin ${tab}`, ...f })));
     }
     failures.push(...(await contrastFailures(page, { within: '.rail' })).map((f) => ({ route: 'rail', ...f })));
     failures.push(...(await tinyText(page, { within: '.rail' })).map((f) => ({ route: 'rail', ...f })));
@@ -410,7 +417,7 @@ test('keyboard and screen reader: skip link, page title, focus, unknown address,
   assert.equal(await page.evaluate(() => document.activeElement.id), 'views', 'it lands on the content');
 
   const titles = {};
-  for (const route of ['home', 'consoles', 'overview', 'team', 'infra', 'admin', 'jobs', 'status', 'help']) {
+  for (const route of ['home', 'consoles', 'team', 'infra', 'admin', 'jobs', 'status', 'account', 'help']) {
     await go(page, route);
     if (route !== 'home') await page.waitForFunction((r) => document.activeElement.closest('section')?.classList.contains(`view-${r}`), route);
     titles[route] = await page.title();
@@ -435,9 +442,7 @@ test('keyboard and screen reader: skip link, page title, focus, unknown address,
 
 test('every table column has a name, the second port-range value too', async () => {
   const page = await open();
-  await go(page, 'admin');
-  const tabs = page.locator('section.view-admin .admin-tabs [role="tab"]');
-  await page.locator('section.view-admin [data-tab="lab"]').click();
+  await go(page, 'admin/lab');
   await page.waitForSelector('#lab-consoles-portRange-max');
   assert.equal(await page.getAttribute('#lab-consoles-portRange-max', 'aria-label'), 'Port maximal');
   const unnamedNow = () => page.evaluate(() => [
@@ -445,8 +450,8 @@ test('every table column has a name, the second port-range value too', async () 
     ...[...document.querySelectorAll('section.view-admin input')].filter((i) => i.getBoundingClientRect().width && i.type !== 'hidden' && !i.labels?.length && !i.getAttribute('aria-label') && !i.title).map((i) => `input ${i.id || i.name}`),
   ]);
   const unnamed = [];
-  for (let i = 0; i < await tabs.count(); i++) {
-    await tabs.nth(i).click();
+  for (const tab of ADMIN_TABS) {
+    await go(page, `admin/${tab}`);
     // a tab fills its table once its data has arrived: give it a moment, then report what is still unnamed
     await page.waitForFunction(() => document.querySelector('section.view-admin [role="tabpanel"]:not([hidden])')?.children.length).catch(() => {});
     unnamed.push(...await unnamedNow());

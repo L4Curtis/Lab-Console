@@ -75,11 +75,13 @@ Jobs work on the whole bench, run on the server and everyone sees them live.
   device off and on. The startup-config is bypassed for one boot, never erased.
   It has not been tried on every real model yet, and says so.
 
-## Home, overview and help
+## Home, the lab and help
 
-**Accueil** is the page after sign-in: your team, your invitations, your bench
-and its latest backups and activity, your next slots. **Vue d'ensemble** shows
-one live card per bench. **Aide** explains each section.
+**Accueil** is the page after sign-in: what needs your attention (an
+invitation, a request to join your bench, a bench about to be released), your
+bench, **Le labo** (every bench, live, filtered by state: free, taken, locked,
+ours), your next slots, your latest backups and your bench's activity.
+**Aide** explains each section, and has a section for the phone.
 
 ## Good habits
 

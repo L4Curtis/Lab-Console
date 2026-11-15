@@ -1,19 +1,12 @@
 {
-  "title": "Infrastructure",
-  "subtitle": "Proxmox VMs and admin switches",
+  "title": "Machines and switches",
+  "subtitle": "The Proxmox VMs and the lab's administration switches",
   "tabs": {
     "vms": "Virtual machines",
     "switches": "Admin switches"
   },
-  "placeholder": {
-    "title": "Virtual machines",
-    "subtitle": "Proxmox VE",
-    "heading": "Proxmox VM management will live here",
-    "text": "Start, stop and open the console of the lab virtual machines from the same place as your routers and switches. VM consoles will open in the same terminal workspace.",
-    "note": "Not available yet."
-  },
   "switches": {
-    "none": "No admin switch is listed in config/infrastructure.json.",
+    "none": "No administration switch is listed yet.",
     "other": "Other",
     "open": "Open console",
     "show": "Show console",
@@ -31,24 +24,20 @@
     "selectAll": "Select all VMs shown",
     "startSelected": "Start selected",
     "stopSelected": "Stop selected",
-    "clear": "Clear",
     "reachedVia": "Proxmox is reached through the SSH jump server",
     "hostVia": "{host} via {via}",
     "reload": "Reload from Proxmox",
     "clone": "Clone template",
     "colVm": "VM",
     "colVlan": "VLAN (net0)",
-    "colConsole": "Console",
-    "colPower": "Power",
     "notConfigured": "Proxmox is not configured",
     "notConfiguredHint": "Set PROXMOX_URL, PROXMOX_USERNAME and PROXMOX_PASSWORD in .env and restart the platform.",
     "adminOnly": "Virtual machines are for administrators",
     "adminOnlyHint": "Ask an administrator to start, stop or clone a VM.",
-    "loading": "Asking Proxmox through the jump server…",
     "reloaded": "VM list reloaded",
     "unreachable": "Could not reach Proxmox: {error}",
     "noMatch": "No VM matches this filter.",
-    "none": "No VMs yet. Use Clone template to create one.",
+    "none": "Use \"Clone template\" to create one.",
     "count": {
       "one": "{count} VM",
       "other": "{count} VMs"
@@ -62,16 +51,11 @@
     "serial": "Serial",
     "vnc": "VNC",
     "noSerial": "No serial port on this VM (add serial0: socket in Proxmox)",
-    "serialTitle": "Text console in the workspace",
-    "vncTitle": "Graphical console in the workspace",
     "startFirst": "Start the VM first",
     "start": "Start",
-    "startTitle": "Start the VM",
     "stop": "Stop",
-    "stopTitle": "Shut down the guest cleanly (ACPI)",
     "forceStop": "Force stop",
-    "forceStopTitle": "Cut the power immediately",
-    "select": "Select {name}",
+    "select": "Select",
     "status": {
       "running": "Running",
       "stopped": "Stopped",
@@ -108,7 +92,11 @@
     "powerStarting": "{name}: starting",
     "powerStopping": "{name}: shutting down",
     "powerForceStopping": "{name}: force-stopping",
-    "noTemplate": "No template found. Convert a VM to a template in Proxmox first."
+    "noTemplate": "No template found. Convert a VM to a template in Proxmox first.",
+    "selectDone": "Done selecting",
+    "listLabel": "Virtual machines",
+    "colStatus": "State",
+    "noneTitle": "No VM"
   },
   "clone": {
     "title": "Clone template",

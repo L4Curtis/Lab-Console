@@ -42,7 +42,8 @@ const translate = (m) => (!m ? '' : m.code ? tError(m.code, m.params, m.fallback
 const fromError = (err) => (err.status ? { code: err.code, params: err.params, fallback: err.serverMessage } : { key: 'accounts.join.network' });
 
 function render() {
-  $('join-title').textContent = t(mode === 'reset' ? 'accounts.reset.title' : 'accounts.join.title');
+  $('join-page').dataset.state = state;
+  $('join-title').textContent = t(state === 'invalid' ? 'accounts.join.invalidTitle' : mode === 'reset' ? 'accounts.reset.title' : 'accounts.join.title');
   const sub = state === 'form' && offer ? (mode === 'reset'
     ? t('accounts.reset.for', { username: offer.username })
     : t(offer.approval ? 'accounts.join.offerApproval' : 'accounts.join.offer', { role: t(`auth.menu.roles.${offer.role}`) }))

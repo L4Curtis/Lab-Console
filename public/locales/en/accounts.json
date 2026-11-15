@@ -23,7 +23,8 @@
     "created": "Your account is created.",
     "pending": "Your account is created. An administrator must approve it: you can sign in afterwards.",
     "stepExpired": "Your account is created, but registering the passkey timed out. Sign in with your user name and password: the passkey will be asked again.",
-    "toLogin": "Go to the sign-in page"
+    "toLogin": "Back to sign-in",
+    "invalidTitle": "This link does not work"
   },
   "reset": {
     "title": "New password",
@@ -72,7 +73,6 @@
     "roleDone": "Role changed.",
     "signedOut": "The person is signed out everywhere at once, consoles included.",
     "adminNeedsPasskey": "At their next sign-in they will have to register a passkey: their password alone will no longer be enough.",
-    "environment": "Set in the server's configuration",
     "viaEnvironment": "server administrator",
     "viaSso": "SSO",
     "viaLocal": "local account",
@@ -102,7 +102,16 @@
       "one": "The passkey of {name} is cleared ({count}). An administrator registers a new one at their next sign-in.",
       "other": "The {count} passkeys of {name} are cleared. An administrator registers a new one at their next sign-in."
     },
-    "cleared": "Passkeys cleared."
+    "cleared": "Passkeys cleared.",
+    "title": "Accounts",
+    "invite": "Invite",
+    "changeRole": "Change role",
+    "roleNext": "Continue",
+    "waitingTitle": {
+      "one": "{count} account is waiting for your approval",
+      "other": "{count} accounts are waiting for your approval"
+    },
+    "waitingText": "These people signed up with a link for several people. They cannot sign in until you approve or reject them."
   },
   "invitations": {
     "intro": "An invitation link lets someone create a local account. For one person, the account is active at once; for several, each account waits for your approval in the Users tab.",
@@ -144,7 +153,13 @@
     "revoke": "Withdraw",
     "revokeTitle": "Withdraw this invitation",
     "revokeBody": "The link will stop working. Accounts already created with it do not change.",
-    "revoked": "Invitation withdrawn."
+    "revoked": "Invitation withdrawn.",
+    "title": "Invitations",
+    "noneText": "Create a link so a classmate can make a local account.",
+    "count": {
+      "one": "{count} open invitation",
+      "other": "{count} open invitations"
+    }
   },
   "sso": {
     "intro": "The identity provider (OpenID Connect) students and teachers sign in with. Changes apply at once, without a restart; open sessions are not touched. The server's administrator can always sign in.",
@@ -212,12 +227,23 @@
     "trialRole": "Resulting role",
     "trialForced": "Role forced in the directory",
     "trialRefused": "refused: in no allowed group",
-    "trialClaims": "Claims received"
+    "trialClaims": "Claims received",
+    "stateTitle": "State",
+    "groups": {
+      "provider": "Identity provider",
+      "groups": "Groups and roles",
+      "advanced": "Advanced"
+    },
+    "state": {
+      "on": "SSO sign-in is on",
+      "off": "SSO sign-in is off",
+      "locked": "Set by the server's configuration"
+    }
   },
   "me": {
     "title": "My account",
-    "subtitle": "Your identity, your password, your passkeys and your sessions",
-    "identity": "Identity",
+    "subtitle": "Your profile, passkeys, sessions and preferences",
+    "identity": "Profile",
     "name": "Display name",
     "username": "User name",
     "role": "Role",
@@ -252,7 +278,6 @@
     "sessions": "Open sessions",
     "thisSession": "This session",
     "unknownBrowser": "Unknown browser",
-    "sessionDates": "{ip} · opened {since} · seen {seen}",
     "endSession": "Close",
     "endOthers": "Close the other sessions",
     "endOthersBody": "You will be signed out everywhere else; this session stays open.",
@@ -260,7 +285,17 @@
       "one": "{count} session closed.",
       "other": "{count} sessions closed."
     },
-    "loadFailed": "Could not read your account."
+    "loadFailed": "Could not read your account.",
+    "password": "Password",
+    "passwordCard": "Change your password whenever you like: your other sessions are closed.",
+    "preferences": "Preferences",
+    "columns": {
+      "device": "Device",
+      "ip": "Address",
+      "since": "Opened",
+      "seen": "Activity"
+    },
+    "seen": "seen {date}"
   },
   "errors": {
     "link_invalid": "This link is not valid: it may have expired, been used or been withdrawn. Ask for a new one.",

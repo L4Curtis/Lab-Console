@@ -9,30 +9,29 @@
   "s": {
     "sections": {
       "title": "The sections of Lab Console",
-      "intro": "The left-hand bar leads to every section. Your badge, at the bottom, opens your account menu.",
-      "home": "Home: where you land after signing in: your team, its bench, your latest backups, the bench's activity, your next slots.",
-      "consoles": "Consoles: pick a bench, then click a device on the diagram to open its console. This is where you take the bench for your team, type your commands and see who is working on what (\"Live\", \"Bench wall\").",
-      "overview": "Overview: every bench of the lab at a glance, one card per bench.",
+      "intro": "The menu leads to every section: on the left on a computer, at the bottom on a phone (\"More\" opens the rest). Your badge, at the bottom of the left menu, opens your account menu.",
+      "home": "Home: where you land after signing in: what needs your attention, your bench, the whole lab, your next slots, your latest backups.",
+      "consoles": "Consoles: pick a bench, then click a device on the diagram to open its console. This is where you take the bench for your team, type your commands and see who is working on what (\"Live\", \"Console wall\").",
       "team": "Team: create the team of your lab group, invite your classmates, answer an invitation, book a bench in the calendar.",
       "jobs": "Backups: back up the configuration of every device of a bench, compare it, inject it again, or reset the bench. Your backups and the lab templates are here too.",
-      "infra": "Infra: the Proxmox VMs when Proxmox is configured, and the admin switches of the lab.",
-      "status": "Lab status: whether the access chain answers (jump server, console servers), and what is recorded.",
-      "admin": "Admin (administrators only): accounts, invitations, SSO sign-in, lab parameters, diagram, sessions, audit trail, announcement.",
-      "account": "My account (from your badge): display name, password and passkeys of a local account, open sessions.",
+      "infra": "Machines and switches (in More, or in Admin for an administrator): the Proxmox VMs when Proxmox is configured, and the admin switches of the lab.",
+      "status": "Lab status (in More, or in Admin): whether the access chain answers (jump server, console servers), and what is recorded.",
+      "admin": "Admin (administrators only): accounts, invitations, SSO sign-in, teams, lab parameters, diagram, admin switches, sessions, audit trail, announcement; and links to Machines and switches and Lab status.",
+      "account": "My account (from your badge, or More on a phone): profile, password and passkeys of a local account, open sessions, theme and language.",
       "help": "Help: this page. The account menu also lets you replay the guided tour.",
-      "extras": "Also in the left-hand bar: FR / EN switches the language, \"Theme\" switches light and dark, and the \"Alerts\" bell turns on browser alerts (keyboard asked for, line free, job finished)."
+      "extras": "In the account menu (or in More on a phone): the light, dark or automatic theme, and the FR / EN language. The \"Alerts\" bell turns on browser alerts (keyboard asked for, line free, job finished)."
     },
     "home": {
-      "title": "Home and overview",
-      "intro": "These two pages only show, and keep themselves up to date. Taking, joining or releasing a bench is still done in the bench bar, in the Consoles section.",
-      "homeTeam": "Home: your team and its members, the invitations waiting for you, your team's bench (or the one you are a guest of), your next slots, the lab in numbers and the current announcement.",
-      "homeBackups": "Your team's five latest backups: only its members see them, not a guest, not another team.",
-      "homeActivity": "The activity of your bench since your team took it: who took, joined or left it, the jobs started, the consoles opened. Only the bench's occupants see it.",
-      "homeNone": "With no team, or if your team has no bench, Home tells you what to do and leads you to the right section.",
-      "overview": "Overview: for each bench, the team holding it and since when, who is on it (guests are marked), the open consoles and who has the keyboard, the running job, the lock and its reason, the next three slots and the automatic release time.",
-      "overviewLines": "A card's lines: open in Lab Console, busy outside Lab Console, silent; and, for half an hour after a \"Line status\" check, the lines found free and when it ran.",
-      "overviewFilter": "The filter shows every bench, the free ones or yours. A card leads to the bench (Consoles section) and to its backups.",
-      "overviewPrivate": "The overview never shows a team's backups or journal, nor what was typed on a console."
+      "title": "Home and The lab",
+      "intro": "Home keeps itself up to date. It puts what needs your attention on top and lets you answer with a button: accept a request to join your bench, join a team, stay on a bench that is about to be released. A team with no bench takes a free one from Home; joining or releasing a bench is done in the bench bar (Consoles section) or in Team, \"Bench\" tab.",
+      "homeTeam": "My bench: your team's bench (or the one you are a guest of), its state, who is on it and the open consoles; \"Open the consoles\" leads there. My team: its members. Further down, your next slots and, at the top of the page, the current announcement.",
+      "homeBackups": "Your team's two latest backups, with \"Download\": only its members see them, not a guest, not another team.",
+      "homeActivity": "The activity of your bench since your team took it: who took, joined or left it, the jobs started, the consoles opened. The five latest lines, \"Show more\" shows the rest. Only the bench's occupants see it.",
+      "homeNone": "With no team, or if your team has no bench, Home tells you what to do: create a team, or take one of the free benches.",
+      "overview": "The lab: every bench, as cards on a computer and as a list on a phone: for each, its state (free, taken, locked), the team holding it, the open consoles, the running job and the next slot. The chips filter: all, free, taken, locked, ours.",
+      "overviewLines": "Under a card: the lines busy outside Lab Console or silent; and, for half an hour after a \"Line status\" check, the lines found free and when it ran.",
+      "overviewFilter": "The chosen filter stays in the page's address, so in a link. A card, or a row of the list, leads to the bench (Consoles section).",
+      "overviewPrivate": "The lab never shows a team's backups or journal, nor what was typed on a console."
     },
     "team": {
       "title": "Taking a bench with your team",
@@ -59,7 +58,7 @@
       "admin": "An administrator can take the keyboard outright.",
       "task": "While a job runs on a console (export, injection, backup…) its keyboard is suspended until the end. \"Stop\" interrupts the job.",
       "free": "\"Free the line\" closes the console for everyone and gives the line back to the console server. Without it, the line stays open while someone is watching, for 30 seconds after the last person leaves, and closes by itself after a long time without typing.",
-      "live": "\"Live\" lists the open consoles, who is on them and the last command typed. \"Bench wall\" shows every open console of a bench, read-only. \"Find a device\" (Ctrl K, in the Consoles section) opens a device by its name, bench or port.",
+      "live": "\"Live\" lists the open consoles, who is on them and the last command typed. \"Console wall\" shows every open console of a bench, read-only. \"Find a device\" (Ctrl K, in the Consoles section) opens a device by its name, bench or port.",
       "tools": "Each console has its tools: send a BREAK, export the running-config as .txt, inject a script, send the same commands to several consoles, search its history, write the device's note. Pasting several lines sends them one by one (you need the keyboard)."
     },
     "backup": {
@@ -94,8 +93,8 @@
     },
     "checks": {
       "title": "Checking the bench",
-      "intro": "The \"Checks\" button, at the top of the Consoles section, opens the checks of the bench you picked. They only read: show commands and pings, nothing is configured. People watching a console see the check go by.",
-      "lines": "Line status: for each device, is the line free, busy outside Lab Console, already open in Lab Console, or is the device silent? The result is shown on the diagram for half an hour and on the bench's card in the overview; everyone sees it.",
+      "intro": "The \"Checks\" entry of the Tools menu, at the top of the Consoles section, opens the checks of the bench you picked. They only read: show commands and pings, nothing is configured. People watching a console see the check go by.",
+      "lines": "Line status: for each device, is the line free, busy outside Lab Console, already open in Lab Console, or is the device silent? The result is shown on the diagram for half an hour and on the bench's card in The lab; everyone sees it.",
       "cabling": "Cabling (CDP): show cdp neighbors detail on every device, compared with the diagram's links: as drawn, on another port, missing (with the reason: interface shut down, down, no such port), cannot be checked, or a cable nobody drew. The verdict is shown on the diagram's links too.",
       "ping": "Ping matrix: the routers' addresses are read from their active interfaces, then each router pings the addresses of the others. Green: answers; orange: partly; red: no answer.",
       "interfaces": "Addresses and interfaces: show ip interface brief on every device; the address and state of each end of a link are written next to the diagram's links.",
@@ -188,6 +187,17 @@
         "keys": "← → ↑ ↓",
         "what": "On the bar between the diagram and the consoles: move it."
       }
+    },
+    "phone": {
+      "title": "On a phone",
+      "intro": "Everything works on a phone too, even typing in a console. Only the navigation changes.",
+      "tabbar": "The bottom bar leads to Home, Consoles, Team and Backups. \"More\" opens the rest: Admin for administrators, alerts, Machines and switches, Lab status, help, your account, the theme and the language.",
+      "consoles": "Consoles: pick the bench with the button at the top, then \"Diagram\" (pinch to zoom, tap a device to open its console) or \"List\" (one row per device). A long press on a device opens its sheet.",
+      "screen": "A console opens full screen. The arrow at the top goes back to the bench; the console stays connected. With several consoles open, chips switch from one to another.",
+      "toolbar": "Under the terminal, a row of keys sends what the phone's keyboard does not have: Esc, Tab (completes commands), Ctrl, the arrows, ?, Ctrl C, Ctrl Z, Interrupt, Space and Paste.",
+      "line": "\"Line\" mode: write the command in the field at the bottom, then tap Enter; it is sent in one go. Tab and ? send the start of the line and let the device complete or help. The keyboard icon switches to \"direct\" mode: the phone's keyboard then types into the terminal as on a computer.",
+      "interrupt": "To stop a ping or a traceroute on Cisco IOS: \"Interrupt\" (Ctrl Shift 6).",
+      "landscape": "Turn the phone: the terminal gains columns. The bottom bar hides while a console is full screen, and while the keyboard is open."
     }
   },
   "tour": {
@@ -200,11 +210,12 @@
     "steps": {
       "home": {
         "title": "Your home page",
-        "body": "This is where you land after signing in: your team, the bench it took, your latest backups and what happened on the bench. “Overview”, in the bar on the left, shows every bench of the lab."
+        "body": "This is where you land after signing in: what needs your attention, your bench, then \"The lab\", with every bench at a glance."
       },
       "bench": {
         "title": "Pick a bench",
-        "body": "The lab is split into benches of routers and switches. Click a bench's name, then a device on the diagram to open its console."
+        "body": "The lab is split into benches of routers and switches. Pick a bench with the selector at the top of the page, then a device on the diagram to open its console.",
+        "bodyPhone": "Tap Consoles in the bottom bar, pick a bench, then a device on the diagram or in the list."
       },
       "team": {
         "title": "Take the bench with your team",
@@ -212,7 +223,8 @@
       },
       "console": {
         "title": "Open a console",
-        "body": "Click a device on the diagram: its console opens in your workspace. If a classmate already opened it, you join it and see what it displayed."
+        "body": "Click a device on the diagram: its console opens in your workspace. If a classmate already opened it, you join it and see what was displayed.",
+        "bodyPhone": "Tap a device: its console opens full screen, with Tab, Ctrl and the arrows under the terminal. The arrow at the top goes back to the bench."
       },
       "keyboard": {
         "title": "Ask for the keyboard",
@@ -221,10 +233,15 @@
       "backup": {
         "title": "Back up before you leave",
         "body": "In Backups, \"Back up\" reads the configuration of every device of the bench. The server is not a backup: download the ZIP afterwards. The Help section covers the rest; your account menu lets you replay this tour."
+      },
+      "plus": {
+        "title": "More: the rest",
+        "body": "\"More\" opens Machines and switches, Lab status, help, your account, the theme and the language; administrators find Admin there too. You can replay this tour from there."
       }
     }
   },
   "errors": {
     "bad_state": "The tour ends as done or skipped."
-  }
+  },
+  "summary": "Contents"
 }

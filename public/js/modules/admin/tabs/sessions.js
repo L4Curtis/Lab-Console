@@ -7,8 +7,9 @@
 import { h, toast } from '../../../core/dom.js';
 import { request, getJson, live } from '../../../core/api.js';
 import { t, onLocaleChange } from '../../../core/i18n.js';
-import { columnHeads, labelColumns } from '../common.js';
 import { confirmDialog } from '../../../shared/dialog.js';
+import { dataList } from '../../../shared/dataList.js';
+import { tagRows } from '../common.js';
 import { fmtLong } from '../../../core/format.js';
 
 /** A short name for a browser, from its user agent */
@@ -18,15 +19,32 @@ function browserOf(ua = '') {
   return [name, os].filter(Boolean).join(' · ') || ua.slice(0, 40) || '—';
 }
 
-export function mount(el) {
-  const tbody = h('tbody');
+export function mount(el, ctx) {
   const notice = h('p.form-error', { role: 'alert' });
-  const count = h('span.muted');
   const intro = h('p.muted.panel-intro');
-  el.append(h('div.panel', intro, h('div.panel-toolbar', count), notice,
-    h('div.table-wrap', h('table.vm-table.sessions-table',
-      h('thead', h('tr', columnHeads((c) => t(`admin.sessions.columns.${c}`), ['user', 'browser', 'ip', 'since', 'lastSeen', 'actions']))),
-      tbody))));
+  const list = dataList({
+    label: () => t('admin.sessions.title'),
+    dense: true,
+    rowKey: (s) => s.id,
+    columns: [
+      {
+        id: 'user', label: () => t('admin.sessions.columns.user'), primary: true,
+        cell: (s) => h('div.account-cell', h('strong', s.user.name || s.user.username), h('span.vm-meta', `${s.user.username} · ${t(`auth.menu.roles.${s.user.role}`)}`),
+          s.current ? h('div.account-notes', h('span.badge', { dataset: { tone: 'info' } }, t('admin.sessions.thisOne'))) : null),
+      },
+      { id: 'browser', label: () => t('admin.sessions.columns.browser'), cell: (s) => [browserOf(s.userAgent), s.connections ? ` · ${t('admin.sessions.sockets', { count: s.connections })}` : ''].join(''), meta: true },
+      { id: 'ip', label: () => t('admin.sessions.columns.ip'), cell: (s) => h('span.mono', s.ip ?? '—'), hideCompact: true },
+      { id: 'since', label: () => t('admin.sessions.columns.since'), cell: (s) => fmtLong(s.createdAt), hideCompact: true },
+      { id: 'lastSeen', label: () => t('admin.sessions.columns.lastSeen'), cell: (s) => t('admin.sessions.seen', { date: fmtLong(s.lastSeenAt) }), meta: true },
+    ],
+    actions: (s) => [
+      { id: 'end', label: 'admin.sessions.end', icon: 'close', danger: true, run: () => end(s) },
+      { id: 'end-all', label: 'admin.sessions.endAll', icon: 'logout', run: () => endAll(s) },
+    ],
+    empty: { icon: 'user', title: 'admin.sessions.none' },
+  });
+  tagRows(list, (s) => ({ session: s.id, user: s.user.id }));
+  el.append(h('div.admin-page', intro, notice, list.el));
 
   let sessions = [];
   let visible = false;
@@ -71,29 +89,15 @@ export function mount(el) {
     await load();
   }
 
-  function row(s) {
-    const role = t(`auth.menu.roles.${s.user.role}`);
-    return h('tr', { dataset: { session: s.id, user: s.user.id } },
-      h('td', h('div.account-cell', h('strong', s.user.name || s.user.username), h('span.vm-meta', `${s.user.username} · ${role}`),
-        s.current ? h('div.account-notes', h('span.badge', t('admin.sessions.thisOne'))) : null)),
-      h('td', browserOf(s.userAgent), s.connections ? h('span.vm-meta', ` · ${t('admin.sessions.sockets', { count: s.connections })}`) : null),
-      h('td.mono', s.ip ?? '—'),
-      h('td', fmtLong(s.createdAt)),
-      h('td', fmtLong(s.lastSeenAt)),
-      h('td.right', h('div.row-actions.end',
-        h('button.btn.small.danger', { type: 'button', dataset: { action: 'end' }, onclick: () => end(s) }, t('admin.sessions.end')),
-        h('button.btn.small', { type: 'button', dataset: { action: 'end-all' }, onclick: () => endAll(s) }, t('admin.sessions.endAll')))));
-  }
-
   function render() {
     intro.textContent = t('admin.sessions.intro');
-    labelColumns(el, (c) => t(`admin.sessions.columns.${c}`));
-    count.textContent = t('admin.sessions.count', { count: sessions.length });
-    tbody.replaceChildren(...(sessions.length ? sessions.map(row) : [h('tr', h('td.empty-row', { colspan: 6 }, t('admin.sessions.none')))]));
+    list.render(sessions);
+    ctx.setHeader(ctx.tab, { context: () => t('admin.sessions.count', { count: sessions.length }) });
   }
 
   onLocaleChange(render);
   live.on('admin:changed', ({ what }) => { if (visible && what === 'sessions') load(); });
+  render();
   return {
     show() { visible = true; load(); },
     hide() { visible = false; },

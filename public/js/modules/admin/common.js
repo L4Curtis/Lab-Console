@@ -2,8 +2,9 @@
  * Small pieces shared by the accounts screens (administration tabs and My account)
  *
  *   showLink({ title, intro, url, expiresAt })   the one time a link's token is shown, with a copy button
- *   columnHeads(name, cols)                       the th of a table, named by name(col) (the actions column gets a hidden name)
- *   labelColumns(el, name)                        the same names again, after a language change
+ *   tagRows(list, attrs)                          data attributes on the rows of a dataList
+ *   field({ label, control, hint, problem })      a form field: label above, hint and problem under
+ *   stateBadge(state, label)                      the word and colour of an account's or an invitation's state
  */
 import { h, icon, toast } from '../../core/dom.js';
 import { t } from '../../core/i18n.js';
@@ -11,18 +12,40 @@ import { fmtLong } from '../../core/format.js';
 import { openDialog } from '../../shared/dialog.js';
 
 
-function labelColumn(th, name) {
-  if (th.dataset.col === 'actions') th.replaceChildren(h('span.sr-only', t('common.columns.actions')));
-  else th.textContent = name(th.dataset.col);
+/**
+ * Mark the rows of a dataList with data attributes (data-account, data-state…):
+ * what the scenarios and the styles look at. `attrs(row)` → { name: value };
+ * the marks are put again whenever the list draws its rows (a new language too)
+ */
+export function tagRows(list, attrs) {
+  const apply = () => {
+    const rows = list.rows;
+    list.el.querySelectorAll('tbody tr').forEach((tr, i) => {
+      const row = rows[i];
+      if (row) for (const [name, value] of Object.entries(attrs(row))) if (value !== undefined && value !== null) tr.dataset[name] = String(value);
+    });
+  };
+  new MutationObserver(apply).observe(list.el.querySelector('tbody'), { childList: true });
+  apply();
 }
 
-export function columnHeads(name, cols) {
-  return cols.map((col) => { const th = h('th', { dataset: { col } }); labelColumn(th, name); return th; });
+/**
+ * A form field: label above, the control, a hint under it, and where the
+ * server's problem with this very field is written
+ *
+ *   field({ label, control, hint, problem, name })  → div.fld (data-field = name)
+ */
+export function field({ label, control, hint, problem, name }) {
+  return h('div.fld', { dataset: name ? { field: name } : {} },
+    label ? h('label', { for: control?.id }, label) : null,
+    control,
+    hint ?? null,
+    problem ?? null);
 }
 
-export function labelColumns(el, name) {
-  for (const th of el.querySelectorAll('th[data-col]')) labelColumn(th, name);
-}
+/** A status word with its colour: active / pending / disabled / revoked / expired / used */
+const STATE_TONES = { active: 'success', pending: 'warning', disabled: 'neutral', revoked: 'neutral', expired: 'neutral', used: 'neutral' };
+export const stateBadge = (state, label) => h('span.badge', { dataset: { tone: STATE_TONES[state] ?? 'neutral', state } }, label);
 
 /**
  * Show a freshly created link. It is the only time its token is visible:

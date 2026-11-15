@@ -9,10 +9,11 @@
  * kept, can be previewed, downloaded, activated again; "Roll back" returns
  * to the diagram that was active before, in one click.
  */
-import { h, icon, toast } from '../../../core/dom.js';
+import { h, toast } from '../../../core/dom.js';
 import { request, getJson, live } from '../../../core/api.js';
 import { t, onLocaleChange } from '../../../core/i18n.js';
-import { columnHeads, labelColumns } from '../common.js';
+import { tagRows, stateBadge } from '../common.js';
+import { dataList } from '../../../shared/dataList.js';
 import { serverText } from '../../../shared/serverText.js';
 import { confirmDialog } from '../../../shared/dialog.js';
 import { DiagramView } from '../../consoles/diagramView.js';
@@ -23,22 +24,34 @@ const MAX_BYTES = 5 * 1024 * 1024;
 /** POST the file as it is: the body is the diagram, not JSON */
 const uploadFile = (file) => request('POST', `/api/admin/diagrams?name=${encodeURIComponent(file.name)}`, file, { type: 'application/octet-stream' });
 
-export function mount(el) {
+export function mount(el, ctx) {
   const input = h('input', { type: 'file', accept: '.drawio,.xml,application/xml', id: 'diagram-file', hidden: true });
-  const pick = h('button.btn.primary', { type: 'button', dataset: { action: 'import' }, onclick: () => input.click() }, icon('upload'), h('span.lbl'));
-  const rollback = h('button.btn', { type: 'button', dataset: { action: 'rollback' } }, icon('restore'), h('span.lbl'));
   const notice = h('p.form-error', { role: 'alert' });
   const intro = h('p.muted.panel-intro');
-  const tbody = h('tbody');
-  const preview = h('section.diagram-preview', { hidden: true, 'aria-live': 'polite' });
-  el.append(h('div.panel.diagram-panel',
-    intro,
-    h('div.panel-toolbar', input, pick, rollback),
-    notice,
+  const preview = h('section.card.diagram-preview', { hidden: true, 'aria-live': 'polite' });
+  const list = dataList({
+    label: () => t('admin.diagram.versionsTitle'),
+    dense: true,
+    rowKey: (v) => v.id,
+    columns: [
+      { id: 'name', label: () => t('admin.diagram.columns.name'), cell: (v) => h('div.account-cell', h('strong', v.name), v.source === 'environment' ? h('span.vm-meta', t('admin.diagram.fromEnvironment')) : null), primary: true },
+      { id: 'devices', label: () => t('admin.diagram.columns.devices'), cell: (v) => t('admin.diagram.deviceCount', { count: v.devices ?? 0 }), meta: true },
+      { id: 'by', label: () => t('admin.diagram.columns.by'), cell: (v) => v.by?.username ?? '—', hideCompact: true },
+      { id: 'at', label: () => t('admin.diagram.columns.at'), cell: (v) => fmtLong(v.at), meta: true },
+      { id: 'state', label: () => t('admin.diagram.columns.state'), cell: (v) => (v.active ? stateBadge('active', t('admin.diagram.active')) : ''), badge: true },
+    ],
+    actions: (v) => [
+      v.active ? null : { id: 'activate', label: 'admin.diagram.activate', icon: 'check', primary: true, run: () => activate(v) },
+      { id: 'preview', label: 'admin.diagram.preview', icon: 'search', run: () => showPreview(v.id) },
+      { id: 'download', label: 'admin.diagram.download', icon: 'download', run: () => { location.assign(`/api/admin/diagrams/${encodeURIComponent(v.id)}/download`); } },
+    ].filter(Boolean),
+    empty: { icon: 'archive', title: 'admin.diagram.none' },
+  });
+  tagRows(list, (v) => ({ version: v.id, active: v.active }));
+  el.append(h('div.admin-page.diagram-panel',
+    intro, input, notice,
     preview,
-    h('div.table-wrap', h('table.vm-table.versions-table',
-      h('thead', h('tr', columnHeads((c) => t(`admin.diagram.columns.${c}`), ['name', 'devices', 'by', 'at', 'state', 'actions']))),
-      tbody))));
+    h('section.admin-section', h('h2', { dataset: { text: 'versionsTitle' } }), list.el)));
 
   let state = { versions: [], canRollback: false };
   let shown = null; // the version in the preview
@@ -55,28 +68,18 @@ export function mount(el) {
     render();
   }
 
-  function row(v) {
-    const actions = [
-      h('button.btn.small', { type: 'button', dataset: { action: 'preview' }, onclick: () => showPreview(v.id) }, t('admin.diagram.preview')),
-      h('a.btn.small', { href: `/api/admin/diagrams/${encodeURIComponent(v.id)}/download`, download: '', dataset: { action: 'download' } }, icon('download'), h('span.lbl', t('admin.diagram.download'))),
-    ];
-    if (!v.active) actions.unshift(h('button.btn.small.primary', { type: 'button', dataset: { action: 'activate' }, onclick: () => activate(v) }, t('admin.diagram.activate')));
-    return h('tr', { dataset: { version: v.id, active: String(v.active) } },
-      h('td', h('div.account-cell', h('strong', v.name), v.source === 'environment' ? h('span.vm-meta', t('admin.diagram.fromEnvironment')) : null)),
-      h('td', t('admin.diagram.deviceCount', { count: v.devices ?? 0 })),
-      h('td', v.by?.username ?? '—'),
-      h('td', fmtLong(v.at)),
-      h('td', v.active ? h('span.state-pill', { dataset: { state: 'active' } }, t('admin.diagram.active')) : ''),
-      h('td.right', h('div.row-actions.end', actions)));
-  }
+  function pick() { input.click(); }
 
   function render() {
     intro.textContent = t('admin.diagram.intro');
-    pick.querySelector('.lbl').textContent = t('admin.diagram.import');
-    rollback.querySelector('.lbl').textContent = t('admin.diagram.rollback');
-    rollback.disabled = !state.canRollback;
-    labelColumns(el, (c) => t(`admin.diagram.columns.${c}`));
-    tbody.replaceChildren(...(state.versions.length ? state.versions.map(row) : [h('tr', h('td.empty-row', { colspan: 6 }, t('admin.diagram.none')))]));
+    for (const node of el.querySelectorAll('[data-text]')) node.textContent = t(`admin.diagram.${node.dataset.text}`);
+    list.render(state.versions);
+    const active = state.versions.find((v) => v.active);
+    ctx.setHeader(ctx.tab, {
+      context: () => (active ? t('admin.diagram.context', { name: active.name, count: active.devices ?? 0 }) : t('admin.diagram.none')),
+      primary: { id: 'import', label: 'admin.diagram.import', icon: 'upload', run: pick },
+      actions: [{ id: 'rollback', label: 'admin.diagram.rollback', icon: 'restore', disabled: !state.canRollback, run: () => rollbackNow() }],
+    });
   }
 
   function diffList(title, items, format) {
@@ -99,7 +102,7 @@ export function mount(el) {
         diffList(t('admin.diagram.diff.devicesMoved'), d.devices.moved, (x) => `${x.lab} / ${x.name}: ${x.from} → ${x.target}`),
       ].filter(Boolean);
       const activateBtn = version.id === state.active
-        ? h('span.state-pill', { dataset: { state: 'active' } }, t('admin.diagram.active'))
+        ? stateBadge('active', t('admin.diagram.active'))
         : h('button.btn.primary', { type: 'button', dataset: { action: 'activate-preview' }, onclick: () => activate(version) }, t('admin.diagram.activate'));
       preview.replaceChildren(
         h('header.preview-head', h('div', h('h3', t('admin.diagram.previewTitle', { name: version.name })),
@@ -137,7 +140,7 @@ export function mount(el) {
     await load();
   }
 
-  rollback.addEventListener('click', async () => {
+  async function rollbackNow() {
     const ok = await confirmDialog({ title: t('admin.diagram.rollbackTitle'), body: t('admin.diagram.rollbackBody'), confirmLabel: t('admin.diagram.rollback'), danger: true });
     if (!ok) return;
     try {
@@ -148,7 +151,7 @@ export function mount(el) {
       toast(err.message, 'error', 7000);
     }
     await load();
-  });
+  }
 
   input.addEventListener('change', async () => {
     const file = input.files?.[0];
@@ -158,7 +161,6 @@ export function mount(el) {
       toast(t('admin.errors.diagram_too_large'), 'error', 7000);
       return;
     }
-    pick.disabled = true;
     try {
       const result = await uploadFile(file);
       toast(t('admin.diagram.imported'));
@@ -166,8 +168,6 @@ export function mount(el) {
       await showPreview(result.version.id);
     } catch (err) {
       notice.textContent = err.message;
-    } finally {
-      pick.disabled = false;
     }
   });
 
