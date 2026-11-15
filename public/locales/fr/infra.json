@@ -1,19 +1,12 @@
 {
-  "title": "Infrastructure",
-  "subtitle": "VM Proxmox et switchs d’administration",
+  "title": "Machines et switchs",
+  "subtitle": "Les VM Proxmox et les switchs d’administration du labo",
   "tabs": {
     "vms": "Machines virtuelles",
     "switches": "Switchs d’admin"
   },
-  "placeholder": {
-    "title": "Machines virtuelles",
-    "subtitle": "Proxmox VE",
-    "heading": "La gestion des VM Proxmox arrivera ici",
-    "text": "Démarrer, arrêter et ouvrir la console des VM du labo au même endroit que vos routeurs et vos switchs. Les consoles des VM s’ouvriront dans le même espace de travail.",
-    "note": "Pas encore disponible."
-  },
   "switches": {
-    "none": "Aucun switch d’administration n’est listé dans config/infrastructure.json.",
+    "none": "Aucun switch d’administration n’est listé pour l’instant.",
     "other": "Autres",
     "open": "Ouvrir la console",
     "show": "Afficher la console",
@@ -31,24 +24,20 @@
     "selectAll": "Sélectionner toutes les VM affichées",
     "startSelected": "Démarrer la sélection",
     "stopSelected": "Arrêter la sélection",
-    "clear": "Désélectionner",
     "reachedVia": "Proxmox est joint par le serveur de rebond SSH",
     "hostVia": "{host} via {via}",
     "reload": "Recharger depuis Proxmox",
     "clone": "Cloner un modèle",
     "colVm": "VM",
     "colVlan": "VLAN (net0)",
-    "colConsole": "Console",
-    "colPower": "Alimentation",
     "notConfigured": "Proxmox n’est pas configuré",
     "notConfiguredHint": "Renseignez PROXMOX_URL, PROXMOX_USERNAME et PROXMOX_PASSWORD dans le fichier .env, puis redémarrez la plateforme.",
     "adminOnly": "Les machines virtuelles sont réservées aux administrateurs",
     "adminOnlyHint": "Demandez à un administrateur de démarrer, d’arrêter ou de cloner une VM.",
-    "loading": "Interrogation de Proxmox par le serveur de rebond…",
     "reloaded": "Liste des VM rechargée",
     "unreachable": "Proxmox est injoignable : {error}",
     "noMatch": "Aucune VM ne correspond à ce filtre.",
-    "none": "Aucune VM pour l’instant. Utilisez « Cloner un modèle » pour en créer une.",
+    "none": "Utilisez « Cloner un modèle » pour en créer une.",
     "count": {
       "one": "{count} VM",
       "other": "{count} VM"
@@ -62,16 +51,11 @@
     "serial": "Console série",
     "vnc": "VNC",
     "noSerial": "Pas de port série sur cette VM (ajoutez serial0: socket dans Proxmox)",
-    "serialTitle": "Console texte dans l’espace de travail",
-    "vncTitle": "Console graphique dans l’espace de travail",
     "startFirst": "Démarrez d’abord la VM",
     "start": "Démarrer",
-    "startTitle": "Démarrer la VM",
     "stop": "Arrêter",
-    "stopTitle": "Éteindre proprement l’invité (ACPI)",
     "forceStop": "Forcer l’arrêt",
-    "forceStopTitle": "Couper l’alimentation immédiatement",
-    "select": "Sélectionner {name}",
+    "select": "Sélectionner",
     "status": {
       "running": "En marche",
       "stopped": "Arrêtée",
@@ -108,7 +92,11 @@
     "powerStarting": "{name} : démarrage en cours",
     "powerStopping": "{name} : arrêt en cours",
     "powerForceStopping": "{name} : arrêt forcé en cours",
-    "noTemplate": "Aucun modèle trouvé. Convertissez d’abord une VM en modèle dans Proxmox."
+    "noTemplate": "Aucun modèle trouvé. Convertissez d’abord une VM en modèle dans Proxmox.",
+    "selectDone": "Terminer la sélection",
+    "listLabel": "Machines virtuelles",
+    "colStatus": "État",
+    "noneTitle": "Aucune VM"
   },
   "clone": {
     "title": "Cloner un modèle",
