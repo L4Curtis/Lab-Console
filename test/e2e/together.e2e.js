@@ -10,10 +10,11 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { useHarness, signInAs, openConsole, typeInConsole, sendInputFrame, waitForTerminal, terminalText, waitForApp } from './harness.js';
+import { useHarness, signInAs, openConsole, typeInConsole, sendInputFrame, waitForTerminal, terminalText, waitForApp, addVirtualAuthenticator } from './harness.js';
 import { invite, PASSWORD } from '../helpers/accounts.js';
 
-const h = useHarness();
+// localhost: the newcomer's local account signs in with a passkey, which needs a domain name
+const h = useHarness({ publicHost: 'localhost' });
 
 const bar = (page) => page.locator('section.view-consoles .bench-bar');
 const toastWith = (page, text) => page.locator('.toast', { hasText: text });
@@ -129,6 +130,7 @@ test('an invited newcomer signs up, is invited into a team by user name, accepts
   // An administrator's invitation link; Nadia creates her account with it
   const { url } = await invite(h.app, { note: 'Nadia' });
   const nadia = await h.newPage();
+  await addVirtualAuthenticator(nadia);
   await nadia.goto(url);
   await nadia.waitForSelector('#join-box:not([hidden])');
   await nadia.fill('#join-username', 'Nadia');
@@ -136,6 +138,8 @@ test('an invited newcomer signs up, is invited into a team by user name, accepts
   await nadia.fill('#join-password', PASSWORD);
   await nadia.fill('#join-confirm', PASSWORD);
   await nadia.click('#join-submit');
+  // Her passkey, as part of the sign-up
+  await nadia.click('#join-step-button');
   await waitForApp(nadia);
 
   // Bilal invites her, typed in lower case: the invitation names the account as it is spelt

@@ -11,10 +11,15 @@ le menu utilisateur).
 
 Utilisez le bouton du fournisseur d'identité de votre école. Si votre
 enseignant vous a donné un lien d'invitation, ouvrez-le, choisissez un nom et
-un mot de passe, puis connectez-vous avec **Compte local**. Une clé d'accès
-peut s'ajouter dans **Mon compte** pour se connecter en un clic. Il n'y a pas
-d'e-mail : si vous oubliez un mot de passe, demandez un lien de
-réinitialisation à un administrateur.
+un mot de passe, puis enregistrez une clé d'accès (empreinte, code de
+l'appareil ou clé de sécurité) : un compte local se connecte avec elle, en un
+clic avec **Se connecter avec une clé d'accès** sur la page de connexion. Sur
+un appareil qui n'a pas votre clé, tapez votre nom et votre mot de passe sous
+**Compte local**, puis confirmez avec la clé ; ajoutez une clé pour chaque
+appareil que vous utilisez dans **Mon compte**. Il n'y a pas d'e-mail : si
+vous oubliez votre mot de passe ou perdez votre appareil, demandez un lien de
+réinitialisation à un administrateur : il fixe un nouveau mot de passe et
+vous fait enregistrer une nouvelle clé.
 
 ## Consoles
 

@@ -4,8 +4,9 @@
  *   - accounts waiting for approval (signed up through a link for several
  *     people) come first, with a notice: approve or reject;
  *   - the environment's administrator, unchangeable here;
- *   - local accounts: role (an administrator signs in with a passkey),
- *     disable / enable, a password reset link, clear passkeys (a lost device);
+ *   - local accounts (they sign in with a passkey): role, disable / enable,
+ *     a password reset link (a new password and a new passkey: the old
+ *     passkeys are removed), clear passkeys;
  *   - SSO accounts, once they signed in: the role their groups give, or one
  *     forced here, disable / enable.
  * Any change of role or state signs the person out everywhere at once; the
@@ -104,7 +105,6 @@ export function mount(el, ctx) {
   async function changeRole(user, role, undo) {
     const target = role ?? user.groupRole ?? 'student';
     const body = [t('accounts.users.roleConfirm', { name: user.name, role: roleLabel(target) }), t('accounts.users.signedOut')];
-    if (target === 'admin' && user.via === 'local') body.push(t('accounts.users.adminNeedsPasskey'));
     const ok = await confirmDialog({ title: t('accounts.users.roleTitle'), body, confirmLabel: t('accounts.users.roleApply') });
     if (!ok) {
       undo?.();

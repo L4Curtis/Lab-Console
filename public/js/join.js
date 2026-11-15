@@ -6,18 +6,22 @@
  * the page reads it, takes it out of the address bar, and posts it with
  * each request. The server says what the link offers (or one message for
  * every unusable link), then:
- *   - invitation: user name, display name, password twice. A link for one
- *     person gives an active account and signs it in at once (an
- *     administrator registers a passkey first); a link for several people
- *     gives an account that waits for an administrator's approval;
- *   - reset: a new password twice; the account's sessions end, and the
- *     person signs in again on the login page
+ *   - invitation: user name, display name, password twice, then a passkey
+ *     (every local account signs in with one). A link for one person gives
+ *     an active account, signed in once the passkey is registered; a link
+ *     for several people gives an account that registers its passkey and
+ *     waits for an administrator's approval;
+ *   - reset: a new password twice, then a new passkey: the account's
+ *     sessions end and its old passkeys are removed when the link is used.
+ * A step left half-way leaves an account that registers its passkey at its
+ * next sign-in. A browser without passkeys is told so before anything is
+ * sent; a site without them answers accounts.passkeys_unavailable
  */
 import { initTheme } from './core/theme.js';
 import { request } from './core/api.js';
 import { loadSession } from './core/session.js';
 import { initI18n, setLocale, getLocale, onLocaleChange, t, tError } from './core/i18n.js';
-import { completeStep, isCancelled } from './core/passkeys.js';
+import { completeStep, isCancelled, passkeysSupported } from './core/passkeys.js';
 
 const $ = (id) => document.getElementById(id);
 const mode = location.pathname === '/reset' ? 'reset' : 'join';
@@ -66,12 +70,18 @@ function render() {
 for (const button of document.querySelectorAll('[data-lang]')) button.addEventListener('click', () => setLocale(button.dataset.lang));
 onLocaleChange(render);
 
-try {
-  offer = await request('POST', mode === 'reset' ? '/auth/reset-link' : '/auth/invitation', { token });
-  state = 'form';
-} catch (err) {
+if (!passkeysSupported()) {
+  // The account would be created, then stuck before its passkey: say it first
   state = 'invalid';
-  message = err.status ? fromError(err) : { key: 'accounts.join.network' };
+  message = { key: 'accounts.join.noPasskeySupport' };
+} else {
+  try {
+    offer = await request('POST', mode === 'reset' ? '/auth/reset-link' : '/auth/invitation', { token });
+    state = 'form';
+  } catch (err) {
+    state = 'invalid';
+    message = err.status ? fromError(err) : { key: 'accounts.join.network' };
+  }
 }
 render();
 if (state === 'form') (mode === 'reset' ? $('join-password') : $('join-username')).focus();
@@ -100,22 +110,14 @@ form.addEventListener('submit', async (event) => {
   render();
   try {
     if (mode === 'reset') {
-      await request('POST', '/auth/reset', { token, password: values.password });
-      state = 'done';
-      message = { key: 'accounts.reset.done' };
+      const answer = await request('POST', '/auth/reset', { token, password: values.password });
+      // A new passkey next; a disabled account only gets its new password
+      state = answer.step ? 'step' : 'done';
+      message = { key: answer.step ? 'accounts.reset.saved' : 'accounts.reset.done' };
     } else {
       const answer = await request('POST', '/auth/signup', { token, username: values.username.trim(), name: values.name.trim(), password: values.password });
-      if (answer.redirect) {
-        location.assign(answer.redirect);
-        return;
-      }
-      if (answer.step) {
-        state = 'step';
-        message = { key: 'accounts.join.created' };
-      } else {
-        state = 'done';
-        message = { key: 'accounts.join.pending' };
-      }
+      state = answer.step ? 'step' : 'done';
+      message = { key: answer.step ? (answer.pending ? 'accounts.join.createdPending' : 'accounts.join.created') : 'accounts.join.pending' };
     }
     form.reset();
   } catch (err) {
@@ -133,7 +135,7 @@ form.addEventListener('submit', async (event) => {
   if (state === 'step') $('join-step-button').focus();
 });
 
-// ── A new administrator's passkey ─────────────────────────────────────────
+// ── The passkey, before the first session ─────────────────────────────────
 $('join-step-button').addEventListener('click', async () => {
   const button = $('join-step-button');
   if (button.disabled) return;
@@ -141,15 +143,20 @@ $('join-step-button').addEventListener('click', async () => {
   stepError = null;
   render();
   try {
-    const { redirect } = await completeStep();
-    location.assign(redirect || '/');
-    return;
+    const answer = await completeStep();
+    if (!answer.pending) {
+      location.assign(answer.redirect || '/');
+      return;
+    }
+    // A link for several people: the passkey is registered, the account waits for approval
+    state = 'done';
+    message = { key: 'accounts.join.pendingDone' };
   } catch (err) {
     if (isCancelled(err)) stepError = { key: 'auth.step.cancelled' };
     else if (err.status === 401) {
-      // The account exists: from now on it signs in on the login page, password then passkey
+      // The account exists: it registers its passkey at its next sign-in, after its password
       state = 'done';
-      message = { key: 'accounts.join.stepExpired' };
+      message = { key: mode === 'reset' ? 'accounts.reset.stepExpired' : 'accounts.join.stepExpired' };
     } else stepError = err.status ? fromError(err) : { key: 'auth.step.failed' };
   } finally {
     button.disabled = false;

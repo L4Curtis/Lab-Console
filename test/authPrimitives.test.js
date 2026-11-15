@@ -767,7 +767,7 @@ describe('account providers', () => {
     const registry = createAccountProviders([provider('a', () => null)]);
     const remove = registry.add(provider('b', (cred) => (cred.username === 'alice' ? { user: one } : null)));
     assert.deepEqual(registry.ids, ['a', 'b']);
-    assert.deepEqual(await registry.verify({ username: 'alice' }), { user: one, requires: [], binding: null });
+    assert.deepEqual(await registry.verify({ username: 'alice' }), { user: one, requires: [], binding: null, refused: null });
     assert.deepEqual(asked, ['a', 'b']);
     asked.length = 0;
     assert.equal(await registry.verify({ username: 'bob' }), null);
@@ -778,14 +778,21 @@ describe('account providers', () => {
     remove();
     assert.deepEqual(registry.ids, ['a', 'c']);
     registry.add(provider('d', () => { throw new Error('disk on fire'); }));
-    assert.deepEqual(await registry.verify({ username: 'alice' }), { user: one, requires: [], binding: null }, 'a broken provider counts as "no"');
+    assert.deepEqual(await registry.verify({ username: 'alice' }), { user: one, requires: [], binding: null, refused: null }, 'a broken provider counts as "no"');
     remove2();
     const removeE = registry.add(provider('e', (cred) => (cred.username === 'alice' ? { user: one, requires: ['passkey', 42] } : null)));
-    assert.deepEqual(await registry.verify({ username: 'alice' }), { user: one, requires: ['passkey'], binding: null }, 'a further step travels with the user');
+    assert.deepEqual(await registry.verify({ username: 'alice' }), { user: one, requires: ['passkey'], binding: null, refused: null }, 'a further step travels with the user');
     removeE();
     const bound = registry.add(provider('f', (cred) => (cred.username === 'alice' ? { user: one, requires: ['passkey'], binding: { password: 'fp' } } : null)));
     assert.deepEqual((await registry.verify({ username: 'alice' })).binding, { password: 'fp' }, 'and what the provider binds it to');
     bound();
+    // Recognised, but refused on this site whatever comes next (a local account where passkeys cannot be offered)
+    const refusing = registry.add(provider('g', (cred) => (cred.username === 'alice' ? { user: one, refused: { status: 409, code: 'accounts.passkeys_unavailable', message: 'no passkeys here' } } : null)));
+    assert.deepEqual((await registry.verify({ username: 'alice' })).refused, { status: 409, code: 'accounts.passkeys_unavailable', message: 'no passkeys here' }, 'the reason travels to the form');
+    refusing();
+    const vague = registry.add(provider('h', (cred) => (cred.username === 'alice' ? { user: one, refused: true } : null)));
+    assert.deepEqual((await registry.verify({ username: 'alice' })).refused, { status: 401, code: 'auth.invalid_credentials', message: 'Sign-in failed' }, 'a refusal without a code is still a refusal: the generic one');
+    vague();
     assert.throws(() => registry.add(provider('a', () => null)), /already registered/);
     assert.throws(() => registry.add({ id: 'x' }), TypeError);
   });

@@ -295,7 +295,7 @@ imported into the database at the first start and kept as `*.imported`.
   included.
 - **Accounts**: local accounts created through invitation links (single use,
   or several people with approval), password reset links made by an admin,
-  passkeys (required for promoted administrators, one-click sign-in), roles
+  passkeys (every local account signs in with one, one-click sign-in), roles
   and states for local and SSO accounts, My account, SSO settings page.
 - **Administration**: lab parameters (jump server, console login, allowed
   consoles) applied without a restart and confirmed again before saving

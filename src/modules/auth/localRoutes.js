@@ -3,7 +3,9 @@
  * then the accounts the directory adds):
  *
  *   POST /auth/local   { username, password, code, next } → { redirect }, or { step } when the
- *                      account must still prove itself with a passkey (the step cookie is set)
+ *                      account must still prove itself with a passkey (the step cookie is set);
+ *                      the provider's own error when it refuses an account it recognised
+ *                      (accounts.passkeys_unavailable: a local account on a site without passkeys)
  *
  * Throttled per address, per name and per known browser (throttle.js,
  * devices.js); one answer for every failure
@@ -49,6 +51,12 @@ export function localRoutes({ accounts, throttle, devices, refusals, cookies, se
       audit?.log(req, 'auth.login.failed', { method: 'local', reason: 'invalid' });
       // One message for every cause: nothing says which field was wrong, or whether the account exists
       return sendError(res, 401, 'auth.invalid_credentials', 'Sign-in failed. Check the user name, the password and the code');
+    }
+    // The credentials were right, but this account cannot sign in here: say why
+    // (only someone who proved the password reads it, so nothing leaks)
+    if (answer.refused) {
+      audit?.log(req, 'auth.login.failed', { method: 'local', reason: answer.refused.code, username: user.username });
+      return sendError(res, answer.refused.status, answer.refused.code, answer.refused.message);
     }
     // The password was right but this account owes a passkey: no session until it is given
     if (answer.requires.length) {

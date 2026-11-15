@@ -9,13 +9,14 @@ kind of session:
 | Who | How | Configured with |
 |---|---|---|
 | Students and teachers | the identity provider of the school (OpenID Connect) | `OIDC_*`, or the **Sign-in (SSO)** tab of the Administration section |
-| Local accounts | user name + password, created through an invitation link; a passkey for the administrators among them | the **Users** and **Invitations** tabs |
+| Local accounts | created through an invitation link; a **passkey** registered at sign-up (one click), or the password then the passkey, never the password alone; https needed | the **Users** and **Invitations** tabs |
 | The local administrator | user name + password + 6-digit code | `LOCAL_ADMIN_*` |
 
 The local administrator is mandatory: it is the emergency account, the one
 that still works when the identity provider is down or not set up yet. The
 platform refuses to start without it. OpenID Connect and local accounts are
-optional; without them, only the local administrator can sign in.
+optional; without them, only the local administrator can sign in. Local
+accounts sign in with a passkey, so they need `PUBLIC_URL` in https (§2b).
 
 Roles: an SSO account is **admin** when one of its groups is listed in the
 admin groups (`OIDC_ADMIN_GROUPS` or the SSO tab), otherwise **student**,
@@ -309,11 +310,22 @@ network, and no redirect leads to an internal address.
 
 ## 2b. Local accounts and passkeys
 
+**Every local account signs in with a passkey** (owner decision, 15 Nov),
+students included: its password alone never opens a session. SSO accounts
+rely on their identity provider (Pocket ID is itself built on passkeys), and
+the local administrator keeps password + code: it is the break-glass account.
+
 - **Invitations** (Invitations tab): a link valid 1 h, 24 h or 7 days, for one
   person or up to 100, granting student (default) or admin. The link is shown
-  once; only a hash of its token is kept. A single-use link gives an active
-  account at once; a link for several people gives accounts that wait for an
-  administrator's approval (Users tab). Links can be withdrawn.
+  once; only a hash of its token is kept. Links can be withdrawn. Signing up
+  asks for a user name, a display name and a password, then **registers a
+  passkey before the account can use anything**: no session until it is
+  done. A single-use link gives an active account, signed in once its passkey
+  is registered; a link for several people gives accounts that register
+  their passkey too, then wait without a session for an administrator's
+  approval (Users tab). A sign-up left before its passkey (tab closed, device
+  refused) leaves an account that registers one at its next sign-in, after
+  its password.
 - **User names**: 3 to 32 letters and digits with single `.`, `-` or `_`
   between them, unique without regard to case (the local administrator's
   name and every account of the directory included, SSO accounts too: a new
@@ -324,21 +336,51 @@ network, and no redirect leads to an internal address.
   such as `admin`), and sign-up refusals are limited to 10 per link per 15
   minutes. **Passwords**: 10 characters at least, not a common one,
   not containing the user name; stored as scrypt hashes.
-- **Forgotten password**: there is no e-mail. An administrator makes a reset
-  link (Users tab, 1 h or 24 h, single use); using it ends the account's
-  sessions, and any sign-in started with the old password that was still
-  waiting for its passkey. Changing the password in My account, or clearing
-  an account's passkeys, ends those too.
-- **Passkeys** are offered when `PUBLIC_URL` is https on a domain name (or
-  `http://localhost`, for tests): the relying party is the host of
-  `PUBLIC_URL`. A local account promoted to admin registers a passkey at its
-  next sign-in and from then on signs in with password + passkey, or with the
-  passkey alone (the passkey button of the login page); its password alone no
-  longer opens a session. Students may add passkeys on **My account** and keep
-  their password. SSO accounts rely on their provider, and the local
-  administrator keeps password + code. A lost device: an administrator
-  removes the account's passkeys on the Users tab, and a new one is
-  registered at the next sign-in.
+- **Signing in.** Once an account has a passkey, **Sign in with a passkey**
+  on the login page signs it in in one click (so does the passkey the browser
+  offers among the user name's suggestions when the local form is opened,
+  where it can). The local form still takes the password, and then asks for
+  the passkey. An account that has no passkey yet (every local account made
+  before this rule, a sign-up left half-way, passkeys cleared by an
+  administrator) types its password and registers a passkey before reaching
+  the application; the Users tab marks it "passkey to register". Nothing is
+  migrated: those accounts are asked at their next sign-in, and the sessions
+  they already have run to their end (24 hours at most).
+- **My account**: add a passkey per device (10 at most), rename, remove.
+  **The last one cannot be removed**: it is how the account signs in.
+  Changing phones: add the new phone's passkey first, then remove the old one.
+- **Forgotten password, lost device**: there is no e-mail. An administrator
+  makes a **reset link** (Users tab, 1 h or 24 h, single use). It sets a new
+  password **and replaces the passkeys**: when the link is used, the
+  account's passkeys are removed (a lost or stolen phone may still hold one:
+  keeping them would leave it a way in) and its sessions end, then the person
+  registers a new passkey right away, before the first session. Left
+  half-way, the account registers one at its next sign-in with its new
+  password. A disabled account only gets its new password, and registers a
+  passkey once enabled again. A reset link made before an upgrade does the
+  same. Using it also ends any sign-in started with the old password that was
+  still waiting for its passkey, and a passkey registration started before
+  the reset never lands after it. Changing the password in My account ends
+  those too, and so does **Clear passkeys** on the Users tab (the person then
+  registers a new one at the next sign-in, after the password: for a device
+  that is lost while the password is not, prefer the reset link).
+- **Passkeys need https.** They are offered when `PUBLIC_URL` is https on a
+  domain name (or `http://localhost`, for tests and a developer's machine):
+  the relying party is the host of `PUBLIC_URL`, and a passkey only works on
+  the name it was registered for. Anywhere else (plain http, a bare IP
+  address) **local accounts can neither be created nor sign in**, and
+  Lab Console says so rather than falling back to passwords: the login page
+  says that only the server's administrator can sign in; a local account
+  that types its right password is answered "Local accounts sign in with a
+  passkey, which needs Lab Console to be served over https" (409
+  `accounts.passkeys_unavailable`; a wrong password still gets the generic
+  refusal); invitations, the sign-up and invitation pages, reset links and
+  promoting a local account to administrator are refused with the same code,
+  before any link is used; the server logs a warning at start-up. Accounts
+  and passkeys are kept, and work again once `PUBLIC_URL` is back on https
+  with the same name.
+- A local account made administrator on the Users tab (a confirmed change)
+  signs in as before, with its passkey.
 - The last administrator of the directory cannot be demoted or disabled.
 
 ## 3. Sessions
@@ -396,6 +438,11 @@ listens on the loopback interface unless given `--expose`, and is not in the
 Docker image. `--misbehave wrongNonce,groupsInUserinfoOnly,groupsAsString`
 makes it misbehave on purpose.
 
+To try local accounts too, serve the application as `http://localhost:<port>`
+(`PUBLIC_URL=http://localhost:3000`) and open it under that name: passkeys,
+which every local account signs in with, need a domain name, and `localhost`
+is the one plain-http name browsers accept (§2b).
+
 ## 6. A pre-production stack
 
 `docker-compose.preprod.yml` adds the mock provider to the Docker stack and
@@ -430,3 +477,7 @@ it only on a stack without real accounts, reachable by the testers only.
 The production image is unchanged and still has no `dev/`: the mock runs in a
 plain `node:22-alpine` container from `dev/mock-oidc.js` mounted read-only,
 with `NODE_ENV=development` (it refuses `production`).
+
+Local accounts (invitations) only work on such a stack when its `PUBLIC_URL`
+is https on a domain name (§2b): reached over plain http at an address, it
+has the mock provider's users and the local administrator only.

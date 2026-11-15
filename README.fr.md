@@ -325,8 +325,8 @@ démarrage et conservés sous le nom `*.imported`.
   non répondues comprises.
 - **Comptes** : comptes locaux créés par liens d'invitation (à usage unique,
   ou pour plusieurs personnes avec approbation), liens de réinitialisation de
-  mot de passe créés par un administrateur, clés d'accès (obligatoires pour
-  les administrateurs promus, connexion en un clic), rôles et états pour les
+  mot de passe créés par un administrateur, clés d'accès (chaque compte local
+  se connecte avec l'une d'elles, connexion en un clic), rôles et états pour les
   comptes locaux et SSO, Mon compte, page des paramètres SSO.
 - **Administration** : paramètres du labo (serveur de rebond, connexion aux
   consoles, consoles autorisées) appliqués sans redémarrage et reconfirmés

@@ -7,7 +7,9 @@
  * link itself is shown once, when it is created; the list shows what each
  * one is for, how many times it was used, and lets an administrator
  * withdraw it. #/admin/invitations/new opens the form at once (the Users
- * tab's "Inviter" leads there)
+ * tab's "Inviter" leads there). Every local account signs in with a
+ * passkey, registered as part of the sign-up: where the site cannot offer
+ * passkeys (not https), no invitation can be made, and the tab says why
  */
 import { h, toast } from '../../../core/dom.js';
 import { request, getJson, live } from '../../../core/api.js';
@@ -42,7 +44,7 @@ export function mount(el, ctx) {
   el.append(h('div.admin-page', intro, h('div.admin-toolbar', h('label.check.inline', showEnded, h('span.ended-label'))), notice, list.el));
 
   let invitations = [];
-  let passkeysAvailable = false;
+  let passkeysAvailable = true; // until the server says otherwise
   let visible = false;
 
   async function load() {
@@ -56,8 +58,7 @@ export function mount(el, ctx) {
   }
 
   async function createInvitation() {
-    const roles = [{ value: 'student', label: t('auth.menu.roles.student') }];
-    if (passkeysAvailable) roles.push({ value: 'admin', label: t('auth.menu.roles.admin') });
+    const roles = ['student', 'admin'].map((value) => ({ value, label: t(`auth.menu.roles.${value}`) }));
     const created = await formDialog({
       title: t('accounts.invitations.createTitle'),
       intro: [t('accounts.invitations.createIntro')],
@@ -65,7 +66,7 @@ export function mount(el, ctx) {
         { name: 'note', label: t('accounts.invitations.note'), placeholder: t('accounts.invitations.notePlaceholder'), attrs: { maxlength: 120 } },
         { name: 'ttl', label: t('accounts.links.validity'), type: 'select', value: '24h', options: ['1h', '24h', '7d'].map((v) => ({ value: v, label: t(`accounts.links.ttl.${v}`) })) },
         { name: 'uses', label: t('accounts.invitations.uses'), type: 'number', value: 1, hint: t('accounts.invitations.usesHint'), attrs: { min: 1, max: 100, step: 1 } },
-        { name: 'role', label: t('accounts.invitations.role'), type: 'select', value: 'student', options: roles, hint: passkeysAvailable ? t('accounts.invitations.roleHint') : t('accounts.invitations.noAdminHint') },
+        { name: 'role', label: t('accounts.invitations.role'), type: 'select', value: 'student', options: roles, hint: t('accounts.invitations.roleHint') },
       ],
       submitLabel: t('accounts.invitations.create'),
       validate: (values) => (Number.isInteger(values.uses) && values.uses >= 1 && values.uses <= 100 ? '' : t('accounts.errors.bad_uses')),
@@ -101,13 +102,17 @@ export function mount(el, ctx) {
 
   function render() {
     el.querySelector('.ended-label').textContent = t('accounts.invitations.showEnded');
-    intro.textContent = t('accounts.invitations.intro');
+    // Without passkeys no local account can sign in: the tab says why, and nothing can be created
+    intro.textContent = t(passkeysAvailable ? 'accounts.invitations.intro' : 'accounts.invitations.noPasskeys');
+    intro.classList.toggle('notice', !passkeysAvailable);
+    intro.classList.toggle('warn', !passkeysAvailable);
+    intro.classList.toggle('muted', passkeysAvailable);
     const shown = invitations.filter((i) => showEnded.checked || i.state === 'active');
     list.render(shown);
     const active = invitations.filter((i) => i.state === 'active').length;
     ctx.setHeader(ctx.tab, {
       context: () => t('accounts.invitations.count', { count: active }),
-      primary: { id: 'create', label: 'accounts.invitations.create', icon: 'plus', run: create },
+      primary: { id: 'create', label: 'accounts.invitations.create', icon: 'plus', run: create, disabled: !passkeysAvailable },
     });
   }
 
@@ -119,11 +124,11 @@ export function mount(el, ctx) {
   return {
     show([sub] = []) {
       visible = true;
-      load();
+      const loaded = load();
       if (sub === 'new') {
         // The address goes back to the list: Back does not reopen the form
         ctx.navigate('#/admin/invitations');
-        create();
+        loaded.then(() => { if (passkeysAvailable) create(); });
       }
     },
     hide() { visible = false; },

@@ -13,7 +13,7 @@ utilisateur connecté. La liste ci-dessous est ce qui rend cela sûr.
 
 ## 0. Liste de contrôle
 
-- [ ] `PUBLIC_URL` est l'adresse https que tapent les utilisateurs.
+- [ ] `PUBLIC_URL` est l'adresse https que tapent les utilisateurs (les comptes locaux se connectent avec une clé d'accès, qui l'exige).
 - [ ] `TRUSTED_PROXIES` liste chaque relais entre Internet et le conteneur.
 - [ ] `APP_SECRET` est défini (32 caractères ou plus).
 - [ ] L'administrateur local existe (`LOCAL_ADMIN_*`) et vous vous êtes connecté une fois.
@@ -49,7 +49,7 @@ Les réglages qui comptent pour une installation publique (tous les réglages :
 
 | Réglage | Valeur |
 |---|---|
-| `PUBLIC_URL` | `https://lab.example.org` : schéma et hôte, sans chemin. Il donne au cookie de session le préfixe `__Host-` et `Secure`, fixe l'URL de retour donnée au fournisseur d'identité, l'origine acceptée par les WebSockets et l'identité des clés d'accès, et active HSTS (`Strict-Transport-Security: max-age=31536000; includeSubDomains`) sur chaque réponse. Utilisez https : en http, rien de cela ne s'applique. |
+| `PUBLIC_URL` | `https://lab.example.org` : schéma et hôte, sans chemin. Il donne au cookie de session le préfixe `__Host-` et `Secure`, fixe l'URL de retour donnée au fournisseur d'identité, l'origine acceptée par les WebSockets et l'identité des clés d'accès, et active HSTS (`Strict-Transport-Security: max-age=31536000; includeSubDomains`) sur chaque réponse. Utilisez https : en http, rien de cela ne s'applique, et les comptes locaux ne peuvent être ni créés ni connectés (ils se connectent avec une clé d'accès ; restent l'administrateur local et le SSO). |
 | `TRUSTED_PROXIES` | Chaque reverse proxy, CDN et répartiteur devant le conteneur, en adresses ou blocs CIDR. Voir plus bas. |
 | `ALLOWED_ORIGINS` | Seulement si le site est aussi joint sous un autre nom ; vide sinon. |
 | `APP_SECRET` | 32 caractères au moins : `openssl rand -base64 48`. Il chiffre les secrets enregistrés depuis les pages d'administration (secret client SSO, mots de passe du rebond et des consoles). Sans lui, ils sont stockés en clair dans la base. Gardez-le avec la sauvegarde de `.env` : le changer ou le perdre rend ces secrets illisibles, il faut alors les ressaisir. |
@@ -199,10 +199,38 @@ répond 200 avec `private, max-age=31536000, immutable` ; derrière Cloudflare,
    retour en arrière).
 5. Créez les premiers comptes d'enseignants par **Invitations** (liens valables
    1 h, 24 h ou 7 jours, pour une personne ou jusqu'à 100 avec approbation), ou
-   configurez d'abord le SSO.
+   configurez d'abord le SSO. Chaque compte local enregistre une clé d'accès
+   pendant son inscription et se connecte avec elle (voir plus bas).
 6. Gardez l'administrateur local comme compte de secours. Connectez-vous une
    fois depuis le navigateur que vous utiliseriez en urgence (il devient un
-   navigateur connu avec son propre budget de tentatives, voir AUTH.md).
+   navigateur connu avec son propre budget de tentatives, voir AUTH.md). Un
+   compte local d'administrateur créé pour le travail de tous les jours se
+   connecte avec sa clé d'accès, comme tout compte local : ajoutez un second
+   appareil dans **Mon compte**.
+
+### Comptes locaux et clés d'accès
+
+Chaque compte local se connecte avec une clé d'accès, étudiants compris
+(AUTH.md §2b) : enregistrée pendant l'inscription, son mot de passe seul
+n'ouvre jamais de session. Ce que cela change pour qui administre le site :
+
+- `PUBLIC_URL` doit être en https sur un nom de domaine. Sinon les comptes
+  locaux ne peuvent être ni créés ni connectés : les pages le disent, le
+  serveur l'écrit dans son journal au démarrage, invitations et liens de
+  réinitialisation sont refusés. Restent l'administrateur local (mot de
+  passe + code) et le SSO.
+- Une clé d'accès appartient au nom sous lequel elle a été enregistrée :
+  changer le nom public du site impose un lien de réinitialisation à chaque
+  compte local.
+- Quelqu'un a perdu son téléphone, ou oublié son mot de passe :
+  **Utilisateurs > Lien de réinitialisation**. Le lien fixe un nouveau mot de
+  passe, supprime les clés d'accès du compte et en fait enregistrer une
+  nouvelle avant la première session.
+- Mise à jour depuis une version où seuls les administrateurs avaient une
+  clé : rien à faire. Les comptes locaux sans clé en enregistrent une à leur
+  connexion suivante, après leur mot de passe ; l'onglet Utilisateurs les
+  signale d'ici là par « clé d'accès à enregistrer ». Leurs sessions ouvertes
+  vont jusqu'à leur terme (24 heures au plus).
 
 ## 6. Configurer le SSO depuis la page d'administration
 

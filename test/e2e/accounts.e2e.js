@@ -1,16 +1,22 @@
 /**
- * Accounts in a real browser: an invitation from the administration page to
- * a newcomer's first session; a promoted account registering its passkey at
- * the next sign-in, then signing in with one click (Chromium's virtual
- * authenticator); an administrator promoting a student from the Users tab
+ * Accounts in a real browser (Chromium's virtual authenticator plays the
+ * passkey): every local account signs in with a passkey (owner decision,
+ * 15 Nov). An invitation from the administration page to a newcomer's first
+ * session, the passkey registered as part of the sign-up, then one click; a
+ * student whose account has no passkey yet (made before the rule, or a
+ * sign-up left half-way) made to register one at the next sign-in, then
+ * signing in with one click, conditional UI, or password then passkey; a
+ * reset link that replaces the passkey; an administrator promoting a
+ * student from the Users tab
  *
  * PUBLIC_URL is http://localhost:<port>: passkeys need a domain name in a
  * secure context, which localhost is
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { useHarness, signInAs, signOut, waitForApp, addVirtualAuthenticator, person, TEST_ADMIN } from './harness.js';
-import { call, invite, signUp, PASSWORD } from '../helpers/accounts.js';
+import { useHarness, signInAs, signOut, waitForApp, addVirtualAuthenticator, person } from './harness.js';
+import { call, invite, signUp, createLocalAccount, passkeySignIn, PASSWORD } from '../helpers/accounts.js';
+import { TestBrowser } from '../helpers/browser.js';
 
 const h = useHarness({ mockLab: false, publicHost: 'localhost' });
 
@@ -23,7 +29,10 @@ async function passwordSignIn(page, username, password = PASSWORD) {
   await page.click('#local-submit');
 }
 
-test('invitation sign-up: an administrator creates the link, a newcomer creates an account and lands in the application', async () => {
+/** The sign-in methods of the audit trail for this account, newest first */
+const loginMethods = async (id) => (await h.app.deps.audit.query({ action: 'auth.login' })).filter((e) => e.actor.id === id).map((e) => e.details.method);
+
+test('invitation sign-up: an administrator creates the link, a newcomer creates an account with its passkey, lands in the application, and comes back in one click', async () => {
   const admin = await h.newPage();
   await h.session(admin, 'ada');
   await admin.goto(`${h.url}/#/admin/invitations`);
@@ -39,6 +48,7 @@ test('invitation sign-up: an administrator creates the link, a newcomer creates 
   await admin.waitForSelector('tr[data-invitation] >> text=Zoé');
 
   const page = await h.newPage();
+  const authenticator = await addVirtualAuthenticator(page);
   await page.goto(url);
   await page.waitForSelector('#join-box:not([hidden])');
   assert.equal(new URL(page.url()).hash, '', 'the token left the address bar');
@@ -51,14 +61,34 @@ test('invitation sign-up: an administrator creates the link, a newcomer creates 
   assert.equal(await page.textContent('#join-error'), 'Les deux mots de passe ne sont pas identiques.');
   await page.fill('#join-confirm', PASSWORD);
   await page.click('#join-submit');
+
+  // The account exists, but no session before its passkey: a student too
+  await page.waitForSelector('#join-step:not([hidden])');
+  assert.match(await page.textContent('#join-message'), /^Votre compte est créé\. Dernière étape/);
+  assert.equal(await page.locator('#join-box').isHidden(), true);
+  assert.equal(await page.textContent('#join-step h2'), 'Enregistrez une clé d’accès');
+  assert.equal((await page.context().cookies()).some((c) => c.name === h.app.deps.auth.cookieName), false, 'no session yet');
+  await page.click('#join-step-button');
   await waitForApp(page);
   await page.click('.user-menu-btn');
   assert.equal(await page.textContent('.user-menu-name'), 'Zoé Martin');
   assert.equal(await page.textContent('.user-menu-role'), 'Étudiant');
   assert.equal(await page.locator('#rail-items a[data-path="admin"]').count(), 0, 'no administration for a student');
+  const credentials = await authenticator.credentials();
+  assert.equal(credentials.length, 1);
+  assert.equal(credentials[0].isResidentCredential, true, 'discoverable, so it can sign in alone');
+
+  // Next time: one click, no password
+  await signOut(page);
+  await page.click('#passkey-button');
+  await waitForApp(page);
+  await page.click('.user-menu-btn');
+  assert.equal(await page.textContent('.user-menu-name'), 'Zoé Martin');
+  assert.deepEqual(await loginMethods('local:zoe'), ['passkey', 'signup+passkey-enrol']);
 
   // The link was for one person: a second visit is refused
   const again = await h.newPage();
+  await addVirtualAuthenticator(again);
   await again.goto(url);
   await again.waitForSelector('#join-message:not([hidden])');
   assert.match(await again.textContent('#join-message'), /n[’']est pas valable/);
@@ -70,12 +100,11 @@ test('invitation sign-up: an administrator creates the link, a newcomer creates 
   for (const p of [admin, page, again]) await p.context().close();
 });
 
-test('a promoted account registers a passkey at its next sign-in, then signs in with one click', async () => {
+test('a student whose account has no passkey yet registers one at the next sign-in, then signs in with one click', async () => {
+  // An account without a passkey, as those made before the rule, or a sign-up left half-way
   const { token } = await invite(h.app);
-  assert.equal((await signUp(h.app, token, { username: 'yann', name: 'Yann Le Goff' })).status, 200);
-  // Promoting is confirmed by the environment's administrator (password and code)
-  const { ticket } = (await call(h.app, 'localAdmin', 'POST', '/api/admin/confirm', { password: TEST_ADMIN.password, code: await h.adminCode() })).body;
-  assert.equal((await call(h.app, 'localAdmin', 'PATCH', `/api/accounts/users/${encodeURIComponent('local:yann')}`, { role: 'admin', confirmation: ticket })).status, 200);
+  assert.deepEqual((await signUp(h.app, token, { username: 'yann', name: 'Yann Le Goff' })).body, { step: 'passkey-enrol' });
+  assert.equal(h.app.deps.services.accounts.get('local:yann').needsPasskey, true);
 
   const page = await h.newPage();
   const authenticator = await addVirtualAuthenticator(page);
@@ -100,18 +129,22 @@ test('a promoted account registers a passkey at its next sign-in, then signs in 
   // The password was right, but it is not enough: a passkey first
   await page.waitForSelector('#login-step:not([hidden])');
   assert.equal(await page.textContent('#step-title'), 'Enregistrez une clé d’accès');
+  assert.match(await page.textContent('#step-text'), /^Chaque compte local se connecte avec une clé d’accès/);
   assert.equal(await page.locator('#login-local').isHidden(), true);
+  assert.equal((await page.context().cookies()).some((c) => c.name === h.app.deps.auth.cookieName), false, 'no session with the password alone');
   await page.click('#step-button');
   await waitForApp(page);
-  await page.waitForSelector('#rail-items a[data-path="admin"]');
+  await page.click('.user-menu-btn');
+  assert.equal(await page.textContent('.user-menu-role'), 'Étudiant');
   const credentials = await authenticator.credentials();
   assert.equal(credentials.length, 1);
   assert.equal(credentials[0].isResidentCredential, true, 'discoverable, so it can sign in alone');
 
-  // My account lists it
+  // My account lists it, and it cannot be removed: it is the only way in
   await page.goto(`${h.url}/#/account`);
   await page.waitForSelector('section.view-account li[data-passkey]');
   assert.equal(await page.locator('section.view-account li[data-passkey]').count(), 1);
+  assert.equal(await page.locator('section.view-account button[data-action="remove-passkey"]').isDisabled(), true, 'the last passkey stays');
 
   // One click, with the button (the local form stays closed: no conditional UI yet)
   await signOut(page);
@@ -120,7 +153,6 @@ test('a promoted account registers a passkey at its next sign-in, then signs in 
   await waitForApp(page);
   await page.click('.user-menu-btn');
   assert.equal(await page.textContent('.user-menu-name'), 'Yann Le Goff');
-  assert.equal(await page.textContent('.user-menu-role'), 'Administrateur');
   assert.deepEqual(await credentialGets(), ['optional'], 'the button: a dialog, and no suggestion was offered while the form was closed');
 
   // Conditional UI: opening the local form offers the passkey among the user
@@ -147,8 +179,35 @@ test('a promoted account registers a passkey at its next sign-in, then signs in 
   assert.equal(await page.textContent('#step-title'), 'Confirmez avec votre clé d’accès');
   await page.click('#step-button');
   await waitForApp(page);
-  const methods = (await h.app.deps.audit.query({ action: 'auth.login' })).filter((e) => e.actor.id === 'local:yann').map((e) => e.details.method);
-  assert.deepEqual(methods, ['local+passkey', 'passkey', 'passkey', 'local+passkey-enrol', 'signup'], 'newest first: password + passkey, conditional UI, the button, enrolment, sign-up');
+  assert.deepEqual(await loginMethods('local:yann'), ['local+passkey', 'passkey', 'passkey', 'local+passkey-enrol'], 'newest first: password + passkey, conditional UI, the button, enrolment');
+
+  assert.deepEqual(page.errors, []);
+  await page.context().close();
+});
+
+test('a reset link: a new password, the lost passkey replaced by a new one, then the application', async () => {
+  const { id, key: lost } = await createLocalAccount(h.app, 'xena', { name: 'Xéna Roy' });
+  const link = await call(h.app, 'admin', 'POST', `/api/accounts/users/${encodeURIComponent(id)}/reset-link`, { ttl: '1h' });
+  assert.equal(link.status, 200);
+
+  const page = await h.newPage();
+  const authenticator = await addVirtualAuthenticator(page);
+  await page.goto(link.body.url);
+  await page.waitForSelector('#join-box:not([hidden])');
+  assert.match(await page.textContent('#join-sub'), /^Choisissez un nouveau mot de passe pour xena, puis enregistrez une nouvelle clé d’accès/);
+  await page.fill('#join-password', 'a brand new passphrase');
+  await page.fill('#join-confirm', 'a brand new passphrase');
+  await page.click('#join-submit');
+  await page.waitForSelector('#join-step:not([hidden])');
+  assert.match(await page.textContent('#join-message'), /^Mot de passe enregistré, anciennes clés d’accès supprimées/);
+  assert.equal(h.app.deps.services.accounts.get(id).passkeys, 0, 'the lost one is gone already');
+  await page.click('#join-step-button');
+  await waitForApp(page);
+  await page.click('.user-menu-btn');
+  assert.equal(await page.textContent('.user-menu-name'), 'Xéna Roy');
+  assert.equal((await authenticator.credentials()).length, 1);
+  assert.equal(h.app.deps.services.accounts.get(id).passkeys, 1);
+  assert.equal((await passkeySignIn(h.app, new TestBrowser(), lost)).status, 401, 'the lost passkey no longer signs in');
 
   assert.deepEqual(page.errors, []);
   await page.context().close();

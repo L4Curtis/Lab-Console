@@ -8,13 +8,15 @@
  *   POST   /passkeys/options        → { options }                 local accounts
  *   POST   /passkeys                { response, name } → { passkey }
  *   PATCH  /passkeys/:id            { name }
- *   DELETE /passkeys/:id                                          an administrator keeps one
+ *   DELETE /passkeys/:id                                          not the last one: a local account signs in with it
  *   POST   /sessions/end-others     → { ended }
  *   DELETE /sessions/:id            one of my own sessions
  *
  * SSO accounts get their name from the provider and sign in there: they
  * have no password and no passkey here. The environment's administrator is
- * changed in .env only: it sees its sessions and nothing to edit
+ * changed in .env only: it sees its sessions and nothing to edit. A local
+ * account signs in with its passkeys (docs/v2/AUTH.md §2b): it keeps at
+ * least one; a lost last device is what an administrator's reset link is for
  */
 import express from 'express';
 import { jsonBody } from '../../lib/bodies.js';
@@ -22,7 +24,7 @@ import { httpError } from '../../lib/httpError.js';
 import { createRateLimiter } from '../../lib/security.js';
 import { hashPassword } from '../auth/password.js';
 import { checkPassword, cleanDisplayName } from './policy.js';
-import { environmentAccount } from './directory.js';
+import { environmentAccount, passwordFingerprint } from './directory.js';
 import { registrationOptions, verifyRegistration, PasskeyError } from './passkeys.js';
 import { passwordProblem, defaultPasskeyName } from './publicRoutes.js';
 
@@ -101,7 +103,7 @@ export function meRoutes(ctx) {
     const account = localAccount(req);
     if (!rp.available) throw httpError(409, 'accounts.passkeys_unavailable', 'Passkeys need Lab Console to be served over https');
     const options = await registrationOptions(rp, account);
-    ceremony.start(req, res, { kind: 'register', challenge: options.challenge, userId: account.id, sessionId: req.sessionId });
+    ceremony.start(req, res, { kind: 'register', challenge: options.challenge, userId: account.id, sessionId: req.sessionId, password: passwordFingerprint(account) });
     res.json({ options });
   });
 
@@ -123,7 +125,8 @@ export function meRoutes(ctx) {
       throw httpError(400, 'accounts.passkey_refused', 'This passkey was not accepted');
     }
     const name = cleanDisplayName(input.name) ?? defaultPasskeyName(req);
-    const view = await directory.addPasskey(account.id, { ...passkey, name });
+    // Not after a reset or a change of password that happened during the ceremony
+    const view = await directory.addPasskey(account.id, { ...passkey, name }, { password: started.password });
     audit.log(req, 'accounts.passkey.add', { account: account.id, passkey: passkey.id });
     changed('users');
     res.json({ passkey: view });

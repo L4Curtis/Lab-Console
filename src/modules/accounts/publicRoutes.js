@@ -5,13 +5,23 @@
  *   GET  /join, /reset           the page of an invitation or a reset link (the token is in the fragment)
  *   GET  /js/join.js             its script
  *   POST /auth/invitation        { token } → { role, approval, expiresAt }      what an invitation offers
- *   POST /auth/signup            { token, username, name, password } → { redirect } | { step } | { pending }
+ *   POST /auth/signup            { token, username, name, password } → { step: 'passkey-enrol', pending? }
  *   POST /auth/reset-link        { token } → { username, expiresAt }            whose password a link resets
- *   POST /auth/reset             { token, password } → { ok }                   the account's sessions end
+ *   POST /auth/reset             { token, password } → { step: 'passkey-enrol' } | { ok }
+ *                                the account's sessions end and its passkeys are removed
  *   POST /auth/passkey/options   → { options }                one-click sign-in: any passkey of this site
  *   POST /auth/passkey/verify    { response, next } → { redirect }
- *   POST /auth/passkey/step/options   → { kind, options }     the passkey a password sign-in still owes
- *   POST /auth/passkey/step/verify    { response } → { redirect }
+ *   POST /auth/passkey/step/options   → { kind, options }     the passkey a sign-in still owes
+ *   POST /auth/passkey/step/verify    { response } → { redirect } | { pending }
+ *
+ * Every local account signs in with a passkey (docs/v2/AUTH.md §2b). A
+ * sign-up and a reset therefore end in the same step a password sign-in
+ * does (auth.steps): no session until a passkey is registered, and an
+ * account left there registers one at its next password sign-in. An
+ * account waiting for an administrator's approval registers its passkey at
+ * sign-up too, and gets no session at the end of the step ({ pending }).
+ * Where this site cannot offer passkeys, sign-up, reset and the step are
+ * refused with 409 accounts.passkeys_unavailable, before any link is used.
  *
  * Every refusal of a link is the same 404 (`accounts.link_invalid`) whether
  * the token is unknown, expired, revoked or used up; the audit trail keeps
@@ -30,11 +40,15 @@ import { stepBinding, stepBindingHolds } from './directory.js';
 import {
   registrationOptions, verifyRegistration, authenticationOptions, verifyAuthentication, credentialIdOf, PasskeyError,
 } from './passkeys.js';
-import { isAdmin } from '../auth/roles.js';
 
 const WINDOW = 15 * 60_000;
-/** Passkey requests per client address and minute: one-click sign-in (options and verify together), and the step after a password */
-export const PASSKEY_LIMITS = Object.freeze({ oneClick: 120, step: 30, windowMs: 60_000 });
+/**
+ * Passkey requests per client address and minute: one-click sign-in
+ * (options and verify together), and the step after a password, a sign-up
+ * or a reset. Every local account signs in through them, and a classroom
+ * often shares one public address: room for a hundred people at once
+ */
+export const PASSKEY_LIMITS = Object.freeze({ oneClick: 300, step: 240, windowMs: 60_000 });
 
 const PASSWORD_MESSAGES = {
   password_short: 'The password needs at least 10 characters',
@@ -90,8 +104,8 @@ export function publicRoutes(ctx) {
   // One-click sign-in: every opening of the local form asks for options
   // (conditional UI), so a classroom behind one address needs room
   const passkeyAttempts = createRateLimiter({ limit: PASSKEY_LIMITS.oneClick, windowMs: PASSKEY_LIMITS.windowMs });
-  // The step after a password has its own budget: the class's one-click
-  // traffic never refuses a promoted administrator's step
+  // The step after a password, a sign-up or a reset has its own budget: the
+  // class's one-click traffic never refuses someone's step
   const stepAttempts = createRateLimiter({ limit: PASSKEY_LIMITS.step, windowMs: PASSKEY_LIMITS.windowMs });
   const addressOf = (req) => clientIp(req, config.server);
   const body = (req) => (req.body !== null && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {});
@@ -106,6 +120,10 @@ export function publicRoutes(ctx) {
     next();
   };
 
+  /** Passkeys cannot be offered on this site: no local account is created, reset or signed in (docs/v2/AUTH.md §2b) */
+  const unavailable = (res) => sendError(res, 409, 'accounts.passkeys_unavailable', 'Local accounts sign in with a passkey, which needs Lab Console to be served over https');
+  const needsPasskeys = (_req, res, next) => (rp.available ? next() : unavailable(res));
+
   /** One answer for every unusable link; the reason goes to the audit trail (once per address and reason) */
   function badLink(req, res, problem, kind) {
     refusals.record(req, addressOf(req), `link:${problem}`, { method: kind, reason: problem });
@@ -118,13 +136,13 @@ export function publicRoutes(ctx) {
   router.get('/js/join.js', (_req, res) => res.sendFile(path.join(assets.dir, 'js', 'join.js')));
 
   // ── Invitations ────────────────────────────────────────────────────────────
-  router.post('/auth/invitation', sameOrigin, small, limited(linkAttempts, WINDOW), (req, res) => {
+  router.post('/auth/invitation', sameOrigin, small, limited(linkAttempts, WINDOW), needsPasskeys, (req, res) => {
     const { link, problem } = links.find(body(req).token, { kind: 'invite' });
     if (problem) return badLink(req, res, problem, 'invitation');
     res.json({ role: link.role, approval: link.maxUses > 1, expiresAt: new Date(link.expiresAt).toISOString() });
   });
 
-  router.post('/auth/signup', sameOrigin, small, limited(linkAttempts, WINDOW), async (req, res) => {
+  router.post('/auth/signup', sameOrigin, small, limited(linkAttempts, WINDOW), needsPasskeys, async (req, res) => {
     const input = body(req);
     const first = links.find(input.token, { kind: 'invite' });
     if (first.problem) return badLink(req, res, first.problem, 'invitation');
@@ -182,16 +200,12 @@ export function publicRoutes(ctx) {
     req.user = user;
     audit.log(req, 'accounts.signup', { account: created.id, username: created.username, role: created.role, state: created.state, invitation: link.id });
     changed('users');
-    if (created.state === 'pending') return res.json({ pending: true });
-    // A single-use link: the account is active at once. An administrator still owes a passkey first
-    if (isAdmin(user)) {
-      auth.steps.start(req, res, user, ['passkey-enrol'], { method: 'signup', binding: stepBinding(created) });
-      return res.json({ step: 'passkey-enrol' });
-    }
-    const session = auth.sessions.open(req, res, user);
-    audit.log(req, 'auth.login', { method: 'signup', session: session.id, role: user.role });
-    directory.touch(user.id);
-    res.json({ redirect: '/' });
+    // Whatever the role, the passkey is registered as part of the sign-up and
+    // before any session (the step). A single-use link gives an active
+    // account, signed in at the end of the step; a link for several people, a
+    // pending one that only registers its passkey and waits for approval
+    auth.steps.start(req, res, user, ['passkey-enrol'], { method: 'signup', binding: stepBinding(created) });
+    res.json({ step: 'passkey-enrol', ...(created.state === 'pending' ? { pending: true } : {}) });
   });
 
   // ── Password reset links ───────────────────────────────────────────────────
@@ -203,13 +217,21 @@ export function publicRoutes(ctx) {
     return { link, account };
   }
 
-  router.post('/auth/reset-link', sameOrigin, small, limited(linkAttempts, WINDOW), (req, res) => {
+  router.post('/auth/reset-link', sameOrigin, small, limited(linkAttempts, WINDOW), needsPasskeys, (req, res) => {
     const target = resetTarget(body(req).token);
     if (target.problem) return badLink(req, res, target.problem, 'reset');
     res.json({ username: target.account.username, expiresAt: new Date(target.link.expiresAt).toISOString() });
   });
 
-  router.post('/auth/reset', sameOrigin, small, limited(linkAttempts, WINDOW), async (req, res) => {
+  /**
+   * A reset link sets a new password AND replaces the passkeys: the old ones
+   * are removed when the link is used (a lost or stolen phone is the usual
+   * reason to ask for one, and it may still hold a passkey), and the person
+   * registers a new one at once, in the step that follows, before any
+   * session. Left there, the account registers one at its next password
+   * sign-in. A disabled account gets no step: it registers one once enabled
+   */
+  router.post('/auth/reset', sameOrigin, small, limited(linkAttempts, WINDOW), needsPasskeys, async (req, res) => {
     const input = body(req);
     const first = resetTarget(input.token);
     if (first.problem) return badLink(req, res, first.problem, 'reset');
@@ -221,19 +243,24 @@ export function publicRoutes(ctx) {
       if (again.problem) return again;
       const problem = await links.use(again.link.id, again.account.id);
       if (problem) return { problem };
-      await directory.setPassword(again.account.id, passwordHash);
-      return again;
+      const removed = await directory.resetCredentials(again.account.id, passwordHash);
+      return { ...again, removed };
     });
     if (outcome.problem) return badLink(req, res, outcome.problem, 'reset');
-    // Whoever was signed in with the old password is not any more
+    // Whoever was signed in with the old password or an old passkey is not any
+    // more; a sign-in step started with them is over too (its binding no longer holds)
     const ended = auth.sessions.revokeUser(outcome.account.id);
     req.user = directory.toUser(outcome.account);
-    audit.log(req, 'accounts.password.reset', { account: outcome.account.id, link: outcome.link.id, sessionsEnded: ended });
-    res.json({ ok: true });
+    audit.log(req, 'accounts.password.reset', { account: outcome.account.id, link: outcome.link.id, sessionsEnded: ended, passkeysRemoved: outcome.removed });
+    changed('users');
+    // The account as it is now (rejected or disabled meanwhile: no step)
+    const account = directory.get(outcome.account.id);
+    if (!account || account.state === 'disabled') return res.json({ ok: true });
+    auth.steps.start(req, res, directory.toUser(account), ['passkey-enrol'], { method: 'reset', binding: stepBinding(account) });
+    res.json({ step: 'passkey-enrol' });
   });
 
   // ── Passkeys: one-click sign-in ────────────────────────────────────────────
-  const unavailable = (res) => sendError(res, 409, 'accounts.passkeys_unavailable', 'Passkeys need Lab Console to be served over https');
   const refused = (req, res, reason, details = {}) => {
     refusals.record(req, addressOf(req), `passkey:${reason}`, { method: 'passkey', reason, ...details });
     return sendError(res, 401, 'accounts.passkey_refused', 'This passkey was not accepted');
@@ -277,17 +304,19 @@ export function publicRoutes(ctx) {
     res.json({ redirect: safeReturnPath(input.next) });
   });
 
-  // ── Passkeys: the step a password sign-in still owes ──────────────────────
+  // ── Passkeys: the step a sign-in still owes ───────────────────────────────
   /**
-   * The step in progress and its account, still active and still holding the
-   * credentials the step was started with (directory.js stepBinding: a reset
-   * or a change of password, or passkeys cleared, end it); null otherwise
+   * The step in progress and its account, still holding the credentials the
+   * step was started with (directory.js stepBinding: a reset or a change of
+   * password, or passkeys cleared, end it), and active - or pending, for the
+   * step of a sign-up through a link for several people (a pending account
+   * cannot sign in, so it has no other step); null otherwise
    */
   function currentStep(req) {
     const step = auth.steps.peek(req);
     if (!step) return null;
     const account = directory.get(step.user.id);
-    if (!account || account.state !== 'active' || account.via !== 'local') return null;
+    if (!account || !['active', 'pending'].includes(account.state) || account.via !== 'local') return null;
     if (!stepBindingHolds(step.binding, account)) return null;
     // The account may have registered a passkey since (another tab): then it signs in with it
     const kind = (account.passkeys ?? []).length ? 'passkey' : 'passkey-enrol';
@@ -333,7 +362,8 @@ export function publicRoutes(ctx) {
     try {
       if (current.kind === 'passkey-enrol') {
         const passkey = await verifyRegistration(rp, started, input.response);
-        await directory.addPasskey(account.id, { ...passkey, name: defaultPasskeyName(req) });
+        // Checked again inside the write: a reset during the ceremony wins
+        await directory.addPasskey(account.id, { ...passkey, name: defaultPasskeyName(req) }, { password: current.step.binding.password });
         req.user = directory.toUser(account);
         audit.log(req, 'accounts.passkey.add', { account: account.id, passkey: passkey.id, enrolment: true });
         changed('users');
@@ -351,6 +381,12 @@ export function publicRoutes(ctx) {
     }
     // The account as it is now: an administrator may have changed its role or state during the step
     const now = directory.get(account.id);
+    if (now?.state === 'pending') {
+      // Signed up through a link for several people: the passkey is registered,
+      // the account waits for an administrator; no session
+      auth.steps.fail(req, res);
+      return res.json({ pending: true });
+    }
     if (!now || now.state !== 'active') return fail('account_inactive');
     const done = auth.steps.complete(req, res, { method: current.kind === 'passkey-enrol' ? 'passkey-enrol' : 'passkey', user: directory.toUser(now) });
     if (!done) return stepExpired(res);

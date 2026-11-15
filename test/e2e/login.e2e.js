@@ -43,6 +43,9 @@ test('an anonymous visit lands on the login page, in French, with the provider b
   assert.equal(await page.title(), 'Connexion · Lab Console');
   assert.equal(await page.locator('#login-local').getAttribute('open'), null, 'the local form is discreet when a provider exists');
   assert.equal(await page.locator('#login-message').isVisible(), false);
+  // Plain http on an address: no passkeys, so no local account; the page says who can still sign in
+  assert.equal(await page.locator('#login-extra').isHidden(), true, 'no passkey button');
+  assert.match(await page.textContent('#local-hint'), /^Ce site n’est pas servi en https.*Seul l’administrateur du serveur peut se connecter\.$/);
   await page.context().close();
 });
 

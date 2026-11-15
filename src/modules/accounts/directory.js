@@ -31,8 +31,13 @@
  *
  * The directory is also an account provider for the local sign-in form
  * (auth/accounts.js): `provider.verify()` does the same scrypt work whether
- * or not the name exists, and asks a promoted administrator for a passkey
- * (`requires`), which their password alone never replaces
+ * or not the name exists. Every local account signs in with a passkey
+ * (owner decision, 15 Nov: students included): a right password only ever
+ * leads to the passkey step (`requires`: the passkey, or registering one
+ * when the account has none yet), never to a session by itself. Where this
+ * site cannot offer passkeys (PUBLIC_URL not https on a name), a local
+ * account cannot sign in at all, and the provider says so once the password
+ * is right (`refused`) instead of falling back to the password
  */
 import crypto from 'node:crypto';
 import { createUser } from '../auth/user.js';
@@ -40,10 +45,16 @@ import { hashPassword, verifyPassword, SCRYPT_DEFAULTS } from '../auth/password.
 import { httpError } from '../../lib/httpError.js';
 import { createCachedDocument } from '../../lib/cachedDocument.js';
 import { usernameKey } from './policy.js';
-import { isAdmin } from '../auth/roles.js';
 
 const FILE_VERSION = 1;
 export const MAX_PASSKEYS = 10;
+
+/** What the sign-in form answers a local account when this site cannot offer passkeys (docs/v2/AUTH.md §2b) */
+export const PASSKEYS_UNAVAILABLE = Object.freeze({
+  status: 409,
+  code: 'accounts.passkeys_unavailable',
+  message: 'Local accounts sign in with a passkey, which needs Lab Console to be served over https',
+});
 export const STATES = Object.freeze(['active', 'pending', 'disabled']);
 
 /** The role an account has now: the forced one, else the one its groups gave at its last sign-in */
@@ -61,6 +72,8 @@ export function environmentAccount(username) {
 const isActiveAdmin = (account) => account.state === 'active' && effectiveRole(account) === 'admin';
 
 const fingerprint = (hash) => crypto.createHash('sha256').update(String(hash ?? '')).digest('base64url');
+/** A fingerprint of the account's password hash: changes with every reset or change of password */
+export const passwordFingerprint = (account) => fingerprint(account?.passwordHash);
 
 /**
  * What a sign-in step started with this account's credentials must still
@@ -76,7 +89,11 @@ export function stepBindingHolds(binding, account) {
   return binding.password === fingerprint(account.passwordHash) && binding.passkeys.every((id) => ids.has(id));
 }
 
-export function createDirectory({ repos, envAdminName, now = Date.now, passwordCost = SCRYPT_DEFAULTS, logger }) {
+/**
+ * passkeysAvailable: whether this site offers passkeys (passkeys.js
+ * relyingParty().available); without them no local account signs in
+ */
+export function createDirectory({ repos, envAdminName, now = Date.now, passwordCost = SCRYPT_DEFAULTS, logger, passkeysAvailable = true }) {
   const log = logger ?? { error() {}, warn() {} };
   const file = createCachedDocument({
     name: 'the directory',
@@ -156,7 +173,8 @@ export function createDirectory({ repos, envAdminName, now = Date.now, passwordC
       roleOverride: account.via === 'oidc' ? account.roleOverride ?? null : null,
       groupRole: account.via === 'oidc' ? account.role : null,
       groups: account.groups ?? [],
-      needsPasskey: account.via === 'local' && account.role === 'admin' && !(account.passkeys ?? []).length,
+      // Every local account signs in with a passkey: one without registers one at its next sign-in
+      needsPasskey: account.via === 'local' && !(account.passkeys ?? []).length,
       createdAt: iso(account.createdAt),
       lastSignInAt: iso(account.lastSignInAt),
       environment: false,
@@ -168,7 +186,11 @@ export function createDirectory({ repos, envAdminName, now = Date.now, passwordC
 
   const provider = {
     id: 'directory',
-    /** → { user, requires? } for an active local account whose password matches, else null. Same work in every case */
+    /**
+     * → { user, requires, binding } for an active local account whose
+     * password matches (the passkey step always follows), { user, refused }
+     * when this site cannot offer passkeys, else null. Same work in every case
+     */
     async verify({ username, password }) {
       // No local account at all: every name is unknown alike, nothing to hide.
       // (The environment administrator's provider hashes in parallel, with
@@ -181,9 +203,10 @@ export function createDirectory({ repos, envAdminName, now = Date.now, passwordC
       const account = accounts()[found.id]; // read again: it may have changed during the hash
       if (!account || account.passwordHash !== found.passwordHash || account.state !== 'active') return null;
       const user = toUser(account);
-      // An administrator signs in with a passkey: the password alone is not enough
-      if (isAdmin(user)) return { user, requires: [(account.passkeys ?? []).length ? 'passkey' : 'passkey-enrol'], binding: stepBinding(account) };
-      return { user };
+      // Never the password alone: a local account signs in with a passkey, and
+      // without passkeys on this site it does not sign in (no silent fallback)
+      if (!passkeysAvailable) return { user, refused: PASSKEYS_UNAVAILABLE };
+      return { user, requires: [(account.passkeys ?? []).length ? 'passkey' : 'passkey-enrol'], binding: stepBinding(account) };
     },
   };
 
@@ -327,10 +350,19 @@ export function createDirectory({ repos, envAdminName, now = Date.now, passwordC
       return ok && account?.via === 'local';
     },
 
-    addPasskey(id, passkey) {
+    /**
+     * Register a passkey. `password`: the password fingerprint the ceremony
+     * was started with (passwordFingerprint); checked inside the write, so a
+     * registration that began before a reset or a change of password never
+     * lands after it (a reset link replaces the passkeys)
+     */
+    addPasskey(id, passkey, { password } = {}) {
       return change((all) => {
         const account = mustFind(all, id);
         if (account.via !== 'local') throw httpError(400, 'accounts.not_local', 'This account signs in through the identity provider');
+        if (password !== undefined && password !== fingerprint(account.passwordHash)) {
+          throw httpError(409, 'accounts.passkey_refused', 'This passkey was not accepted: the password of the account changed meanwhile');
+        }
         account.passkeys ??= [];
         if (account.passkeys.length >= MAX_PASSKEYS) throw httpError(409, 'accounts.too_many_passkeys', 'This account already has the most passkeys allowed', { max: MAX_PASSKEYS });
         if (Object.values(all).some((a) => (a.passkeys ?? []).some((p) => p.id === passkey.id))) {
@@ -350,21 +382,43 @@ export function createDirectory({ repos, envAdminName, now = Date.now, passwordC
       });
     },
 
-    /** Remove one passkey; an administrator keeps at least one (it is how they sign in) */
+    /**
+     * Remove one passkey; a local account keeps at least one (it is how it
+     * signs in). The way out of a lost last device is an administrator's
+     * reset link (resetCredentials), not this
+     */
     removePasskey(id, credentialId) {
       return change((all) => {
         const account = mustFind(all, id);
         const list = account.passkeys ?? [];
         const at = list.findIndex((p) => p.id === credentialId);
         if (at === -1) throw httpError(404, 'accounts.unknown_passkey', 'No such passkey');
-        if (account.role === 'admin' && list.length === 1) {
-          throw httpError(409, 'accounts.last_passkey', 'An administrator signs in with a passkey: add another one before removing this one');
+        if (account.via === 'local' && list.length === 1) {
+          throw httpError(409, 'accounts.last_passkey', 'Your account signs in with a passkey: add another one before removing this one');
         }
         list.splice(at, 1);
       });
     },
 
-    /** An administrator wipes an account's passkeys (a lost device): a promoted administrator registers a new one at the next sign-in */
+    /**
+     * A password reset link is used: the new password, and none of the old
+     * passkeys (a lost or stolen device is the usual reason for a reset), in
+     * one write. The account registers a new passkey right after, or at its
+     * next sign-in. → the number of passkeys removed
+     */
+    resetCredentials(id, passwordHash) {
+      return change((all) => {
+        const account = mustFind(all, id);
+        if (account.via !== 'local') throw httpError(400, 'accounts.not_local', 'This account signs in through the identity provider');
+        const removed = (account.passkeys ?? []).length;
+        account.passwordHash = passwordHash;
+        account.passwordChangedAt = now();
+        account.passkeys = [];
+        return removed;
+      });
+    },
+
+    /** An administrator wipes an account's passkeys (a lost device): the account registers a new one at its next sign-in */
     clearPasskeys(id) {
       return change((all) => {
         const account = mustFind(all, id);

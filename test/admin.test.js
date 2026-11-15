@@ -12,7 +12,7 @@ import zlib from 'node:zlib';
 import { EventEmitter } from 'node:events';
 import WebSocket from 'ws';
 import { startTestApp, TEST_ADMIN, adminCode } from './helpers/app.js';
-import { call, testClock, createLocalAccount, FAST_SCRYPT } from './helpers/accounts.js';
+import { call, testClock, createLocalAccount, signInWithPassword, FAST_SCRYPT } from './helpers/accounts.js';
 import { TestBrowser, signInWithOidc } from './helpers/browser.js';
 import { SoftAuthenticator } from './helpers/webauthn.js';
 import { createUser } from '../src/modules/auth/index.js';
@@ -280,14 +280,13 @@ describe('passkey confirmation (a local account promoted to administrator)', () 
   before(async () => {
     lab = await startTestApp({ modules, publicHost: 'localhost' });
     key = new SoftAuthenticator({ origin: lab.url });
-    const { id } = await createLocalAccount(lab, 'nora');
+    // Her passkey is registered as part of the sign-up, like every local account's
+    const { id } = await createLocalAccount(lab, 'nora', { key });
     // Promoting is itself confirmed: by the environment's administrator, with its password and code
     const { ticket } = (await call(lab, envAdmin, 'POST', '/api/admin/confirm', { password: TEST_ADMIN.password, code: adminCode() })).body;
     assert.equal((await call(lab, envAdmin, 'PATCH', `/api/accounts/users/${encodeURIComponent(id)}`, { role: 'admin', confirmation: ticket })).status, 200);
     browser = new TestBrowser();
-    await call(lab, browser, 'POST', '/auth/local', { username: 'nora', password: 'correct horse battery' });
-    const options = await call(lab, browser, 'POST', '/auth/passkey/step/options', {});
-    assert.equal((await call(lab, browser, 'POST', '/auth/passkey/step/verify', { response: key.register(options.body.options) })).status, 200);
+    assert.equal((await signInWithPassword(lab, browser, 'nora', key)).status, 200);
   });
   after(() => lab.close());
 

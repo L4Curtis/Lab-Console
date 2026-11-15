@@ -17,7 +17,7 @@
       "infra": "Machines et switchs (dans Plus, ou dans Admin pour un administrateur) : les VM Proxmox quand Proxmox est configuré, et les switchs d’administration du labo.",
       "status": "État du labo (dans Plus, ou dans Admin) : la chaîne d’accès répond-elle (rebond, serveurs de consoles), et ce qui est journalisé.",
       "admin": "Admin (administrateurs seulement) : comptes, invitations, connexion SSO, équipes, paramètres du labo, schéma, switchs d’admin, sessions, journal d’audit, annonce ; et des liens vers Machines et switchs et État du labo.",
-      "account": "Mon compte (menu de la pastille, ou Plus sur un téléphone) : profil, mot de passe et clés d’accès d’un compte local, sessions ouvertes, thème et langue.",
+      "account": "Mon compte (menu de la pastille, ou Plus sur un téléphone) : profil, mot de passe et clés d’accès d’un compte local, sessions ouvertes, thème et langue. Un compte local se connecte avec sa clé d’accès : ajoutez-en une par appareil ; un appareil perdu se remplace par un lien de réinitialisation donné par un administrateur.",
       "help": "Aide : cette page. Le menu du compte permet aussi de revoir la visite guidée.",
       "extras": "Dans le menu du compte (ou dans Plus sur un téléphone) : le thème clair, sombre ou automatique, et la langue FR / EN. La cloche « Alertes » active les alertes du navigateur (clavier demandé, ligne libre, tâche terminée)."
     },

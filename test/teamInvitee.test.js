@@ -18,7 +18,8 @@ import { createAccountsModule } from '../src/modules/accounts/index.js';
 
 let app;
 before(async () => {
-  app = await startTestApp({ modules: (deps) => [...createTeamsModules(deps, { tickMs: 0 }), createAccountsModule(deps, { passwordCost: FAST_SCRYPT })] });
+  // localhost: local accounts sign in with a passkey, which needs a domain name
+  app = await startTestApp({ publicHost: 'localhost', modules: (deps) => [...createTeamsModules(deps, { tickMs: 0 }), createAccountsModule(deps, { passwordCost: FAST_SCRYPT })] });
   for (const n of [1, 2]) await app.deps.services.accounts.admit(student(n), { groupRole: 'student' });
 });
 after(() => app?.close());

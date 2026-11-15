@@ -100,8 +100,11 @@ export async function createAuth({ config, logger, events, repos, audit, service
     },
   });
   const pending = createPendingLogins({ now });
-  // Sign-ins whose password was right but that still owe a passkey: 5 minutes, single use
-  const steps = createPendingLogins({ ttlMs: 5 * 60_000, max: 2000, perOwner: 5, now });
+  // Sign-ins whose password was right but that still owe a passkey: 5 minutes,
+  // single use. Every local account goes through one, so a classroom behind
+  // one public address needs room; only a right password (or a valid link)
+  // starts one, so strangers cannot fill it
+  const steps = createPendingLogins({ ttlMs: 5 * 60_000, max: 2000, perOwner: 100, now });
   const throttle = createLoginThrottle({ now });
   const devices = createDeviceCookies({ key: await loadDeviceKey({ state: repos.authState, logger: log }), now });
   const refusals = createRefusalAudit({ audit, now });
@@ -305,7 +308,8 @@ export async function createAuth({ config, logger, events, repos, audit, service
       },
       /**
        * Start a step for someone the caller authenticated another way (a new
-       * account that owes a passkey); `binding` as for a provider's answer
+       * account, or a password reset link: a passkey is owed before any
+       * session); `binding` as for a provider's answer
        */
       start(req, res, user, requires, { returnTo = '/', method = 'signup', binding = null } = {}) {
         startStep(req, res, user, requires, { returnTo: safeReturnPath(returnTo), deviceName: user.via === 'local' ? user.username : null, method, binding });
