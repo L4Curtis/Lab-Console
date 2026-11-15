@@ -16,7 +16,7 @@ test('a student signs in, opens R1 on B4M, types a command, signs out and is sen
 
   const user = await signInAs(page, 'alice');
   assert.equal(user.name, 'Alice Martin');
-  assert.equal(await page.textContent('.user-badge'), 'AM');
+  assert.equal(await page.textContent('.user-menu-btn .avatar'), 'AM');
 
   const pane = await openConsole(page, 'B4M', 'R1');
   // The console server's login was answered by the application: the device is next

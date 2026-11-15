@@ -202,7 +202,7 @@ test('both pages speak English, and fit a wide and a narrow window', async () =>
   await setLanguage(alice, 'en');
   await showHome(alice);
   assert.equal(await home(alice).locator('h1').textContent(), 'Home');
-  assert.equal(await alice.locator('#rail-items a[data-path="overview"]').textContent(), 'Overview');
+  assert.equal(await alice.locator('#rail-items a[data-path="home"]').textContent(), 'Home', 'the navigation follows the language');
   await home(alice).locator('[data-panel="bench"] .ov-holder', { hasText: 'Taken by team Les routeurs since' }).waitFor();
   await home(alice).locator('[data-panel="backups"] li', { hasText: 'B4M · 1 device · Alice Martin' }).waitFor();
   await home(alice).locator('[data-panel="activity"] li', { hasText: 'Alice Martin took the bench for team Les routeurs' }).waitFor();

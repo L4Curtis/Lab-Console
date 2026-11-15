@@ -36,7 +36,8 @@ test('boot: session and language are loaded before the screens, without errors',
     return { user: session.user.id, isAdmin: session.isAdmin, loaded: session.loaded, locale: getLocale(), cancel: t('common.actions.cancel') };
   });
   assert.deepEqual(state, { user: 'oidc:admin', isAdmin: true, loaded: true, locale: 'fr', cancel: 'Annuler' });
-  assert.equal(await page.locator('#rail-items .rail-btn').count(), 9, 'home, consoles, overview, then Team, Administration for an administrator, Backups, the lab status and Help');
+  assert.deepEqual(await page.locator('#rail-items .rail-btn').evaluateAll((items) => items.map((a) => a.dataset.nav)),
+    ['home', 'consoles', 'team', 'jobs', 'admin', 'plus'], 'five destinations for an administrator (Administration last), then Plus');
   assert.equal(await page.locator('#rail-items a.rail-btn.active').getAttribute('data-path'), 'home', 'no section was asked for: the home page');
   await page.evaluate(() => { location.hash = '#/consoles'; });
   await page.waitForSelector('section.view-consoles svg');
@@ -75,7 +76,7 @@ test('loadCss: one <link> per stylesheet, resolved once the rules apply', async 
 test('confirmDialog: modal, labelled, Escape answers no, focus comes back', async () => {
   await page.evaluate(async () => {
     const { confirmDialog } = await window.appModule('/js/shared/dialog.js');
-    document.getElementById('theme-toggle').focus();
+    document.querySelector('.user-menu-btn').focus();
     window.__answer = 'pending';
     confirmDialog({ title: 'Libérer la baie B4M ?', body: 'Les consoles ouvertes seront fermées.', confirmLabel: 'Libérer' }).then((v) => { window.__answer = v; });
   });
@@ -94,7 +95,7 @@ test('confirmDialog: modal, labelled, Escape answers no, focus comes back', asyn
   await page.keyboard.press('Escape');
   await gone();
   assert.equal(await page.evaluate(() => window.__answer), false);
-  assert.equal(await page.evaluate(() => document.activeElement.id), 'theme-toggle', 'focus returns to the opener');
+  assert.equal(await page.evaluate(() => document.activeElement.classList.contains('user-menu-btn')), true, 'focus returns to the opener');
   assert.equal(await page.locator('dialog.modal').count(), 0, 'the dialog is removed from the page');
 });
 
@@ -379,23 +380,24 @@ test('no error was logged by the page during the whole run', () => {
   assert.deepEqual(pageErrors.filter((m) => !expected.some((e) => m.includes(e))), []);
 });
 
-test('language switch: the FR / EN buttons in the rail change the visible texts at once and survive a reload', async () => {
+test('language switch: the FR / EN buttons of the account menu change the visible texts at once and survive a reload', async () => {
   await page.evaluate(() => { location.hash = '#/consoles'; });
   await page.waitForSelector('section.view-consoles svg');
   const texts = () => page.evaluate(() => ({
     rail: [...document.querySelectorAll('#rail-items .rail-btn')].map((a) => a.textContent.trim()),
-    theme: document.querySelector('#theme-toggle span').textContent,
+    theme: document.querySelector('#user-menu [data-theme-choice="dark"]').textContent.trim(),
     bell: document.querySelector('#notify-toggle').textContent.trim(),
     title: document.querySelector('section.view-consoles .view-title h1').textContent,
   }));
-  // The sections, then the notification bell (lot collab) next to the theme, outside the sections
-  assert.deepEqual(await texts(), { rail: ['Accueil', 'Consoles', 'Vue d’ensemble', 'Équipe', 'Infra', 'Admin', 'Sauvegardes', 'État du labo', 'Aide'], theme: 'Thème', bell: 'Alertes', title: 'Consoles du labo' });
+  // The destinations and Plus, then the notification bell (lot collab) at the bottom of the rail
+  assert.deepEqual(await texts(), { rail: ['Accueil', 'Consoles', 'Équipe', 'Sauvegardes', 'Admin', 'Plus'], theme: 'Sombre', bell: 'Alertes', title: 'Consoles du labo' });
   const before = await texts();
   await setLanguage(page, 'en');
   assert.equal(await page.getAttribute('.lang-btn[data-lang="en"]', 'aria-pressed'), 'true');
   assert.equal(await page.getAttribute('.lang-btn[data-lang="fr"]', 'aria-pressed'), 'false');
   const english = await texts();
-  assert.equal(english.theme, 'Theme');
+  assert.deepEqual(english.rail, ['Home', 'Consoles', 'Team', 'Backups', 'Admin', 'More']);
+  assert.equal(english.theme, 'Dark');
   assert.equal(english.bell, 'Alerts');
   assert.notDeepEqual(english, before, 'visible texts changed');
   assert.ok(await page.locator('section.view-consoles svg').count() > 0, 'the open screen was not rebuilt');
@@ -425,7 +427,7 @@ test('routing: a section whose data comes back after the user left does not take
   const benchData = fresh.waitForRequest((req) => req.url().includes('/api/jobs/runs?bench='));
   release();
   await benchData;
-  assert.equal(await fresh.evaluate(() => location.hash), '#/team');
+  assert.equal(await fresh.evaluate(() => location.hash), '#/team/mine', 'the team section kept the address (#/team opens My team)');
   assert.equal(await fresh.locator('section.view-team').isHidden(), false);
   assert.deepEqual(fresh.errors, []);
   await fresh.context().close();
@@ -459,4 +461,81 @@ test('routing: an address change while a section is still loading mounts it once
   assert.ok(views.every((v) => v.includes('view-consoles') || v.endsWith(':hidden')), `nothing else is shown: ${views}`);
   assert.deepEqual(fresh.errors, []);
   await fresh.context().close();
+});
+
+test('the redesign\'s kit: page header, list, menu, side panel, empty state and toast, on a PC and on a phone', async () => {
+  for (const phone of [false, true]) {
+    const p = phone ? await h.newPhonePage() : await h.newPage();
+    await h.session(p, 'admin');
+    await p.goto(`${h.url}/#/help`);
+    await waitForApp(p);
+    await p.evaluate(async () => {
+      const { h: el, toast } = await window.appModule('/js/core/dom.js');
+      const { pageHeader } = await window.appModule('/js/shared/pageHeader.js');
+      const { dataList } = await window.appModule('/js/shared/dataList.js');
+      const { sideHost, sidePanel } = await window.appModule('/js/shared/sidePanel.js');
+      window.__ran = [];
+      const run = (id) => () => window.__ran.push(id);
+      const header = pageHeader({
+        title: () => 'Sauvegardes', context: () => 'Baie B4M',
+        primary: { id: 'backup', label: () => 'Sauvegarder', icon: 'download', run: run('backup') },
+        actions: ['inject', 'compare', 'reset'].map((id) => ({ id, label: () => id, icon: 'upload', run: run(id), danger: id === 'reset' })),
+      });
+      const list = dataList({
+        label: 'Sauvegardes',
+        columns: [
+          { id: 'name', label: () => 'Nom', cell: (r) => r.name, primary: true },
+          { id: 'state', label: () => 'État', cell: (r) => r.state, badge: true },
+          { id: 'n', label: () => 'Équipements', cell: (r) => r.n, num: true, hideCompact: true },
+        ],
+        actions: (r) => [{ id: 'zip', label: () => 'ZIP', run: run(`zip:${r.name}`), primary: true }, { id: 'view', label: () => 'Voir', run: run(`view:${r.name}`) }, { id: 'del', label: () => 'Supprimer', run: run(`del:${r.name}`), danger: true }],
+        empty: { title: () => 'Aucune sauvegarde', action: { label: () => 'Sauvegarder', run: run('empty') } },
+      });
+      list.render([{ name: 'A', state: 'Complète', n: 9 }, { name: 'B', state: 'Partielle', n: 7 }]);
+      const body = el('div.view-body', list.el);
+      const section = document.querySelector('section.view-help');
+      section.replaceChildren(header.el, body);
+      const host = sideHost(body);
+      window.__panel = sidePanel(host, { title: () => 'En direct' });
+      window.__list = list;
+      toast('Sauvegarde terminée', 'error', 60_000, { action: { label: 'Télécharger', run: run('toast') } });
+    });
+    // Header: two secondary buttons, the third in ⋯ (PC); every secondary action in ⋯ (phone)
+    const header = p.locator('.page-header');
+    const visibleActions = await header.locator('button:visible').evaluateAll((bs) => bs.map((b) => b.dataset.action ?? (b.classList.contains('more-btn') ? 'more' : '?')));
+    assert.deepEqual(visibleActions, phone ? ['more', 'backup'] : ['inject', 'compare', 'more', 'backup']);
+    await header.locator('button[data-action="backup"]:visible').click();
+    await header.locator('.more-btn:visible').click();
+    const menuItems = phone ? p.locator('dialog[open] [role="menuitem"]') : p.locator('.menu-pop [role="menuitem"]');
+    assert.deepEqual(await menuItems.evaluateAll((items) => items.map((i) => i.dataset.id)), phone ? ['inject', 'compare', 'reset'] : ['reset']);
+    await menuItems.filter({ hasText: 'reset' }).click();
+    await p.waitForFunction(() => window.__ran.includes('reset'));
+
+    // List: a table with two buttons per row on a PC, a card with the primary and ⋯ on a phone
+    const shown = await p.locator('.data-list tbody tr').first().locator('button:visible').evaluateAll((bs) => bs.map((b) => b.dataset.action ?? 'more'));
+    assert.deepEqual(shown, phone ? ['zip', 'more'] : ['zip', 'view', 'more']);
+    assert.equal(await p.locator('.data-list thead').isVisible(), !phone);
+    assert.equal(await p.locator('.data-list td[data-col="n"]').first().isVisible(), !phone, 'a column left out of the cards');
+    await p.locator('.data-list tbody tr').nth(1).locator('.more-btn').click();
+    await menuItems.filter({ hasText: 'Supprimer' }).click();
+    await p.waitForFunction(() => window.__ran.includes('del:B'));
+    await p.evaluate(() => window.__list.render([]));
+    await p.locator('.data-list .empty-state button', { hasText: 'Sauvegarder' }).click();
+
+    // Side panel: one at a time, Escape closes it
+    await p.evaluate(() => window.__panel.open());
+    const panel = p.locator('aside.side-panel');
+    await panel.waitFor();
+    const box = await panel.boundingBox();
+    assert.equal(Math.round(box.width), phone ? 390 : 360);
+    await p.keyboard.press('Escape');
+    await panel.waitFor({ state: 'hidden' });
+
+    // A toast with an action: an error that stays, until its action is taken
+    await p.locator('.toast.error .toast-action').click();
+    await p.locator('.toast.error').waitFor({ state: 'detached' });
+    assert.deepEqual(await p.evaluate(() => window.__ran), ['backup', 'reset', 'del:B', 'empty', 'toast']);
+    assert.deepEqual(p.errors, []);
+    await p.context().close();
+  }
 });

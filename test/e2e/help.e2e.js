@@ -162,7 +162,8 @@ test('the tour speaks English, and a dialog keeps Escape for itself', async () =
 test('the help page: its sections, the figures of the server, both languages', async () => {
   const page = await h.newPage();
   await signInAs(page, 'alice');
-  await page.click('#rail-items a[data-path="help"]');
+  await page.click('.rail [data-nav="plus"]'); // Help is in the rail's Plus menu
+  await page.click('.menu-pop [role="menuitem"][data-id="help"]');
   const view = page.locator('section.view-help');
   await view.locator('h1', { hasText: /^Aide$/ }).waitFor();
   const ids = ['sections', 'home', 'team', 'share', 'backup', 'tasks', 'checks', 'recovery', 'journal', 'trouble', 'keys'];
