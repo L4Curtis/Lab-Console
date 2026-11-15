@@ -23,7 +23,7 @@ const STEPS = [
   { id: 'bench', route: '#/consoles', target: '.lab-picker' },
   { id: 'team', route: '#/consoles', target: '.bench-bar' },
   { id: 'console', route: '#/consoles', target: '.diagram-canvas' },
-  { id: 'keyboard', route: '#/consoles', target: '.pane-presence' },
+  { id: 'keyboard', route: '#/consoles', target: '.pane-people' }, // the people on the console: the pilot's avatar carries the key
   { id: 'backup', route: null, target: '[data-nav="jobs"]' }, // the rail's entry, or the tab bar's on a phone
 ];
 const TARGET_WAIT_MS = 2500;

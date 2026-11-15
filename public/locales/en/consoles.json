@@ -1,14 +1,12 @@
 {
-  "title": "Lab consoles",
-  "subtitle": "Choose a bench, then click a device.",
+  "title": "Consoles",
   "find": "Find a device",
   "topology": "Topology",
   "noLabs": "No labs found in the diagram file",
-  "loadFailed": "Could not load the diagram.",
-  "loadFailedHint": "Check that the platform is running, then try again.",
+  "loadFailed": "The diagram could not be loaded.",
   "hint": {
-    "one": "{count} device. Click it to open its console.",
-    "other": "{count} devices. Click one to open its console."
+    "one": "Click the device to open its console.",
+    "other": "Click a device to open its console."
   },
   "noDevice": "This page has no device with a console address.",
   "notAllowed": "{name}'s console address is not on the platform's allow-list.",
@@ -18,11 +16,25 @@
   },
   "notesIntro": "Found while reading the diagram file:",
   "picker": {
-    "label": "Labs",
+    "label": "Benches",
+    "none": "Bench",
+    "button": "Bench {name}, {state}. Change bench",
     "bay": "Bay {bay}",
+    "ours": "Your bench",
+    "you": "you",
     "devices": {
-      "one": "{name}: {count} device",
-      "other": "{name}: {count} devices"
+      "one": "{count} device",
+      "other": "{count} devices"
+    },
+    "open": {
+      "one": "{count} console open",
+      "other": "{count} consoles open"
+    },
+    "state": {
+      "free": "Free",
+      "taken": "Taken",
+      "mine": "Your bench",
+      "locked": "Locked"
     }
   },
   "quickOpen": {
@@ -43,9 +55,9 @@
     }
   },
   "state": {
-    "idle": "Free. Click to open the console",
+    "idle": "Free. Open it to drive the console",
     "open": "Open in your workspace",
-    "live": "Open by someone else. Click to join",
+    "live": "Open by someone else: you can join it",
     "busy": "Busy outside Lab Console: the console server refused the line",
     "disabled": "Console address not allowed by the platform"
   },
@@ -97,29 +109,17 @@
     }
   },
   "wall": {
-    "button": "Bench wall",
-    "title": "Bench wall {bench}",
+    "title": "Console wall {bench}",
     "intro": "Every open console of the bench, live and read-only.",
     "empty": "No console of this bench is open right now.",
     "open": "Open"
   },
   "journal": {
-    "button": "Journals",
     "title": "My console journals",
-    "loading": "Loading…",
     "intro": "What the devices printed, session by session. You read the whole day of a console you were on with the right to drive it (watching only does not count), or that your team’s bench held that day: every session of that day, other people’s included (all of them for an admin). Kept {days} days.",
     "none": "No journal for you yet.",
-    "columns": {
-      "day": "Day",
-      "time": "Time",
-      "bench": "Bench",
-      "device": "Device",
-      "people": "People",
-      "size": "Size",
-      "file": "File"
-    },
     "download": "Download",
-    "truncated": "(cut)",
+    "truncated": "Cut short",
     "truncatedHint": "The journal reached its size limit for the day: the end is missing.",
     "ongoing": "ongoing",
     "bytes": {
@@ -134,16 +134,62 @@
       "one": "{count} MB",
       "other": "{count} MB"
     },
-    "notice": "Consoles are journaled: what the devices print (never what you type without echo, such as passwords) is kept {days} days with who had the keyboard. Whoever was on a console on a given day with the right to drive it, their team and the admins read that console’s whole day back.",
-    "dismiss": "Got it"
+    "notice": "Consoles are journaled for {days} days: what the devices print, not what you type without echo.",
+    "dismiss": "Got it",
+    "noneTitle": "No journal",
+    "loadFailed": "The journals could not be loaded.",
+    "downloadOf": "Download the journal of {device}, {day}",
+    "more": "Learn more"
   },
   "notify": {
     "free": "The console of {name} ({bench}) is free: you can open it.",
     "open": "The console of {name} ({bench}) is now open in Lab Console: you can join it.",
     "expired": "The console of {name} ({bench}) is still busy after 30 minutes: we stopped watching."
   },
-  "scripts": {
-    "button": "Scripts"
+  "noLabsHint": "An administrator imports the lab diagram in Admin › Diagram.",
+  "hintTouch": {
+    "one": "Tap the device to open its console.",
+    "other": "Tap a device to open its console. Long press: its details."
   },
-  "checks": "Checks"
+  "unknownDevice": "There is no {name} on bench {bench}.",
+  "view": {
+    "label": "Bench view",
+    "diagram": "Diagram",
+    "list": "List"
+  },
+  "list": {
+    "idle": "Free",
+    "open": "Open here",
+    "live": "Open",
+    "with": "With {name} (keyboard)",
+    "busy": "Busy outside the app",
+    "disabled": "Unavailable"
+  },
+  "device": {
+    "title": "{name} · {bench}",
+    "note": "Note",
+    "open": "Open the console"
+  },
+  "dock": {
+    "count": {
+      "one": "{count} console open",
+      "other": "{count} consoles open"
+    },
+    "label": {
+      "one": "{count} console open: back to {name}",
+      "other": "{count} consoles open: back to {name}"
+    }
+  },
+  "rotate": {
+    "hint": "Turn your phone to see more columns.",
+    "dismiss": "Got it"
+  },
+  "tools": {
+    "title": "Tools",
+    "checks": "Checks",
+    "wall": "Console wall",
+    "wallNone": "No console of this bench is open.",
+    "journals": "Journals",
+    "scripts": "Script library"
+  }
 }

@@ -2,11 +2,14 @@
  * The group panel of the consoles section: the notes of the bench on screen
  * and its chat (SPEC "Lot collab")
  *
- *   const panel = mountBenchPanel({ host });   // the panel goes in `host`
+ *   const panel = mountBenchPanel({ host });   // `host`: the section's side host (shared/sidePanel.js)
  *   panel.setBench(lab);                       // the lab on screen
- *   panel.button / panel.el / panel.toggle(on) / panel.open   // the same contract as the live panel;
- *                                              // whoever mounts it puts the button where it belongs
- *                                              // (the consoles section: under the title of the diagram)
+ *   panel.button / panel.el / panel.toggle(on) / panel.open / panel.onToggle(fn) / panel.unread
+ *                                              // the same contract as the live panel; whoever mounts it
+ *                                              // puts the button where it belongs (the consoles header)
+ *
+ * It is a side panel: a column beside the consoles from 1200 px, a drawer
+ * below, a full-height sheet on a phone; the chat's composer is its footer
  *
  * Notes: every device of the bench that has one, with its text; the people
  * who may write it get a button. Chat: the bench's occupants talk (admins
@@ -20,6 +23,7 @@
 import { h, icon } from '../../core/dom.js';
 import { getJson, request, live } from '../../core/api.js';
 import { t, tNode, tAttr, onLocaleChange } from '../../core/i18n.js';
+import { sidePanel } from '../../shared/sidePanel.js';
 import { fmtTime } from '../../core/format.js';
 import { session } from '../../core/session.js';
 import { avatar } from '../../shared/presenceBar.js';
@@ -37,38 +41,27 @@ export function mountBenchPanel({ host }) {
   const unread = new Map(); // bench → ids of the messages that arrived unseen (a removed message leaves the count)
 
   // ── Elements ──────────────────────────────────────────────────────────────
-  const badge = h('span.live-badge', { hidden: true });
-  const button = h('button.btn.small.collab-btn', { type: 'button', 'aria-pressed': 'false', onclick: () => toggle() }, icon('chat'), tNode('collab.panel.button'), badge);
+  const badge = h('span.count', { hidden: true });
+  const button = h('button.btn.collab-btn', { type: 'button', 'aria-pressed': 'false', dataset: { action: 'discussion' }, onclick: () => toggle() }, icon('chat'), h('span.btn-label', tNode('collab.panel.button')), badge);
+  const listeners = new Set();
 
   const notesList = h('ul.collab-notes');
   const chatLog = h('ol.chat-log', { 'aria-live': 'polite', ...tAttr('aria-label', 'collab.chat.log') });
   const chatHint = h('p.chat-hint.muted');
-  const field = h('textarea.chat-input', { rows: 2, maxlength: '500', ...tAttr('placeholder', 'collab.chat.placeholder'), ...tAttr('aria-label', 'collab.chat.field') });
+  const field = h('textarea.field.chat-input', { rows: 2, maxlength: '500', ...tAttr('placeholder', 'collab.chat.placeholder'), ...tAttr('aria-label', 'collab.chat.field') });
   const problem = h('p.chat-problem', { role: 'alert', hidden: true });
-  const send = h('button.btn.small.primary', { type: 'submit', dataset: { action: 'send' } }, icon('send'), tNode('collab.chat.send'));
+  const send = h('button.btn.sm.primary', { type: 'submit', dataset: { action: 'send' } }, icon('send'), tNode('collab.chat.send'));
   const form = h('form.chat-form', { onsubmit: submit }, field, h('div.chat-form-foot', problem, send));
   field.addEventListener('keydown', (e) => {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) { e.preventDefault(); form.requestSubmit(); }
   });
-  const chatSection = h('section.live-section.chat-section', h('h3', tNode('collab.chat.title')), chatHint, chatLog, form);
-  const title = h('h2');
-  const el = h('aside.live-panel.collab-panel', { hidden: true, ...tAttr('aria-label', 'collab.panel.title') },
-    h('header.live-head', title, h('span.live-count'),
-      h('button.icon-btn', { type: 'button', ...tAttr('title', 'common.actions.close'), onclick: () => toggle(false) }, icon('close'))),
+  const panel = sidePanel(host, { title: () => t('collab.panel.titleFor', { bench: lab?.name ?? '' }), footer: form });
+  panel.el.classList.add('collab-panel');
+  const el = panel.el;
+  panel.body.append(
     h('section.live-section', h('h3', tNode('collab.panel.notesHeading')), notesList),
-    chatSection);
-  host.append(el);
-
-  // ── State ─────────────────────────────────────────────────────────────────
-  const bench = () => lab?.name ?? null;
-  const summary = () => benchSummary(bench());
-  /** May this person read the chat of the bench on screen? The server decides again */
-  const mayRead = () => Boolean(bench()) && (session.isAdmin || isOccupant(summary()));
-  const isOpen = () => !el.hidden;
-
-  function toggle(on = el.hidden) {
-    el.hidden = !on;
-    el.dispatchEvent(new Event('toggle'));
+    h('section.live-section.chat-section', h('h3', tNode('collab.chat.title')), chatHint, chatLog));
+  panel.onToggle((on) => {
     button.setAttribute('aria-pressed', String(on));
     if (on) {
       unread.delete(bench());
@@ -76,6 +69,18 @@ export function mountBenchPanel({ host }) {
       loadChat();
       if (!form.hidden) field.focus();
     }
+    for (const fn of listeners) fn(on);
+  });
+
+  // ── State ─────────────────────────────────────────────────────────────────
+  const bench = () => lab?.name ?? null;
+  const summary = () => benchSummary(bench());
+  /** May this person read the chat of the bench on screen? The server decides again */
+  const mayRead = () => Boolean(bench()) && (session.isAdmin || isOccupant(summary()));
+  const isOpen = () => panel.isOpen;
+
+  function toggle(on = !panel.isOpen) {
+    panel.toggle(on);
   }
 
   function showBadge() {
@@ -83,11 +88,11 @@ export function mountBenchPanel({ host }) {
     badge.hidden = count === 0;
     badge.textContent = String(count);
     badge.title = t('collab.chat.unread', { count });
+    for (const fn of listeners) fn(panel.isOpen);
   }
 
   // ── Notes ─────────────────────────────────────────────────────────────────
   function renderNotes() {
-    title.textContent = t('collab.panel.titleFor', { bench: bench() ?? '' });
     const rows = (lab?.devices ?? [])
       .map((d) => ({ d, note: noteOf(d.key), edit: mayEdit(lab.name) }))
       .filter(({ note, edit }) => note || edit);
@@ -97,7 +102,7 @@ export function mountBenchPanel({ host }) {
     }
     notesList.replaceChildren(...rows.map(({ d, note, edit }) => h('li.collab-note', { dataset: { device: d.name } },
       h('div.collab-note-head', h('strong', d.name),
-        h('button.btn.small.subtle', { type: 'button', dataset: { action: 'note' }, onclick: () => openNoteDialog(d.key) },
+        h('button.btn.sm.ghost', { type: 'button', dataset: { action: 'note' }, onclick: () => openNoteDialog(d.key) },
           note ? t(edit ? 'collab.notes.edit' : 'collab.notes.open') : t('collab.notes.add'))),
       note ? h('p.collab-note-text', note.text) : null,
       note ? h('span.muted.collab-note-by', t('collab.notes.lastBy', { name: note.by.name, time: clock(note.updatedAt) })) : null)));
@@ -109,12 +114,13 @@ export function mountBenchPanel({ host }) {
     chatHint.hidden = readable && messages.length > 0;
     chatHint.textContent = !bench() ? '' : !readable ? t('collab.chat.notYours') : t('collab.chat.empty');
     form.hidden = !readable || !canPost;
+    panel.footer.hidden = form.hidden;
     field.maxLength = maxChars;
     chatLog.replaceChildren(...(readable ? messages : []).map((m) => h('li.chat-message', { dataset: { id: m.id, mine: String(m.author.id === session.user?.id) } },
       avatar(m.author),
       h('div.chat-body',
         h('div.chat-meta', h('strong', m.author.name), h('time', { datetime: m.at }, clock(m.at)),
-          session.isAdmin ? h('button.icon-btn.small', { type: 'button', ...tAttr('title', 'collab.chat.remove'), dataset: { action: 'remove' }, onclick: () => remove(m) }, icon('trash')) : null),
+          session.isAdmin ? h('button.icon-btn', { type: 'button', ...tAttr('title', 'collab.chat.remove'), ...tAttr('aria-label', 'collab.chat.remove'), dataset: { action: 'remove' }, onclick: () => remove(m) }, icon('trash')) : null),
         h('p.chat-text', m.text)))));
     chatLog.scrollTop = chatLog.scrollHeight;
   }
@@ -196,7 +202,10 @@ export function mountBenchPanel({ host }) {
     el,
     button,
     get open() { return isOpen(); },
+    /** Messages of the bench on screen that came while the panel was shut */
+    get unread() { return unread.get(bench())?.size ?? 0; },
     toggle,
+    onToggle(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     setBench(next) {
       lab = next;
       if (next) knowDevices([next]);
@@ -204,6 +213,7 @@ export function mountBenchPanel({ host }) {
       chatFor = null;
       renderNotes();
       renderChat();
+      panel.el.querySelector('.side-head h2').textContent = t('collab.panel.titleFor', { bench: bench() ?? '' });
       if (isOpen()) { unread.delete(bench()); loadChat(); }
       showBadge();
     },

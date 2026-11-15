@@ -1,147 +1,425 @@
 /* ==========================================================================
-   Shared consoles: presence and control in the tiles, presence on the
-   diagram, the live panel, the bench wall, the journal notice and list
+   The Consoles section (docs/v2/UX.md §8): the header and its tools, the
+   bench line, the journal notice, the diagram (and its list), the bench
+   picker, the device sheet, the dock and the console screen of a phone,
+   the live panel, the console wall, the journal list, the device finder.
+   Only tokens: both themes follow
    ========================================================================== */
 
-/* ── In a console tile ─────────────────────────────────────────────────── */
-.pane-presence {
-  background: var(--term-head); border-top: 1px solid rgba(255, 255, 255, .06);
-  color: var(--term-head-ink); font-size: 12px; padding: 4px 10px;
-}
-.presence-row { display: flex; align-items: center; gap: 10px; min-height: 28px; flex-wrap: wrap; }
-.presence-people { display: flex; gap: 2px; }
-.presence-status { flex: 1; min-width: 120px; color: #AFC0CF; }
-.presence-actions { display: flex; gap: 6px; flex-wrap: wrap; }
-.presence-actions .btn:not(.primary), .presence-answer .btn:not(.primary) { background: transparent; border-color: #3A4A59; color: #DCE4EB; }
-.presence-actions .btn .icon { width: 14px; height: 14px; margin-right: 4px; }
-.presence-wait { color: #F2C462; }
-.presence-prompt {
-  display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;
-  margin: 4px -10px -4px; padding: 6px 10px; background: rgba(242, 196, 98, .14); border-top: 1px solid rgba(242, 196, 98, .35);
-}
-.presence-question { display: flex; align-items: center; gap: 8px; }
-.presence-question strong { color: #FFD884; font-weight: 600; }
-.presence-question .icon { width: 16px; height: 16px; color: #FFD884; }
-.presence-left { color: #AFC0CF; }
-.presence-answer { display: flex; gap: 6px; }
+/* The section's floating controls stay inside it: the rail's menus open over them */
+.view-consoles { isolation: isolate; }
 
-.avatar {
-  --avatar: var(--primary);
-  position: relative; display: inline-grid; place-items: center;
-  width: 24px; height: 24px; border-radius: 50%;
-  background: var(--avatar); color: #fff; font: 600 12px/1 var(--font); letter-spacing: .02em;
-  border: 2px solid var(--term-head);
+/* ── Header (56 px): Consoles, the bench picker, the finder · En direct, Discussion, Outils ── */
+.view-consoles .page-header.consoles-header {
+  grid-template-columns: auto minmax(0, 1fr);
+  min-height: 56px; padding-block: var(--sp-2); gap: var(--sp-1) var(--sp-4);
 }
-.avatar.pilot { box-shadow: 0 0 0 2px #7BD88F; }
-.avatar.you { outline: 1px dashed rgba(255, 255, 255, .5); outline-offset: 1px; }
-.avatar-key { position: absolute; right: -6px; bottom: -6px; width: 13px; height: 13px; padding: 1px; border-radius: 3px; background: #7BD88F; color: #0F1821; }
-.avatar-key svg { width: 100%; height: 100%; }
+.consoles-header .ph-title { grid-column: 1; grid-row: 1; gap: var(--sp-3); }
+.consoles-header .ph-actions, .consoles-header .ph-context, .consoles-header .ph-primary-slot { display: none; }
+.cs-tools { grid-column: 2; grid-row: 1; display: flex; align-items: center; justify-content: flex-end; gap: var(--sp-2); min-width: 0; }
+.cs-tools .btn { position: relative; white-space: nowrap; }
+.cs-tools .btn[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--on-accent-soft); }
+.cs-tools .btn .count { margin-left: var(--sp-1); }
+.cs-tools .tools-more { display: none; }
 
-.pane-journal {
-  align-self: center; margin-right: 4px; padding: 1px 6px; border: 1px solid #3A4A59; border-radius: 10px;
-  font-size: 12px; color: #A6B5C3; white-space: nowrap; cursor: help;
+.finder {
+  display: inline-flex; align-items: center; gap: var(--sp-2); flex: 0 1 340px; min-width: 0; margin-right: auto;
+  min-height: max(36px, var(--tap)); padding: 0 var(--sp-2) 0 var(--sp-3);
+  border: 1px solid var(--border-input); border-radius: var(--r-md);
+  background: var(--surface); color: var(--text-muted); font: var(--fs-small); cursor: text; text-align: left;
 }
-.pane-custom-actions { display: flex; }
-.pane[data-silent="true"] .pane-led { background: var(--led-amber); box-shadow: 0 0 6px rgba(212, 140, 18, .8); }
-.pane[data-silent="true"] .pane-status { color: #F2C462; }
-.pane[data-role="spectator"] .xterm-cursor-layer { opacity: .35; }
-@container (max-width: 460px) { .pane-journal { display: none; } .presence-status { min-width: 0; } }
+.finder:hover { border-color: var(--text-muted); color: var(--text-2); }
+.finder .icon { width: 18px; height: 18px; flex: none; }
+.finder-text { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.finder kbd {
+  flex: none; padding: 1px var(--sp-2); white-space: nowrap;
+  border: 1px solid var(--border); border-radius: var(--r-sm);
+  background: var(--surface-2); font: var(--fs-caption); font-family: var(--mono); color: var(--text-muted);
+}
 
-/* ── On the diagram ───────────────────────────────────────────────────── */
-.device[data-state="live"] .device-led { fill: var(--console); }
-.device[data-state="live"] .device-tile { stroke: var(--console); stroke-width: 2.5; }
-.device[data-state="busy"] { cursor: pointer; }
+/* ── The bench picker ──────────────────────────────────────────────────── */
+.bench-picker {
+  display: inline-flex; align-items: center; gap: var(--sp-2); flex: none;
+  min-height: max(36px, var(--tap)); padding: 0 var(--sp-2) 0 var(--sp-3);
+  border: 1px solid var(--border-input); border-radius: var(--r-md);
+  background: var(--surface); color: var(--text); font: var(--fs-label); cursor: pointer;
+}
+.bench-picker:hover { background: var(--surface-2); }
+.bench-picker[aria-expanded="true"] { border-color: var(--accent); }
+.bench-picker .icon { width: 18px; height: 18px; color: var(--text-muted); }
+.bench-picker-name { font-weight: 600; }
+.bench-picker.in-line { display: none; }
+.bench-dot { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--success); box-shadow: 0 0 0 2px var(--success-bg); }
+[data-state="taken"] > .bench-dot { background: var(--text-muted); box-shadow: 0 0 0 2px var(--neutral-bg); }
+[data-state="mine"] > .bench-dot { background: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
+[data-state="locked"] > .bench-dot { background: var(--danger); box-shadow: 0 0 0 2px var(--danger-bg); }
+
+/* The popover: the racks as they stand in the room */
+.bench-pop {
+  position: fixed; inset: auto; margin: 0; z-index: var(--z-popover);
+  display: grid; gap: var(--sp-3); padding: var(--sp-4);
+  max-width: calc(100vw - var(--sp-4)); max-height: calc(100dvh - 120px); overflow: auto;
+  border: 1px solid var(--border); border-radius: var(--r-lg);
+  background: var(--surface-raised); color: var(--text); box-shadow: var(--elev-2);
+  animation: fade-in var(--dur-2) var(--ease-out);
+}
+.bench-pop-title { margin: 0; font: var(--fs-subheading); }
+.racks { display: flex; gap: var(--sp-4); }
+.rack {
+  display: grid; grid-auto-rows: 40px; gap: var(--sp-1); align-content: start;
+  width: 132px; padding: 0 var(--sp-2) var(--sp-2);
+  border-radius: var(--r-sm); background: var(--surface-2);
+  /* the two vertical mounting rails of a 19" rack */
+  box-shadow: inset 4px 0 0 var(--border), inset -4px 0 0 var(--border);
+}
+.rack-plate { align-self: center; justify-self: center; font: var(--fs-caption); color: var(--text-muted); letter-spacing: .04em; }
+.rack-slot {
+  display: flex; align-items: center; gap: var(--sp-2); min-width: 0;
+  padding: 0 var(--sp-2); border: 1px solid var(--border-input); border-radius: var(--r-sm);
+  background: var(--surface); color: var(--text); font: var(--fs-label); cursor: pointer; text-align: left;
+}
+.rack-slot:hover { border-color: var(--accent); }
+.rack-slot[aria-current="true"] { background: var(--accent-strong); border-color: var(--accent-strong); color: #fff; }
+.rack-slot.blank { cursor: default; border-style: dashed; border-color: var(--border); background: repeating-linear-gradient(135deg, transparent 0 4px, var(--border) 4px 5px); }
+.slot-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.slot-you { font: var(--fs-caption); color: var(--accent-text); }
+.rack-slot[aria-current="true"] .slot-you { color: inherit; }
+.slot-lock { width: 16px; height: 16px; color: var(--danger-text); }
+.rack-slot[aria-current="true"] .slot-lock { color: inherit; }
+.slot-led { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--success); }
+.rack-slot[data-state="taken"] .slot-led { background: var(--text-muted); }
+.rack-slot[data-state="mine"] .slot-led { background: var(--accent); }
+.rack-slot[data-state="locked"] .slot-led { background: var(--danger); }
+.rack-slot[aria-current="true"] .slot-led { box-shadow: 0 0 0 2px #fff; }
+.slot-led[data-live="true"] { outline: 2px solid var(--success); outline-offset: 2px; }
+.bench-legend { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-4); margin: 0; font: var(--fs-small); color: var(--text-2); }
+.bench-legend > span { display: inline-flex; align-items: center; gap: var(--sp-2); }
+.racks.flat .rack { width: 180px; }
+
+/* The sheet of a phone: our bench first, then each rack */
+.bench-sheet { display: grid; gap: var(--sp-4); }
+.bench-group { margin: 0 0 var(--sp-2); font: var(--fs-caption); letter-spacing: .04em; text-transform: uppercase; color: var(--text-muted); }
+.bench-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: var(--sp-1); }
+.bench-row {
+  display: flex; align-items: center; gap: var(--sp-3); width: 100%; min-height: 56px;
+  padding: var(--sp-2) var(--sp-3); border: 0; border-radius: var(--r-md);
+  background: none; color: var(--text); text-align: left; cursor: pointer;
+}
+.bench-row:hover, .bench-row[aria-current="true"] { background: var(--surface-2); }
+.bench-row-main { flex: 1; min-width: 0; display: grid; }
+.bench-row-name { font: 600 16px/22px var(--font); }
+.bench-row-meta { font: var(--fs-small); color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bench-row .badge .icon { width: 14px; height: 14px; }
+.bench-row-check { width: 20px; height: 20px; color: var(--accent-text); }
+
+/* ── The bench line: who holds the bench (the teams section's strip) ───── */
+.cs-benchline { flex: none; display: flex; align-items: stretch; min-width: 0; }
+.cs-benchline > .bench-bar { flex: 1; min-width: 0; }
+
+/* ── The journal notice: once, above the content, never over it ────────── */
+.cs-notice {
+  flex: none; display: flex; align-items: center; gap: var(--sp-3);
+  min-height: 40px; padding: var(--sp-1) var(--sp-2) var(--sp-1) var(--gutter);
+  background: var(--info-bg); color: var(--text); border-bottom: 1px solid var(--border); font: var(--fs-small);
+}
+.cs-notice[hidden] { display: none; }
+.cs-notice > .icon { width: 20px; height: 20px; flex: none; color: var(--accent-text); }
+.cs-notice p { flex: 1; min-width: 0; margin: 0; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.cs-notice .btn { flex: none; color: var(--accent-text); }
+.cs-notice .icon-btn { flex: none; }
+
+/* ── Body: diagram | splitter | workspace, the side panels beside ──────── */
+.cs-body { flex: 1; min-height: 0; min-width: 0; display: flex; }
+.cs-body > .side-main > .split-body { flex: 1; min-height: 0; }
+.diagram-pane { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.cs-stage { position: relative; flex: 1; min-height: 0; display: flex; flex-direction: column; container-type: size; container-name: stage; }
+@container stage (max-width: 560px) {
+  .notes-btn > span:not(.icon) { display: none; }
+  .notes-btn { width: max(36px, var(--tap)); padding: 0; justify-content: center; }
+  .canvas-hint { max-width: calc(100% - 2 * var(--sp-4) - 200px); }
+}
+
+/* The view: Schéma | Liste (floating in the canvas's corner from 720 px, a row on a phone) */
+.cs-view { position: absolute; top: var(--sp-3); right: var(--sp-4); z-index: var(--z-float); box-shadow: var(--elev-1); }
+.cs-view .seg-btn { display: inline-flex; align-items: center; gap: var(--sp-2); }
+.cs-view .seg-btn .icon { width: 16px; height: 16px; }
+.diagram-pane:not([data-state="ready"]) .cs-view { display: none; }
+.diagram-pane[data-view="list"] .diagram-canvas { display: none; }
+.diagram-pane:not([data-view="list"]) .device-list-wrap { display: none; }
+
+/* The canvas */
+.diagram-canvas {
+  position: relative; flex: 1; min-height: 0; overflow: hidden;
+  background-color: var(--canvas);
+  background-image: radial-gradient(var(--canvas-dot) 1px, transparent 1.2px);
+  background-size: 22px 22px;
+}
+.diagram-svg { display: block; width: 100%; height: 100%; cursor: grab; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; }
+.diagram-svg.panning { cursor: grabbing; }
+
+.canvas-hint {
+  position: absolute; top: var(--sp-3); left: var(--sp-4); z-index: var(--z-float); max-width: calc(100% - 2 * var(--sp-4));
+  margin: 0; padding: var(--sp-1) var(--sp-3); border-radius: var(--r-pill);
+  background: var(--surface); border: 1px solid var(--border); box-shadow: var(--elev-1);
+  font: var(--fs-small); color: var(--text-2); pointer-events: none;
+}
+.canvas-hint[hidden] { display: none; }
+.cs-state { padding: var(--sp-8) var(--gutter); }
+.cs-state[hidden] { display: none; }
+.diagram-pane:not([data-state="ready"]) :is(.zoom-controls, .notes-btn, .canvas-hint) { display: none; }
+
+/* Links */
+.edge polyline { fill: none; stroke: var(--text-muted); stroke-width: 1.6; stroke-linecap: round; }
+.edge.dashed polyline { stroke-dasharray: 6 5; }
+.edge-label {
+  font: 500 10.5px var(--mono); fill: var(--text-2);
+  text-anchor: middle; dominant-baseline: central;
+  paint-order: stroke; stroke: var(--canvas); stroke-width: 5px; stroke-linejoin: round;
+}
+
+/* Devices: recognised by their 2 px stroke; the state is the LED and the stroke's colour */
+.device { cursor: pointer; outline: none; }
+.device-hit { fill: transparent; }
+.device-tile { fill: var(--device-tile); stroke: var(--device-stroke); stroke-width: 2; transition: stroke var(--dur-1), fill var(--dur-1); }
+.device-glyph { fill: none; stroke: var(--device-stroke); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.device-led { fill: var(--led-off); stroke: var(--canvas); stroke-width: 2; }
+.device-label { font-family: var(--font); paint-order: stroke; stroke: var(--canvas); stroke-width: 4px; stroke-linejoin: round; }
+.device-label .name { font-size: 14px; font-weight: 600; fill: var(--text); }
+.device-label .addr { font: 400 11px var(--mono); fill: var(--text-muted); }
+.device:hover .device-tile, .device:focus-visible .device-tile { stroke: var(--accent); stroke-width: 2.5; fill: var(--accent-soft); }
+.device:hover .device-glyph, .device:focus-visible .device-glyph { stroke: var(--on-accent-soft); }
+.device:focus-visible .device-hit { stroke: var(--focus); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.device[data-state="open"] .device-led { fill: var(--success); }
+.device[data-state="open"] .device-tile { stroke: var(--success); stroke-width: 2.5; }
+.device[data-state="live"] .device-led { fill: var(--accent); }
+.device[data-state="live"] .device-tile { stroke: var(--accent); stroke-width: 2.5; }
+.device[data-state="busy"] .device-led { fill: var(--warning); }
+.device[data-state="disabled"], .device.unmapped { cursor: default; opacity: .45; }
+.device.pulse .device-tile { animation: device-pulse .9s ease-out; }
+@keyframes device-pulse { 0% { stroke-width: 7; stroke: var(--accent); } 100% { stroke-width: 2.5; } }
+/* Zoomed far out: only the names stay */
+.diagram-svg.far :is(.device-label .addr, .edge-label, .edge-end, .shape-label) { display: none; }
+
+.shape-body { fill: var(--shape-fill, transparent); fill-opacity: .18; stroke: var(--text-muted); stroke-width: 1.2; }
+.shape-label { font-size: 12.5px; fill: var(--text-2); }
+
+/* Presence and the other layers on the diagram */
 .deco-ring { fill: none; stroke-width: 2; stroke-dasharray: 4 3; pointer-events: none; }
-.deco-ring.ring-live { stroke: var(--console); }
-.deco-ring.ring-pilot { stroke: var(--led-green); stroke-dasharray: none; }
-.deco-ring.ring-task { stroke: var(--led-amber); stroke-dasharray: none; }
-.deco-badge circle { --badge: var(--console); fill: var(--badge); stroke: var(--paper); stroke-width: 2; }
-.deco-badge.badge-pilot circle { stroke: var(--led-green); stroke-width: 2.5; }
-.deco-badge.badge-more circle { fill: var(--ink-3); }
+.deco-ring.ring-live { stroke: var(--accent); }
+.deco-ring.ring-pilot { stroke: var(--success); stroke-dasharray: none; }
+.deco-ring.ring-task { stroke: var(--warning); stroke-dasharray: none; }
+.deco-badge circle { --badge: var(--accent-strong); fill: var(--badge); stroke: var(--canvas); stroke-width: 2; }
+.deco-badge.badge-pilot circle { stroke: var(--success); stroke-width: 2.5; }
+.deco-badge.badge-more circle { fill: var(--text-muted); }
 .deco-badge text { font: 600 7.5px var(--font); fill: #fff; pointer-events: none; }
-.tip-line { font-size: 12px; color: #C9D4DD; }
-.tip-state.live { color: #97C9F5; }
 
-.wall-btn { position: absolute; top: 18px; right: 22px; z-index: 3; pointer-events: auto; }
-.canvas-heading .wall-btn { position: static; margin-top: 6px; pointer-events: auto; }
+/* Zoom controls (bottom left) and the diagram's remarks (bottom right) float over the canvas */
+.zoom-controls {
+  position: absolute; left: var(--sp-4); bottom: var(--sp-4); z-index: var(--z-float);
+  display: flex; align-items: center; gap: 2px; padding: var(--sp-1);
+  border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--surface-raised); box-shadow: var(--elev-2);
+}
+.zoom-controls .icon-btn { width: max(40px, var(--tap)); height: max(40px, var(--tap)); }
+.zoom-level { min-width: 48px; text-align: center; font: 500 12px/16px var(--mono); color: var(--text-2); }
 
-/* ── The journal notice ───────────────────────────────────────────────── */
-.journal-notice {
-  position: absolute; left: 22px; right: 22px; bottom: 16px; z-index: 4;
-  display: flex; align-items: center; gap: 10px; padding: 8px 10px 8px 12px;
-  background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--console);
-  border-radius: var(--radius); box-shadow: var(--shadow); font-size: 13px; color: var(--ink-2);
+.diagram-tip {
+  position: absolute; z-index: var(--z-popover); pointer-events: none;
+  display: grid; gap: 1px; padding: var(--sp-2) var(--sp-3);
+  border-radius: var(--r-sm); background: var(--nav-bg); color: var(--term-head-ink);
+  font: var(--fs-small); white-space: nowrap; box-shadow: var(--elev-2);
+  transform: translate(-50%, calc(-100% + 4px)); opacity: 0;
+  transition: opacity var(--dur-1), transform var(--dur-1);
 }
-.journal-notice > .icon { color: var(--console); flex: none; }
-.journal-notice p { margin: 0; flex: 1; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.diagram-tip.show { opacity: 1; transform: translate(-50%, -100%); }
+.diagram-tip strong { color: #fff; }
+.diagram-tip code { font: var(--fs-caption); font-family: var(--mono); color: var(--nav-ink); }
+.tip-state, .tip-line { font: var(--fs-caption); color: var(--nav-ink); }
+.tip-state.open { color: var(--success); }
+.tip-state.busy { color: var(--warning); }
+.tip-state.live { color: var(--nav-accent); }
 
-/* ── The live panel ───────────────────────────────────────────────────── */
-.live-btn { position: relative; }
-.live-btn[aria-pressed="true"] { border-color: var(--console); color: var(--console-strong); }
-.live-badge {
-  min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px;
-  background: var(--primary); color: #fff; font: 600 12px/18px var(--font); text-align: center;
+.notes-btn {
+  position: absolute; right: var(--sp-4); bottom: var(--sp-4); z-index: var(--z-float);
+  background: var(--surface-raised); box-shadow: var(--elev-2); color: var(--text);
 }
-.live-panel {
-  position: absolute; top: 10px; right: 10px; bottom: 10px; z-index: 5; width: min(360px, calc(100% - 20px));
-  display: flex; flex-direction: column; overflow: hidden;
-  background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: var(--shadow);
+.notes-btn .icon { color: var(--warning-text); }
+.notes-pop {
+  position: absolute; right: var(--sp-4); bottom: calc(var(--sp-4) + max(32px, var(--tap)) + var(--sp-2)); z-index: var(--z-popover);
+  width: min(460px, calc(100% - 2 * var(--sp-4))); max-height: 50%; overflow: auto;
+  padding: var(--sp-3) var(--sp-4); border: 1px solid var(--border); border-radius: var(--r-lg);
+  background: var(--surface-raised); box-shadow: var(--elev-2); font: var(--fs-small);
 }
-.live-head { display: flex; align-items: center; gap: 10px; padding: 10px 10px 8px 14px; border-bottom: 1px solid var(--line); }
-.live-head h2 { margin: 0; font-size: 15px; }
-.live-count { flex: 1; font-size: 12px; color: var(--ink-3); }
-.live-section { padding: 8px 14px; overflow: auto; }
-.live-section:first-of-type { flex: 0 1 auto; max-height: 55%; }
-.live-section:last-of-type { flex: 1; border-top: 1px solid var(--line); }
-.live-section h3 { margin: 0 0 6px; font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--ink-3); }
+.notes-pop p { margin: 0 0 var(--sp-2); font-weight: 500; }
+.notes-pop ul { margin: 0; padding-left: var(--sp-5); color: var(--text-2); }
+.notes-pop li + li { margin-top: var(--sp-1); }
+
+/* ── The list of devices ───────────────────────────────────────────────── */
+.device-list-wrap { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; padding: calc(var(--sp-4) + 48px) var(--gutter) var(--sp-10); background: var(--bg); }
+.device-list { list-style: none; margin: 0 auto; padding: 0; max-width: 760px; display: grid; gap: var(--sp-2); }
+.device-row {
+  display: flex; align-items: center; gap: var(--sp-3); width: 100%; min-height: 64px;
+  padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-3);
+  border: 1px solid var(--border); border-radius: var(--r-md);
+  background: var(--surface); color: var(--text); text-align: left; cursor: pointer;
+  -webkit-touch-callout: none; user-select: none; -webkit-user-select: none;
+}
+.device-row:hover { border-color: var(--border-input); }
+.device-row:disabled { cursor: default; opacity: .6; }
+.device-row[data-state="open"] { border-color: var(--success); }
+.device-row-glyph { display: grid; place-items: center; width: 40px; height: 40px; flex: none; border: 2px solid var(--device-stroke); border-radius: var(--r-md); background: var(--device-tile); }
+.device-glyph-icon { width: 24px; height: 24px; fill: none; stroke: var(--device-stroke); stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.device-row-main { flex: 1; min-width: 0; display: grid; }
+.device-row-name { font: 600 16px/22px var(--font); }
+.device-row-addr { font: var(--fs-mono); color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.device-row-side { display: flex; flex-direction: column; align-items: flex-end; gap: var(--sp-1); flex: none; max-width: 50%; }
+.device-row-side .badge { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+.device-row-chevron { width: 20px; height: 20px; flex: none; color: var(--text-muted); }
+
+/* ── The device sheet ──────────────────────────────────────────────────── */
+.device-sheet-line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); }
+.device-sheet-line code { font: var(--fs-mono); color: var(--text-2); }
+.device-sheet-people { display: flex; align-items: center; gap: var(--sp-3); color: var(--text-2); }
+.device-sheet-note { display: grid; gap: var(--sp-2); padding-top: var(--sp-3); border-top: 1px solid var(--border); }
+.device-sheet-note h3 { margin: 0; font: var(--fs-subheading); }
+.device-sheet-note p { margin: 0; }
+.device-sheet .note-text { white-space: pre-wrap; overflow-wrap: anywhere; font: var(--fs-mono); }
+
+/* ── The dock of a phone: back to the open consoles ────────────────────── */
+.dock { display: none; }
+
+/* ── The live panel (a side panel) ─────────────────────────────────────── */
+.live-count { margin: 0 0 var(--sp-3); font: var(--fs-small); color: var(--text-muted); }
+.live-section + .live-section { margin-top: var(--sp-4); padding-top: var(--sp-4); border-top: 1px solid var(--border); }
+.live-section h3 { margin: 0 0 var(--sp-2); font: var(--fs-caption); text-transform: uppercase; letter-spacing: .04em; color: var(--text-muted); }
 .live-rooms, .live-feed { list-style: none; margin: 0; padding: 0; }
-.live-room + .live-room { margin-top: 6px; }
+.live-room + .live-room { margin-top: var(--sp-2); }
 .live-open {
-  width: 100%; display: grid; grid-template-columns: 1fr auto; gap: 2px 8px; text-align: left; cursor: pointer;
-  padding: 7px 9px; border: 1px solid var(--line); border-radius: 6px; background: var(--surface-2);
+  width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px var(--sp-2); text-align: left; cursor: pointer;
+  min-height: var(--tap); padding: var(--sp-2) var(--sp-3); border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface-2); color: var(--text);
 }
-.live-open:hover { border-color: var(--console); }
-.live-name { display: flex; gap: 6px; align-items: baseline; }
-.live-name .muted { color: var(--ink-3); font-size: 12px; }
-.live-people { display: flex; gap: 1px; justify-self: end; }
-.live-people .avatar { width: 22px; height: 22px; font-size: 12px; border-color: var(--surface-2); }
-.live-people .avatar-key { width: 11px; height: 11px; right: -5px; bottom: -5px; }
-.live-detail { grid-column: 1 / -1; font-size: 12px; color: var(--ink-2); display: flex; gap: 8px; }
-.live-warn { color: var(--warn-ink); font-style: normal; }
-.live-command { grid-column: 1 / -1; font: 12px var(--mono); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.live-feed li { display: flex; gap: 8px; font-size: 12.5px; padding: 3px 0; color: var(--ink-2); }
-.live-feed time { flex: none; font: 12px var(--mono); color: var(--ink-3); padding-top: 1px; }
-.live-empty { font-size: 12.5px; color: var(--ink-3); }
+.live-open:hover { border-color: var(--accent); }
+.live-name { display: flex; gap: var(--sp-2); align-items: baseline; }
+.live-name .muted { color: var(--text-muted); font: var(--fs-small); }
+.live-people { justify-self: end; }
+.live-people .avatar { box-shadow: 0 0 0 2px var(--surface-2); }
+.live-detail { grid-column: 1 / -1; font: var(--fs-small); color: var(--text-2); display: flex; gap: var(--sp-2); }
+.live-warn { color: var(--warning-text); font-style: normal; }
+.live-command { grid-column: 1 / -1; font: var(--fs-mono); font-size: 12px; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.live-feed li { display: flex; gap: var(--sp-2); font: var(--fs-small); padding: 3px 0; color: var(--text-2); }
+.live-feed time { flex: none; font: 12px/18px var(--mono); color: var(--text-muted); }
+.live-empty { font: var(--fs-small); color: var(--text-muted); }
 
-/* ── The bench wall ───────────────────────────────────────────────────── */
-.modal.wide.wall-dialog { width: min(1200px, calc(100vw - 32px)); }
-.wall-intro { margin: 0; color: var(--ink-2); }
-.wall-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 10px; }
-.wall-tile { display: flex; flex-direction: column; border-radius: 6px; overflow: hidden; background: var(--term-bg); }
-.wall-tile header { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--term-head); color: var(--term-head-ink); font-size: 12px; }
-.wall-tile header strong { color: #fff; font-size: 13px; }
-.wall-pilot { flex: 1; color: #AFC0CF; }
-.wall-state { color: #F2C462; }
-.wall-tile .btn { background: transparent; border-color: #3A4A59; color: #DCE4EB; }
-.wall-screen { height: 220px; padding: 4px 6px; }
+/* Avatars: the pilot has a ring and a key */
+.avatar { position: relative; }
+.avatar .avatar-key { position: absolute; right: -5px; bottom: -5px; width: 13px; height: 13px; padding: 1px; border-radius: 3px; background: var(--success); color: var(--term-bg); }
+.avatar .avatar-key svg { width: 100%; height: 100%; }
+
+/* ── The console wall ──────────────────────────────────────────────────── */
+.wall-intro { margin: 0; color: var(--text-2); }
+.wall-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(340px, 100%), 1fr)); gap: var(--sp-3); }
+.wall-tile { display: flex; flex-direction: column; border-radius: var(--r-md); overflow: hidden; background: var(--term-bg); }
+.wall-tile header { display: flex; align-items: center; gap: var(--sp-2); padding: var(--sp-1) var(--sp-2) var(--sp-1) var(--sp-3); background: var(--term-head); color: var(--term-head-ink); font: var(--fs-caption); }
+.wall-tile header strong { color: #fff; font: var(--fs-label); }
+.wall-pilot { flex: 1; min-width: 0; color: var(--nav-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wall-state { color: var(--warning); }
+.wall-tile .btn { background: transparent; border-color: color-mix(in srgb, var(--term-head-ink) 30%, transparent); color: var(--term-head-ink); }
+.wall-screen { height: 220px; padding: var(--sp-1) var(--sp-2); }
 .wall-tile[data-ended="true"] .wall-screen { opacity: .5; }
 
-/* ── The journal list ─────────────────────────────────────────────────── */
-.journal-intro { margin: 0; color: var(--ink-2); }
-.journal-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.journal-table th, .journal-table td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
-.journal-table th { font-size: 12px; font-weight: 600; color: var(--ink-3); }
-.journal-cut { color: var(--warn-ink); font-style: normal; }
-.journal-table .btn .icon { width: 14px; height: 14px; margin-right: 4px; }
+/* ── The journal list ──────────────────────────────────────────────────── */
+.journal-intro { margin: 0; color: var(--text-2); }
+.journal-rows { list-style: none; margin: 0; padding: 0; display: grid; border: 1px solid var(--border); border-radius: var(--r-md); background: var(--surface); }
+.journal-row {
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px var(--sp-4);
+  padding: var(--sp-3) var(--sp-4);
+}
+.journal-row + .journal-row { border-top: 1px solid var(--border); }
+.journal-main { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-2); }
+.journal-bench { color: var(--text-muted); font: var(--fs-small); }
+.journal-meta, .journal-people { grid-column: 1; margin: 0; font: var(--fs-small); color: var(--text-2); }
+.journal-people { color: var(--text-muted); }
+.journal-download { grid-column: 2; grid-row: 1 / span 3; }
 
-/* The script library's button: an icon, so that the header keeps its room for the title */
-.find-btn.icon-only { flex: 0 0 34px; width: 34px; padding: 0; justify-content: center; }
+/* ── The device finder ─────────────────────────────────────────────────── */
+dialog.modal.quick-open { --dlg-w: 560px; margin-top: 12vh; }
+.qo-field { display: flex; align-items: center; gap: var(--sp-3); padding: 0 var(--sp-4); border-bottom: 1px solid var(--border); color: var(--text-muted); }
+.qo-field .icon { width: 20px; height: 20px; flex: none; }
+.qo-input { flex: 1; min-width: 0; height: 52px; border: 0; outline: none; background: none; color: var(--text); font: 400 16px var(--font); }
+.qo-list { list-style: none; margin: 0; padding: var(--sp-2); max-height: 50vh; overflow: auto; }
+.qo-item { display: grid; grid-template-columns: 80px minmax(0, 1fr) auto; align-items: baseline; gap: var(--sp-3); min-height: var(--tap); padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); cursor: pointer; }
+.qo-item[aria-selected="true"] { background: var(--accent-soft); color: var(--on-accent-soft); }
+.qo-item span { color: var(--text-2); }
+.qo-item code { font: var(--fs-mono); font-size: 12px; color: var(--text-muted); }
+.qo-empty { padding: var(--sp-4) var(--sp-3); color: var(--text-muted); }
+.qo-hint { margin: 0; padding: var(--sp-2) var(--sp-4); border-top: 1px solid var(--border); font: var(--fs-caption); color: var(--text-muted); }
 
-@media (max-width: 700px) {
-  /* In the flow, above the diagram, and short: the page's own controls stay reachable */
-  .journal-notice { position: static; margin: 8px 14px 0; }
+/* ── Medium: the finder shortens ───────────────────────────────────────── */
+@media (max-width: 1199.98px) {
+  .finder { flex-basis: 220px; }
+  .finder kbd { display: none; }
+}
+@media (max-width: 960px) and (min-width: 720px) {
+  .cs-tools .btn-label { display: none; }
+  .finder { flex: 0 1 44px; }
+  .finder-text { display: none; }
 }
 
-/* Until the diagram is there (loading, failed, no bench at all) its controls have nothing to act on */
-.diagram-pane:not([data-state="ready"]) :is(.canvas-heading > .btn, .zoom-controls, .notes-btn) { display: none; }
-.canvas-hint .btn { pointer-events: auto; margin-left: 4px; }
+/* ── Compact (< 720 px): the phone's two screens ───────────────────────── */
+@media (max-width: 719.98px) {
+  /* App bar: Consoles, Discussion, ⋯ (Outils with the finder and En direct) */
+  .view-consoles .page-header.consoles-header { grid-template-columns: minmax(0, 1fr) auto; min-height: var(--appbar-h); padding: var(--sp-1) var(--sp-2) var(--sp-1) var(--gutter); }
+  .consoles-header .ph-title { grid-column: 1; }
+  .bench-picker.in-header, .finder, .live-btn, .tools-chevron { display: none; }
+  .bench-picker.in-line { display: inline-flex; }
+  .cs-tools { gap: var(--sp-1); }
+  .cs-tools .btn { width: var(--tap); min-height: var(--tap); padding: 0; justify-content: center; border-color: transparent; background: none; }
+  .cs-tools .btn .btn-label { display: none; }
+  .cs-tools .tools-more { display: inline-grid; }
+  .cs-tools .btn .count { position: absolute; top: 2px; right: 0; margin: 0; }
+
+  /* The bench line: the picker and who holds the bench */
+  .cs-benchline { gap: var(--sp-2); padding: 0 var(--gutter) var(--sp-2); align-items: center; flex-wrap: wrap; }
+  .cs-benchline > .bench-bar { flex-basis: 100%; margin-inline: calc(-1 * var(--gutter)); }
+  .cs-notice { padding-left: var(--gutter); }
+
+  /* The bench screen: Schéma | Liste on top, the diagram or the list under it, no tiles (the dock) */
+  .seg.fill-compact.cs-view { position: static; width: auto; margin: var(--sp-2) var(--gutter) var(--sp-3); box-shadow: none; }
+  .view-consoles .split-body { flex-direction: column; }
+  .view-consoles .split-primary { flex: 1 1 auto !important; }
+  .view-consoles .splitter, .view-consoles:not([data-screen="console"]) .workspace { display: none !important; }
+  .canvas-hint { top: var(--sp-3); left: var(--sp-3); }
+  .zoom-controls { left: var(--sp-3); bottom: var(--sp-3); }
+  .notes-btn { right: var(--sp-3); bottom: var(--sp-3); }
+  .notes-btn > span:not(.icon) { display: none; }
+  .notes-btn { width: var(--tap); padding: 0; justify-content: center; }
+  .cs-stage:has(> .dock:not([hidden])) :is(.zoom-controls, .notes-btn) { bottom: calc(52px + 2 * var(--sp-3)); }
+  .device-list-wrap { padding: 0 var(--gutter) calc(52px + var(--sp-8)); }
+
+  .dock {
+    position: absolute; left: var(--gutter); right: var(--gutter); bottom: var(--sp-3); z-index: var(--z-float);
+    display: flex; align-items: center; gap: var(--sp-3); min-height: 52px; padding: 0 var(--sp-3) 0 var(--sp-4);
+    border: 0; border-radius: var(--r-pill); background: var(--nav-bg); color: #fff; box-shadow: var(--elev-2);
+    font: var(--fs-label); cursor: pointer; text-align: left;
+  }
+  .dock[hidden] { display: none; }
+  .dock-names { display: flex; align-items: center; gap: var(--sp-3); flex: none; }
+  .dock-item { display: inline-flex; align-items: center; gap: var(--sp-1); font-weight: 600; }
+  .dock-led { width: 8px; height: 8px; border-radius: 50%; background: var(--warning); }
+  .dock-item[data-state="connected"] .dock-led { background: var(--success); }
+  .dock-item:is([data-state="closed"], [data-state="error"]) .dock-led { background: var(--led-off); }
+  .dock-more { color: var(--nav-ink); }
+  .dock-count { flex: 1; min-width: 0; color: var(--nav-ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .dock .icon { width: 20px; height: 20px; color: var(--nav-ink); }
+
+  /* The console screen: the console and nothing else (the tab bar hides itself: data-chrome="immersive") */
+  .view-consoles[data-screen="console"] > :not(.cs-body),
+  .view-consoles[data-screen="console"] .split-primary { display: none !important; }
+  .view-consoles[data-screen="console"] .workspace { flex: 1 1 auto; }
+  :root[data-keyboard="open"] .view-consoles[data-screen="console"] { max-height: var(--vvh); }
+  .journal-row { grid-template-columns: minmax(0, 1fr); }
+  .journal-download { grid-column: 1; grid-row: auto; justify-self: start; margin-top: var(--sp-2); }
+  dialog.modal.quick-open { margin-top: auto; }
+  .qo-item { grid-template-columns: 64px minmax(0, 1fr); }
+  .qo-item code { grid-column: 2; }
+}

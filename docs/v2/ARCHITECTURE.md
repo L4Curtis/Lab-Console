@@ -899,9 +899,19 @@ services.collab = {                            // lot collab
   (`modules/collab/index.js`: the notes layer, and the notification bell
   `#notify-toggle`, placed by `core/nav.js`), the recovery assistant
   (`startRecovery()`) and, once the first screen is routed, the guided tour
-  (`maybeStartTour()`). The consoles view mounts the collab bench panel
-  (notes and chat) beside the diagram, one side panel at a time with the
-  live panel, a script library button and a "Vérifications" button.
+  (`maybeStartTour()`). The consoles view (UX.md §8) has a header with the
+  bench picker (`modules/consoles/benchPicker.js`), the device finder, En
+  direct and Discussion (side panels of `shared/sidePanel.js`: the live
+  panel and the collab bench panel, one at a time) and an Outils menu
+  (Vérifications, Mur de consoles, Journaux, Bibliothèque de scripts); the
+  bench strip of the teams section under it; the diagram or the device list
+  (`deviceList.js`, a long press opens `deviceSheet.js`) beside the shared
+  workspace. On a phone a console opens on the whole screen at
+  `#/consoles/<bench>/<device>` (`consoleScreen.js`: the workspace's `solo()`
+  mode, `data-chrome="immersive"`), a dock (`dock.js`) leads back to the open
+  consoles, and every terminal tile has the key toolbar and line field of
+  `shared/terminalKeys.js` (UX.md §9; shown on a touch screen, or from the
+  workspace's Affichage menu).
 - **Navigation** (the ergonomics redesign, [UX.md](UX.md) §4, §5, §13). A
   section never adds itself: `core/nav.js` builds the rail and the phone's
   tab bar from `MODULES`, whose lines carry `nav` (`'main'`: a destination
@@ -1055,10 +1065,12 @@ services.collab = {                            // lot collab
   in the application by someone else: a click joins), `busy` (refused by the
   console server lately: busy outside the application), `disabled`.
 - **Pane actions** (owned by the rooms lot, `shared/paneActions.js`):
-  `registerPaneAction({ id, icon, title, when(session), enabled?(pane), run(pane), order? })`
-  adds a button to console tiles → `unregister()`. `title` is a dictionary
-  key or a function; `enabled(pane)` is asked again whenever the tile's state,
-  the keyboard or a task changes (`pane.mayType`, `pane.canAutomate`,
+  `registerPaneAction({ id, icon, label, title, when(session), enabled?(pane), run(pane), order?, pinned? })`
+  adds an entry to the ⋯ menu of console tiles → `unregister()` (`pinned`:
+  also an icon in the head of a tile wider than 640 px). `label` (the menu's
+  words) and `title` (a longer explanation, shown when the action is off)
+  are dictionary keys or functions; `enabled(pane)` is asked again whenever
+  the menu opens (`pane.mayType`, `pane.canAutomate`,
   `pane.isPilot`, `pane.presenceBar.presence`). Break, export, inject, send to
   several consoles, history (lot terminal) and the device note (lot collab)
   are registered this way (order 10, 20, 30, 40, 50, 60), then the password

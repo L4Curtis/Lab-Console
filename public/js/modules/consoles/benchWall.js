@@ -55,7 +55,7 @@ function tile(device, onOpen, closeWall) {
   const screen = h('div.wall-screen');
   const el = h('article.wall-tile', { dataset: { target: `${device.target.host}:${device.target.port}` } },
     h('header', h('strong', device.name), pilot, state,
-      h('button.btn.small', { type: 'button', onclick: () => { closeWall(); onOpen(device); } }, tNode('consoles.wall.open'))),
+      h('button.btn.sm', { type: 'button', onclick: () => { closeWall(); onOpen(device); } }, tNode('consoles.wall.open'))),
     screen);
   let ws = null;
   let opened = false;

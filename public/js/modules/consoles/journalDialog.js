@@ -2,37 +2,35 @@
  * "My console journals": the console sessions this user may read (the ones
  * they were on, their team's bench while the team held it, everything for an
  * admin), each downloadable as a text file. The server checks the permission
- * again on the download
+ * again on the download. A list rather than a table, so that it reads on a phone
  */
 import { h, icon } from '../../core/dom.js';
 import { getJson } from '../../core/api.js';
 import { t, tNode } from '../../core/i18n.js';
 import { fmtTime, fmtCalendarDay } from '../../core/format.js';
 import { openDialog } from '../../shared/dialog.js';
-import { errorText } from '../../shared/serverText.js';
+import { loading, loadFailure, emptyState } from '../../shared/loadState.js';
 
 export async function openJournalDialog() {
-  const body = h('div.journal-list.modal-body', h('p.muted', tNode('consoles.journal.loading')));
+  const body = h('div.journal-list.modal-body', loading());
   const dlg = openDialog(body, { title: t('consoles.journal.title'), wide: true });
   try {
     const { sessions: days, retentionDays } = await getJson('/api/consoles/journal');
     const intro = h('p.journal-intro', t('consoles.journal.intro', { days: retentionDays }));
     if (!days.length) {
-      body.replaceChildren(intro, h('p.muted', tNode('consoles.journal.none')));
+      body.replaceChildren(intro, emptyState({ icon: 'script', title: 'consoles.journal.noneTitle', text: 'consoles.journal.none' }));
       return dlg;
     }
-    body.replaceChildren(intro, h('div.table-wrap', h('table.journal-table',
-      h('thead', h('tr', ...['day', 'time', 'bench', 'device', 'people', 'size', 'file'].map((c) => h('th', { scope: 'col' }, t(`consoles.journal.columns.${c}`))))),
-      h('tbody', ...days.map((d) => h('tr',
-        h('td', fmtCalendarDay(d.day)),
-        h('td', span(d.from, d.to)),
-        h('td', d.bench),
-        h('td', h('strong', d.device)),
-        h('td', d.people.join(', ')),
-        h('td', size(d.bytes), d.truncated ? h('em.journal-cut', { title: t('consoles.journal.truncatedHint') }, ` ${t('consoles.journal.truncated')}`) : null),
-        h('td', h('a.btn.small', { href: `/api/consoles/journal/${d.id.split('/').map(encodeURIComponent).join('/')}`, download: '' }, icon('download'), tNode('consoles.journal.download')))))))));
+    // One row per session: what and where first, when and who under it, the file at the right (a card on a phone)
+    body.replaceChildren(intro, h('ul.journal-rows', { 'aria-label': t('consoles.journal.title') }, ...days.map((d) => h('li.journal-row',
+      h('div.journal-main',
+        h('strong', d.device), h('span.journal-bench', d.bench),
+        d.truncated ? h('span.badge', { dataset: { tone: 'warning' }, title: t('consoles.journal.truncatedHint') }, t('consoles.journal.truncated')) : null),
+      h('p.journal-meta', [fmtCalendarDay(d.day), span(d.from, d.to), size(d.bytes)].join(' · ')),
+      d.people.length ? h('p.journal-people', d.people.join(', ')) : null,
+      h('a.btn.sm.journal-download', { href: `/api/consoles/journal/${d.id.split('/').map(encodeURIComponent).join('/')}`, download: '', title: t('consoles.journal.downloadOf', { device: d.device, day: fmtCalendarDay(d.day) }) }, icon('download'), tNode('consoles.journal.download'))))));
   } catch (err) {
-    body.replaceChildren(h('p.form-error', errorText(err)));
+    body.replaceChildren(loadFailure('consoles.journal.loadFailed', err, () => { dlg.close(); openJournalDialog(); }));
   }
   return dlg;
 }

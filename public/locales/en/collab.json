@@ -1,8 +1,7 @@
 {
   "panel": {
-    "button": "Notes & chat",
-    "title": "Bench notes and chat",
-    "titleFor": "Bench {bench}",
+    "button": "Chat",
+    "titleFor": "Chat · {bench}",
     "notesHeading": "Device notes"
   },
   "notes": {
