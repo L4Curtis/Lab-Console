@@ -11,7 +11,8 @@ import { useHarness, signInAs } from './harness.js';
 import { invite, signUp } from '../helpers/accounts.js';
 import { contrastFailures } from './contrast.js';
 
-const h = useHarness();
+// localhost: local accounts sign in with a passkey, which needs a domain name (invitations are refused without one)
+const h = useHarness({ publicHost: 'localhost' });
 const pages = [];
 after(async () => { while (pages.length) await pages.pop().context().close(); });
 
