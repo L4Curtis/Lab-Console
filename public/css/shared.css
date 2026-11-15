@@ -26,7 +26,7 @@ dialog.modal > :not(.modal-head):not(.sheet-handle) { flex: 1 1 auto; min-height
 .sheet-handle { display: none; }
 .modal-head { display: flex; align-items: center; gap: var(--sp-2); min-height: 56px; padding: var(--sp-2) var(--sp-2) var(--sp-2) var(--sp-5); border-bottom: 1px solid var(--border); }
 .modal-head h2 { flex: 1; min-width: 0; margin: 0; font: var(--fs-heading); }
-.modal-head .icon-btn { width: 40px; height: 40px; }
+.modal-head .icon-btn { width: max(40px, var(--tap)); height: max(40px, var(--tap)); }
 .modal-body { padding: var(--sp-5); display: grid; gap: var(--sp-4); align-content: start; }
 .modal-body > p { margin: 0; }
 .dialog-text { display: grid; gap: var(--sp-2); }

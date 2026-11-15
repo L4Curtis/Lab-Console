@@ -98,6 +98,7 @@ test('the administration on a phone: the hub, a screen with its way back, an inv
   const form = ada.locator('dialog.modal[open]');
   await form.waitFor();
   assert.deepEqual(await tooSmall(ada, 'dialog.modal[open] .modal-body'), [], 'the form of a new invitation: 44 px targets');
+  assert.deepEqual(await tooSmall(ada, 'dialog.modal[open] .modal-head'), [], 'the close button of the sheet: 44 px on a touch screen');
   await form.locator('input[name="note"]').fill('Camille');
   await form.locator('button[data-action="confirm"]').tap();
   const link = ada.locator('dialog.modal[open] input.link-field');
