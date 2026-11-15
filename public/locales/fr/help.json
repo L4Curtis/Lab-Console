@@ -39,7 +39,7 @@
       "step1": "Section Équipe, onglet « Mon équipe » : « Créer l’équipe », puis invitez vos camarades avec leur identifiant de connexion. Un camarade qui se connecte par l’université n’est connu qu’après sa première connexion.",
       "step2": "Chaque invité répond dans la section Équipe : « Rejoindre » ou « Refuser ».",
       "step3": "Section Consoles : choisissez la baie, puis « Prendre la baie ». Tous les membres de l’équipe en deviennent occupants.",
-      "step4": "En partant : « Libérer la baie ». Sauvegardez avant (voir plus bas).",
+      "step4": "En partant : « Libérer la baie », dans la barre de la baie (menu ⋯ sur téléphone) ou dans Équipe, onglet « Baie ». Sauvegardez avant (voir plus bas).",
       "idle": "Une baie sans aucune activité pendant {hours} h est libérée automatiquement. « On est toujours là » la garde à vous.",
       "idleUnknown": "Une baie sans activité pendant un certain temps est libérée automatiquement. « On est toujours là » la garde à vous.",
       "taken": "Sur une baie prise par une autre équipe, vous regardez les consoles déjà ouvertes mais vous ne tapez pas. « Demander à rejoindre » envoie une demande : un membre de l’équipe accepte ou refuse. Un invité accepté est occupant jusqu’à ce qu’il quitte la baie ou qu’elle soit libérée.",

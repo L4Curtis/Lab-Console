@@ -39,7 +39,7 @@
       "step1": "Team section, \"My team\" tab: \"Create the team\", then invite your classmates by their sign-in name. A classmate who signs in through the university is only known after their first sign-in.",
       "step2": "Each person invited answers in the Team section: \"Join\" or \"Decline\".",
       "step3": "Consoles section: pick the bench, then \"Take the bench\". Every member of the team becomes an occupant.",
-      "step4": "When you leave: \"Release the bench\". Back up first (see below).",
+      "step4": "When you leave: \"Release the bench\", in the bench bar (the ⋯ menu on a phone) or in Team, \"Bench\" tab. Back up first (see below).",
       "idle": "A bench with no activity at all for {hours} h is released automatically. \"We are still here\" keeps it yours.",
       "idleUnknown": "A bench with no activity for a while is released automatically. \"We are still here\" keeps it yours.",
       "taken": "On a bench taken by another team you can watch the consoles that are already open but not type. \"Ask to join\" sends a request: a member of the team accepts or refuses. An accepted guest is an occupant until they leave the bench or it is released.",
