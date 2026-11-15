@@ -101,7 +101,7 @@ test('a team backs up its bench and is notified when it is done; the note of R1 
 
   // The backup, from the Sauvegardes section; she looks elsewhere while it runs
   await page.evaluate(() => { location.hash = '#/jobs/B4M'; });
-  await jobs(page).locator('.jobs-actions button[data-action="backup"]:not([disabled])').click();
+  await jobs(page).locator('.page-header button[data-action="backup"]:visible:not([disabled])').click();
   await only(page, ['R1']);
   await dialog(page).locator('input[name="label"]').fill('avant reset');
   await lookAway(page, true);
@@ -114,7 +114,8 @@ test('a team backs up its bench and is notified when it is done; the note of R1 
 
   // In front of the page there is no notification: the page says it itself. The reset, then
   await lookAway(page, false);
-  await jobs(page).locator('.jobs-actions button[data-action="reset"]:not([disabled])').click();
+  await jobs(page).locator('.page-header .more-btn:visible').click();
+  await page.locator('.menu-pop [data-id="reset"]').click();
   await only(page, ['R1']);
   await dialog(page).locator('input[name="confirm"]').fill('B4M');
   await dialog(page).locator('button[data-action="confirm"]').click();

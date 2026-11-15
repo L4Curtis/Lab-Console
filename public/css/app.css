@@ -491,7 +491,7 @@ tr[data-status="running"] .vm-led { background: var(--led-green); box-shadow: 0 
   .page-header { grid-template-columns: auto minmax(0, 1fr) auto; min-height: var(--appbar-h); padding: var(--sp-1) var(--sp-2) var(--sp-1) var(--gutter); gap: 0 var(--sp-1); }
   .page-header.has-back { padding-left: var(--sp-1); }
   .ph-back { margin: 0; }
-  .ph-title { grid-column: 2; }
+  .ph-title { grid-column: 2; min-height: calc(var(--appbar-h) - 2 * var(--sp-1)); }
   .page-header:not(.has-back) .ph-title { grid-column: 1 / span 2; }
   .ph-actions { grid-column: 3; grid-row: 1; }
   .ph-actions > .ph-secondary, .ph-actions > .ph-primary { display: none; }

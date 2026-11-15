@@ -7,15 +7,17 @@
   },
   "actions": {
     "take": "Take the bench",
-    "needTeam": "Create or join a team to take it",
+    "needTeam": "Create a team",
     "join": "Ask to join",
     "cancelJoin": "Cancel my request",
     "leave": "Leave the bench",
     "touch": "We are still here",
     "release": "Release the bench",
-    "assign": "Assign…",
-    "lock": "Lock…",
-    "history": "History"
+    "assign": "Assign",
+    "lock": "Lock",
+    "history": "Bench history",
+    "calendar": "Bench schedule",
+    "details": "Details"
   },
   "touched": "Noted: the bench stays yours.",
   "join": {
@@ -27,7 +29,6 @@
   },
   "guests": {
     "tag": "guest",
-    "guest": "{name} (guest)",
     "remove": "Remove from the bench",
     "removeTitle": "Remove {name} from the bench?",
     "removeBody": "{name} will no longer be able to drive the consoles of {bench}."
@@ -67,9 +68,9 @@
     "noTeam": "There is no team yet."
   },
   "slots": {
-    "next": "Next bookings:",
     "none": "No booking ahead.",
-    "calendar": "Calendar"
+    "calendar": "Open the calendar",
+    "title": "Next slots"
   },
   "history": {
     "title": "History of bench {bench}",
@@ -87,7 +88,9 @@
     "unlock": "{who} unlocked the bench",
     "reserve": "{who} booked the bench for team {team}",
     "reservationCancel": "{who} cancelled a booking",
-    "job": "{who}: {action} {device}"
+    "job": "{who}: {action} {device}",
+    "heading": "History",
+    "all": "See all"
   },
   "notify": {
     "accepted": "You joined bench {bench}: {name} accepted your request.",
@@ -131,5 +134,55 @@
     "too_many_slots": "Your team already has {max} bookings ahead.",
     "no_reservation": "This booking no longer exists.",
     "not_your_reservation": "Only the team that booked this slot may cancel it."
+  },
+  "occupantsNone": "Nobody on the bench yet.",
+  "picker": "Bench {bench}",
+  "pick": "Choose a bench",
+  "state": {
+    "free": "Free",
+    "taken": "Taken",
+    "mine": "Yours",
+    "locked": "Locked"
+  },
+  "strip": {
+    "label": "Bench status",
+    "free": "{bench} is free",
+    "freeShort": "Free",
+    "mine": "{bench} · {team} (you)",
+    "mineShort": "Taken by you · {time}",
+    "guest": "{bench} · {team} (guest)",
+    "guestShort": "Guest of team {team}",
+    "taken": "{bench} · {team}",
+    "takenShort": "Taken by {team}",
+    "locked": "{bench} locked: {reason}",
+    "lockedShort": "Locked: {reason}",
+    "autoRelease": "auto release {time}",
+    "releaseSoon": {
+      "one": "Automatic release in {count} minute",
+      "other": "Automatic release in {count} minutes"
+    },
+    "more": "Bench actions",
+    "details": "Bench details"
+  },
+  "sheet": {
+    "title": "Bench {bench}"
+  },
+  "job": {
+    "running": "{kind} running · {done} / {total} devices · {name}",
+    "pending": "{kind}: starting soon · {name}",
+    "see": "Open"
+  },
+  "admin": {
+    "title": "Admin tools"
+  },
+  "list": {
+    "label": "Benches of the lab",
+    "bench": "Bench",
+    "state": "State",
+    "team": "Team",
+    "open": "Open",
+    "title": "Choose a bench",
+    "intro": "Your team holds no bench. Take a free one, or open one to see who is on it.",
+    "context": "No bench for your team"
   }
 }

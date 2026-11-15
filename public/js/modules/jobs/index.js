@@ -1,6 +1,6 @@
 /**
- * "Backups and jobs" section (#/jobs/<bench>[/backup|reset|inject]): what a
- * team does with the configurations of its bench
+ * "Backups" section (#/jobs/<bench>[/backup|reset|inject|templates|runs]): what
+ * a team does with the configurations of its bench (docs/v2/UX.md §10.6)
  *
  *   - start a backup, a reset, an injection, a comparison with the live
  *     devices (dialogs.js); the job runs on the server and is followed here
@@ -8,11 +8,11 @@
  *     and, for a reset, the countdown before anything starts;
  *   - right after a backup: the ZIP, and a plain message that the server is
  *     not a backup;
- *   - the team's snapshots (read, ZIP, diff, compare with the live devices,
- *     the TP folder, delete), a ZIP import, a search across them;
- *   - the TP templates (everyone injects them; admins publish them and
- *     choose the base configuration applied after a reset);
- *   - the bench's recent jobs and their reports.
+ *   - three tabs: the team's snapshots (read, ZIP, diff, compare with the live
+ *     devices, the TP folder, delete, a ZIP import, a search across them), the
+ *     TP templates (everyone injects them; admins publish them and choose the
+ *     base configuration applied after a reset), the bench's recent jobs and
+ *     their reports.
  *
  * The backup offered when a bench is released lands here (#/jobs/B4M/backup).
  * The server decides every permission again; what is computed here only
@@ -21,15 +21,22 @@
 import { h, icon, toast, loadCss } from '../../core/dom.js';
 import { getJson, live, callOrToast } from '../../core/api.js';
 import { loading, loadFailure } from '../../shared/loadState.js';
-import { t, tNode, loadNamespace, onLocaleChange } from '../../core/i18n.js';
+import { t, loadNamespace, onLocaleChange } from '../../core/i18n.js';
 import { session } from '../../core/session.js';
-import { confirmDialog } from '../../shared/dialog.js';
-import { stepText, stateText, kindText, fmtBytes, benchApi } from './text.js';
-import { codeText } from '../../shared/serverText.js';
+import { isCompact, onViewportChange } from '../../core/viewport.js';
+import { confirmDialog, openDialog } from '../../shared/dialog.js';
+import { openMenu } from '../../shared/menu.js';
+import { mountTabs } from '../../shared/tabs.js';
+import { pageHeader } from '../../shared/pageHeader.js';
+import { benchApi } from './text.js';
 import { backupDialog, resetDialog, injectDialog, compareDialog, viewSetDialog, diffDialog, reportDialog, templateDialog } from './dialogs.js';
+import { createRunning, FINAL } from './running.js';
+import { createSnapshots, hitsView } from './snapshots.js';
+import { createTemplates } from './templates.js';
+import { createRuns } from './runs.js';
 import { fmtShort } from '../../core/format.js';
 
-const FINAL = new Set(['done', 'failed', 'cancelled', 'partial']);
+const TAB_ADDRESSES = new Set(['templates', 'runs']);
 
 export async function mount(el, { navigate }) {
   await Promise.all([loadNamespace('jobs', 'ios', 'terminal'), loadCss('jobs')]);
@@ -43,45 +50,69 @@ export async function mount(el, { navigate }) {
   let current = null;       // the job followed on screen
   let lastBackup = null;    // the snapshot a backup of this page just made: offered as a ZIP
   let visible = false;
-  let tick = null;
   let retryStart = null;
   let failure = null;       // why the bench's page could not be read, shown with a retry button
 
   // ── Layout ────────────────────────────────────────────────────────────────
-  const picker = h('select.field.jobs-bench', { 'aria-label': t('jobs.bench'), onchange: () => select(picker.value) });
-  const head = h('header.view-head', h('div.view-title', h('h1', tNode('jobs.title')), h('p', tNode('jobs.subtitle'))), h('label.jobs-bench-label', h('span', tNode('jobs.bench')), picker));
+  const picker = h('button.btn.sm.jobs-picker', { type: 'button', dataset: { action: 'pick' }, 'aria-haspopup': 'menu', onclick: () => pick() });
+  const header = pageHeader({ title: 'jobs.title', context: () => picker, tabs: true });
   const notice = h('div.jobs-notice', { role: 'status' });
-  const actions = h('div.jobs-actions');
-  const running = h('section.jobs-current', { hidden: true, 'aria-live': 'polite' });
-  const download = h('section.jobs-download', { hidden: true, role: 'alert' });
-  const snapList = h('div.jobs-snapshots');
-  const searchBox = h('input.field', { type: 'search', placeholder: t('jobs.snapshots.searchPlaceholder'), 'aria-label': t('jobs.snapshots.search'), minlength: 2, maxlength: 100 });
-  const searchOut = h('div.jobs-search', { hidden: true });
+  const failureBox = h('div.jobs-failure');
   const importInput = h('input', { type: 'file', accept: '.zip,application/zip', hidden: true, onchange: () => importZip() });
   const importTemplateInput = h('input', { type: 'file', accept: '.zip,application/zip', hidden: true, onchange: () => importTemplateZip() });
-  const tplList = h('div.jobs-templates');
-  const histList = h('ol.jobs-history');
-  const failureBox = h('div.jobs-failure');
-  const body = h('div.jobs-view', failureBox, h('div.panel',
-    notice, actions, running, download,
-    h('section', h('div.jobs-section-head', h('h2', tNode('jobs.snapshots.title')),
-      h('form.jobs-search-form', { onsubmit: (e) => { e.preventDefault(); search(); } }, searchBox, h('button.btn.small', { type: 'submit' }, icon('search'), tNode('jobs.snapshots.search'))),
-      h('button.btn.small', { type: 'button', dataset: { action: 'import' }, onclick: () => importInput.click() }, icon('upload'), tNode('jobs.snapshots.import')), importInput),
-    h('p.muted.jobs-not-backup', tNode('jobs.snapshots.notBackup')), searchOut, snapList),
-    h('section', h('div.jobs-section-head', h('h2', tNode('jobs.templates.title')),
-      session.isAdmin ? h('span.jobs-section-actions',
-        h('button.btn.small', { type: 'button', dataset: { action: 'new-template' }, onclick: () => newTemplate() }, icon('plus'), tNode('jobs.templates.new')),
-        h('button.btn.small', { type: 'button', dataset: { action: 'import-template' }, onclick: () => importTemplateInput.click() }, icon('upload'), tNode('jobs.templates.import')), importTemplateInput) : null), tplList),
-    h('section', h('h2', tNode('jobs.history.title')), histList)));
-  el.append(head, body);
+  const tabHost = h('div.jobs-tabs');
+  const content = h('div.stack.tight.jobs-content', { hidden: true }, notice); // shown once the bench's page is read
+  const body = h('div.view-body', failureBox, content, importInput);
+  el.append(header.el, body);
   failureBox.replaceChildren(loading());
+
+  const running = createRunning({
+    onCancel: (job) => cancel(job),
+    onReport: (job) => reportDialog(job),
+    onDismiss: () => { lastBackup = null; running.render(current); },
+    zipOf: (job) => (lastBackup && lastBackup.jobId === job.id ? { href: `/api/jobs/snapshots/${encodeURIComponent(lastBackup.id)}/zip` } : null),
+  });
+
+  const act = {
+    view: (s) => viewSetDialog(s),
+    diff: (s) => diffDialog(s, snapshots),
+    compare: (s) => startCompare(s.id),
+    inject: (s) => startInject(s.id),
+    publish: (s) => newTemplate(s),
+    remove: (s) => removeSnapshot(s),
+    search: (q) => callOrToast('GET', `/api/jobs/snapshots/search?q=${encodeURIComponent(q)}`),
+  };
+  const snapView = createSnapshots({ bench: () => bench, detail: () => detail, snapshots: () => snapshots, isAdmin: session.isAdmin, act });
+  const tplView = createTemplates({
+    detail: () => detail, templates: () => templates, isAdmin: session.isAdmin, importInput: importTemplateInput,
+    act: {
+      view: (x) => viewSetDialog(x, { kind: 'templates' }),
+      inject: (x) => startInject(x.id),
+      setBase: (x, on) => setBase(x, on),
+      remove: (x) => removeTemplate(x),
+      create: () => newTemplate(),
+    },
+  });
+  const runView = createRuns({ history: () => history, act: { report: (job) => reportDialog(job) } });
+
+  content.append(running.el, tabHost);
+  // The tabs are addressed as #/jobs/<bench>/templates: the bench is part of the address, so it is built here
+  const tabNavigate = (hash) => {
+    const id = hash.split('/').pop();
+    navigate(`#/jobs/${encodeURIComponent(bench)}${TAB_ADDRESSES.has(id) ? `/${id}` : ''}`);
+  };
+  const panel = (view) => async () => ({ mount: (host) => { host.append(view.el); view.render(); return {}; } });
+  const tabs = mountTabs(tabHost, [
+    { id: 'snapshots', title: () => t('jobs.tabs.snapshots'), load: panel(snapView) },
+    { id: 'templates', title: () => t('jobs.tabs.templates'), load: panel(tplView) },
+    { id: 'runs', title: () => t('jobs.tabs.runs'), load: panel(runView) },
+  ], { navigate: tabNavigate, base: '#/jobs', bar: header.tabBar, label: t('jobs.title') });
 
   // ── Data ──────────────────────────────────────────────────────────────────
 
   async function loadBenches() {
     const labs = await getJson('/api/consoles/labs');
     benches = labs.labs.map((l) => l.name);
-    picker.replaceChildren(...benches.map((b) => h('option', { value: b }, b)));
   }
 
   async function load() {
@@ -102,7 +133,7 @@ export async function mount(el, { navigate }) {
     if (name !== bench) return;
     failure = null;
     failureBox.replaceChildren();
-    body.classList.remove('failed');
+    content.hidden = false;
     detail = d;
     snapshots = s.snapshots;
     templates = tp.templates;
@@ -118,6 +149,7 @@ export async function mount(el, { navigate }) {
     const wasMine = current?.id === job.id;
     if (!current || wasMine || !FINAL.has(job.state)) current = job;
     renderRunning();
+    updateHeader();
     if (FINAL.has(job.state) && wasMine) {
       if (job.kind === 'backup' && job.snapshotId && job.devices.some((x) => x.state === 'done')) lastBackup = { id: job.snapshotId, jobId: job.id };
       load();
@@ -125,7 +157,8 @@ export async function mount(el, { navigate }) {
   });
   live.on('jobs:running', () => { if (visible && detail && !current) load(); });
   live.on('benches:state', () => { if (visible) load(); });
-  onLocaleChange(() => render());
+  onLocaleChange(() => { if (detail) { renderNotice(); updateHeader(); } });
+  onViewportChange(() => updateHeader());
 
   // ── Actions ───────────────────────────────────────────────────────────────
 
@@ -134,6 +167,7 @@ export async function mount(el, { navigate }) {
     current = job;
     lastBackup = null;
     renderRunning();
+    updateHeader();
   }
 
   const startBackup = async () => started(await backupDialog(bench, detail));
@@ -143,7 +177,7 @@ export async function mount(el, { navigate }) {
 
   async function cancel(job) {
     const res = await callOrToast('POST', `/api/jobs/runs/${encodeURIComponent(job.id)}/cancel`);
-    if (res) { current = res.job; renderRunning(); }
+    if (res) { current = res.job; renderRunning(); updateHeader(); }
   }
 
   /** Send the ZIP chosen in `input` to `path`; the file's name, without .zip, names what it becomes. → the answer, or null (the error is shown) */
@@ -169,15 +203,18 @@ export async function mount(el, { navigate }) {
     await load();
   }
 
-  async function search() {
-    const q = searchBox.value.trim();
-    if (q.length < 2) { searchOut.hidden = true; return; }
-    const res = await callOrToast('GET', `/api/jobs/snapshots/search?q=${encodeURIComponent(q)}`);
-    if (!res) return;
-    searchOut.hidden = false;
-    searchOut.replaceChildren(
-      h('p.muted', t('jobs.snapshots.hits', { count: res.hits.length, q })),
-      h('ul', res.hits.map((x) => h('li', h('span.muted', `${fmtShort(x.createdAt)} · ${x.bench} · ${x.device}:${x.line}`), ' ', h('code', x.text)))));
+  /** On a phone the search is a sheet opened from the app bar */
+  function searchSheet() {
+    const box = h('input.field', { type: 'search', placeholder: t('jobs.snapshots.searchPlaceholder'), 'aria-label': t('jobs.snapshots.search'), minlength: 2, maxlength: 100 });
+    const out = h('div.jobs-search');
+    const form = h('form.form-grid', { onsubmit: async (e) => {
+      e.preventDefault();
+      const q = box.value.trim();
+      if (q.length < 2) return;
+      const res = await act.search(q);
+      if (res) out.replaceChildren(hitsView(res, q));
+    } }, h('label', h('span', t('jobs.snapshots.search')), box), h('button.btn.primary.lg', { type: 'submit' }, icon('search'), t('jobs.snapshots.search')));
+    openDialog(h('div.modal-body', form, out), { title: t('jobs.snapshots.search'), size: 'lg', initialFocus: box });
   }
 
   async function removeSnapshot(s) {
@@ -199,13 +236,16 @@ export async function mount(el, { navigate }) {
     if (ok && await callOrToast('DELETE', `/api/jobs/templates/${encodeURIComponent(tpl.id)}`)) await load();
   }
 
-  // ── Rendering ─────────────────────────────────────────────────────────────
+  async function pick() {
+    const id = await openMenu(picker, benches.map((b) => ({ id: b, label: b, checked: b === bench })), { label: t('jobs.bench') });
+    if (id && id !== bench) await select(id);
+  }
 
-  const button = (action, label, onclick, { cls = '', disabled = false, iconName = null } = {}) => h(`button.btn.small${cls}`, { type: 'button', dataset: { action }, onclick, disabled }, iconName ? icon(iconName) : null, label);
+  // ── Rendering ─────────────────────────────────────────────────────────────
 
   /** The bench's page could not be read: a message and a retry, in place of the empty headings */
   function renderFailure() {
-    body.classList.add('failed');
+    content.hidden = true;
     failureBox.replaceChildren(loadFailure('jobs.loadFailed', failure, () => retry()));
   }
 
@@ -215,118 +255,48 @@ export async function mount(el, { navigate }) {
     return load();
   }
 
+  const isBusy = () => Boolean(current && !FINAL.has(current.state));
+
+  /** The header follows what the person may do now; on a phone the search is an icon in the app bar */
+  function updateHeader() {
+    picker.replaceChildren(icon('rack'), bench ? t('jobs.picker', { bench }) : t('jobs.bench'), icon('chevronDown'));
+    const may = Boolean(detail?.canOperate);
+    const busy = isBusy();
+    const none = !detail;
+    header.update({
+      primary: { id: 'backup', label: 'jobs.actions.backup', icon: 'download', run: startBackup, disabled: none || busy || !(may || detail?.offer) },
+      actions: [
+        { id: 'inject', label: 'jobs.actions.inject', icon: 'upload', run: () => startInject(), disabled: none || busy || !may || !(snapshots.length || templates.length) },
+        { id: 'compare', label: 'jobs.actions.compare', icon: 'columns', run: () => startCompare(), disabled: none || busy || !may || !snapshots.length },
+        isCompact() ? { id: 'search', label: 'jobs.snapshots.search', icon: 'search', bar: true, run: searchSheet } : null,
+        { id: 'import', label: 'jobs.snapshots.import', icon: 'upload', run: () => importInput.click(), disabled: none },
+        { id: 'reset', label: 'jobs.actions.reset', icon: 'refresh', run: startReset, danger: true, disabled: none || busy || !may },
+      ],
+    });
+  }
+
   function render() {
     if (!detail) return;
     renderNotice();
-    const may = detail.canOperate;
-    const busy = Boolean(current && !FINAL.has(current.state));
-    actions.replaceChildren(
-      button('backup', t('jobs.actions.backup'), startBackup, { cls: '.primary', disabled: busy || !(may || detail.offer), iconName: 'download' }),
-      button('inject', t('jobs.actions.inject'), () => startInject(), { disabled: busy || !may || !(snapshots.length || templates.length), iconName: 'script' }),
-      button('compare', t('jobs.actions.compare'), () => startCompare(), { disabled: busy || !may || !snapshots.length, iconName: 'columns' }),
-      button('reset', t('jobs.actions.reset'), startReset, { cls: '.danger', disabled: busy || !may, iconName: 'refresh' }));
+    updateHeader();
     renderRunning();
-    renderSnapshots();
-    renderTemplates();
-    renderHistory();
+    snapView.render();
+    tplView.render();
+    runView.render();
   }
 
   function renderNotice() {
     const parts = [];
-    if (detail.lock) parts.push(h('p.jobs-lock', icon('lock'), t('jobs.notice.locked', { reason: detail.lock.reason })));
-    else if (detail.offer) parts.push(h('p.jobs-offer', icon('download'), t('jobs.notice.offer', { bench }), ' ', button('offer', t('jobs.actions.backup'), startBackup, { cls: '.primary' })));
-    else if (!detail.canOperate) parts.push(h('p.muted', detail.holder ? t('jobs.notice.otherTeam', { team: detail.holder.teamName ?? '?' }) : t('jobs.notice.takeFirst')));
-    if (detail.base) parts.push(h('p.muted', t('jobs.notice.base', { name: detail.base.name })));
+    const callout = (cls, tone, iconName, ...nodes) => h(`p.jobs-callout.${cls}`, { dataset: { tone } }, icon(iconName), h('span', ...nodes));
+    if (detail.lock) parts.push(callout('jobs-lock', 'danger', 'lock', t('jobs.notice.locked', { reason: detail.lock.reason })));
+    else if (detail.offer) parts.push(callout('jobs-offer', 'warning', 'download', t('jobs.notice.offer', { bench })));
+    else if (!detail.canOperate) parts.push(callout('jobs-info', 'info', 'info', detail.holder ? t('jobs.notice.otherTeam', { team: detail.holder.teamName ?? '?' }) : t('jobs.notice.takeFirst')));
+    if (detail.base) parts.push(h('p.card-meta.jobs-base', t('jobs.notice.base', { name: detail.base.name })));
     notice.replaceChildren(...parts);
   }
 
   function renderRunning() {
-    clearInterval(tick);
-    const job = current;
-    if (!job || job.bench !== bench) { running.hidden = true; download.hidden = true; return; }
-    running.hidden = false;
-    const pending = job.state === 'pending';
-    const countdown = h('strong.jobs-countdown');
-    const updateCountdown = () => { countdown.textContent = t('jobs.current.countdown', { count: Math.max(0, Math.ceil((Date.parse(job.startsAt) - Date.now()) / 1000)) }); };
-    if (pending) { updateCountdown(); tick = setInterval(updateCountdown, 250); }
-    const done = job.devices.filter((d) => FINAL.has(d.state)).length;
-    running.dataset.state = job.state;
-    running.replaceChildren(
-      h('div.jobs-current-head',
-        h('h2', t('jobs.current.title', { kind: kindText(job.kind), bench: job.bench })),
-        h('span.jobs-state', { dataset: { state: job.state } }, stateText(job.state)),
-        h('span.muted', t('jobs.current.by', { name: job.actor?.name ?? '' })),
-        pending ? countdown : h('span.muted', t('jobs.current.progress', { done, total: job.devices.length })),
-        !FINAL.has(job.state) ? button('cancel', t('jobs.current.stop'), () => cancel(job), { cls: '.danger', iconName: 'stop' }) : null,
-        FINAL.has(job.state) ? button('report', t('jobs.current.report'), () => reportDialog(job)) : null),
-      h('table.vm-table.jobs-devices-table', h('tbody', job.devices.map((d) => h('tr', { dataset: { device: d.name, state: d.state } },
-        h('td', h('strong', d.name)),
-        h('td', h('span.jobs-state', { dataset: { state: d.state } }, stateText(d.state))),
-        h('td.jobs-step', deviceLine(d)))))));
-    renderDownload(job);
-  }
-
-  function deviceLine(d) {
-    if (d.state === 'failed' || d.state === 'skipped') return codeText(d.code, d.params, d.message ?? '');
-    if (d.state === 'cancelled') return d.stage ? t('jobs.report.cancelledAt', { stage: d.stage }) : '';
-    if (d.state === 'done') {
-      const r = d.result ?? {};
-      if (r.check) return t(`jobs.report.check.${r.check.status === 'same' ? 'same' : 'changed'}`, { added: r.check.added ?? 0, removed: r.check.removed ?? 0 });
-      return r.bytes ? t('jobs.current.saved', { size: fmtBytes(r.bytes) }) : t('jobs.state.done');
-    }
-    const progress = d.progress?.total && d.stage === 'inject' ? ` (${d.progress.done}/${d.progress.total})` : '';
-    return `${stepText(d.step)}${progress}`;
-  }
-
-  /** Right after a backup: the ZIP, now, and why */
-  function renderDownload(job) {
-    const show = lastBackup && lastBackup.jobId === job.id;
-    download.hidden = !show;
-    if (!show) return;
-    download.replaceChildren(
-      h('p', h('strong', t('jobs.download.title')), ' ', t('jobs.download.body')),
-      h('a.btn.primary', { href: `/api/jobs/snapshots/${encodeURIComponent(lastBackup.id)}/zip`, download: '', dataset: { action: 'download-zip' } }, icon('download'), t('jobs.download.button')));
-  }
-
-  function renderSnapshots() {
-    if (!snapshots.length) { snapList.replaceChildren(h('p.muted', t('jobs.snapshots.none'))); return; }
-    snapList.replaceChildren(h('div.table-wrap', h('table.vm-table.jobs-snapshots-table',
-      h('thead', h('tr', ['date', 'label', 'devices', 'by', 'actions'].map((c) => h('th', t(`jobs.snapshots.col.${c}`))))),
-      h('tbody', snapshots.map((s) => h('tr', { dataset: { snapshot: s.id } },
-        h('td', fmtShort(s.createdAt)),
-        h('td', s.label || t(`jobs.origin.${s.origin}`), s.teamName ? h('small.muted', ` · ${s.teamName}`) : null),
-        h('td', s.devices.map((d) => d.device).join(', ')),
-        h('td', s.author.name),
-        h('td.jobs-row-actions',
-          button('view', t('jobs.snapshots.view'), () => viewSetDialog(s)),
-          h('a.btn.small', { href: `/api/jobs/snapshots/${encodeURIComponent(s.id)}/zip`, download: '' }, icon('download'), t('jobs.snapshots.zip')),
-          snapshots.length > 1 ? button('diff', t('jobs.snapshots.diff'), () => diffDialog(s, snapshots)) : null,
-          detail.canOperate ? button('compare', t('jobs.snapshots.live'), () => startCompare(s.id)) : null,
-          detail.canOperate ? button('inject', t('jobs.snapshots.inject'), () => startInject(s.id)) : null,
-          s.bench === bench ? h('a.btn.small', { href: `${benchApi(bench, '/folder')}?snapshot=${encodeURIComponent(s.id)}`, download: '' }, t('jobs.snapshots.folder')) : null,
-          session.isAdmin ? button('publish', t('jobs.templates.publish'), () => newTemplate(s)) : null,
-          button('delete', t('jobs.snapshots.delete'), () => removeSnapshot(s), { cls: '.subtle.danger' }))))))));
-  }
-
-  function renderTemplates() {
-    if (!templates.length) { tplList.replaceChildren(h('p.muted', t('jobs.templates.none'))); return; }
-    tplList.replaceChildren(h('ul.jobs-template-list', templates.map((tpl) => h('li', { dataset: { template: tpl.name } },
-      h('div', h('strong', tpl.name), tpl.base ? h('span.badge', t('jobs.templates.baseBadge')) : null, tpl.description ? h('p.muted', tpl.description) : null,
-        h('small.muted', tpl.devices.map((d) => (d.device === '*' ? t('jobs.templates.every') : d.device)).join(', '))),
-      h('div.jobs-row-actions',
-        button('view', t('jobs.snapshots.view'), () => viewSetDialog(tpl, { kind: 'templates' })),
-        detail?.canOperate ? button('inject', t('jobs.snapshots.inject'), () => startInject(tpl.id)) : null,
-        session.isAdmin ? button('base', tpl.base ? t('jobs.templates.unsetBase') : t('jobs.templates.setBase'), () => setBase(tpl, !tpl.base)) : null,
-        session.isAdmin ? button('delete', t('jobs.templates.delete'), () => removeTemplate(tpl), { cls: '.subtle.danger' }) : null)))));
-  }
-
-  function renderHistory() {
-    if (!history.length) { histList.replaceChildren(h('li.muted', t('jobs.history.none'))); return; }
-    histList.replaceChildren(...history.slice(0, 15).map((job) => h('li', { dataset: { job: job.id } },
-      h('time', fmtShort(job.createdAt)), ' ',
-      h('span', t('jobs.history.line', { kind: kindText(job.kind), name: job.actor?.name ?? '', count: job.devices.length })), ' ',
-      h('span.jobs-state', { dataset: { state: job.state } }, stateText(job.state)), ' ',
-      button('report', t('jobs.current.report'), () => reportDialog(job), { cls: '.subtle' }))));
+    running.render(current && current.bench === bench ? current : null);
   }
 
   // ── Routing ───────────────────────────────────────────────────────────────
@@ -335,12 +305,16 @@ export async function mount(el, { navigate }) {
     if (!benches.includes(name)) return;
     if (name !== bench) {
       bench = name;
-      picker.value = name;
       detail = null;
       current = null;
       lastBackup = null;
+      content.hidden = true;
+      failureBox.replaceChildren(loading());
     }
-    navigate(`#/jobs/${encodeURIComponent(name)}`);
+    updateHeader();
+    // The address keeps the tab on screen, unless this call is about a dialog to open
+    const tab = TAB_ADDRESSES.has(action) ? action : !action && TAB_ADDRESSES.has(tabs.current) ? tabs.current : null;
+    navigate(`#/jobs/${encodeURIComponent(name)}${tab ? `/${tab}` : ''}`);
     await load();
     if (action === 'backup' && detail && (detail.canOperate || detail.offer)) startBackup();
     if (action === 'reset' && detail?.canOperate) startReset();
@@ -362,12 +336,15 @@ export async function mount(el, { navigate }) {
     await select(name && benches.includes(name) ? name : bench ?? await defaultBench(), action ?? null);
   }
   retryStart = () => { failureBox.replaceChildren(loading()); return start(null, null); };
+  updateHeader();
 
   return {
     async show([name, action] = []) {
       visible = true;
+      // A tab has its own address; the other words are what to start (backup, reset, inject)
+      await tabs.show([TAB_ADDRESSES.has(action) ? action : 'snapshots']);
       await start(name, action ?? null);
     },
-    hide() { visible = false; },
+    hide() { visible = false; tabs.hide(); },
   };
 }

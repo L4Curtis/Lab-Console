@@ -12,6 +12,7 @@
 import { live } from '../../core/api.js';
 import { t, has } from '../../core/i18n.js';
 import { session } from '../../core/session.js';
+import { h } from '../../core/dom.js';
 import { fmtDay, fmtTime } from '../../core/format.js';
 
 let summaries = new Map(); // bench → summary
@@ -87,4 +88,37 @@ export function historyText(e) {
   if (e.action.startsWith('job.') && has(job)) return t(job, params);
   if (e.action.startsWith('job.')) return t('benches.history.job', { ...params, action: e.action.slice(4) });
   return `${e.actor.name} · ${e.action}`;
+}
+
+// ── People ──────────────────────────────────────────────────────────────────
+
+/** "Ada Lovelace" → "AL", "curtis" → "CU" (the same rule as the server's badges) */
+export function initialsOf(name) {
+  const words = String(name || '').trim().split(/[\s._-]+/).filter(Boolean);
+  if (!words.length) return '?';
+  const letters = words.length === 1 ? [...words[0]].slice(0, 2) : [[...words[0]][0], [...words[words.length - 1]][0]];
+  return letters.join('').toUpperCase();
+}
+
+/** A hue from the id, dark enough for white initials: the same person keeps the same colour on these screens */
+const colorOf = (key) => {
+  let hash = 0;
+  for (const ch of String(key)) hash = (hash * 31 + ch.codePointAt(0)) >>> 0;
+  return `hsl(${hash % 360} 62% 28%)`;
+};
+
+/** A round badge for a person of a team or a bench: { id, name, guest? } */
+export function personAvatar(person, cls = '') {
+  const el = h(`span.avatar${cls}`, { title: person.name, 'aria-hidden': 'true' }, initialsOf(person.name));
+  el.style.setProperty('--avatar', person.color ?? colorOf(person.id ?? person.username ?? person.name));
+  return el;
+}
+
+/** At most `max` badges, then "+n"; the names are in the accessible name of the group */
+export function avatarStack(people, { max = 3 } = {}) {
+  const list = people ?? [];
+  const more = list.length - max;
+  return h('span.avatar-stack', { role: 'img', 'aria-label': list.map((p) => p.name).join(', ') },
+    list.slice(0, max).map((p) => personAvatar(p)),
+    more > 0 ? h('span.avatar-more', { 'aria-hidden': 'true' }, `+${more}`) : null);
 }

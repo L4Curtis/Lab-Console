@@ -7,15 +7,17 @@
   },
   "actions": {
     "take": "Prendre la baie",
-    "needTeam": "Créer ou rejoindre une équipe pour la prendre",
+    "needTeam": "Créer une équipe",
     "join": "Demander à rejoindre",
     "cancelJoin": "Annuler ma demande",
     "leave": "Quitter la baie",
     "touch": "On est toujours là",
     "release": "Libérer la baie",
-    "assign": "Attribuer…",
-    "lock": "Verrouiller…",
-    "history": "Historique"
+    "assign": "Attribuer",
+    "lock": "Verrouiller",
+    "history": "Historique de la baie",
+    "calendar": "Planning de la baie",
+    "details": "Détails"
   },
   "touched": "C’est noté : la baie reste à vous.",
   "join": {
@@ -27,7 +29,6 @@
   },
   "guests": {
     "tag": "invité",
-    "guest": "{name} (invité)",
     "remove": "Retirer de la baie",
     "removeTitle": "Retirer {name} de la baie ?",
     "removeBody": "{name} ne pourra plus prendre la main sur les consoles de {bench}."
@@ -67,9 +68,9 @@
     "noTeam": "Il n’y a encore aucune équipe."
   },
   "slots": {
-    "next": "Prochaines réservations :",
     "none": "Aucune réservation à venir.",
-    "calendar": "Planning"
+    "calendar": "Voir le planning",
+    "title": "Prochains créneaux"
   },
   "history": {
     "title": "Historique de la baie {bench}",
@@ -87,7 +88,9 @@
     "unlock": "{who} a déverrouillé la baie",
     "reserve": "{who} a réservé la baie pour l’équipe {team}",
     "reservationCancel": "{who} a annulé une réservation",
-    "job": "{who} : {action} {device}"
+    "job": "{who} : {action} {device}",
+    "heading": "Historique",
+    "all": "Tout voir"
   },
   "notify": {
     "accepted": "Vous avez rejoint la baie {bench} : {name} a accepté votre demande.",
@@ -131,5 +134,55 @@
     "too_many_slots": "Votre équipe a déjà {max} réservations à venir.",
     "no_reservation": "Cette réservation n’existe plus.",
     "not_your_reservation": "Seule l’équipe qui a réservé peut annuler ce créneau."
+  },
+  "occupantsNone": "Personne sur la baie pour l’instant.",
+  "picker": "Baie {bench}",
+  "pick": "Choisir une baie",
+  "state": {
+    "free": "Libre",
+    "taken": "Prise",
+    "mine": "La vôtre",
+    "locked": "Verrouillée"
+  },
+  "strip": {
+    "label": "État de la baie",
+    "free": "{bench} est libre",
+    "freeShort": "Libre",
+    "mine": "{bench} · {team} (vous)",
+    "mineShort": "Prise par vous · {time}",
+    "guest": "{bench} · {team} (invité)",
+    "guestShort": "Invité de l’équipe {team}",
+    "taken": "{bench} · {team}",
+    "takenShort": "Prise par {team}",
+    "locked": "{bench} verrouillée : {reason}",
+    "lockedShort": "Verrouillée : {reason}",
+    "autoRelease": "libération auto. {time}",
+    "releaseSoon": {
+      "one": "Libération automatique dans {count} minute",
+      "other": "Libération automatique dans {count} minutes"
+    },
+    "more": "Actions de la baie",
+    "details": "Détails de la baie"
+  },
+  "sheet": {
+    "title": "Baie {bench}"
+  },
+  "job": {
+    "running": "{kind} en cours · {done} / {total} équipements · {name}",
+    "pending": "{kind} : démarre bientôt · {name}",
+    "see": "Voir"
+  },
+  "admin": {
+    "title": "Outils d’administration"
+  },
+  "list": {
+    "label": "Baies du labo",
+    "bench": "Baie",
+    "state": "État",
+    "team": "Équipe",
+    "open": "Voir",
+    "title": "Choisissez une baie",
+    "intro": "Votre équipe n’occupe aucune baie. Prenez une baie libre, ou ouvrez-en une pour voir qui l’occupe.",
+    "context": "Aucune baie pour votre équipe"
   }
 }

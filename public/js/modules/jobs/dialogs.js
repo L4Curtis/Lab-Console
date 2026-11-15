@@ -13,7 +13,8 @@ import { request, getJson } from '../../core/api.js';
 import { t } from '../../core/i18n.js';
 import { session } from '../../core/session.js';
 import { openDialog } from '../../shared/dialog.js';
-import { stateText, kindText, benchApi, patchView } from './text.js';
+import { stateBadge, stateText, kindText, benchApi, patchView } from './text.js';
+import { snapshotName, snapshotChoice } from './snapshots.js';
 import { codeText } from '../../shared/serverText.js';
 import { fmtShort } from '../../core/format.js';
 
@@ -26,12 +27,12 @@ function deviceChecklist(devices, { extra = null, name = 'device' } = {}) {
     const box = h('input', { type: 'checkbox', name, value: d.key, checked: !d.shared });
     boxes.set(d.key, box);
     return h('li', { dataset: { device: d.name } },
-      h('label.check', box, h('span', h('strong', d.name), d.shared ? h('small.jobs-tag', t('jobs.devices.shared')) : null)),
+      h('label.check', box, h('span.jobs-device-name', h('strong', d.name), d.shared ? h('span.badge', { dataset: { tone: 'warning' } }, t('jobs.devices.shared')) : null)),
       extra ? extra(d) : null);
   });
-  const all = h('button.btn.small.subtle', { type: 'button', onclick: () => { const on = [...boxes.values()].some((b) => !b.checked); for (const b of boxes.values()) b.checked = on; } }, t('jobs.devices.toggleAll'));
+  const all = h('button.btn.sm.ghost', { type: 'button', dataset: { action: 'toggle-all' }, onclick: () => { const on = [...boxes.values()].some((b) => !b.checked); for (const b of boxes.values()) b.checked = on; } }, t('jobs.devices.toggleAll'));
   return {
-    el: h('fieldset.jobs-devices', h('legend', t('jobs.devices.legend'), ' ', all), h('ul', rows)),
+    el: h('fieldset.jobs-devices', h('legend', t('jobs.devices.legend')), all, h('ul', rows)),
     selected: () => [...boxes].filter(([, b]) => b.checked).map(([k]) => k),
     tick: (key, on) => { if (boxes.has(key)) boxes.get(key).checked = on; },
   };
@@ -43,7 +44,7 @@ function passwordFields() {
   const line = h('input.field', { type: 'password', autocomplete: 'off', name: 'line', maxlength: 64 });
   return {
     el: h('details.jobs-passwords', h('summary', t('jobs.passwords.title')),
-      h('p.muted', t('jobs.passwords.hint')),
+      h('p.card-meta', t('jobs.passwords.hint')),
       h('label', h('span', t('jobs.passwords.enable')), enable),
       h('label', h('span', t('jobs.passwords.line')), line)),
     values: () => ({ enablePasswords: enable.value ? [enable.value] : [], linePasswords: line.value ? [line.value] : [] }),
@@ -51,10 +52,10 @@ function passwordFields() {
 }
 
 /** A dialog made of a form: `build(form)` fills it, `submit()` returns the result or throws a message */
-function formShell({ title, wide = true, danger = false, submitLabel, body, submit, canSubmit = () => true }) {
+function formShell({ title, size = 'lg', danger = false, submitLabel, body, submit, canSubmit = () => true }) {
   const error = h('p.form-error', { role: 'alert' });
-  const go = h(`button.btn.${danger ? 'danger-solid' : 'primary'}`, { type: 'submit', dataset: { action: 'confirm' } }, submitLabel);
-  const cancel = h('button.btn', { type: 'button', dataset: { action: 'cancel' }, onclick: () => dlg.close(null) }, t('common.actions.cancel'));
+  const go = h(`button.btn.lg.${danger ? 'danger-solid' : 'primary'}`, { type: 'submit', dataset: { action: 'confirm' } }, submitLabel);
+  const cancel = h('button.btn.lg', { type: 'button', dataset: { action: 'cancel' }, onclick: () => dlg.close(null) }, t('common.actions.cancel'));
   const actions = h('div.form-actions', cancel, go);
   const form = h('form.modal-body.form-grid.jobs-form', {
     onsubmit: async (e) => {
@@ -72,7 +73,7 @@ function formShell({ title, wide = true, danger = false, submitLabel, body, subm
       }
     },
   }, body, error, actions);
-  const dlg = openDialog(form, { title, wide, role: danger ? 'alertdialog' : undefined });
+  const dlg = openDialog(form, { title, size, role: danger ? 'alertdialog' : undefined });
   return { dlg, form, go, actions, error };
 }
 
@@ -84,6 +85,7 @@ export async function backupDialog(bench, detail) {
   const pw = passwordFields();
   const { dlg } = formShell({
     title: t('jobs.backup.title', { bench }),
+    size: 'md',
     submitLabel: t('jobs.backup.go'),
     body: [h('p.dialog-text', t('jobs.backup.intro')), devices.el, h('label', h('span', t('jobs.backup.label')), label), pw.el],
     submit: async () => (await request('POST', benchApi(bench, '/backup'), { devices: devices.selected(), label: label.value, ...pw.values() })).job,
@@ -97,8 +99,8 @@ export async function resetDialog(bench, detail) {
   const force = new Map();
   const devices = deviceChecklist(detail.devices, {
     extra: (d) => h('span.jobs-device-extra',
-      d.people.length ? h('span.jobs-people', icon('team'), d.people.join(', ')) : h('span.muted', t('jobs.reset.nobody')),
-      session.isAdmin ? h('label.check.jobs-force', (() => { const b = h('input', { type: 'checkbox', value: d.key }); force.set(d.key, b); return b; })(), h('small', t('jobs.reset.force'))) : null),
+      d.people.length ? h('span.jobs-people', icon('team'), d.people.join(', ')) : h('span.card-meta', t('jobs.reset.nobody')),
+      session.isAdmin ? h('label.check.jobs-force', (() => { const b = h('input', { type: 'checkbox', value: d.key }); force.set(d.key, b); return b; })(), h('span', t('jobs.reset.force'))) : null),
   });
   const base = detail.base ? h('input', { type: 'checkbox', name: 'base', checked: true }) : null;
   const pw = passwordFields();
@@ -113,7 +115,7 @@ export async function resetDialog(bench, detail) {
       base ? h('label.check', base, h('span', t('jobs.reset.base', { name: detail.base.name }))) : null,
       pw.el,
       h('label.require-text', h('span', t('jobs.reset.typeBench', { bench })), typed),
-      h('p.muted', t('jobs.reset.countdown', { count: detail.countdownSeconds ?? 10 })),
+      h('p.card-meta', t('jobs.reset.countdown', { count: detail.countdownSeconds ?? 10 })),
     ],
     canSubmit: () => typed.value.trim() === bench,
     submit: async () => (await request('POST', benchApi(bench, '/reset'), {
@@ -134,7 +136,7 @@ export async function resetDialog(bench, detail) {
 
 export async function injectDialog(bench, detail, { snapshots, templates, preset = null }) {
   const source = h('select.field', { name: 'source' },
-    snapshots.length ? h('optgroup', { label: t('jobs.inject.snapshots') }, snapshots.map((s) => h('option', { value: `snapshot:${s.id}`, selected: preset === s.id }, `${fmtShort(s.createdAt)} · ${s.bench} · ${s.label || t(`jobs.origin.${s.origin}`)}`))) : null,
+    snapshots.length ? h('optgroup', { label: t('jobs.inject.snapshots') }, snapshots.map((s) => h('option', { value: `snapshot:${s.id}`, selected: preset === s.id }, snapshotChoice(s)))) : null,
     templates.length ? h('optgroup', { label: t('jobs.inject.templates') }, templates.map((x) => h('option', { value: `template:${x.id}`, selected: preset === x.id }, x.name))) : null);
   const mode = h('select.field', { name: 'mode' }, h('option', { value: 'reset' }, t('jobs.inject.modeReset')), h('option', { value: 'merge' }, t('jobs.inject.modeMerge')));
   const save = h('input', { type: 'checkbox', name: 'save', checked: true });
@@ -152,8 +154,8 @@ export async function injectDialog(bench, detail, { snapshots, templates, preset
   const pw = passwordFields();
   const typed = h('input.field', { type: 'text', autocomplete: 'off', spellcheck: 'false', name: 'confirm' });
   const typedRow = h('label.require-text', h('span', t('jobs.reset.typeBench', { bench })), typed);
-  const previewBox = h('div.jobs-preview', { hidden: true });
-  const choose = h('div.jobs-choose',
+  const previewBox = h('div.jobs-preview.form-grid', { hidden: true });
+  const choose = h('div.jobs-choose.form-grid',
     h('label', h('span', t('jobs.inject.source')), source),
     h('label', h('span', t('jobs.inject.mode')), mode),
     h('label.check', save, h('span', t('jobs.inject.save'))),
@@ -187,17 +189,18 @@ export async function injectDialog(bench, detail, { snapshots, templates, preset
   function showPreview() {
     choose.hidden = true;
     previewBox.hidden = false;
-    const back = h('button.btn.subtle', { type: 'button', onclick: () => { preview = null; choose.hidden = false; previewBox.hidden = true; shell.go.textContent = t('jobs.inject.preview'); shell.go.classList.replace('danger-solid', 'primary'); } }, icon('chevronLeft'), t('jobs.inject.back'));
-    previewBox.replaceChildren(
+    const back = h('button.btn.ghost.sm', { type: 'button', onclick: () => { preview = null; choose.hidden = false; previewBox.hidden = true; shell.go.textContent = t('jobs.inject.preview'); shell.go.classList.replace('danger-solid', 'primary'); } }, icon('chevronLeft'), t('jobs.inject.back'));
+    // replaceChildren() writes a null as the word "null": only nodes go in
+    previewBox.replaceChildren(...[
       back,
       h('p.dialog-text', t(mode.value === 'reset' ? 'jobs.inject.previewReset' : 'jobs.inject.previewMerge', { source: preview.source.name })),
-      preview.missing.length ? h('p.form-error', t('jobs.inject.missing', { devices: preview.missing.map((m) => m.name).join(', ') })) : null,
+      preview.missing.length ? h('p.jobs-callout', { dataset: { tone: 'warning' } }, icon('warning'), h('span', t('jobs.inject.missing', { devices: preview.missing.map((m) => m.name).join(', ') }))) : null,
       h('div.jobs-scripts', preview.devices.map((d) => h('details.jobs-script', { dataset: { device: d.name } },
         h('summary', h('strong', d.name), ' ← ', d.from, ' · ', t('jobs.inject.lines', { count: d.lines }), d.dropped.length ? ` · ${t('jobs.inject.dropped', { count: d.dropped.length })}` : ''),
         d.dropped.length ? h('ul.jobs-dropped', d.dropped.map((x) => h('li', h('code', x.text), ' — ', t(`jobs.dropped.${x.code}`)))) : null,
         h('pre.jobs-code', d.script)))),
       pw.el,
-      mode.value === 'reset' ? typedRow : null);
+      mode.value === 'reset' ? typedRow : null].filter(Boolean));
     shell.go.textContent = t('jobs.inject.go', { count: preview.devices.length });
     shell.go.disabled = !preview.devices.length;
     if (mode.value === 'reset') {
@@ -213,11 +216,12 @@ export async function injectDialog(bench, detail, { snapshots, templates, preset
 // ── Comparison with the live devices ───────────────────────────────────────
 
 export async function compareDialog(bench, detail, { snapshots, preset = null }) {
-  const source = h('select.field', { name: 'snapshot' }, snapshots.map((s) => h('option', { value: s.id, selected: preset === s.id }, `${fmtShort(s.createdAt)} · ${s.bench} · ${s.label || t(`jobs.origin.${s.origin}`)}`)));
+  const source = h('select.field', { name: 'snapshot' }, snapshots.map((s) => h('option', { value: s.id, selected: preset === s.id }, snapshotChoice(s))));
   const devices = deviceChecklist(detail.devices);
   const pw = passwordFields();
   const { dlg } = formShell({
     title: t('jobs.compare.title', { bench }),
+    size: 'md',
     submitLabel: t('jobs.compare.go'),
     body: [h('p.dialog-text', t('jobs.compare.intro')), h('label', h('span', t('jobs.compare.snapshot')), source), devices.el, pw.el],
     submit: async () => (await request('POST', benchApi(bench, '/compare'), { snapshot: source.value, devices: devices.selected(), ...pw.values() })).job,
@@ -230,7 +234,7 @@ export async function compareDialog(bench, detail, { snapshots, preset = null })
 /** A snapshot (or a template: `kind`), device by device */
 export async function viewSetDialog(set, { kind = 'snapshots' } = {}) {
   const pick = h('select.field', set.devices.map((d) => h('option', { value: d.device }, d.device)));
-  const facts = h('p.muted.jobs-facts');
+  const facts = h('p.card-meta.jobs-facts');
   const code = h('pre.jobs-code', { tabindex: 0 });
   async function show() {
     const d = await getJson(`/api/jobs/${kind}/${encodeURIComponent(set.id)}/devices/${encodeURIComponent(pick.value)}`).catch((err) => ({ config: codeText(err.code, err.params, err.message) }));
@@ -239,17 +243,17 @@ export async function viewSetDialog(set, { kind = 'snapshots' } = {}) {
     code.textContent = d.config ?? '';
   }
   pick.addEventListener('change', show);
-  const dlg = openDialog(h('div.modal-body.jobs-view', h('label', h('span', t('jobs.view.device')), pick), facts, code), { title: set.name ?? `${set.bench} · ${set.label || fmtShort(set.createdAt)}`, wide: true });
+  const dlg = openDialog(h('div.modal-body.jobs-reader.form-grid', h('label', h('span', t('jobs.view.device')), pick), facts, code), { title: set.name ?? `${set.bench} · ${snapshotName(set)}`, size: 'lg' });
   await show();
   return dlg.closed;
 }
 
 export async function diffDialog(a, snapshots) {
   const others = snapshots.filter((s) => s.id !== a.id);
-  const pick = h('select.field', others.map((s) => h('option', { value: s.id }, `${fmtShort(s.createdAt)} · ${s.bench} · ${s.label || t(`jobs.origin.${s.origin}`)}`)));
+  const pick = h('select.field', others.map((s) => h('option', { value: s.id }, snapshotChoice(s))));
   const out = h('div.jobs-diff');
   async function show() {
-    if (!pick.value) { out.replaceChildren(h('p.muted', t('jobs.diff.none'))); return; }
+    if (!pick.value) { out.replaceChildren(h('p.card-meta', t('jobs.diff.none'))); return; }
     const r = await getJson(`/api/jobs/snapshots/${encodeURIComponent(a.id)}/diff/${encodeURIComponent(pick.value)}`).catch(() => null);
     if (!r) return;
     out.replaceChildren(...r.devices.map((d) => h('section.jobs-diff-device', { dataset: { device: d.device, status: d.status } },
@@ -257,7 +261,7 @@ export async function diffDialog(a, snapshots) {
       d.patch ? patchView(d.patch) : null)));
   }
   pick.addEventListener('change', show);
-  const dlg = openDialog(h('div.modal-body', h('label', h('span', t('jobs.diff.with')), pick), out), { title: t('jobs.diff.title', { a: a.label || fmtShort(a.createdAt) }), wide: true });
+  const dlg = openDialog(h('div.modal-body.form-grid', h('label', h('span', t('jobs.diff.with')), pick), out), { title: t('jobs.diff.title', { a: a.label || fmtShort(a.createdAt) }), size: 'full' });
   await show();
   return dlg.closed;
 }
@@ -279,16 +283,16 @@ export function reportDialog(job) {
     if (r.check) lines.push(t(`jobs.report.check.${r.check.status === 'same' ? 'same' : 'changed'}`, { added: r.check.added ?? 0, removed: r.check.removed ?? 0 }));
     for (const w of r.warnings ?? []) lines.push(t(`jobs.report.warning.${w}`));
     return h('li.jobs-report-device', { dataset: { device: d.name, state: d.state } },
-      h('div.jobs-report-head', h('strong', d.name), h('span.jobs-state', { dataset: { state: d.state } }, stateText(d.state))),
+      h('div.jobs-report-head', h('strong', d.name), stateBadge(d.state)),
       lines.length ? h('ul', lines.map((l) => h('li', l))) : null,
       r.errors?.length ? h('details', h('summary', t('jobs.report.errorLines')), h('pre.jobs-code', r.errors.map((e) => (e.command === undefined ? `${e.line}: ${e.message}` : `${e.line}: ${e.command}\n  ${e.message}`)).join('\n'))) : null,
       r.check?.patch ? h('details', h('summary', t('jobs.report.diff')), patchView(r.check.patch)) : null,
       r.check?.missing?.length ? h('details', h('summary', t('jobs.report.missing')), h('pre.jobs-code', r.check.missing.join('\n'))) : null,
       d.lastOutput ? h('details', h('summary', t('jobs.report.output')), h('pre.jobs-code', d.lastOutput)) : null);
   });
-  return openDialog(h('div.modal-body.jobs-report', h('p.muted', t('jobs.report.by', { name: job.actor.name, date: fmtShort(job.createdAt), state: stateText(job.state) })),
-    job.redacted ? h('p.muted', t('jobs.report.redacted')) : null, h('ul.jobs-report-list', rows)),
-    { title: t('jobs.report.title', { kind: kindText(job.kind), bench: job.bench }), wide: true }).closed;
+  return openDialog(h('div.modal-body.jobs-report', h('p.card-meta', t('jobs.report.by', { name: job.actor.name, date: fmtShort(job.createdAt), state: stateText(job.state) })),
+    job.redacted ? h('p.card-meta', t('jobs.report.redacted')) : null, h('ul.jobs-report-list', rows)),
+    { title: t('jobs.report.title', { kind: kindText(job.kind), bench: job.bench }), size: 'lg' }).closed;
 }
 
 // ── Templates (admins) ──────────────────────────────────────────────────────
@@ -300,6 +304,7 @@ export async function templateDialog({ snapshot = null } = {}) {
   const base = h('input', { type: 'checkbox', name: 'base' });
   const { dlg } = formShell({
     title: snapshot ? t('jobs.templates.fromSnapshot') : t('jobs.templates.new'),
+    size: 'md',
     submitLabel: t('jobs.templates.publish'),
     body: [
       h('p.dialog-text', snapshot ? t('jobs.templates.fromSnapshotIntro', { devices: snapshot.devices.map((d) => d.device).join(', ') }) : t('jobs.templates.newIntro')),

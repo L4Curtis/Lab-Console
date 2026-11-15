@@ -86,7 +86,7 @@ test('a locked bench refuses to open its consoles, a line it shares with a free 
   const bilal = await h.newPage();
   await signInAs(bilal, 'bilal');
   await bilal.evaluate(() => { location.hash = '#/consoles/B5H'; });
-  await bar(bilal).locator('.bench-lock', { hasText: 'Examen en cours' }).waitFor();
+  await bar(bilal).locator('.bench-status', { hasText: 'Examen en cours' }).waitFor();
   const first = h.app.deps.services.consoles.registry.model.labs.find((l) => l.name === 'B5H').devices[0];
   await deviceTile(bilal, first.name).click();
   await toastWith(bilal, 'verrouill').waitFor();
@@ -141,7 +141,7 @@ test('an invited newcomer signs up, is invited into a team by user name, accepts
   // Bilal invites her, typed in lower case: the invitation names the account as it is spelt
   await inviteForm.locator('input[name="username"]').fill('nadia');
   await inviteForm.locator('button[data-action="invite"]').click();
-  await bilal.waitForSelector('section.view-team .team-mine >> text=Nadia');
+  await bilal.waitForSelector('section.view-team .team-sent li[data-invitee="Nadia"]');
 
   await nadia.click('#rail-items a[href="#/team"]');
   const pending = nadia.locator('section.view-team button[data-action="accept"]');

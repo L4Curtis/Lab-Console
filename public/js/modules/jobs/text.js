@@ -15,6 +15,18 @@ export function stepText(code) {
 }
 
 export const stateText = (state) => (has(`jobs.state.${state}`) ? t(`jobs.state.${state}`) : state);
+
+const TONES = { pending: 'info', running: 'info', waiting: 'info', queued: 'neutral', done: 'success', failed: 'danger', partial: 'warning', skipped: 'warning', cancelled: 'warning' };
+/** The state of a job or of one of its devices, as a badge (a word, never a colour alone) */
+export const stateBadge = (state) => h('span.badge.jobs-state', { dataset: { state, tone: TONES[state] ?? 'neutral' } }, stateText(state));
+
+/** Save a file of the platform: a link the page follows itself, so that a refusal is a message (core/downloads.js) */
+export function download(href) {
+  const link = h('a', { href, download: '', hidden: true });
+  document.body.append(link);
+  link.click();
+  link.remove();
+}
 export const kindText = (kind) => (has(`jobs.kind.${kind}`) ? t(`jobs.kind.${kind}`) : kind);
 
 export function fmtBytes(n) {
