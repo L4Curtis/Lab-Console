@@ -12,13 +12,17 @@
  * Later ones (the directory of the accounts module: accounts created through
  * invitations) are added with auth.accounts.add(provider) and need no change
  * here. A provider that wants a further proof before a session is opened (a
- * passkey, for an account promoted to administrator) answers
+ * passkey: every account of the directory) answers
  * `{ user, requires: ['passkey'] }` or `['passkey-enrol']`: the sign-in then
  * continues as a step (auth.steps, index.js) instead of opening a session.
  * It may add `binding`: whatever it needs to tell later that the credentials
  * the step was started with are still the account's (a fingerprint of the
  * password hash, the passkeys it had); the step keeps it and auth.steps.peek()
- * hands it back, untouched.
+ * hands it back, untouched. A provider that recognised the credentials but
+ * cannot let the account in on this site whatever it proves next (a local
+ * account where passkeys cannot be offered) answers `{ user, refused: {
+ * status, code, message } }`: the form shows that error instead of the
+ * generic refusal, since the person already proved who they are.
  *
  * The contract every provider keeps: the same work, the same answer and the
  * same time whether or not the user name exists (hash a dummy password for
@@ -43,7 +47,7 @@ export function createAccountProviders(initial = []) {
     add,
     get ids() { return providers.map((p) => p.id); },
 
-    /** → { user, requires } from the one provider that recognises these credentials, or null */
+    /** → { user, requires, binding, refused } from the one provider that recognises these credentials, or null */
     async verify(credentials, { logger } = {}) {
       const answers = await Promise.all(providers.map((p) => Promise.resolve()
         .then(() => p.verify(credentials))
@@ -54,8 +58,18 @@ export function createAccountProviders(initial = []) {
       const matches = answers.filter((a) => a?.user);
       // Two providers claiming the same credentials is a configuration error, never a sign-in
       if (matches.length !== 1) return null;
-      const [{ user, requires, binding }] = matches;
-      return { user, requires: Array.isArray(requires) ? requires.filter((r) => typeof r === 'string') : [], binding: binding ?? null };
+      const [{ user, requires, binding, refused }] = matches;
+      return {
+        user,
+        requires: Array.isArray(requires) ? requires.filter((r) => typeof r === 'string') : [],
+        binding: binding ?? null,
+        // A refusal stays one even when malformed: the generic answer, never a session
+        refused: refused ? {
+          status: Number.isInteger(refused.status) ? refused.status : 401,
+          code: typeof refused.code === 'string' ? refused.code : 'auth.invalid_credentials',
+          message: typeof refused.message === 'string' ? refused.message : 'Sign-in failed',
+        } : null,
+      };
     },
   };
 }
