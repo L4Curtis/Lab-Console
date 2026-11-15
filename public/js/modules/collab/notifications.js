@@ -10,7 +10,8 @@
  * receives, turned into notifications. They are shown only when this window
  * is not the one being looked at (hidden tab, other window): the page itself
  * already says it when it is in front. Each person turns them on with the
- * bell in the rail, which is also where the browser's permission is asked
+ * bell (Alertes: at the bottom of the rail, or in the Plus sheet on a phone;
+ * core/nav.js places it), which is also where the browser's permission is asked
  * (a browser only accepts that after a click); the choice stays in this
  * browser. Without the Notification API, or when permission was refused,
  * the bell says so and does nothing
@@ -19,6 +20,7 @@ import { h, icon, toast, prefs } from '../../core/dom.js';
 import { live } from '../../core/api.js';
 import { t, has, onLocaleChange } from '../../core/i18n.js';
 import { session } from '../../core/session.js';
+import { navSlot, registerPlusEntry } from '../../core/nav.js';
 import { benchSummary, isOccupant } from '../teams/data.js';
 
 const PREF = 'notifications';
@@ -52,9 +54,11 @@ export function startNotifications() {
   let rooms = new Map(); // line → room summary
 
   // ── The bell ──────────────────────────────────────────────────────────────
-  const label = h('span');
-  const bell = h('button.rail-btn#notify-toggle', { type: 'button', onclick: toggle }, icon('bell'), label);
-  document.getElementById('theme-toggle')?.before(bell);
+  const label = h('span.rail-label');
+  const bell = h('button.rail-btn#notify-toggle', { type: 'button', dataset: { nav: 'alerts' }, onclick: toggle }, icon('bell'), label);
+  navSlot('alerts')?.append(bell);
+  // On a phone the rail is hidden: the Plus sheet has a row for the same bell
+  registerPlusEntry({ id: 'alerts', icon: 'bell', order: 10, label: () => t('collab.notify.rail'), hint: () => bell.title, run: () => (bell.disabled ? null : toggle()) });
 
   function render() {
     const state = !supported() ? 'unsupported' : permission() === 'denied' ? 'denied' : isOn() ? 'on' : 'off';

@@ -24,7 +24,7 @@ const STEPS = [
   { id: 'team', route: '#/consoles', target: '.bench-bar' },
   { id: 'console', route: '#/consoles', target: '.diagram-canvas' },
   { id: 'keyboard', route: '#/consoles', target: '.pane-presence' },
-  { id: 'backup', route: null, target: '.rail-btn[data-path="jobs"]' },
+  { id: 'backup', route: null, target: '[data-nav="jobs"]' }, // the rail's entry, or the tab bar's on a phone
 ];
 const TARGET_WAIT_MS = 2500;
 
