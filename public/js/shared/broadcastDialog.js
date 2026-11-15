@@ -57,7 +57,7 @@ export async function openBroadcastDialog({ from }) {
   const stopOnError = h('input', { type: 'checkbox', checked: Boolean(saved.stopOnError) });
   const send = h('button.btn.primary', { type: 'submit', dataset: { action: 'send' } }, icon('broadcast'));
   const problem = h('p.form-error', { role: 'alert' });
-  const library = h('button.btn.small', { type: 'button', dataset: { action: 'library' }, onclick: async () => {
+  const library = h('button.btn.sm', { type: 'button', dataset: { action: 'library' }, onclick: async () => {
     const script = await openScriptLibrary();
     if (!script) return;
     textarea.value = script.body;

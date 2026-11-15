@@ -1,27 +1,30 @@
 /**
- * Buttons of the console tiles, registered by whoever provides them
- * (ARCHITECTURE §8). The terminal tile lays out every registered action
- * whose `when(session)` holds, in `order`, and asks `enabled(pane)` again
- * each time the console's state changes (connected, the keyboard changing
- * hands, a task starting), so a later lot adds "Back up this device" or
- * "Send to several consoles" with one call and no change to the tile:
+ * Actions of the console tiles, registered by whoever provides them
+ * (ARCHITECTURE §8). A tile lists every registered action whose
+ * `when(session)` holds, in `order`, in its ⋯ menu (UX.md §8.2), and asks
+ * `enabled(pane)` again each time the menu opens, so a later lot adds "Back
+ * up this device" or "Send to several consoles" with one call and no change
+ * to the tile:
  *
  *   registerPaneAction({
- *     id: 'backup', icon: 'download', title: 'jobs.actions.backupOne',   // a dictionary key, or () => text
+ *     id: 'backup', icon: 'download',
+ *     label: 'jobs.actions.backupOne',                                  // the menu's words: a dictionary key, or () => text
+ *     title: 'jobs.actions.backupOneHint',                              // optional: a longer explanation (tooltip, the menu's hint)
  *     when: (session) => session.kind === 'console',
  *     enabled: (pane) => pane.canPilot,                                  // optional
  *     run: (pane) => …,
  *     order: 50,                                                         // optional, lower comes first
+ *     pinned: true,                                                      // optional: also an icon in the head of a wide tile
  *   })   → unregister()
  *
- * Tiles already open get the new button too.
+ * Tiles already open get the new action too.
  */
 const actions = new Map();
 const listeners = new Set();
 
-export function registerPaneAction({ id, icon, title, when = () => true, enabled = () => true, run, order = 100 }) {
+export function registerPaneAction({ id, icon, label, title, when = () => true, enabled = () => true, run, order = 100, pinned = false }) {
   if (!id || typeof run !== 'function') throw new TypeError('A pane action needs an id and run(pane)');
-  actions.set(id, { id, icon, title, when, enabled, run, order });
+  actions.set(id, { id, icon, label: label ?? title, title: title ?? label, when, enabled, run, order, pinned });
   for (const fn of listeners) fn();
   return () => {
     if (actions.get(id)?.run !== run) return;

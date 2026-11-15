@@ -68,7 +68,7 @@ export async function openHistoryDialog({ pane }) {
 
   const clock = (iso) => (iso ? fmtTime(iso) : '');
   const dayName = fmtCalendarDay;
-  const download = (query, key, extra = '') => h('a.btn.small', { href: `/api/consoles/history/download?device=${device}${extra}`, download: '', dataset: { action: key } }, icon('download'), query);
+  const download = (query, key, extra = '') => h('a.btn.sm', { href: `/api/consoles/history/download?device=${device}${extra}`, download: '', dataset: { action: key } }, icon('download'), query);
   const matchesList = (found, mapMeta) => h('ol.hist-matches', found.matches.map((m) => h('li',
     h('span.hist-where', mapMeta(m)),
     h('code', highlight(m.text, searched.query, searched.matchCase)))));

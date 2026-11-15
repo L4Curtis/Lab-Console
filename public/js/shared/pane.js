@@ -1,49 +1,73 @@
 /**
- * Common chrome for every tile of the workspace: header (LED, title, meta,
- * status, actions), focus handling, the end-of-session banner and the state
+ * Common chrome for every tile of the workspace (UX.md §8.2): a 36 px head
+ * (LED, title, meta, the state when it is not "connected", what the subclass
+ * adds, ⛶, ⋯, ✕), focus handling, the end-of-session card and the state
  * machine connecting → connected → closed | error
  *
  * A *session descriptor* says what a tile shows and where it connects:
  *   { key, kind: 'console' | 'serial' | 'vnc', title, subtitle, address,
  *     ws: { path, query }, target? }
  * Subclasses (TerminalPane, VncPane) implement connect(), fit(), focus(), dispose()
- * (dispose() calls release()). Every text follows the language: fixed ones through
+ * (dispose() calls release()) and menuItems() (the ⋯ menu, without the final
+ * "disconnect and close"). Every text follows the language: fixed ones through
  * data-i18n attributes, the others in retranslate(), which subclasses extend
+ *
+ * On a phone the tile is the whole screen (the console screen, UX.md §8.3):
+ * its head gets a back arrow (`onBack`) and leaves ⛶ and ✕ to the ⋯ menu
  */
 import { h, icon } from '../core/dom.js';
 import { t, tAttr, tNode, setTAttr, onLocaleChange } from '../core/i18n.js';
+import { moreButton } from './menu.js';
 
 /** A status or banner text is a string or a function of the current language */
 const text = (label) => (typeof label === 'function' ? label() : label);
 
 export class BasePane {
-  constructor(session, { onClose, onFocus, onMaximize, onStateChange }, extraActions = []) {
+  constructor(session, { onClose, onFocus, onMaximize, onStateChange, onBack }, headExtras = []) {
     this.session = session;
-    this.callbacks = { onClose, onFocus, onMaximize, onStateChange };
+    this.callbacks = { onClose, onFocus, onMaximize, onStateChange, onBack };
     this.state = 'connecting';
 
     this.statusLabel = () => t('terminal.pane.starting');
     this.statusText = h('span.pane-status', text(this.statusLabel));
-    this.reconnectBtn = h('button.icon-btn', { type: 'button', ...tAttr('title', 'terminal.pane.reconnect'), hidden: true, onclick: () => this.connect() }, icon('reconnect'));
-    this.maxBtn = h('button.icon-btn', { type: 'button', ...tAttr('title', 'terminal.pane.maximize'), onclick: () => onMaximize(this) }, icon('maximize'));
+    this.reconnectBtn = h('button.icon-btn', { type: 'button', ...tAttr('title', 'terminal.pane.reconnect'), ...tAttr('aria-label', 'terminal.pane.reconnect'), hidden: true, onclick: () => this.connect() }, icon('reconnect'));
+    this.maxBtn = h('button.icon-btn.pane-max', { type: 'button', ...tAttr('title', 'terminal.pane.maximize'), ...tAttr('aria-label', 'terminal.pane.maximize'), onclick: () => onMaximize(this) }, icon('maximize'));
+    this.closeBtn = h('button.icon-btn.pane-close', { type: 'button', ...tAttr('title', 'terminal.pane.disconnectAndClose'), ...tAttr('aria-label', 'terminal.pane.disconnectAndClose'), onclick: () => onClose(this) }, icon('close'));
+    this.backBtn = h('button.icon-btn.pane-back', { type: 'button', ...tAttr('title', 'terminal.pane.back'), ...tAttr('aria-label', 'terminal.pane.back'), onclick: () => this.callbacks.onBack?.(this) }, icon('back'));
+    this.menuBtn = moreButton(() => this.#menu(), { label: () => t('terminal.pane.menu', { title: this.session.title }), cls: '.pane-more' });
     this.banner = h('div.pane-banner', { hidden: true });
     this.body = h('div.pane-body');
 
     this.subtitleEl = h('span');
     this.addressEl = h('code');
+    this.head = h('header.pane-head',
+      this.backBtn,
+      h('span.pane-led', { 'aria-hidden': 'true' }),
+      h('div.pane-title',
+        h('strong', session.title),
+        h('span.pane-meta', this.subtitleEl, this.addressEl)),
+      this.statusText,
+      h('div.pane-actions', ...headExtras, this.reconnectBtn, this.maxBtn, this.menuBtn, this.closeBtn));
     this.el = h(`article.pane.pane-${session.kind}`, { dataset: { state: 'connecting' } },
-      h('header.pane-head',
-        h('span.pane-led', { 'aria-hidden': 'true' }),
-        h('div.pane-title',
-          h('strong', session.title),
-          h('span.pane-meta', this.subtitleEl, this.addressEl)),
-        this.statusText,
-        h('div.pane-actions', ...extraActions, this.reconnectBtn, this.maxBtn,
-          h('button.icon-btn', { type: 'button', ...tAttr('title', 'terminal.pane.disconnectAndClose'), onclick: () => onClose(this) }, icon('close')))),
+      this.head,
       h('div.pane-term', this.body, this.banner));
     this.el.addEventListener('pointerdown', () => onFocus(this));
     this.#describe();
     this.releaseLocale = onLocaleChange(() => this.retranslate());
+  }
+
+  /** What the ⋯ menu lists besides "disconnect and close": the subclass's actions */
+  menuItems() { return []; }
+
+  #menu() {
+    const own = this.menuItems().filter(Boolean);
+    return [
+      ...own,
+      own.length ? 'separator' : null,
+      // On the phone's console screen the tile is already the whole screen
+      this.solo ? null : { id: 'maximize', label: this.maximized ? 'terminal.pane.restore' : 'terminal.pane.maximize', icon: this.maximized ? 'restore' : 'maximize', run: () => this.callbacks.onMaximize(this) },
+      { id: 'close', label: 'terminal.pane.disconnectAndClose', icon: 'close', run: () => this.callbacks.onClose(this) },
+    ].filter((item, i, all) => item && !(item === 'separator' && (i === 0 || all[i - 1] === 'separator')));
   }
 
   /** The parts of the header made of data and words: subtitle, address, accessible name */
@@ -101,9 +125,9 @@ export class BasePane {
     this.banner.replaceChildren(
       h('p', text(message)),
       h('div.banner-actions',
-        h('button.btn.primary', { type: 'button', onclick: () => this.connect() }, tNode(state === 'error' ? 'terminal.pane.tryAgain' : 'terminal.pane.reconnect')),
-        ...extra.map((a) => h('button.btn', { type: 'button', onclick: () => a.run() }, tNode(a.key))),
-        h('button.btn', { type: 'button', onclick: () => this.callbacks.onClose(this) }, tNode('common.actions.close'))));
+        h('button.btn.sm.primary', { type: 'button', onclick: () => this.connect() }, tNode(state === 'error' ? 'terminal.pane.tryAgain' : 'terminal.pane.reconnect')),
+        ...extra.map((a) => h('button.btn.sm', { type: 'button', onclick: () => a.run() }, tNode(a.key))),
+        h('button.btn.sm', { type: 'button', onclick: () => this.callbacks.onClose(this) }, tNode('common.actions.close'))));
   }
 
   hideEnd() {
@@ -113,8 +137,10 @@ export class BasePane {
   }
 
   setMaximized(on) {
+    this.maximized = on;
     this.maxBtn.replaceChildren(icon(on ? 'restore' : 'maximize'));
     setTAttr(this.maxBtn, 'title', on ? 'terminal.pane.restore' : 'terminal.pane.maximize');
+    setTAttr(this.maxBtn, 'aria-label', on ? 'terminal.pane.restore' : 'terminal.pane.maximize');
   }
 
   setFontSize() {}
