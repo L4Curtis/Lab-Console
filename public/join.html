@@ -15,9 +15,9 @@
   <script type="module" src="/js/join.js"></script>
 </head>
 <body class="login-page">
-  <main class="login-card" aria-labelledby="join-title">
+  <main class="login-card" id="join-page" aria-labelledby="join-title">
     <div class="login-brand">
-      <svg viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="6" width="24" height="20" rx="4" /><path d="M10 14l4 3-4 3M16 21h6" /></svg>
+      <svg class="login-mark" viewBox="0 0 32 32" aria-hidden="true"><rect x="4" y="6" width="24" height="20" rx="4" /><path d="M10 14l4 3-4 3M16 21h6" /></svg>
       <div>
         <h1 id="join-title"></h1>
         <p class="login-sub" id="join-sub"></p>
@@ -31,18 +31,18 @@
       <form id="join-form" novalidate>
         <div class="join-signup" id="signup-fields">
           <label for="join-username" data-i18n="accounts.join.username"></label>
-          <input id="join-username" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" minlength="3" maxlength="32" aria-describedby="join-username-hint" />
+          <input class="field" id="join-username" name="username" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" minlength="3" maxlength="32" aria-describedby="join-username-hint" />
           <small id="join-username-hint" data-i18n="accounts.join.usernameHint"></small>
           <label for="join-name" data-i18n="accounts.join.name"></label>
-          <input id="join-name" name="name" type="text" autocomplete="name" maxlength="64" />
+          <input class="field" id="join-name" name="name" type="text" autocomplete="name" maxlength="64" />
         </div>
         <label for="join-password" data-i18n="accounts.join.password"></label>
-        <input id="join-password" name="password" type="password" autocomplete="new-password" minlength="10" maxlength="1024" aria-describedby="join-password-hint" />
+        <input class="field" id="join-password" name="password" type="password" autocomplete="new-password" minlength="10" maxlength="1024" aria-describedby="join-password-hint" />
         <small id="join-password-hint" data-i18n="accounts.join.passwordHint"></small>
         <label for="join-confirm" data-i18n="accounts.join.confirm"></label>
-        <input id="join-confirm" name="confirm" type="password" autocomplete="new-password" maxlength="1024" />
+        <input class="field" id="join-confirm" name="confirm" type="password" autocomplete="new-password" maxlength="1024" />
         <p class="login-error" id="join-error" role="alert" hidden></p>
-        <button class="btn primary wide" id="join-submit" type="submit"></button>
+        <button class="btn primary lg block" id="join-submit" type="submit"></button>
       </form>
     </div>
 
@@ -51,14 +51,14 @@
       <h2 id="join-step-title" data-i18n="auth.step.enrolTitle"></h2>
       <p data-i18n="auth.step.enrolText"></p>
       <p class="login-error" id="join-step-error" role="alert" hidden></p>
-      <button class="btn primary wide" id="join-step-button" type="button" data-i18n="auth.step.enrol"></button>
+      <button class="btn primary lg block" id="join-step-button" type="button" data-i18n="auth.step.enrol"></button>
     </section>
 
-    <p class="join-done" id="join-done" hidden><a class="btn primary wide" href="/login" data-i18n="accounts.join.toLogin"></a></p>
+    <p class="join-done" id="join-done" hidden><a class="btn primary lg block" href="/login" data-i18n="accounts.join.toLogin"></a></p>
 
-    <nav class="login-langs" data-i18n-aria-label="auth.login.language">
-      <button type="button" class="btn subtle small" data-lang="fr" lang="fr" data-i18n="auth.login.languages.fr"></button>
-      <button type="button" class="btn subtle small" data-lang="en" lang="en" data-i18n="auth.login.languages.en"></button>
+    <nav class="login-langs seg" data-i18n-aria-label="auth.login.language">
+      <button type="button" class="seg-btn" data-lang="fr" lang="fr" data-i18n="auth.login.languages.fr"></button>
+      <button type="button" class="seg-btn" data-lang="en" lang="en" data-i18n="auth.login.languages.en"></button>
     </nav>
   </main>
 </body>
