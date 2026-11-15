@@ -74,7 +74,7 @@
     "bench": "Bench",
     "previous": "Previous week",
     "next": "Next week",
-    "thisWeek": "This week",
+    "thisWeek": "Today",
     "week": "{from} to {to}",
     "hint": "Pick a free hour to book the bench for your team; pick your slot to cancel it.",
     "noBench": "No bench in the diagram.",
@@ -93,6 +93,8 @@
     "days": "Days of the week",
     "bookHover": "Book {from}–{to}",
     "free": "Free",
+    "pastUntil": "Past until {time}",
+    "now": "In progress",
     "past": "Past",
     "yourTeam": "Your team"
   },

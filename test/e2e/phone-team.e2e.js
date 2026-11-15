@@ -274,6 +274,39 @@ test('a team that holds a bench lands on it in Consoles and Réservations; anoth
   await page.context().close();
 });
 
+test('today\'s agenda on a phone: the hours over are one line, the hour in progress is not offered, the start is a 24 h list, the week button says Aujourd\'hui', async () => {
+  const { alice, chloe } = await setup();
+  await chloe.context().close();
+  await alice.context().close();
+  const page = await h.newPhonePage();
+  await h.session(page, 'alice');
+  await page.clock.setFixedTime(new Date(2026, 10, 16, 13, 52, 0)); // a Monday, 13:52 for the page (the browser's own time zone)
+  await page.goto(h.url);
+  await waitForApp(page);
+  await go(page, '#/team/calendar/B5M');
+  const view = page.locator('section.view-team:not([hidden])');
+  await view.locator('.cal-agenda .cal-hours').waitFor();
+  assert.equal(await view.locator('button[data-action="today"]').textContent(), 'Aujourd’hui');
+  assert.equal(await view.locator('.cal-hour-past').count(), 1, 'five hours over, one line');
+  assert.match(await view.locator('.cal-hour-past').textContent(), /08:00.*Passé jusqu’à 13:00/);
+  assert.equal(await view.locator('.cal-hour').count(), 1 + 7, 'that line, then 13:00 to 19:00');
+  const now = view.locator('.cal-hour[data-hour="13"]');
+  assert.match(await now.textContent(), /En cours/);
+  assert.equal(await now.locator('button').count(), 0, 'the hour in progress is not offered: the server would refuse it');
+  assert.equal(await view.locator('.cal-hour[data-hour="14"] .cal-free').count(), 1);
+
+  // The next hour opens the sheet with a list of 24 h starts that are still to come
+  await view.locator('.cal-hour[data-hour="14"] .cal-free').click();
+  const select = page.locator('dialog[open] select[name="time"]');
+  await select.waitFor();
+  const starts = await select.locator('option').allTextContents();
+  assert.equal(starts[0], '14:00', `nothing before the next hour: ${starts.slice(0, 3)}`);
+  assert.ok(starts.includes('19:30') && !starts.includes('13:30') && starts.every((x) => /^\d\d:\d\d$/.test(x)), starts.join(' '));
+  assert.equal(await select.inputValue(), '14:00');
+  assert.deepEqual(page.errors, []);
+  await page.context().close();
+});
+
 const SCREENS = [
   { hash: '#/team/mine', ready: '.team-page .card', section: 'team' },
   { hash: '#/team/bench', ready: '.bench-status-card', section: 'team' },

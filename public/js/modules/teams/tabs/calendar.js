@@ -109,8 +109,18 @@ export function mount(el, { header, navigate }) {
     const maxHours = session.isAdmin ? 12 : limits?.maxHours ?? 4;
     const durations = [];
     for (let m = 30; m <= maxHours * 60; m += 30) durations.push({ value: m, label: t('teams.calendar.duration', { hours: Math.floor(m / 60), minutes: String(m % 60).padStart(2, '0') }) });
+    // 24 h starts, every half hour, that are still to come and not inside another booking
+    const starts = [];
+    for (let m = FIRST_HOUR * 60; m < LAST_HOUR * 60; m += 30) {
+      const clock = `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+      const at = new Date(day);
+      at.setHours(Math.floor(m / 60), m % 60, 0, 0);
+      const taken = reservations.some((r) => Date.parse(r.start) <= at.getTime() && at.getTime() < Date.parse(r.end));
+      if (!taken && (session.isAdmin || at.getTime() >= Date.now())) starts.push({ value: clock, label: clock });
+    }
+    if (!starts.some((x) => x.value === hh(hour))) starts.unshift({ value: hh(hour), label: hh(hour) });
     const fields = [
-      { name: 'time', label: t('teams.calendar.start'), type: 'time', value: hh(hour), required: true, attrs: { step: 900 } },
+      { name: 'time', label: t('teams.calendar.start'), type: 'select', options: starts, value: hh(hour), required: true },
       { name: 'minutes', label: t('teams.calendar.length'), type: 'select', options: durations, value: 120 },
     ];
     if (session.isAdmin) fields.push({ name: 'teamId', label: t('teams.calendar.team'), type: 'select', options: (info?.teams ?? []).map((x) => ({ value: x.id, label: x.name })), value: info?.mine?.id });
@@ -212,11 +222,24 @@ export function mount(el, { header, navigate }) {
       }, h('span.cal-dow', intl.format(d)), h('span.cal-dom', String(d.getDate())));
     }));
     const hours = Array.from({ length: LAST_HOUR - FIRST_HOUR }, (_, i) => FIRST_HOUR + i);
-    const rows = hours.map((hour) => {
+    const rows = [];
+    let gone = null; // the hours already over with nothing booked in them: one line, not a screen of "Passé"
+    const closeGone = () => {
+      if (!gone) return;
+      rows.push(h('li.cal-hour.cal-hour-past', { dataset: { hour: String(gone.first) } },
+        h('time.cal-hour-label', hh(gone.first)), h('div.cal-past', t('teams.calendar.pastUntil', { time: hh(gone.last + 1) }))));
+      gone = null;
+    };
+    for (const hour of hours) {
       const from = atHour(chosen, hour);
       const to = atHour(chosen, hour + 1);
       const past = to <= now;
       const r = reservations.find((x) => Date.parse(x.end) > from && Date.parse(x.start) < to);
+      if (past && !r) {
+        gone = gone ? { ...gone, last: hour } : { first: hour, last: hour };
+        continue;
+      }
+      closeGone();
       let content;
       if (r) {
         const mine = r.teamId === myTeamId;
@@ -226,13 +249,15 @@ export function mount(el, { header, navigate }) {
           ? h('button.cal-booked', { type: 'button', dataset: { mine: String(mine), team: r.teamId }, onclick: () => cancel(r) },
             h('span.cal-booked-text', h('strong', label), h('span.card-meta', `${fmtTime(r.start)}–${fmtTime(r.end)}`)), h('span.cal-act', t('teams.slots.cancel')))
           : h('div.cal-booked', { dataset: { mine: 'false', team: r.teamId } }, h('span.cal-booked-text', h('strong', label), h('span.card-meta', `${fmtTime(r.start)}–${fmtTime(r.end)}`)));
-      } else if (past) {
-        content = h('div.cal-past', t('teams.calendar.past'));
+      } else if (from <= now && !session.isAdmin) {
+        // The hour in progress: the server refuses a slot that has begun, so it is not offered
+        content = h('div.cal-now', t('teams.calendar.now'));
       } else {
         content = h('button.cal-free', { type: 'button', dataset: { hour: String(hour) }, onclick: () => book(chosen, hour) }, h('span', t('teams.calendar.free')), h('span.cal-act', t('teams.calendar.book')));
       }
-      return h('li.cal-hour', { dataset: { hour: String(hour) } }, h('time.cal-hour-label', hh(hour)), content);
-    });
+      rows.push(h('li.cal-hour', { dataset: { hour: String(hour) } }, h('time.cal-hour-label', hh(hour)), content));
+    }
+    closeGone();
     const hoursList = h('ol.cal-hours', { 'aria-label': fmtDay(chosen) }, rows);
     // A swipe changes the day (past the ends: the next or the previous week)
     let startX = null;

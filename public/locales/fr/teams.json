@@ -74,7 +74,7 @@
     "bench": "Baie",
     "previous": "Semaine précédente",
     "next": "Semaine suivante",
-    "thisWeek": "Cette semaine",
+    "thisWeek": "Aujourd’hui",
     "week": "Du {from} au {to}",
     "hint": "Choisissez une heure libre pour réserver la baie pour votre équipe ; choisissez votre créneau pour l’annuler.",
     "outside": "Réservations qui ne tiennent pas entre {from} et {to} :",
@@ -93,6 +93,8 @@
     "days": "Jours de la semaine",
     "bookHover": "Réserver {from}–{to}",
     "free": "Libre",
+    "pastUntil": "Passé jusqu’à {time}",
+    "now": "En cours",
     "past": "Passé",
     "yourTeam": "Votre équipe"
   },

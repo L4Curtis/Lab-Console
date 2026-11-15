@@ -194,6 +194,9 @@ button.cal-free, button.cal-booked { cursor: pointer; width: 100%; }
 .cal-booked[data-mine="true"] .card-meta { color: var(--on-accent-soft); }
 .cal-booked[data-mine="true"] .cal-act { color: var(--on-accent-soft); }
 .cal-booked-text { display: grid; flex: 1; min-width: 0; }
+.cal-hour.cal-hour-past { min-height: 40px; }
+.cal-hour-past .cal-hour-label { padding-top: var(--sp-2); }
+.cal-now { display: flex; align-items: center; min-height: 52px; padding: var(--sp-2) var(--sp-4); color: var(--accent-text); font: var(--fs-label); }
 .cal-past { display: flex; align-items: center; padding: var(--sp-2) var(--sp-4); color: var(--text-muted); font: var(--fs-small); }
 .cal-free:focus-visible, .cal-booked:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 @media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) {
