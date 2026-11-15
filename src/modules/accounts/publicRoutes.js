@@ -104,8 +104,8 @@ export function publicRoutes(ctx) {
   // One-click sign-in: every opening of the local form asks for options
   // (conditional UI), so a classroom behind one address needs room
   const passkeyAttempts = createRateLimiter({ limit: PASSKEY_LIMITS.oneClick, windowMs: PASSKEY_LIMITS.windowMs });
-  // The step after a password has its own budget: the class's one-click
-  // traffic never refuses a promoted administrator's step
+  // The step after a password, a sign-up or a reset has its own budget: the
+  // class's one-click traffic never refuses someone's step
   const stepAttempts = createRateLimiter({ limit: PASSKEY_LIMITS.step, windowMs: PASSKEY_LIMITS.windowMs });
   const addressOf = (req) => clientIp(req, config.server);
   const body = (req) => (req.body !== null && typeof req.body === 'object' && !Array.isArray(req.body) ? req.body : {});
@@ -250,13 +250,13 @@ export function publicRoutes(ctx) {
     // Whoever was signed in with the old password or an old passkey is not any
     // more; a sign-in step started with them is over too (its binding no longer holds)
     const ended = auth.sessions.revokeUser(outcome.account.id);
-    const account = directory.get(outcome.account.id);
-    const user = directory.toUser(account);
-    req.user = user;
-    audit.log(req, 'accounts.password.reset', { account: account.id, link: outcome.link.id, sessionsEnded: ended, passkeysRemoved: outcome.removed });
+    req.user = directory.toUser(outcome.account);
+    audit.log(req, 'accounts.password.reset', { account: outcome.account.id, link: outcome.link.id, sessionsEnded: ended, passkeysRemoved: outcome.removed });
     changed('users');
-    if (account.state === 'disabled') return res.json({ ok: true });
-    auth.steps.start(req, res, user, ['passkey-enrol'], { method: 'reset', binding: stepBinding(account) });
+    // The account as it is now (rejected or disabled meanwhile: no step)
+    const account = directory.get(outcome.account.id);
+    if (!account || account.state === 'disabled') return res.json({ ok: true });
+    auth.steps.start(req, res, directory.toUser(account), ['passkey-enrol'], { method: 'reset', binding: stepBinding(account) });
     res.json({ step: 'passkey-enrol' });
   });
 
