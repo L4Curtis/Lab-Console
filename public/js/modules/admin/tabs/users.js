@@ -80,7 +80,9 @@ export function mount(el, ctx) {
     const notes = [];
     if (you) notes.push(h('span.badge', { dataset: { tone: 'info' } }, t('accounts.users.you')));
     if (user.needsPasskey) notes.push(h('span.badge', { dataset: { tone: 'warning' } }, t('accounts.users.needsPasskey')));
-    return h('div.account-cell', h('strong', user.name), h('span.vm-meta', `${user.username} · ${via}`), notes.length ? h('div.account-notes', notes) : null);
+    // Where the sign-in columns wait for a wider window (admin.css), their content is under the name
+    const signIn = [t('accounts.users.signInMeta', { when: fmtLong(user.lastSignInAt) }), ...(user.via === 'local' && !user.environment ? [t('accounts.users.passkeysMeta', { count: user.passkeys })] : [])].join(' · ');
+    return h('div.account-cell', h('strong', user.name), h('span.vm-meta', `${user.username} · ${via}`), h('span.vm-meta.account-signin', signIn), notes.length ? h('div.account-notes', notes) : null);
   }
 
   /** The role as a select: from 720 px (a phone changes it from the row's ⋯) */

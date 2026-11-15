@@ -70,6 +70,8 @@
       "passkeys": "Clés d’accès",
       "lastSignIn": "Dernière connexion"
     },
+    "signInMeta": "Dernière connexion : {when}",
+    "passkeysMeta": "Clés d’accès : {count}",
     "roleAuto": "Selon les groupes ({role})",
     "roleForced": "{role} (forcé)",
     "roleOf": "Rôle de {name}",

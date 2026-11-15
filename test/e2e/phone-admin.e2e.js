@@ -289,3 +289,27 @@ test('on a PC the administration has its list at the left and the same screens, 
   await page.locator('section.view-admin h1', { hasText: 'Users' }).waitFor();
   assert.deepEqual(page.errors, []);
 });
+
+test('on a laptop of 1280 px the users table needs no sideways scroll: Valider stays in view, the sign-in columns are under the name', async () => {
+  const { token } = await invite(h.app, { uses: 2 });
+  assert.equal((await signUp(h.app, token, { username: 'ines', name: 'Inès Roux' })).status, 200);
+  for (const theme of ['light', 'dark']) {
+    const page = await h.newPage();
+    pages.push(page);
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await h.session(page, 'ada');
+    await page.goto(`${h.url}/#/admin/users`);
+    await page.evaluate((x) => { document.documentElement.dataset.theme = x; }, theme);
+    const row = page.locator('section.view-admin tr[data-account="local:ines"]');
+    await row.waitFor();
+    await page.evaluate(() => document.fonts.ready); // the table is laid out with the real font
+    const list = page.locator('section.view-admin .admin-page .data-list');
+    const [scroll, client] = await list.evaluate((el) => [el.scrollWidth, el.clientWidth]);
+    assert.ok(scroll <= client, `${theme}: the table is ${scroll} px in a card of ${client}`);
+    const card = await list.boundingBox();
+    const approve = await row.locator('button[data-action="approve"]').boundingBox();
+    assert.ok(approve.x + approve.width <= card.x + card.width, `${theme}: Valider ends at ${approve.x + approve.width}, the card at ${card.x + card.width}`);
+    assert.match(await row.locator('.account-signin').textContent(), /Dernière connexion : .*Clés d’accès : 0/, `${theme}: what the dropped columns held`);
+    assert.deepEqual(page.errors, []);
+  }
+});
