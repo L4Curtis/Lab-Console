@@ -67,7 +67,7 @@ test('alice opens R1, bob joins and sees the history, asks for the keyboard, ali
   const prompt = paneA.locator('.presence-prompt');
   await prompt.waitFor();
   assert.match(await prompt.textContent(), /Student 2 demande la main/);
-  assert.match(await prompt.textContent(), /elle passe dans \d+ s sans réponse/);
+  assert.match(await prompt.textContent(), /Sans réponse, la main passe à .+ dans \d+ s/);
   await prompt.locator('button[data-action="grant"]').click();
   await bob.waitForFunction(() => document.querySelector('article.pane-console')?.dataset.role === 'pilot');
   await alice.waitForFunction(() => document.querySelector('article.pane-console')?.dataset.role === 'spectator');
@@ -113,7 +113,9 @@ test('alice opens R1, bob joins and sees the history, asks for the keyboard, ali
   await setLanguage(bob, 'en');
   await bob.waitForFunction(() => /Student 1 has the keyboard/.test(document.querySelector('.pane-console .presence-status')?.textContent ?? ''));
 
-  // A later lot draws on the diagram with one call too, without holding the view (ARCHITECTURE §8)
+  // A later lot draws on the diagram with one call too, without holding the view (ARCHITECTURE §8).
+  // With consoles open the diagram column may be too narrow to read, and shows the list: Alice asks for the diagram
+  await alice.click('section.view-consoles .cs-view [data-view="diagram"]');
   await alice.evaluate(async () => {
     const { registerDiagramLayer } = await window.appModule('/js/shared/diagramLayers.js');
     window.offProbeLayer = registerDiagramLayer('probe', (d) => (d.name === 'R2' ? { ring: 'probe', badges: [{ text: 'PR', kind: 'probe', title: 'probe' }] } : null));

@@ -248,8 +248,8 @@
     "ask": "{name} asks for the keyboard",
     "askTask": "{name} wants to run “{task}”",
     "autoIn": {
-      "one": "it passes in {count} s without an answer",
-      "other": "it passes in {count} s without an answer"
+      "one": "With no answer, {name} gets the keyboard in {count} s.",
+      "other": "With no answer, {name} gets the keyboard in {count} s."
     },
     "grant": "Give the keyboard",
     "deny": "Refuse",
@@ -364,6 +364,12 @@
     "modeLine": "Input mode: line",
     "modeDirect": "Input mode: direct",
     "pasteRefused": "The browser did not hand over the clipboard: paste into the input line.",
+    "short": {
+      "break": "Break",
+      "space": "Space",
+      "paste": "Paste",
+      "mode": "Keyboard"
+    },
     "names": {
       "esc": "Escape",
       "tab": "Tab",

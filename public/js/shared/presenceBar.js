@@ -151,7 +151,7 @@ export class PresenceBar {
         : t('terminal.presence.ask', { name: p.pending.from.name });
       const tick = () => {
         const seconds = Math.max(0, Math.round((Date.parse(p.pending.until) - Date.now()) / 1000));
-        this.left.textContent = t('terminal.presence.autoIn', { count: seconds });
+        this.left.textContent = t('terminal.presence.autoIn', { count: seconds, name: p.pending.from.name });
       };
       tick();
       this.#countdown = setInterval(tick, 1000);

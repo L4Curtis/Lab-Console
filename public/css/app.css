@@ -316,7 +316,7 @@ a.card.link:hover { border-color: var(--border-input); }
 .avatar.pilot { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--success); }
 .avatar-stack { display: inline-flex; align-items: center; }
 .avatar-stack > .avatar { box-shadow: 0 0 0 2px var(--surface); }
-.avatar-stack > * + * { margin-left: -6px; }
+.avatar-stack > * + * { margin-left: -2px; } /* the ring of the next badge, not its disc, touches the initials of the one before */
 .avatar-more { margin-left: var(--sp-1); font: var(--fs-caption); color: var(--text-muted); }
 
 /* ── Segmented control (§7.4): 2–4 views or filters ────────────────────── */

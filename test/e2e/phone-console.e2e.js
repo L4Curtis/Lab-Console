@@ -95,6 +95,13 @@ test('a phone opens R1 from the list, types with the line field and the key tool
   });
   assert.ok(sizes.keys.every((k) => k.w >= 44 && k.h >= 44), JSON.stringify(sizes.keys));
   assert.ok(sizes.field >= 44, `the field is ${sizes.field} px high`);
+  // What a first-year student needs most is in view without a swipe; the keys after it say a word, not a symbol
+  const bar = await page.locator('.pane.solo .term-toolbar').boundingBox();
+  for (const id of ['tab', 'help', 'ctrl', 'ctrlC', 'ctrlZ', 'up', 'down']) {
+    const box = await key(page, id).boundingBox();
+    assert.ok(box.x >= bar.x && box.x + box.width <= bar.x + bar.width + 0.5, `${id} is in view (${Math.round(box.x)} to ${Math.round(box.x + box.width)} of ${Math.round(bar.width)})`);
+  }
+  for (const id of ['break', 'space', 'paste', 'mode']) assert.ok((await key(page, id).textContent()).trim().length > 2, `${id} carries a word`);
   assert.equal(sizes.overflow, 0);
   assert.ok(sizes.rows >= 20, `${sizes.rows} rows of terminal with the keyboard closed`);
 
@@ -208,6 +215,78 @@ test('a phone turned on its side keeps the console on the whole screen, turning 
   await page.click('.cs-view [data-view="diagram"]');
   const canvas = await page.locator('.diagram-canvas').boundingBox();
   assert.ok(canvas.height >= 150, `the diagram keeps ${canvas.height} px of 390`);
+  assert.deepEqual(page.errors, []);
+  await page.context().close();
+});
+
+test('a phone opens the bench as a list until it chooses a view; the journal notice and the turn-your-phone line show once', async () => {
+  const page = await onPhone('student1');
+  const pressed = (view) => page.locator(`.cs-view [data-view="${view}"]`).getAttribute('aria-pressed');
+  await page.locator('.device-row').first().waitFor();
+  assert.equal(await pressed('list'), 'true', 'Liste, not a diagram that runs off the screen');
+  assert.equal(await pressed('diagram'), 'false');
+  assert.equal(await page.locator('.cs-notice').isVisible(), true, 'the journal notice, the first time');
+
+  // The next visit: the notice is gone for good, the view is still the default one
+  await page.reload();
+  await waitForBench(page, 'B4M');
+  assert.equal(await page.locator('.cs-notice').isVisible(), false, 'shown once per browser');
+  assert.equal(await pressed('list'), 'true');
+
+  // The line about turning the phone: once, on the first console opened upright
+  await openConsole(page, 'B4M', 'R3');
+  assert.equal(await page.locator('.rotate-hint').isVisible(), true);
+  await page.locator('.pane-head .pane-back').click();
+  await page.locator('.device-row[data-device="R4"]').click();
+  await page.waitForFunction(() => location.hash === '#/consoles/B4M/R4');
+  await page.reload();
+  await page.locator('.pane.solo').waitFor();
+  assert.equal(await page.locator('.rotate-hint').isVisible(), false, 'not again after a visit');
+
+  // A view chosen is a view kept
+  await page.locator('.pane-head .pane-back').click();
+  await page.click('.cs-view [data-view="diagram"]');
+  await page.reload();
+  await waitForBench(page, 'B4M');
+  assert.equal(await pressed('diagram'), 'true');
+  assert.deepEqual(page.errors, []);
+  await page.context().close();
+});
+
+test('on a laptop a diagram column too narrow to read shows the list, until a view is chosen', async () => {
+  const page = await h.newPage();
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await h.session(page, 'student1');
+  await page.goto(`${h.url}/#/consoles/B4M`);
+  await waitForBench(page, 'B4M');
+  const pressed = (view) => page.locator(`.cs-view [data-view="${view}"]`).getAttribute('aria-pressed');
+  assert.equal(await pressed('diagram'), 'true', 'the whole width: the diagram');
+  const pane = await openConsole(page, 'B4M', 'R5');
+  await page.waitForFunction(() => document.querySelector('.cs-view [data-view="list"]').getAttribute('aria-pressed') === 'true');
+  const width = await page.locator('.diagram-pane').evaluate((el) => el.getBoundingClientRect().width);
+  assert.ok(width < 400, `the column is ${width} px`);
+  assert.equal(await page.locator('.device-list').isVisible(), true);
+
+  // Asking for the diagram is a choice: it stays, narrow as it is
+  await page.click('.cs-view [data-view="diagram"]');
+  await pane.locator('.xterm').first().waitFor();
+  await page.locator('section.view-consoles g.device').first().waitFor();
+  assert.equal(await pressed('diagram'), 'true');
+  assert.deepEqual(page.errors, []);
+  await page.context().close();
+});
+
+test('a column of 400 px or more beside an open console never fits the diagram under 70 %', async () => {
+  const page = await h.newPage(); // 1440 px: the column is about 410 px with a console open
+  await h.session(page, 'student1');
+  await page.goto(`${h.url}/#/consoles/B4M`);
+  await waitForBench(page, 'B4M');
+  await openConsole(page, 'B4M', 'S1');
+  await page.locator('section.view-consoles g.device').first().waitFor();
+  const width = await page.locator('.diagram-pane').evaluate((el) => el.getBoundingClientRect().width);
+  assert.ok(width >= 400, `the column is ${width} px`);
+  const zoom = Number.parseInt(await page.locator('.zoom-level').textContent(), 10);
+  assert.ok(zoom >= 70, `the diagram is fitted at ${zoom} %`);
   assert.deepEqual(page.errors, []);
   await page.context().close();
 });

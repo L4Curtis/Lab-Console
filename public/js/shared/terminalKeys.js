@@ -6,11 +6,13 @@
  *   pane.el.append(keys.el);
  *   keys.update();                         // after a presence frame, a task, a state change
  *
- * Toolbar: Esc, Tab, Ctrl (sticky: the next key is sent as its control code;
- * pressed again it stays locked), the arrows (in application cursor mode
- * when the terminal is), ?, ^C, ^Z, Ctrl+Shift+6 (interrupts a ping on IOS),
- * Space (the next page of --More--), Paste, and the switch between the two
- * ways of typing:
+ * Toolbar: Tab, ?, Ctrl (sticky: the next key is sent as its control code;
+ * pressed again it stays locked), ^C, ^Z, the arrows (in application cursor
+ * mode when the terminal is), then, after a swipe, Esc, Break (Ctrl+Shift+6,
+ * interrupts a ping on IOS), Space (the next page of --More--), Paste, and
+ * the switch between the two ways of typing. The most used keys come first
+ * so that a phone shows them without scrolling; the ones after the swipe
+ * carry a word, not only a symbol:
  *
  *   line mode     a field that holds the line until Enter: the phone's
  *                 autocorrect, predictions and compositions stay out of the
@@ -37,20 +39,21 @@ const arrow = (dir, app) => `\x1b${app ? 'O' : '['}${ARROWS[dir]}`;
 
 /** The toolbar, in order: id, label (a key, or the text itself for symbols), what it sends */
 const KEYS = [
-  { id: 'esc', label: 'terminal.keys.esc', send: '\x1b', holds: true },
   { id: 'tab', label: 'terminal.keys.tab', line: '\t' },
-  { id: 'ctrl', label: 'terminal.keys.ctrl', modifier: true },
-  { id: 'up', icon: 'arrowUp', arrow: 'up', holds: true },
-  { id: 'down', icon: 'arrowDown', arrow: 'down', holds: true },
-  { id: 'left', icon: 'arrowLeft', arrow: 'left', caret: -1 },
-  { id: 'right', icon: 'arrowRight', arrow: 'right', caret: 1 },
   { id: 'help', text: '?', line: '?' },
+  { id: 'ctrl', label: 'terminal.keys.ctrl', modifier: true },
   { id: 'ctrlC', text: '^C', send: '\x03', clears: true },
   { id: 'ctrlZ', text: '^Z', send: '\x1a', holds: true },
-  { id: 'break', text: '^⇧6', send: '\x1e' },
-  { id: 'space', text: '␣', send: ' ', inField: ' ' },
-  { id: 'paste', icon: 'clipboard', paste: true },
-  { id: 'mode', icon: 'keyboard', mode: true },
+  { id: 'up', icon: 'arrowUp', arrow: 'up', holds: true },
+  { id: 'down', icon: 'arrowDown', arrow: 'down', holds: true },
+  // What a phone shows without a swipe is what a first-year student needs most: Tab, ?, Ctrl, ^C, ^Z and the history
+  { id: 'left', icon: 'arrowLeft', arrow: 'left', caret: -1 },
+  { id: 'right', icon: 'arrowRight', arrow: 'right', caret: 1 },
+  { id: 'esc', label: 'terminal.keys.esc', send: '\x1b', holds: true },
+  { id: 'break', label: 'terminal.keys.short.break', send: '\x1e' },
+  { id: 'space', label: 'terminal.keys.short.space', send: ' ', inField: ' ' },
+  { id: 'paste', icon: 'clipboard', label: 'terminal.keys.short.paste', paste: true },
+  { id: 'mode', icon: 'keyboard', label: 'terminal.keys.short.mode', mode: true },
 ];
 
 /** The preferred way of typing: the field on a touch screen, the terminal itself with a keyboard */
@@ -149,7 +152,7 @@ export class TerminalKeys {
   // ── The toolbar ───────────────────────────────────────────────────────────
 
   #key(k) {
-    const content = k.icon ? icon(k.icon) : k.text ? h('span', k.text) : tNode(k.label);
+    const content = k.icon && k.label ? [icon(k.icon), tNode(k.label)] : k.icon ? icon(k.icon) : k.text ? h('span', k.text) : tNode(k.label);
     const b = h('button.term-key', { type: 'button', dataset: { key: k.id }, ...tAttr('aria-label', `terminal.keys.names.${k.id}`), ...tAttr('title', `terminal.keys.hints.${k.id}`) }, content);
     if (k.modifier) b.setAttribute('aria-pressed', 'false');
     // The field keeps the focus (and the phone its keyboard) while a key is pressed

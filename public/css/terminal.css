@@ -103,7 +103,10 @@
 .presence-row { display: flex; align-items: center; gap: var(--sp-2) var(--sp-3); min-height: 28px; flex-wrap: wrap; }
 .presence-status { flex: 1; min-width: 140px; }
 .presence-prompt .presence-status { font-weight: 600; color: #fff; }
-.presence-left { color: var(--nav-ink); font: var(--fs-caption); }
+.presence-left { flex: 1 1 100%; order: 3; color: var(--nav-ink); font: var(--fs-caption); } /* its own line, under the question and its buttons */
+/* Where the key area has its own "Demander la main" (a phone, a touch tile), the row does not say it twice */
+.workspace.solo .pane.solo:has(.term-ask:not([hidden])) .pane-presence :is([data-action="request"], .presence-wait),
+.ws-tiles[data-keys="on"] .pane.active:has(.term-ask:not([hidden])) .pane-presence :is([data-action="request"], .presence-wait) { display: none; }
 .presence-actions { display: flex; gap: var(--sp-2); }
 .presence-wait { color: var(--nav-ink); }
 .pane-presence .btn:not(.primary), .pane-task .btn:not(.primary), .pane-banner .btn:not(.primary) {
@@ -172,7 +175,7 @@
 .term-toolbar::-webkit-scrollbar { display: none; }
 .term-toolbar[hidden], .term-input[hidden], .term-ask[hidden], .term-note[hidden] { display: none; }
 .term-key {
-  flex: none; display: inline-grid; place-items: center; min-width: 44px; height: 44px; padding: 0 var(--sp-2);
+  flex: none; display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2); min-width: 44px; height: 44px; padding: 0 var(--sp-2);
   border: 0; border-radius: var(--r-md); background: var(--term-key-bg); color: var(--term-key-ink);
   font: 500 14px/20px var(--mono); cursor: pointer; touch-action: manipulation;
 }
@@ -229,6 +232,8 @@
   .workspace.solo .pane-head :is(.pane-max, .pane-close, .pane-record) { display: none; }
   .workspace.solo .pane-meta code { display: none; }
   .workspace.solo .pane-body { padding: var(--sp-1) var(--sp-1) 0 var(--sp-2); }
+  /* The keyboard is open: its rows are for the terminal (the chips come back when it closes) */
+  :root[data-keyboard="open"] .workspace.solo .ws-switcher { display: none; }
 }
 
 /* A phone on its side (short, touch): a slimmer head, keys and field, so the terminal keeps most of the height; the advice to turn it is moot */

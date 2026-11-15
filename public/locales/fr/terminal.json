@@ -248,8 +248,8 @@
     "ask": "{name} demande la main",
     "askTask": "{name} veut lancer « {task} »",
     "autoIn": {
-      "one": "elle passe dans {count} s sans réponse",
-      "other": "elle passe dans {count} s sans réponse"
+      "one": "Sans réponse, la main passe à {name} dans {count} s.",
+      "other": "Sans réponse, la main passe à {name} dans {count} s."
     },
     "grant": "Donner la main",
     "deny": "Refuser",
@@ -364,6 +364,12 @@
     "modeLine": "Mode de saisie : ligne",
     "modeDirect": "Mode de saisie : direct",
     "pasteRefused": "Le navigateur n’a pas donné le presse-papiers : collez dans la ligne de saisie.",
+    "short": {
+      "break": "Break",
+      "space": "Espace",
+      "paste": "Coller",
+      "mode": "Clavier"
+    },
     "names": {
       "esc": "Échap",
       "tab": "Tab",
