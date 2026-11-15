@@ -579,9 +579,31 @@ export class FakeIos {
       return;
     }
     if (ch === '\x03' || ch === '\x1a') return this.#interrupt(ch);
+    if (ch === '\t' && this.state === 'exec' && !this.#inConfig()) return this.#complete();
     if (ch < ' ') return;
     this.line += ch;
     if (!this.#hidden()) this.out(ch);
+  }
+
+  /**
+   * Tab in exec mode, as IOS does it: a word with one possible keyword is
+   * completed on the line (and a space added); otherwise the line is printed
+   * again on a new prompt, unchanged
+   */
+  #complete() {
+    const words = this.line.split(/\s+/).filter(Boolean);
+    const partial = /\s$/.test(this.line) ? '' : words.pop() ?? '';
+    const before = words.length ? expand(words, EXEC) : { words: [] };
+    let node = EXEC;
+    for (const w of before.words ?? []) node = node?.[w];
+    const hits = partial && node ? Object.keys(node).filter((k) => k.startsWith(partial.toLowerCase())) : [];
+    if (!before.error && hits.length === 1) {
+      const rest = `${hits[0].slice(partial.length)} `;
+      this.line += rest;
+      this.out(rest);
+      return;
+    }
+    this.out(`\r\n${this.#promptText()}${this.line}`);
   }
 
   #hidden() { return this.state === 'pass' || this.state === 'linepass' || this.state === 'enablepass'; }
