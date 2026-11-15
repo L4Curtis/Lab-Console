@@ -2,7 +2,12 @@
 
 **English** · [Français](CHANGELOG.fr.md)
 
-## Unreleased
+## 2.3.0 - 2026-11-15
+
+The redesign of 2.2.0 (bottom tab bar on a phone, the five destinations and
+Plus, the new components) now comes with **mandatory passkeys for every local
+account**. The passkey steps of sign-up, sign-in and reset links are drawn
+with the redesign's login frame, on a phone and on a PC.
 
 ### Changed
 
@@ -28,6 +33,14 @@
   invitations and reset links are refused there. The server's
   administrator still signs in. See [AUTH.md](docs/v2/AUTH.md) §2b and
   [DEPLOY.md](docs/DEPLOY.md) ("Local accounts and passkeys").
+- **The passkey steps look like the rest of the redesign.** The sign-in,
+  sign-up and reset link pages keep their card on a PC and their full-width
+  phone layout for the passkey: a heading, one sentence, one large button.
+  What went well (account created, password saved, waiting for approval) is
+  a green notice; a browser without passkeys or a site without https gets
+  "Passkeys are not available here" instead of "This link does not work".
+  Admin › Invitations says why no link can be made without https and
+  disables **New invitation**.
 - Passkey requests are limited per address with room for a classroom behind
   one public address (300 one-click and 240 step requests a minute), and up
   to 100 sign-ins of one address may wait for their passkey at once.

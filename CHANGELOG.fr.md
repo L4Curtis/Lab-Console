@@ -2,7 +2,13 @@
 
 [English](CHANGELOG.md) · **Français**
 
-## Non publié
+## 2.3.0 - 15 novembre 2026
+
+La refonte de la 2.2.0 (barre d'onglets en bas sur téléphone, les cinq
+destinations et Plus, les nouveaux composants) s'accompagne maintenant des
+**clés d'accès obligatoires pour chaque compte local**. Les étapes de clé
+d'accès de l'inscription, de la connexion et des liens de réinitialisation
+reprennent le cadre de connexion de la refonte, sur téléphone comme sur PC.
 
 ### Modifié
 
@@ -31,6 +37,15 @@
   L'administrateur du serveur se connecte toujours. Voir
   [AUTH.md](docs/fr/AUTH.md) §2b et [DEPLOY.md](docs/fr/DEPLOY.md)
   (« Comptes locaux et clés d'accès »).
+- **Les étapes de clé d'accès ressemblent au reste de la refonte.** Les pages
+  de connexion, d'inscription et de lien de réinitialisation gardent leur
+  carte sur PC et leur mise en page pleine largeur sur téléphone pour la clé
+  d'accès : un titre, une phrase, un grand bouton. Ce qui s'est bien passé
+  (compte créé, mot de passe enregistré, attente de validation) est un
+  bandeau vert ; un navigateur sans clés d'accès ou un site sans https
+  affiche « Clés d'accès indisponibles ici » au lieu de « Ce lien ne
+  fonctionne pas ». Admin › Invitations dit pourquoi aucun lien ne peut être
+  créé sans https et désactive **Nouvelle invitation**.
 - Les requêtes de clé d'accès sont limitées par adresse avec de la place
   pour une classe derrière une seule adresse publique (300 requêtes de
   connexion en un clic et 240 d'étape par minute), et jusqu'à 100 connexions
