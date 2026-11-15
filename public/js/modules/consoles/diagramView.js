@@ -32,7 +32,7 @@
 import { svg, h, icon, loadCss } from '../../core/dom.js';
 import { t, tAttr, onLocaleChange } from '../../core/i18n.js';
 import { diagramLayers, linkLayersList, onDiagramLayersChange } from '../../shared/diagramLayers.js';
-import { isCompact, isCoarse } from '../../core/viewport.js';
+import { isCompact } from '../../core/viewport.js';
 
 // Device glyphs, drawn in a 24×24 box centred in the device tile
 const GLYPHS = {
@@ -360,7 +360,7 @@ export class DiagramView {
   refit() { if (this.#autoFit) this.fit(); }
 
   /**
-   * The whole diagram; on a touch screen, only when its devices stay at least
+   * The whole diagram; on a phone, only when its devices stay at least
    * MIN_TILE_PX on screen, otherwise (a phone) the zoom that keeps them that big, the top of the
    * diagram in view: the person pans to the rest
    */
@@ -374,8 +374,8 @@ export class DiagramView {
     const room = Math.max(height - top - bottom, height / 3);
     const whole = Math.min(width / b.w, room / b.h, 1.6);
     const smallest = Math.min(...this.#lab.devices.map((d) => Math.min(d.w, d.h)).filter((n) => n > 0), Infinity);
-    // A finger needs devices it can hit: on a phone or a touch screen they stay readable, the rest is a pan away
-    const readable = Number.isFinite(smallest) && (isCompact() || isCoarse()) ? MIN_TILE_PX / smallest : 0;
+    // A phone needs devices it can read and hit: they keep their size, the rest is a pan away
+    const readable = Number.isFinite(smallest) && isCompact() ? MIN_TILE_PX / smallest : 0;
     if (whole >= readable) {
       this.#set(whole, (width - b.w * whole) / 2 - b.x * whole, top + (room - b.h * whole) / 2 - b.y * whole);
       return;
