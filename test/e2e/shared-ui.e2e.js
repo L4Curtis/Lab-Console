@@ -535,6 +535,19 @@ test('the redesign\'s kit: page header, list, menu, side panel, empty state and 
     await p.locator('.toast.error .toast-action').click();
     await p.locator('.toast.error').waitFor({ state: 'detached' });
     assert.deepEqual(await p.evaluate(() => window.__ran), ['backup', 'reset', 'del:B', 'empty', 'toast']);
+
+    if (!phone) {
+      // A popover menu: Escape closes it even when the focus left it (a terminal takes it), and it never follows to another page
+      await header.locator('.more-btn:visible').click();
+      await p.locator('.menu-pop:not(.user-menu)').waitFor();
+      await p.evaluate(() => document.activeElement?.blur());
+      await p.keyboard.press('Escape');
+      await p.locator('.menu-pop:not(.user-menu)').waitFor({ state: 'detached' });
+      await header.locator('.more-btn:visible').click();
+      await p.locator('.menu-pop:not(.user-menu)').waitFor();
+      await p.evaluate(() => { location.hash = '#/home'; });
+      await p.locator('.menu-pop:not(.user-menu)').waitFor({ state: 'detached' });
+    }
     assert.deepEqual(p.errors, []);
     await p.context().close();
   }

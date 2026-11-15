@@ -145,6 +145,8 @@ export function openMenu(anchor, items, { label, side, sheet = isCompact() } = {
       if (done) return;
       document.removeEventListener('pointerdown', outside, true);
       removeEventListener('resize', close);
+      removeEventListener('hashchange', close);
+      document.removeEventListener('keydown', onEscape, true);
       try { pop.hidePopover?.(); } catch { /* already hidden */ }
       pop.remove();
       if (anchor?.isConnected && (!chosen || !chosen.href)) anchor.focus();
@@ -161,6 +163,10 @@ export function openMenu(anchor, items, { label, side, sheet = isCompact() } = {
     const outside = (e) => { if (!pop.contains(e.target) && !anchor.contains(e.target)) close(); };
     document.addEventListener('pointerdown', outside, true);
     addEventListener('resize', close);
+    // A menu belongs to the page it was opened on, and Escape closes it wherever the focus went (a terminal can take it)
+    addEventListener('hashchange', close);
+    const onEscape = (e) => { if (e.key === 'Escape') { e.preventDefault(); close(); } };
+    document.addEventListener('keydown', onEscape, true);
     anchor?.setAttribute?.('aria-haspopup', 'menu');
     anchor?.setAttribute?.('aria-expanded', 'true');
     anchor?.setAttribute?.('aria-controls', id);
