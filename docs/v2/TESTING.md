@@ -43,6 +43,13 @@ own, start it with `await h.ready`.
 - `await h.session(page, 'student1')`: no sign-in page at all; a real session
   opened by the test helper is put in the browser as its cookie. Use it when
   the sign-in is not what the scenario is about.
+- A local account (made through an invitation) signs in with a passkey,
+  which needs a domain name: start the harness with `publicHost:
+  'localhost'` and give the page `await addVirtualAuthenticator(page)`
+  before it signs up or signs in. Through the API,
+  `createLocalAccount(h.app, 'zoe')` (`test/helpers/accounts.js`) signs up
+  and registers the passkey with a software authenticator it hands back
+  (`key`), for `passkeySignIn()` or `signInWithPassword()`.
 - `await signOut(page)`: the user menu's button, until `/login`.
 - The guided tour opens by itself for a person who never saw it, which every
   fresh test user is, and it would sit over the page. `h.newPage()` therefore
