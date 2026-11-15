@@ -22,6 +22,7 @@ import { request } from './core/api.js';
 import { loadSession } from './core/session.js';
 import { initI18n, setLocale, getLocale, onLocaleChange, t, tError } from './core/i18n.js';
 import { completeStep, isCancelled, passkeysSupported } from './core/passkeys.js';
+import { rememberLogin } from './core/lastLogin.js';
 
 const $ = (id) => document.getElementById(id);
 const mode = location.pathname === '/reset' ? 'reset' : 'join';
@@ -148,6 +149,7 @@ $('join-step-button').addEventListener('click', async () => {
   render();
   try {
     const answer = await completeStep();
+    rememberLogin('passkey'); // an account made by invitation signs in with its passkey from now on
     if (!answer.pending) {
       location.assign(answer.redirect || '/');
       return;

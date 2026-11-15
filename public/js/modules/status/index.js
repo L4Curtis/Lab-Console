@@ -18,7 +18,7 @@ import { pageHeader } from '../../shared/pageHeader.js';
 import { dataList } from '../../shared/dataList.js';
 import { fmtLong } from '../../core/format.js';
 import { loading, loadFailure } from '../../shared/loadState.js';
-import { adminNav } from '../admin/nav.js';
+import { adminNav, tabsBesideNav } from '../admin/nav.js';
 
 export async function mount(el, { navigate }) {
   await Promise.all([loadNamespace('admin', 'accounts'), loadCss('accounts'), loadCss('admin')]);
@@ -27,6 +27,7 @@ export async function mount(el, { navigate }) {
   const header = pageHeader({ title: 'admin.status.title', context: 'admin.status.subtitle', back: admin ? '#/admin' : undefined, tabs: true });
   const body = h('div.view-body.admin-content');
   el.append(header.el, admin ? h('div.admin-layout', adminNav({ current: 'status' }).el, body) : body);
+  if (admin) tabsBesideNav(header, body, el);
   const ctx = { setActions: (actions) => header.update({ actions }), setContext: (text) => header.update({ context: text ? () => text : 'admin.status.subtitle' }) };
   const tabs = mountTabs(body, [
     { id: 'health', title: () => t('admin.status.tabs.health'), load: async () => ({ mount: mountHealth }) },

@@ -7,12 +7,14 @@
  *
  *   const nav = adminNav({ current: 'users' });   // nav.el, nav.setCurrent(id), nav.setCounts({ users: 2 })
  *   adminHref(entry)                              // '#/admin/users', '#/infra'
+ *   tabsBesideNav(header, column, el)             // the page's tabs in the content column, beside the list
  *
  * Machines et switchs and État du labo show the same list for an administrator
  * (infra/index.js, status/index.js)
  */
 import { h, icon } from '../../core/dom.js';
 import { t, onLocaleChange } from '../../core/i18n.js';
+import { isCompact, onViewportChange } from '../../core/viewport.js';
 
 export const ADMIN_GROUPS = [
   { id: 'accounts', entries: [{ id: 'users', tab: true }, { id: 'invitations', tab: true }, { id: 'sso', tab: true }, { id: 'teams', href: '#/team/all' }] },
@@ -51,4 +53,23 @@ export function adminNav({ current = null } = {}) {
     /** { users: 2 } or { users: { count: 2, tone: 'danger' } } */
     setCounts(next) { counts = next; render(); },
   };
+}
+
+/**
+ * A screen of another section that sits in the administration (el has `admin-sub`) shows the list of the
+ * administration at the left. Its own tabs then go at the top of the content column, to the right of that
+ * list, so that the two navigations do not stack on the same width and the list starts where it does on
+ * the other administration screens. Without the list (a phone, a student) they stay in the page header.
+ * Call it again (the returned function) when `admin-sub` changes. → place()
+ */
+export function tabsBesideNav(header, column, el) {
+  const place = () => {
+    const beside = !isCompact() && el.classList.contains('admin-sub');
+    header.el.classList.toggle('has-tabs', !beside);
+    if (beside) column.prepend(header.tabBar);
+    else header.el.append(header.tabBar);
+  };
+  place();
+  onViewportChange(place);
+  return place;
 }

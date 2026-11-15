@@ -17,7 +17,7 @@ import { t, loadNamespace } from '../../core/i18n.js';
 import { session } from '../../core/session.js';
 import { mountTabs } from '../../shared/tabs.js';
 import { pageHeader } from '../../shared/pageHeader.js';
-import { adminNav } from '../admin/nav.js';
+import { adminNav, tabsBesideNav } from '../admin/nav.js';
 
 export async function mount(el, { navigate }) {
   const admin = session.isAdmin;
@@ -25,6 +25,7 @@ export async function mount(el, { navigate }) {
   const header = pageHeader({ title: 'teams.title', tabs: true, back: admin ? '#/admin' : undefined });
   const body = h(`div.view-body${admin ? '.admin-content' : ''}`);
   el.append(header.el, admin ? h('div.admin-layout', adminNav({ current: 'teams' }).el, body) : body);
+  const placeTabs = admin ? tabsBesideNav(header, body, el) : null;
   const tabs = mountTabs(body, [
     { id: 'mine', title: () => t('teams.tabs.mine'), load: () => import('./tabs/mine.js') },
     { id: 'bench', title: () => t('teams.tabs.bench'), load: () => import('./tabs/bench.js') },
@@ -33,7 +34,7 @@ export async function mount(el, { navigate }) {
   ], { navigate, base: '#/team', bar: header.tabBar, label: t('teams.title'), ctx: { header } });
   return {
     show: (params) => {
-      if (admin) el.classList.toggle('admin-sub', params?.[0] === 'all');
+      if (admin) { el.classList.toggle('admin-sub', params?.[0] === 'all'); placeTabs(); }
       return tabs.show(params);
     },
     hide: () => tabs.hide(),

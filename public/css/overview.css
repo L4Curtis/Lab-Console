@@ -69,6 +69,14 @@
 .ov-card .ov-lock { display: block; font: var(--fs-small); }
 .ov-open { justify-self: start; margin-top: var(--sp-1); text-decoration: none; }
 .ov-lab .dl-table td:empty { display: none; }
+/* The list of a phone: 64 px rows with a chevron, the whole row is the way into the bench */
+.ov-chevron { display: none; }
+@media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) {
+  .ov-lab .dl-table tr { position: relative; padding: var(--sp-2) calc(var(--sp-4) + 24px) var(--sp-2) var(--sp-4); gap: 0 var(--sp-3); cursor: pointer; }
+  .ov-lab .dl-table .ov-link { min-height: 0; }
+  .ov-lab .dl-table td.dl-meta { overflow-wrap: anywhere; }
+  .ov-lab .ov-chevron { display: inline-grid; position: absolute; right: var(--sp-3); top: 50%; transform: translateY(-50%); color: var(--text-muted); }
+}
 .ov-link { display: flex; align-items: center; min-height: var(--tap); color: inherit; text-decoration: none; }
 .ov-link:hover { text-decoration: underline; }
 .ov-lines { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }

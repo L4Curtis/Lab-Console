@@ -81,6 +81,11 @@ test('invitation sign-up: an administrator creates the link, a newcomer creates 
 
   // Next time: one click, no password
   await signOut(page);
+  // This browser made its account with a passkey: that is the main button now, with the line that says so
+  assert.equal(await page.locator('#passkey-button').evaluate((b) => b.classList.contains('primary')), true, 'the passkey is the filled button');
+  assert.equal(await page.locator('#sso-button').evaluate((b) => b.classList.contains('primary')), false, 'and the provider\'s is not');
+  assert.equal(await page.evaluate(() => Boolean(document.getElementById('login-extra').compareDocumentPosition(document.getElementById('login-sso')) & Node.DOCUMENT_POSITION_FOLLOWING)), true, 'and comes first');
+  assert.match(await page.textContent('#invited-hint'), /Compte créé avec une invitation\s\? Utilisez la clé d’accès\./);
   await page.click('#passkey-button');
   await waitForApp(page);
   await page.click('.user-menu-btn');

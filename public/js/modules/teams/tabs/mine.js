@@ -142,7 +142,8 @@ export function mount(el, { header }) {
       h('form.team-form.form-grid', { onsubmit: (e) => { e.preventDefault(); create(e.target); } },
         h('p.card-meta', session.isAdmin ? t('teams.create.adminNote') : t('teams.create.intro')),
         h('label', h('span', t('teams.create.name')), h('input.field', { name: 'name', required: true, minlength: 2, maxlength: 40, autocomplete: 'off', placeholder: t('teams.create.placeholder') })),
-        h('div.team-form-actions', h('button.btn.primary', { type: 'submit', dataset: { action: 'create' } }, icon('plus'), t('teams.create.submit')))));
+        // With an invitation to answer above, joining is the main action; the page's title already says what this one creates
+        h('div.team-form-actions', h(`button.btn${data.invitations.length ? '' : '.primary'}`, { type: 'submit', dataset: { action: 'create' } }, icon('plus'), t('teams.create.submit')))));
   }
 
   function myTeam(team) {

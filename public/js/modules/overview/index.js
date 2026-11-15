@@ -14,7 +14,7 @@
  * The filter is kept with prefs (benchFilter). The server decides what each
  * person may see; nothing here hides or reveals anything
  */
-import { h, prefs } from '../../core/dom.js';
+import { h, icon, prefs } from '../../core/dom.js';
 import { t, onLocaleChange } from '../../core/i18n.js';
 import { isCompact, onViewportChange } from '../../core/viewport.js';
 import { dataList } from '../../shared/dataList.js';
@@ -46,10 +46,10 @@ export function labBlock({ onFilter } = {}) {
     label: () => t('overview.lab.title'),
     dense: true,
     columns: [
-      { id: 'bench', label: 'overview.lab.cols.bench', cell: (c) => h('a.ov-link', { href: `#/consoles/${encodeURIComponent(c.bench)}`, dataset: { bench: c.bench } }, c.bench), primary: true },
+      // A card of a phone: the bench and its state, one line under them, a chevron (the whole row opens the bench)
+      { id: 'bench', label: 'overview.lab.cols.bench', cell: (c) => h('a.ov-link', { href: `#/consoles/${encodeURIComponent(c.bench)}`, dataset: { bench: c.bench } }, c.bench, icon('chevronRight', 'ov-chevron')), primary: true },
       { id: 'state', label: 'overview.lab.cols.state', cell: (c) => stateBadge(c), badge: true },
-      { id: 'team', label: 'overview.lab.cols.team', cell: (c) => holderText(c), meta: true },
-      { id: 'consoles', label: 'overview.lab.cols.consoles', cell: (c) => t('overview.card.lines', { count: c.lines.open, total: c.lines.total }), meta: true },
+      { id: 'detail', label: 'overview.lab.cols.detail', cell: (c) => [holderText(c), t('overview.card.lines', { count: c.lines.open, total: c.lines.total })].filter(Boolean).join(' · '), meta: true },
     ],
     onOpen: (c) => { location.hash = `#/consoles/${encodeURIComponent(c.bench)}`; },
     rowKey: (c) => c.bench,

@@ -15,7 +15,7 @@ import { session } from '../../core/session.js';
 import { mountTabs } from '../../shared/tabs.js';
 import { pageHeader } from '../../shared/pageHeader.js';
 import { SplitView } from '../../shared/splitView.js';
-import { adminNav } from '../admin/nav.js';
+import { adminNav, tabsBesideNav } from '../admin/nav.js';
 import { VmPanel } from './vmPanel.js';
 import { SwitchPanel } from './switchPanel.js';
 
@@ -30,13 +30,14 @@ export async function mount(el, { navigate }) {
   el.append(header.el);
   if (admin) el.append(layout);
   const split = new SplitView(layout, primary, { labelKey: 'infra.title' });
+  if (admin) tabsBesideNav(header, primary, el);
   const panels = { vms: null, switches: new SwitchPanel() };
 
   // The VM panel needs to know whether Proxmox is configured (and how it is reached)
   const vmsReady = getJson('/api/proxmox/status')
     .catch(() => ({ proxmox: false }))
     .then((status) => {
-      panels.vms = new VmPanel(status);
+      panels.vms = new VmPanel({ ...status, admin: status.admin ?? session.isAdmin }); // an unconfigured Proxmox answers { proxmox: false } to everyone
       panels.vms.onActionsChange = () => applyActions('vms');
       return panels.vms;
     });

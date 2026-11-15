@@ -135,6 +135,7 @@
       "other": "{count} MB"
     },
     "notice": "Consoles are journaled for {days} days: what the devices print, not what you type without echo.",
+    "noticeShort": "Consoles are journaled for {days} days.",
     "dismiss": "Got it",
     "noneTitle": "No journal",
     "loadFailed": "The journals could not be loaded.",

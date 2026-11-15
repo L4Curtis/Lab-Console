@@ -13,7 +13,7 @@
     "adminNote": "En tant qu’administrateur, vous n’avez pas besoin d’équipe pour gérer les baies. Vous pouvez quand même en créer une.",
     "name": "Nom de l’équipe",
     "placeholder": "Les routeurs fous",
-    "submit": "Créer l’équipe",
+    "submit": "Créer",
     "done": "Équipe {name} créée."
   },
   "invitations": {

@@ -20,8 +20,7 @@
     "cols": {
       "bench": "Baie",
       "state": "État",
-      "team": "Équipe",
-      "consoles": "Consoles"
+      "detail": "Équipe et consoles"
     }
   },
   "card": {

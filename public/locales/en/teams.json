@@ -13,7 +13,7 @@
     "adminNote": "As an admin you need no team to manage the benches. You may still create one.",
     "name": "Team name",
     "placeholder": "The crazy routers",
-    "submit": "Create the team",
+    "submit": "Create",
     "done": "Team {name} created."
   },
   "invitations": {

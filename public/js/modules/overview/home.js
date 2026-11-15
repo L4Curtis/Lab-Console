@@ -217,18 +217,20 @@ export async function mount(el, { navigate } = {}) {
     button.disabled = false;
   }
 
-  function noTeamCard() {
+  function noTeamCard(d) {
     if (session.isAdmin) return null;
+    // An invitation waits above: joining it is the action; creating a team of one's own is the second choice
+    const invited = d.invitations.length > 0;
     return h('section.card.ov-bench-panel', { dataset: { panel: 'bench' } },
       h('div.card-head', h('h2', t('overview.home.bench.title'))),
       h('div.card-body', h('p', t('overview.home.bench.none')), h('p.muted', t('overview.home.team.noneHint'))),
-      h('div.card-foot', link('#/team/mine', t('overview.home.team.create'), 'team', '.primary')));
+      h('div.card-foot', link('#/team/mine', t('overview.home.team.create'), 'team', invited ? '' : '.primary')));
   }
 
   function benchPanel(d) {
     if (d.bench) return heroCard(d);
     if (d.team) return freeBenchesCard();
-    return noTeamCard();
+    return noTeamCard(d);
   }
 
   function teamPanel(d) {

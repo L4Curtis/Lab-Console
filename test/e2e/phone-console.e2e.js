@@ -294,14 +294,14 @@ test('a column of 400 px or more beside an open console never fits the diagram u
 test('Outils › Mur de consoles says why it is off while no console is open, and nothing once one is', async () => {
   const page = await h.newPage();
   await h.session(page, 'student2');
-  await page.goto(`${h.url}/#/consoles/B5M`);
-  await waitForBench(page, 'B5M');
+  await page.goto(`${h.url}/#/consoles/B4H`);
+  await waitForBench(page, 'B4H');
   const wall = () => page.locator('.menu-pop [role^="menuitem"][data-id="wall"]');
   await page.locator('section.view-consoles .tools-btn').click();
   assert.equal(await wall().getAttribute('aria-disabled'), 'true');
   assert.match(await wall().textContent(), /Aucune console de cette baie n’est ouverte/);
   await page.keyboard.press('Escape');
-  await openConsole(page, 'B5M', 'S1');
+  await openConsole(page, 'B4H', 'S1');
   await page.locator('section.view-consoles .tools-btn').click();
   await wall().waitFor();
   assert.equal(await wall().getAttribute('aria-disabled'), null);

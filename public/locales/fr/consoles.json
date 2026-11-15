@@ -135,6 +135,7 @@
       "other": "{count} Mo"
     },
     "notice": "Les consoles sont journalisées pendant {days} jours : ce que les équipements affichent, pas ce que vous tapez sans écho.",
+    "noticeShort": "Les consoles sont journalisées pendant {days} jours.",
     "dismiss": "J’ai compris",
     "noneTitle": "Aucun journal",
     "loadFailed": "Les journaux n’ont pas pu être chargés.",

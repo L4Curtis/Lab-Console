@@ -313,6 +313,39 @@ test('today\'s agenda on a phone: the hours over are one line, the hour in progr
   await page.context().close();
 });
 
+test('an invited student has one main action: joining; creating a team is the second choice, and the bench rows of Accueil are 64 px with a chevron', async () => {
+  const { alice, chloe } = await setup();
+  await chloe.context().close();
+  const { body: { mine } } = await api(alice, 'GET', '/api/teams');
+  const page = await h.newPhonePage();
+  await signInAs(page, 'chloe'); // a person of the directory, with no team (the other Chloé of setup() is a test session)
+  assert.equal((await api(alice, 'POST', `/api/teams/${mine.id}/invitations`, { username: 'student3' })).status, 201);
+  const home = page.locator('section.view-home:not([hidden])');
+  await home.locator('[data-attention="invitation"] button[data-action="accept-invitation"]').waitFor();
+  assert.equal(await home.locator('[data-attention="invitation"] button.primary').count(), 1, 'Rejoindre is the blue button');
+  const create = home.locator('[data-panel="bench"] a[data-action="team"]');
+  assert.equal(await create.evaluate((a) => a.classList.contains('primary')), false, 'Créer une équipe is not');
+  const rows = home.locator('.ov-lab .dl-table tbody tr');
+  await rows.first().waitFor();
+  const heights = await rows.evaluateAll((trs) => trs.map((tr) => Math.round(tr.getBoundingClientRect().height)));
+  assert.ok(heights.length >= 8 && heights.every((height) => height >= 44 && height <= 66), `rows: ${heights.join(', ')} px`);
+  assert.equal(await home.locator('.ov-lab .ov-chevron:visible').count(), heights.length, 'a chevron on each row');
+  await rows.first().click();
+  await page.waitForFunction(() => location.hash.startsWith('#/consoles/'));
+
+  // Équipe: the same choice, and no "Créer une équipe" over a button that says "Créer l'équipe"
+  await go(page, '#/team/mine');
+  const view = page.locator('section.view-team:not([hidden])');
+  const submit = view.locator('button[data-action="create"]');
+  await submit.waitFor();
+  assert.equal(await submit.evaluate((b) => b.classList.contains('primary')), false);
+  assert.equal((await submit.textContent()).trim(), 'Créer');
+  assert.equal(await view.locator('button[data-action="accept"].primary').count(), 1);
+  assert.deepEqual(page.errors, []);
+  await page.context().close();
+  await alice.context().close();
+});
+
 const SCREENS = [
   { hash: '#/team/mine', ready: '.team-page .card', section: 'team' },
   { hash: '#/team/bench', ready: '.bench-status-card', section: 'team' },

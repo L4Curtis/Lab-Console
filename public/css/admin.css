@@ -49,6 +49,9 @@
   .admin-layout > .split-body { flex: 1; min-height: 0; }
 }
 
+/* The tabs of Machines et switchs, État du labo and Toutes les équipes sit in the content column, beside the list (nav.js tabsBesideNav) */
+.admin-content > .ph-tabs, .infra-primary > .ph-tabs { grid-column: auto; margin: 0 0 var(--sp-4) calc(-1 * var(--sp-3)); border-bottom: 1px solid var(--border); }
+
 /* The page header's back arrow only makes sense on a phone, inside a screen of the area */
 .admin-area .ph-back, .admin-sub .ph-back { display: none; }
 

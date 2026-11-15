@@ -28,6 +28,7 @@ import { request } from './core/api.js';
 import { loadSession } from './core/session.js';
 import { initI18n, setLocale, getLocale, onLocaleChange, t, tError, has } from './core/i18n.js';
 import { passkeysSupported, autofillSupported, signInWithPasskey, completeStep, isCancelled } from './core/passkeys.js';
+import { lastLogin, rememberLogin } from './core/lastLogin.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new URLSearchParams(location.search);
@@ -92,14 +93,24 @@ function setStep(kind) {
   local.hidden = Boolean(step);
   $('login-sso').hidden = Boolean(step) || !session.providerName;
   $('login-extra').hidden = Boolean(step) || !offerPasskeys;
+  $('invited-hint').hidden = Boolean(step) || !(offerPasskeys && session.providerName);
   render();
   if (step) stepButton.focus();
 }
 
 $('login-sso').hidden = !session.providerName;
 $('login-extra').hidden = !offerPasskeys;
-// Without an identity provider the local form is the main way in: show it open
-local.open = !session.providerName;
+$('invited-hint').hidden = !(offerPasskeys && session.providerName);
+// The way this browser signed in last is the main button: a student with a local account is not led to the
+// filled SSO button. Without an identity provider (or after a local sign-in) the local form is shown open
+const lastMethod = lastLogin();
+if (lastMethod === 'passkey' && offerPasskeys) {
+  passkeyButton.classList.add('primary');
+  ssoButton.classList.remove('primary');
+  $('login-sso').before($('login-extra'));
+}
+local.open = !session.providerName || lastMethod === 'local';
+ssoButton.addEventListener('click', () => rememberLogin('sso'));
 render();
 onLocaleChange(render);
 
@@ -126,6 +137,7 @@ form.addEventListener('submit', async (event) => {
       setStep(answer.step);
       return;
     }
+    rememberLogin('local'); // the server's administrator: a password and a code
     location.assign(answer.redirect || '/');
     return;
   } catch (err) {
@@ -150,6 +162,7 @@ stepButton.addEventListener('click', async () => {
   render();
   try {
     const { redirect } = await completeStep();
+    rememberLogin('passkey');
     location.assign(redirect || '/');
     return;
   } catch (err) {
@@ -178,6 +191,7 @@ $('step-restart').addEventListener('click', () => {
 async function passkeySignIn({ autofill = false } = {}) {
   try {
     const { redirect } = await signInWithPasskey({ next, autofill });
+    rememberLogin('passkey');
     location.assign(redirect || '/');
   } catch (err) {
     if (autofill || isCancelled(err)) return; // a suggestion nobody picked, a dialog closed

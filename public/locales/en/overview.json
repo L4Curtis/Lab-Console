@@ -20,8 +20,7 @@
     "cols": {
       "bench": "Bench",
       "state": "State",
-      "team": "Team",
-      "consoles": "Consoles"
+      "detail": "Team and consoles"
     }
   },
   "card": {

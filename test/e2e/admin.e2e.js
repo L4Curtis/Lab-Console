@@ -277,3 +277,33 @@ test('the audit trail says what happened in words with the code beneath, dates o
   assert.deepEqual(admin.errors, []);
   await admin.context().close();
 });
+
+test('Machines et switchs without Proxmox: a student is told it is not available, only an administrator reads the names of the settings', async () => {
+  const student = await h.newPage();
+  await h.session(student, 'alice');
+  await student.goto(`${h.url}/#/infra`);
+  const empty = student.locator('section.view-infra .empty-state');
+  await empty.waitFor();
+  assert.match(await empty.textContent(), /Proxmox n’est pas disponible pour le moment/);
+  assert.doesNotMatch(await student.locator('section.view-infra').textContent(), /PROXMOX_|\.env/, 'nothing a student cannot act on');
+
+  const admin = await h.newPage();
+  await h.session(admin, 'ada');
+  await admin.goto(`${h.url}/#/infra`);
+  const note = admin.locator('section.view-infra .empty-state');
+  await note.waitFor();
+  assert.match(await note.textContent(), /Proxmox n’est pas configuré/);
+  assert.match(await note.textContent(), /PROXMOX_URL.*\.env/);
+  // The page's tabs sit in the content column, beside the administration list, not above it
+  const tabs = await admin.locator('section.view-infra .ph-tabs').boundingBox();
+  const list = await admin.locator('section.view-infra .admin-nav').boundingBox();
+  assert.ok(tabs.x >= list.x + list.width, `tabs at ${tabs.x}, the list ends at ${list.x + list.width}`);
+  await admin.goto(`${h.url}/#/admin/users`);
+  await admin.locator('section.view-admin .data-list').waitFor();
+  const users = await admin.locator('section.view-admin .admin-nav').boundingBox();
+  assert.equal(Math.round(list.y), Math.round(users.y), 'the list starts where it does on the other administration screens');
+  assert.deepEqual(student.errors, []);
+  assert.deepEqual(admin.errors, []);
+  await student.context().close();
+  await admin.context().close();
+});

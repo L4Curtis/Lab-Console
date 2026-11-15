@@ -283,8 +283,10 @@ export async function mount(el, { navigate }) {
   }).observe(diagramPane);
 
   /** The hint over the canvas while no console is open: what to do, with a mouse or a finger */
+  let touched = false; // the hint has done its job once a finger or a mouse was on the diagram
+  canvas.addEventListener('pointerdown', () => { touched = true; hint.hidden = true; }, { once: true });
   function writeHint() {
-    hint.hidden = !current || workspace.panes.size > 0 || diagramPane.dataset.state !== 'ready';
+    hint.hidden = touched || !current || workspace.panes.size > 0 || diagramPane.dataset.state !== 'ready';
     hint.textContent = !current ? '' : current.devices.length
       ? t(isCoarse() ? 'consoles.hintTouch' : 'consoles.hint', { count: current.devices.length })
       : t('consoles.noDevice');
@@ -295,7 +297,8 @@ export async function mount(el, { navigate }) {
     const show = retentionDays !== null && (noticeOnScreen || !prefs.get('journalNoticeSeen', false));
     notice.hidden = !show;
     if (show && !noticeOnScreen) { noticeOnScreen = true; prefs.set('journalNoticeSeen', true); }
-    noticeText.textContent = retentionDays === null ? '' : t('consoles.journal.notice', { days: retentionDays });
+    // A phone has no room for the whole sentence: the first half here, the rest behind "En savoir plus"
+    noticeText.textContent = retentionDays === null ? '' : t(isCompact() ? 'consoles.journal.noticeShort' : 'consoles.journal.notice', { days: retentionDays });
   }
 
   // ── Tools ─────────────────────────────────────────────────────────────────
@@ -399,6 +402,7 @@ export async function mount(el, { navigate }) {
   // The window grows past the phone's width: the console screen becomes tiles again. A narrow one
   // (a phone turned upright or on its side) shows the console its address names on the whole screen
   onViewportChange(({ compact }) => {
+    renderNotice();
     if (!compact && screen.active) { screen.leave(); pushedScreen = false; }
     else if (compact && shown && !screen.active) {
       const pane = paneOfAddress();
