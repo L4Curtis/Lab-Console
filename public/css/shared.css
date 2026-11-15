@@ -172,6 +172,11 @@ dialog.modal > :not(.modal-head):not(.sheet-handle) { flex: 1 1 auto; min-height
 .dl-actions-inner { display: inline-flex; align-items: center; gap: var(--sp-2); }
 .dl-empty { padding: var(--sp-2) 0; }
 @media (min-width: 720px) { .dl-compact-only { display: none; } }
+/* Between 720 and 1199 px a table has little room: an action with an icon shows the icon only (its label is its title and stays its name) */
+@media (min-width: 720px) and (max-width: 1199.98px) {
+  .dl-actions .btn:has(> .icon) > .dl-action-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  .dl-actions .btn:has(> .icon) { padding-inline: var(--sp-2); }
+}
 @media (max-width: 719.98px) {
   .dl-table, .dl-table tbody { display: block; border: 0; background: none; border-radius: 0; overflow: visible; }
   .dl-table thead { display: none; }

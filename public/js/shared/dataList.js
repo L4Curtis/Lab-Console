@@ -60,7 +60,8 @@ export function dataList({ label, columns = [], actions, empty, onOpen, dense = 
     const button = (a, extra = '') => h(`button.btn.sm${a.danger ? '.danger' : ''}${extra}`, {
       type: 'button', disabled: a.disabled ? true : null, dataset: { action: a.id },
       onclick: (e) => { e.stopPropagation(); a.run?.(row); },
-    }, a.icon ? icon(a.icon) : null, text(a.label));
+      title: a.icon ? text(a.label) : null,
+    }, a.icon ? icon(a.icon) : null, h('span.dl-action-label', text(a.label))); // 720–1199 px: the icon alone, the label in the title
     const shown = [primary ? button(primary) : null, second ? button(second, '.dl-table-only') : null];
     // ⋯ holds what is not shown: on a card the second action is in it too
     const rest = () => list.filter((a) => a !== primary && (a !== second || matchMedia('(max-width: 719.98px)').matches));
