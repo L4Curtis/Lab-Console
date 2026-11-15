@@ -24,7 +24,7 @@ export function mount(el, { header }) {
     columns: [
       { id: 'team', label: 'teams.all.team', cell: (team) => team.name, primary: true },
       { id: 'members', label: 'teams.all.members', cell: (team) => h('span.team-members-cell', avatarStack(team.people ?? [], { max: 4 }), h('span.card-meta', t('teams.members.title', { count: team.people?.length ?? 0 }))) },
-      { id: 'bench', label: 'teams.all.bench', cell: (team) => { const held = heldBy(team); return held ? h('a', { href: `#/team/bench/${encodeURIComponent(held.bench)}` }, held.bench) : h('span.card-meta', '—'); }, meta: true },
+      { id: 'bench', label: 'teams.all.bench', cell: (team) => { const held = heldBy(team); return held ? h('a.team-bench-link', { href: `#/team/bench/${encodeURIComponent(held.bench)}` }, held.bench) : h('span.card-meta', '—'); }, meta: true },
       { id: 'created', label: 'teams.all.created', cell: (team) => fmtDate(team.createdAt), hideCompact: true },
     ],
     actions: () => [

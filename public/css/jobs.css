@@ -13,6 +13,7 @@
 .jobs-search { margin-bottom: var(--sp-4); }
 .jobs-hits ul { margin: var(--sp-2) 0 0; padding: 0; list-style: none; display: grid; gap: var(--sp-2); font: var(--fs-small); max-height: 16em; overflow: auto; }
 .jobs-hits code { font: var(--fs-mono); overflow-wrap: anywhere; }
+.jobs-snapshots td[data-col="date"], .jobs-snapshots td[data-col="devices"], .jobs-runs td[data-col="date"] { white-space: nowrap; }
 .jobs-name { display: grid; min-width: 0; }
 .jobs-name .badge { justify-self: start; margin-top: var(--sp-1); }
 .jobs-base { margin: 0; }

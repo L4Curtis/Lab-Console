@@ -4,7 +4,7 @@
   "actions": {
     "backup": "Sauvegarder",
     "inject": "Injecter",
-    "compare": "Comparer à la configuration en cours",
+    "compare": "Comparer",
     "reset": "Réinitialiser"
   },
   "notice": {

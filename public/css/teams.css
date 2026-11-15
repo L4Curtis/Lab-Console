@@ -72,6 +72,7 @@
 .team-bench { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; }
 .team-bench p { margin: 0; }
 .team-wide { display: grid; gap: var(--sp-4); align-content: start; }
+.team-bench-link { display: inline-flex; align-items: center; min-height: var(--tap); min-width: var(--tap); }
 .team-members-cell { display: inline-flex; align-items: center; gap: var(--sp-3); }
 @media (min-width: 720px) {
   .team-members { grid-template-columns: 1fr 1fr; column-gap: var(--sp-6); }

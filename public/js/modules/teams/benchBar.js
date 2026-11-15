@@ -5,7 +5,7 @@
  * running). Everything else is in its ⋯ menu or on the "Baie" tab of the
  * team section (docs/v2/UX.md §7.13)
  *
- *   const bar = mountBenchBar(viewEl);     // appended to viewEl; { variant: 'strip' } is the only one
+ *   const bar = mountBenchBar(viewEl);     // appended to viewEl; mountBenchBar(viewEl, { variant: 'strip' }) is the same
  *   bar.setBench('B4M');                    // the lab on screen
  *   bar.decorate(diagram);                  // diagram rings, when the diagram offers decorate()
  *   bar.mayOpen(device, ['B4M', 'B4H'])     // false: the server would refuse this console
@@ -32,8 +32,9 @@ import { kindText } from '../jobs/text.js';
 
 const FINAL = new Set(['done', 'failed', 'cancelled', 'partial', 'skipped']);
 
-export function mountBenchBar(host) {
+export function mountBenchBar(host, { variant = 'strip' } = {}) { // the strip is the only variant: the parameter keeps room for the contract of UX.md §7.13
   const el = h('section.bench-bar', { hidden: true, 'aria-label': t('benches.strip.label') });
+  el.dataset.variant = variant;
   host.append(el);
   let diagram = null;
   let ready = false;

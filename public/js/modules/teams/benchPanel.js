@@ -82,9 +82,12 @@ export function createBenchPanel({ model, act, inlinePrimary = false, inSheet = 
         h('div', h('strong', t('benches.lock.banner')), ' ', d.lock.reason,
           h('p.card-meta', t('benches.lock.by', { name: d.lock.by?.name ?? '', time: fmtDateTime(d.lock.at) })))));
     }
-    lines.push(h('p.bench-status', d.holder
-      ? t('benches.status.taken', { team: d.holder.teamName ?? '?', time: fmtTime(d.holder.since) })
-      : t('benches.status.free')));
+    // A locked bench nobody holds is not "free": the lock above says what it is
+    if (d.holder || !d.lock) {
+      lines.push(h('p.bench-status', d.holder
+        ? t('benches.status.taken', { team: d.holder.teamName ?? '?', time: fmtTime(d.holder.since) })
+        : t('benches.status.free')));
+    }
     if (d.holder && d.releaseAt) {
       lines.push(row(
         h('p.bench-idle.card-meta', soon ? t('benches.strip.releaseSoon', { count: soon }) : t('benches.status.releaseAt', { time: fmtTime(d.releaseAt) })),
