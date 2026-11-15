@@ -31,6 +31,7 @@ import { h, icon, loadCss } from '../core/dom.js';
 import { t, onLocaleChange } from '../core/i18n.js';
 import { moreButton } from './menu.js';
 import { emptyState } from './loadState.js';
+import { isCompact } from '../core/viewport.js';
 
 const text = (v) => (typeof v === 'function' ? v() : v ? t(v) : '');
 
@@ -64,7 +65,7 @@ export function dataList({ label, columns = [], actions, empty, onOpen, dense = 
     }, a.icon ? icon(a.icon) : null, h('span.dl-action-label', text(a.label))); // 720–1199 px: the icon alone, the label in the title
     const shown = [primary ? button(primary) : null, second ? button(second, '.dl-table-only') : null];
     // ⋯ holds what is not shown: on a card the second action is in it too
-    const rest = () => list.filter((a) => a !== primary && (a !== second || matchMedia('(max-width: 719.98px)').matches));
+    const rest = () => list.filter((a) => a !== primary && (a !== second || isCompact()));
     const more = list.length > shown.filter(Boolean).length || second
       ? moreButton(() => rest().map((a) => ({ id: a.id, label: a.label, icon: a.icon, danger: a.danger, disabled: a.disabled, hint: a.hint })), {
         onSelect: (id) => list.find((a) => a.id === id)?.run?.(row),

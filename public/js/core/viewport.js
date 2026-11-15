@@ -4,12 +4,12 @@
  * whose keyboard is open. Layout itself stays in CSS media queries; the
  * numbers here are those of css/tokens.css
  *
- *   isCompact()           width < 720 px: tab bar, sheets
+ *   isCompact()           width < 720 px, or a touch screen shorter than 500 px (a phone turned on its side): tab bar, sheets
  *   isCoarse()            a finger rather than a mouse
  *   onViewportChange(fn)  fn({ compact, coarse, keyboard, height }) on every change → unsubscribe
  *   startViewport()       sets --vvh (px) and data-keyboard="open" on <html>; main.js calls it once
  */
-const COMPACT = '(max-width: 719.98px)';
+const COMPACT = '(max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse)'; // the same query as css/*.css
 const COARSE = '(pointer: coarse)';
 const KEYBOARD_PX = 120; // the visual viewport shrank this much: the virtual keyboard is open
 

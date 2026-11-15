@@ -359,7 +359,7 @@ dialog.modal.quick-open { --dlg-w: 560px; margin-top: 12vh; }
   .finder { flex-basis: 220px; }
   .finder kbd { display: none; }
 }
-@media (max-width: 960px) and (min-width: 720px) {
+@media (max-width: 960px) and (min-width: 720px) and (not ((max-height: 499.98px) and (pointer: coarse))) {
   .cs-tools .btn-label, .cs-tools .tools-chevron { display: none; }
   .cs-tools .tools-more { display: inline-grid; }
   .finder { flex: 0 1 44px; }
@@ -367,7 +367,7 @@ dialog.modal.quick-open { --dlg-w: 560px; margin-top: 12vh; }
 }
 
 /* ── Compact (< 720 px): the phone's two screens ───────────────────────── */
-@media (max-width: 719.98px) {
+@media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) {
   /* App bar: Consoles, Discussion, ⋯ (Outils with the finder and En direct) */
   .view-consoles .page-header.consoles-header { grid-template-columns: minmax(0, 1fr) auto; min-height: var(--appbar-h); padding: var(--sp-1) var(--sp-2) var(--sp-1) var(--gutter); }
   .consoles-header .ph-title { grid-column: 1; }
@@ -426,4 +426,14 @@ dialog.modal.quick-open { --dlg-w: 560px; margin-top: 12vh; }
   dialog.modal.quick-open { margin-top: auto; }
   .qo-item { grid-template-columns: 64px minmax(0, 1fr); }
   .qo-item code { grid-column: 2; }
+}
+
+/* ── A phone on its side: the bench screen keeps room for the diagram ─────── */
+@media (max-height: 499.98px) and (pointer: coarse) {
+  .cs-notice, .canvas-hint { display: none; }
+  .seg.fill-compact.cs-view { position: absolute; top: var(--sp-2); right: var(--sp-3); z-index: var(--z-float); margin: 0; box-shadow: var(--elev-1); }
+  .device-list-wrap { padding-top: var(--sp-3); }
+  .cs-benchline > .bench-picker, .cs-benchline .bench-main > .bench-picker { margin-block: var(--sp-1); }
+  .dock { min-height: 40px; bottom: var(--sp-2); }
+  .cs-stage:has(> .dock:not([hidden])) :is(.zoom-controls, .notes-btn) { bottom: calc(40px + 2 * var(--sp-2)); }
 }

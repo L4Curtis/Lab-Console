@@ -29,14 +29,14 @@
   .help-summary { display: inline-flex; }
 }
 /* A phone: the sections are folded, their title is the button */
-@media (max-width: 719.98px) {
+@media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) {
   .help-sections { gap: var(--sp-2); }
   .help-section { padding: 0; }
   .help-toggle { min-height: 52px; padding: 0 var(--sp-4); cursor: pointer; }
   .help-text { margin: 0; padding: 0 var(--sp-4) var(--sp-4); }
   .help-text[hidden] { display: none; }
 }
-@media (min-width: 720px) {
+@media (min-width: 720px) and (not ((max-height: 499.98px) and (pointer: coarse))) {
   .help-text[hidden] { display: grid !important; } /* from 720 px every section is open */
 }
 

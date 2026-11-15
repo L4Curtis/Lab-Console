@@ -94,7 +94,7 @@
 .login-empty { text-align: center; }
 
 /* A phone: no card, the brand in the upper third, the controls full width above the safe area */
-@media (max-width: 719.98px) {
+@media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) {
   .login-page { place-items: stretch; padding: 0; background-image: none; }
   .login-card {
     width: 100%; align-content: start; gap: var(--sp-5);

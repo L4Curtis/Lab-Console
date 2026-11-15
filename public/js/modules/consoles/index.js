@@ -362,9 +362,21 @@ export async function mount(el, { navigate }) {
     requestAnimationFrame(() => { diagram.refit(); writeHint(); });
   }
 
-  // The window grows past the phone's width: the console screen becomes tiles again
+  /** The open console the address names (#/consoles/B4M/R2), when there is one */
+  function paneOfAddress() {
+    const [, section, bench, device] = location.hash.split('/').map((x) => decodeURIComponent(x));
+    if (section !== 'consoles' || !bench || !device) return null;
+    return [...workspace.panes.values()].find((p) => p.session.title === device && p.session.subtitle === bench) ?? null;
+  }
+
+  // The window grows past the phone's width: the console screen becomes tiles again. A narrow one
+  // (a phone turned upright or on its side) shows the console its address names on the whole screen
   onViewportChange(({ compact }) => {
     if (!compact && screen.active) { screen.leave(); pushedScreen = false; }
+    else if (compact && shown && !screen.active) {
+      const pane = paneOfAddress();
+      if (pane) { screen.enter(pane); dock.render(); }
+    }
     writeHint();
   });
 

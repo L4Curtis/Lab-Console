@@ -38,7 +38,7 @@
 .bench-progress::-webkit-progress-bar { background: var(--surface); border-radius: var(--r-pill); }
 .bench-progress::-webkit-progress-value { background: var(--accent); border-radius: var(--r-pill); }
 .bench-progress::-moz-progress-bar { background: var(--accent); border-radius: var(--r-pill); }
-@media (max-width: 719.98px) {
+@media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) {
   .bench-line { padding-inline: var(--gutter); }
   .bench-main { cursor: pointer; }
   .bench-text.long, .bench-idle.long { display: none; }
@@ -74,11 +74,11 @@
 .team-wide { display: grid; gap: var(--sp-4); align-content: start; }
 .team-bench-link { display: inline-flex; align-items: center; min-height: var(--tap); min-width: var(--tap); }
 .team-members-cell { display: inline-flex; align-items: center; gap: var(--sp-3); }
-@media (min-width: 720px) {
+@media (min-width: 720px) and (not ((max-height: 499.98px) and (pointer: coarse))) {
   .team-members { grid-template-columns: 1fr 1fr; column-gap: var(--sp-6); }
   .team-members > li:nth-last-child(2):nth-child(odd) { border-bottom: 0; }
 }
-@media (max-width: 719.98px) {
+@media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) {
   .team-form-actions .btn { width: 100%; }
   .team-invitations .team-list > li { flex-wrap: wrap; }
   .team-invitations .team-row-actions { margin-left: 0; width: 100%; }
@@ -120,7 +120,7 @@
 .bench-history-list > li, .bench-history ol > li { display: grid; grid-template-columns: 10em 1fr; gap: var(--sp-3); align-items: baseline; min-height: 0; font: var(--fs-small); }
 .bench-history ol { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--sp-2); }
 .bench-history time, .bench-history-list time { color: var(--text-muted); font-variant-numeric: tabular-nums; }
-@media (max-width: 719.98px) {
+@media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) {
   .bench-history-list > li, .bench-history ol > li { grid-template-columns: 1fr; gap: 2px; padding-block: var(--sp-2); }
   .bench-request-actions { width: 100%; margin-left: 0; }
   .bench-request-actions .btn { flex: 1; }
@@ -192,7 +192,7 @@ button.cal-free, button.cal-booked { cursor: pointer; width: 100%; }
 .cal-booked-text { display: grid; flex: 1; min-width: 0; }
 .cal-past { display: flex; align-items: center; padding: var(--sp-2) var(--sp-4); color: var(--text-muted); font: var(--fs-small); }
 .cal-free:focus-visible, .cal-booked:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
-@media (max-width: 719.98px) {
+@media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) {
   .cal-scroll { display: none; }
   .cal-agenda { display: grid; }
   .cal-toolbar { gap: var(--sp-2); }

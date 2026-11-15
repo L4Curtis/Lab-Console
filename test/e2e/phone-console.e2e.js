@@ -171,3 +171,43 @@ test('the diagram on a phone: devices big enough to tap, a long press opens the 
   assert.deepEqual(page.errors, []);
   await page.context().close();
 });
+
+test('a phone turned on its side keeps the console on the whole screen, turning back and forth, and after a direct load', async () => {
+  const page = await onPhone('student1');
+  const pane = await openConsole(page, 'B4M', 'R2');
+  await page.waitForFunction(() => location.hash === '#/consoles/B4M/R2');
+  const screen = () => page.locator('section.view-consoles').getAttribute('data-screen');
+
+  // Turned: 844 × 390 is a short touch screen, compact like the upright phone; the console keeps the screen
+  await page.setViewportSize({ width: 844, height: 390 });
+  await page.waitForFunction(() => document.querySelector('section.view-consoles').dataset.screen === 'console');
+  assert.equal(await page.locator('.tabbar').isVisible(), false, 'no tab bar over a console');
+  assert.equal(await page.locator('.rotate-hint').isVisible(), false, 'nothing asks to turn a phone that is turned');
+  assert.equal(await field(page).isVisible(), true, 'the line field and the keys are there');
+  const area = await page.locator('.pane.solo .pane-body').boundingBox();
+  assert.ok(area.height >= 150, `the terminal keeps ${area.height} px of 390`);
+  assert.ok(area.width >= 800, 'and the whole width');
+
+  // Upright again, then turned again: still the console
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForFunction(() => document.querySelector('section.view-consoles').dataset.screen === 'console');
+  await page.setViewportSize({ width: 844, height: 390 });
+  assert.equal(await screen(), 'console');
+  assert.equal(await page.evaluate(() => location.hash), '#/consoles/B4M/R2');
+
+  // A direct load of the address, turned
+  await page.reload();
+  await page.waitForFunction(() => document.querySelector('section.view-consoles')?.dataset.screen === 'console');
+  await page.locator('.pane.solo').waitFor();
+
+  // Back to the bench: its screen, with no journal notice, a slim tab bar, and room for the diagram
+  await page.locator('.pane-head .pane-back').click();
+  await page.waitForFunction(() => !document.querySelector('section.view-consoles').dataset.screen);
+  assert.equal(await page.locator('.cs-notice').isVisible(), false);
+  assert.equal(await page.locator('.tabbar').isVisible(), true);
+  await page.click('.cs-view [data-view="diagram"]');
+  const canvas = await page.locator('.diagram-canvas').boundingBox();
+  assert.ok(canvas.height >= 150, `the diagram keeps ${canvas.height} px of 390`);
+  assert.deepEqual(page.errors, []);
+  await page.context().close();
+});

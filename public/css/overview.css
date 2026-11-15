@@ -96,12 +96,12 @@
 .ov-activity span { overflow-wrap: anywhere; }
 .ov-shortcuts { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
 
-@media (min-width: 720px) {
+@media (min-width: 720px) and (not ((max-height: 499.98px) and (pointer: coarse))) {
   .ov-top { grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); }
   .ov-top:has(> :only-child) { grid-template-columns: minmax(0, 1fr); }
   .ov-activity li { grid-template-columns: 9.5em 1fr; gap: var(--sp-3); }
 }
-@media (max-width: 719.98px) {
+@media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) {
   .ov-home { gap: var(--sp-6); }
   .ov-hero-name { font: 600 24px/30px var(--font); }
   .ov-attention-actions { width: 100%; margin-left: 0; }

@@ -22,7 +22,7 @@
  */
 import { h, icon, prefs, loadCss } from '../core/dom.js';
 import { t, tAttr, tNode, onLocaleChange } from '../core/i18n.js';
-import { isCoarse, onViewportChange } from '../core/viewport.js';
+import { isCoarse, isCompact, onViewportChange } from '../core/viewport.js';
 import { openMenu } from './menu.js';
 import { TerminalPane } from './terminalPane.js';
 import { VncPane } from './vncPane.js';
@@ -31,7 +31,7 @@ const MIN_TILE_WIDTH = 520; // px — keeps ~70 columns of CLI readable
 const FONT_MIN = 10;
 const FONT_MAX = 24;
 /** Text size of a terminal: 12 px on a phone (≈ 50 columns at 390 px), 14 px elsewhere, unless chosen */
-const defaultFont = () => (matchMedia('(max-width: 719.98px)').matches ? 12 : 14);
+const defaultFont = () => (isCompact() ? 12 : 14);
 
 class Workspace extends EventTarget {
   panes = new Map(); // session.key → pane

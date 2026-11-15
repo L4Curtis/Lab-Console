@@ -8,9 +8,9 @@
 .admin-waiting p { margin: 0; }
 .dl-table td[data-col="name"] { min-width: 200px; }
 .data-list tr[data-state="pending"] { background: var(--warning-bg); }
-@media (min-width: 720px) { .data-list tr[data-state="pending"] td { background: var(--warning-bg); } }
+@media (min-width: 720px) and (not ((max-height: 499.98px) and (pointer: coarse))) { .data-list tr[data-state="pending"] td { background: var(--warning-bg); } }
 .role-select { min-height: max(32px, var(--tap)); font-size: 13px; max-width: 100%; }
-@media (min-width: 720px) {
+@media (min-width: 720px) and (not ((max-height: 499.98px) and (pointer: coarse))) {
   .data-list th[data-col="roleText"], .data-list td[data-col="roleText"] { display: none; }
 }
 
@@ -35,13 +35,13 @@
 .account-card .pref-row { padding-inline: 0; }
 .account-card .data-list { margin-bottom: var(--sp-1); }
 
-@media (max-width: 719.98px) {
+@media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) {
   .account-facts div { grid-template-columns: 1fr; gap: 2px; }
   .passkey-list li { grid-template-columns: auto minmax(0, 1fr); }
   .passkey-list li .row-actions { grid-column: 1 / -1; }
   .account-card .card-foot .btn { flex: 1; }
 }
-@media (max-width: 719.98px) {
+@media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) {
   /* A list inside a card does not need a frame of its own */
   .account-card .data-list.dense .dl-table tbody { border: 0; border-radius: 0; background: none; }
   .account-card .data-list.dense .dl-table tr { padding-inline: 0; }

@@ -44,7 +44,7 @@ dialog.modal > :not(.modal-head):not(.sheet-handle) { flex: 1 1 auto; min-height
 @keyframes fade-in { from { opacity: 0; } }
 @keyframes sheet-in { from { transform: translateY(100%); } }
 
-@media (max-width: 719.98px) {
+@media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) {
   dialog.modal, dialog.modal.wide, dialog.modal[data-size] {
     width: 100%; max-width: 100%; height: fit-content; max-height: calc(var(--vvh, 100dvh) - 24px);
     margin: auto 0 0; border-width: 1px 0 0; border-radius: var(--r-xl) var(--r-xl) 0 0;
@@ -117,7 +117,7 @@ dialog.modal > :not(.modal-head):not(.sheet-handle) { flex: 1 1 auto; min-height
   .side-panel { position: absolute; top: 0; right: 0; bottom: 0; z-index: var(--z-popover); box-shadow: var(--elev-3); animation: side-in var(--dur-3) var(--ease-out); }
   .side-scrim:not([hidden]) { display: block; position: absolute; inset: 0; z-index: var(--z-popover); background: var(--scrim); }
 }
-@media (max-width: 719.98px) {
+@media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) {
   .side-panel { position: fixed; inset: 0; width: auto; z-index: var(--z-popover); padding-bottom: env(safe-area-inset-bottom); border: 0; animation: sheet-in var(--dur-3) var(--ease-out); }
   .side-head { flex-direction: row-reverse; padding: 0 48px 0 var(--sp-1); }
   .side-head h2 { text-align: center; }
@@ -143,7 +143,7 @@ dialog.modal > :not(.modal-head):not(.sheet-handle) { flex: 1 1 auto; min-height
 .tab[aria-selected="true"]::after { transform: none; }
 .tab:focus-visible { outline-offset: -2px; }
 /* Faded edges when the strip scrolls sideways (compact) */
-@media (max-width: 719.98px) {
+@media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) {
   .tabs { mask-image: linear-gradient(to right, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%); padding-inline: var(--sp-2); }
 }
 .tab-panels { flex: 1; min-height: 0; display: flex; flex-direction: column; }
@@ -171,13 +171,13 @@ dialog.modal > :not(.modal-head):not(.sheet-handle) { flex: 1 1 auto; min-height
 .dl-actions { width: 1%; white-space: nowrap; text-align: right; }
 .dl-actions-inner { display: inline-flex; align-items: center; gap: var(--sp-2); }
 .dl-empty { padding: var(--sp-2) 0; }
-@media (min-width: 720px) { .dl-compact-only { display: none; } }
+@media (min-width: 720px) and (not ((max-height: 499.98px) and (pointer: coarse))) { .dl-compact-only { display: none; } }
 /* Between 720 and 1199 px a table has little room: an action with an icon shows the icon only (its label is its title and stays its name) */
-@media (min-width: 720px) and (max-width: 1199.98px) {
+@media (min-width: 720px) and (max-width: 1199.98px) and (not ((max-height: 499.98px) and (pointer: coarse))) {
   .dl-actions .btn:has(> .icon) > .dl-action-label { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .dl-actions .btn:has(> .icon) { padding-inline: var(--sp-2); }
 }
-@media (max-width: 719.98px) {
+@media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) {
   .dl-table, .dl-table tbody { display: block; border: 0; background: none; border-radius: 0; overflow: visible; }
   .dl-table thead { display: none; }
   .dl-table tbody { display: grid; gap: var(--sp-2); }

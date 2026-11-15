@@ -219,7 +219,7 @@
 }
 
 /* ── Compact: the console screen of a phone ────────────────────────────── */
-@media (max-width: 719.98px) {
+@media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) {
   .workspace.solo { background: var(--term-bg); }
   .workspace.solo .ws-toolbar { display: none; }
   .workspace.solo .ws-tiles { padding: 0; gap: 0; }
@@ -229,6 +229,17 @@
   .workspace.solo .pane-head :is(.pane-max, .pane-close, .pane-record) { display: none; }
   .workspace.solo .pane-meta code { display: none; }
   .workspace.solo .pane-body { padding: var(--sp-1) var(--sp-1) 0 var(--sp-2); }
+}
+
+/* A phone on its side (short, touch): a slimmer head, keys and field, so the terminal keeps most of the height; the advice to turn it is moot */
+@media (max-height: 499.98px) and (pointer: coarse) {
+  .workspace.solo .pane-head { min-height: 40px; }
+  .workspace.solo .pane.solo .term-keys { gap: var(--sp-1); padding: var(--sp-1) var(--sp-2); }
+  .workspace.solo .term-key { height: 36px; min-width: 40px; }
+  .workspace.solo .term-line, .workspace.solo .term-send { height: 40px; }
+  .workspace.solo .term-send { width: 40px; }
+  .workspace.solo .ws-switcher { padding-block: 2px; }
+  .rotate-hint { display: none !important; }
 }
 
 /* ── The inject dialog ─────────────────────────────────────────────────── */
@@ -250,7 +261,7 @@
 .script-options label.check small { display: block; color: var(--text-muted); font: var(--fs-caption); font-weight: 400; }
 .script-options label.inline { display: flex; align-items: center; gap: var(--sp-2); padding-left: var(--sp-6); }
 .delay-input { width: 96px; font-family: var(--mono); }
-@media (max-width: 719.98px) { .script-input { min-height: 180px; } }
+@media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) { .script-input { min-height: 180px; } }
 
 /* ── Script library ────────────────────────────────────────────────────── */
 .lib { display: grid; gap: var(--sp-4); min-width: min(640px, 90vw); }

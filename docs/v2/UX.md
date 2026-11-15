@@ -286,11 +286,14 @@ Accueil (part C).
 | **expanded** | ≥ 1200 px | rail, expanded (232 px, icon + label on one line), collapsible to 72 px | gutter 32 px; content max width 1280 px, **centred** (Consoles: full width) |
 
 Independently of width, `@media (pointer: coarse)` raises every interactive
-element to 44 px (the `--tap` token, 6.6). A landscape phone (height < 500 px)
-uses compact rules and hides the tab bar while a console is full screen.
+element to 44 px (the `--tap` token, 6.6). A landscape phone (a touch screen
+shorter than 500 px, whatever its width) **is compact**: the same screens as
+upright, a 48 px tab bar, no journal notice, a slimmer console screen (head,
+keys and field), and no tab bar while a console is full screen. Turning the
+phone never leaves the console screen: the address still names the console.
 
 Breakpoints are CSS media queries in `tokens.css` comments and the same
-numbers in `core/viewport.js` (`matchMedia('(max-width: 719.98px)')`): JavaScript
+numbers in `core/viewport.js` (`isCompact()`: width under 720 px, or touch and shorter than 500 px): JavaScript
 only reads them to choose between a popover and a sheet, never to lay out.
 
 ### 5.2 Desktop and tablet: the rail

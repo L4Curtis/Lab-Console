@@ -47,7 +47,7 @@
 .switch-text { display: grid; gap: 1px; min-width: 0; }
 .switch-text strong { font: var(--fs-label); }
 .switch-text code { font: var(--fs-mono); color: var(--text-muted); }
-@media (min-width: 720px) {
+@media (min-width: 720px) and (not ((max-height: 499.98px) and (pointer: coarse))) {
   .switch-card { grid-template-columns: auto minmax(0, 1fr) auto auto; }
   .switch-card .btn { grid-column: auto; justify-self: auto; }
 }

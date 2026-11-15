@@ -9,6 +9,9 @@
    Breakpoints (the same numbers are in core/viewport.js; JavaScript only reads
    them to choose between a popover and a sheet, never to lay out):
      compact   < 720 px      bottom tab bar, one column, dialogs as bottom sheets
+               (or a touch screen shorter than 500 px: a phone on its side; the query is
+               `(max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse)`, and
+               the 720 px rules say `and (not ((max-height: 499.98px) and (pointer: coarse)))`)
      medium    720–1199 px   collapsed rail (72 px)
      expanded  ≥ 1200 px     expanded rail (232 px, collapsible), content max 1280 px centred
    @media (pointer: coarse) raises every interactive element to --tap (44 px).
@@ -178,7 +181,7 @@
 
 /* Gutters by breakpoint */
 @media (max-width: 1199.98px) { :root { --gutter: 24px; } }
-@media (max-width: 719.98px) {
+@media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) {
   :root { --gutter: 16px; --fs-title: 600 18px/24px var(--font); }
 }
 
