@@ -1,92 +1,117 @@
 /**
- * "Overview" section (#/overview): every bench of the lab on one screen,
- * live: the team that holds it, who is on it, the consoles open and their
- * pilots, the running job, the lock, the next slots and the state of its
- * console lines. Read only: taking a bench, joining it or opening a console
- * is done from the bench itself (a card leads there)
+ * "Le labo": every bench of the lab on one screen, the block of the home page
+ * (docs/v2/UX.md §10.1). Filter chips (Toutes, Libres, Prises, Verrouillées,
+ * La nôtre), then the benches: cards in a grid on a PC, a dense list on a
+ * phone. Read only: taking, joining or releasing a bench is done from the
+ * bench itself, a card leads there
  *
- * The data is GET /api/overview/benches; the screen reads it again when the
- * topics it depends on move (live.js). The server decides what each person
- * may see; nothing here hides or reveals anything
+ *   const lab = labBlock({ onFilter: (id) => … });
+ *   host.append(lab.el);
+ *   lab.render(cards);          // GET /api/overview/benches → benches
+ *   lab.setFilter('free');      // 'all' | 'free' | 'taken' | 'locked' | 'mine'
+ *   lab.focusHeading();         // #/home/lab: the heading gets the focus
+ *
+ * The filter is kept with prefs (benchFilter). The server decides what each
+ * person may see; nothing here hides or reveals anything
  */
-import { h, loadCss, prefs } from '../../core/dom.js';
-import { t, tNode, loadNamespace, onLocaleChange } from '../../core/i18n.js';
-import { followApi, roomsSignature, checksSignature } from './live.js';
-import { benchCard } from './benchCard.js';
+import { h, prefs } from '../../core/dom.js';
+import { t, onLocaleChange } from '../../core/i18n.js';
+import { isCompact, onViewportChange } from '../../core/viewport.js';
+import { dataList } from '../../shared/dataList.js';
+import { benchCard, stateBadge, holderText } from './benchCard.js';
 import { replaceKeepingFocus } from './keepFocus.js';
 
-const FILTERS = ['all', 'free', 'mine'];
+export const FILTERS = ['all', 'free', 'taken', 'locked', 'mine'];
 const matches = {
   all: () => true,
   free: (c) => c.state === 'free',
+  taken: (c) => c.state === 'taken',
+  locked: (c) => c.state === 'locked',
   mine: (c) => c.you.occupant,
 };
 
-export async function mount(el) {
-  await Promise.all([loadNamespace('overview', 'benches', 'jobs'), loadCss('overview')]);
+export const isFilter = (id) => FILTERS.includes(id);
 
-  let data = null;
-  let failed = false;
-  let filter = FILTERS.includes(prefs.get('benchFilter', 'all')) ? prefs.get('benchFilter', 'all') : 'all';
+export function labBlock({ onFilter } = {}) {
+  let cards = null;
+  let compactNow = isCompact();
+  let filter = isFilter(prefs.get('benchFilter', 'all')) ? prefs.get('benchFilter', 'all') : 'all';
 
-  const totals = h('ul.ov-totals', { 'aria-label': t('overview.totals.label') });
-  const buttons = new Map(FILTERS.map((id) => [id, h('button.btn.small', { type: 'button', dataset: { filter: id }, onclick: () => choose(id) }, t(`overview.filters.${id}`))]));
-  const filters = h('div.ov-filters', { role: 'group', 'aria-label': t('overview.filters.label') }, [...buttons.values()]);
+  const heading = h('h2#ov-lab-title', { tabindex: '-1' });
+  const chips = new Map(FILTERS.map((id) => [id, h('button.chip', { type: 'button', dataset: { filter: id }, onclick: () => choose(id) })]));
+  const chipRow = h('div.chips.ov-filters', { role: 'group' }, [...chips.values()]);
+  const status = h('p.ov-status.muted', { role: 'status' });
   const grid = h('div.ov-grid');
-  const status = h('p.ov-status.muted', { role: 'status' }, t('overview.loading'));
-  el.append(
-    h('header.view-head', h('div.view-title', h('h1', tNode('overview.title')), h('p', tNode('overview.subtitle'))), filters),
-    h('div.ov-body', totals, status, grid));
+  const list = dataList({
+    label: () => t('overview.lab.title'),
+    dense: true,
+    columns: [
+      { id: 'bench', label: 'overview.lab.cols.bench', cell: (c) => h('a.ov-link', { href: `#/consoles/${encodeURIComponent(c.bench)}`, dataset: { bench: c.bench } }, c.bench), primary: true },
+      { id: 'state', label: 'overview.lab.cols.state', cell: (c) => stateBadge(c), badge: true },
+      { id: 'team', label: 'overview.lab.cols.team', cell: (c) => holderText(c), meta: true },
+      { id: 'consoles', label: 'overview.lab.cols.consoles', cell: (c) => t('overview.card.lines', { count: c.lines.open, total: c.lines.total }), meta: true },
+    ],
+    onOpen: (c) => { location.hash = `#/consoles/${encodeURIComponent(c.bench)}`; },
+    rowKey: (c) => c.bench,
+  });
+  const el = h('section.ov-lab', { dataset: { panel: 'lab' }, 'aria-labelledby': 'ov-lab-title' }, heading, chipRow, status, grid, list.el);
 
   function choose(id) {
+    setFilter(id);
+    onFilter?.(id);
+  }
+
+  function setFilter(id) {
+    if (!isFilter(id)) return;
     filter = id;
     prefs.set('benchFilter', id);
     render();
   }
 
-  function render() {
-    for (const [id, b] of buttons) {
-      b.textContent = t(`overview.filters.${id}`);
-      b.setAttribute('aria-pressed', String(id === filter));
+  function render(next = cards) {
+    cards = next;
+    heading.textContent = t('overview.lab.title');
+    chipRow.setAttribute('aria-label', t('overview.lab.filters.label'));
+    const count = (id) => (cards ? cards.filter(matches[id]).length : 0);
+    for (const [id, chip] of chips) {
+      chip.textContent = cards && id !== 'mine' ? `${t(`overview.lab.filters.${id}`)} ${count(id)}` : t(`overview.lab.filters.${id}`);
+      chip.setAttribute('aria-pressed', String(id === filter));
     }
-    filters.setAttribute('aria-label', t('overview.filters.label'));
-    totals.setAttribute('aria-label', t('overview.totals.label'));
-    if (!data) {
+    const compact = isCompact();
+    compactNow = compact;
+    if (!cards) {
       status.hidden = false;
-      status.textContent = failed ? t('overview.loadError') : t('overview.loading');
-      status.append(...(failed ? [' ', h('button.btn.small', { type: 'button', dataset: { action: 'retry' }, onclick: () => feed.refresh() }, t('overview.retry'))] : []));
-      totals.replaceChildren();
-      grid.replaceChildren();
+      status.textContent = t('overview.loading');
+      grid.hidden = true;
+      list.el.hidden = true;
       return;
     }
-    const cards = data.benches;
-    const count = (state) => cards.filter((c) => c.state === state).length;
-    const consoles = cards.reduce((n, c) => n + c.consoles.length, 0);
-    const jobs = cards.filter((c) => c.job).length;
-    totals.replaceChildren(...[
-      ['benches', cards.length], ['free', count('free')], ['taken', count('taken')], ['locked', count('locked')], ['consoles', consoles], ['jobs', jobs],
-    ].map(([key, n]) => h('li', { dataset: { total: key, count: String(n) } }, t(`overview.totals.${key}`, { count: n }))));
     const shown = cards.filter(matches[filter]);
     status.hidden = shown.length > 0;
-    status.textContent = t('overview.empty');
-    replaceKeepingFocus(grid, shown.map((c) => benchCard(c)));
+    status.textContent = t('overview.lab.empty');
+    grid.hidden = compact || shown.length === 0;
+    list.el.hidden = !compact || shown.length === 0;
+    if (compact) {
+      grid.replaceChildren();
+      list.render(shown);
+    } else {
+      list.render([]);
+      replaceKeepingFocus(grid, shown.map((c) => benchCard(c)));
+    }
   }
 
-  const feed = followApi('/api/overview/benches', {
-    // The state of the benches, of the consoles open, of the jobs, the calendar, the teams' names and the line status the checks found
-    topics: ['benches:state', 'benches:reservations', 'consoles:rooms', 'consoles:busy', 'jobs:running', 'teams:changed', 'checks:running'],
-    changed: { 'consoles:rooms': roomsSignature, 'checks:running': checksSignature },
-    onData: (next) => {
-      // Most events move nothing a card shows: draw again only when the benches differ
-      const same = data && !failed && JSON.stringify(next.benches) === JSON.stringify(data.benches);
-      data = next;
-      failed = false;
-      if (!same) render();
-    },
-    onError: () => { failed = true; if (!data) render(); },
-  });
-  onLocaleChange(render);
+  onLocaleChange(() => render());
+  onViewportChange((now) => { if (cards && now.compact !== compactNow) render(); });
   render();
 
-  return { show: () => feed.show(), hide: () => feed.hide() };
+  return {
+    el,
+    render,
+    setFilter,
+    get filter() { return filter; },
+    focusHeading() {
+      heading.scrollIntoView({ block: 'start' });
+      heading.focus({ preventScroll: true });
+    },
+  };
 }

@@ -97,8 +97,8 @@ test('a team checks its cabling and its lines, sees them on the diagram and the 
   const found = await lines.locator('tr[data-line="free"]').count();
   assert.ok(found >= 5, `${found} free lines`);
   await checks(alice).locator('.modal-head button').click();
-  await alice.evaluate(() => { location.hash = '#/overview'; });
-  const card = alice.locator('section.view-overview article.ov-card[data-bench="B4M"]');
+  await alice.evaluate(() => { location.hash = '#/overview'; }); // the old address of the overview: Le labo, on the home page
+  const card = alice.locator('section.view-home .ov-lab article.ov-card[data-bench="B4M"]');
   await card.locator('.ov-pill.free').waitFor();
   assert.match(await card.locator('.ov-pill.free').textContent(), new RegExp(`^${found} libres$`));
   assert.match(await card.locator('.ov-checked').textContent(), /^lignes vérifiées à \d{2}:\d{2}$/);
@@ -117,7 +117,7 @@ test('a team checks its cabling and its lines, sees them on the diagram and the 
   await power.waitFor();
 
   // Alice's overview follows: R1 is open, with a task on it; a check run meanwhile leaves R1 alone
-  await card.locator('.ov-consoles li[data-device="R1"]', { hasText: /tâche en cours/ }).waitFor();
+  await alice.locator('section.view-home .ov-hero .ov-device[data-device="R1"][data-task="true"]', { hasText: /tâche en cours/ }).waitFor();
   const second = await api(alice, 'POST', '/api/checks/benches/B4M/cabling');
   assert.equal(second.status, 202, 'a check may start: it leaves R1, whose line is in use, alone');
   await until(() => !h.app.deps.services.checks.running('B4M'), 'the second check to end');
