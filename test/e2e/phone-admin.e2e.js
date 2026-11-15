@@ -313,3 +313,35 @@ test('on a laptop of 1280 px the users table needs no sideways scroll: Valider s
     assert.deepEqual(page.errors, []);
   }
 });
+
+test('the tour on a phone: its card takes the half of the screen the target is not in, the first step rings the heading, and it ends where it began', async () => {
+  const page = await phone('ada');
+  await page.goto(`${h.url}/#/home`);
+  await page.locator('.tabbar [data-nav="plus"]').waitFor();
+  await page.locator('.tabbar [data-nav="plus"]').tap();
+  await page.locator('.plus-sheet button[data-action="replay-tour"]').tap();
+  const card = page.locator('.tour-card');
+  await card.waitFor();
+  const half = (box, height) => (box.y + box.height / 2 < height / 2 ? 'top' : 'bottom');
+  const geometry = async () => {
+    const target = page.locator('.tour-target').first();
+    await target.waitFor();
+    return { card: await card.boundingBox(), target: await target.boundingBox() };
+  };
+  const seen = [];
+  for (let n = 0; n < 5; n++) {
+    const step = await card.getAttribute('data-step');
+    const { card: c, target: t } = await geometry();
+    seen.push(step);
+    assert.notEqual(half(c, 844), half(t, 844), `${step}: the card (${Math.round(c.y)}–${Math.round(c.y + c.height)}) is in the half the target (${Math.round(t.y)}–${Math.round(t.y + t.height)}) is not in`);
+    if (step === 'home') assert.equal(await page.locator('.tour-target').first().evaluate((el) => el.classList.contains('page-header')), true, 'the heading is ringed, not a card');
+    if (step === 'plus') break;
+    await card.locator('button[data-action="tour-next"]').tap();
+    await page.waitForFunction((from) => document.querySelector('.tour-card')?.dataset.step !== from, step);
+  }
+  assert.deepEqual(seen, ['home', 'bench', 'console', 'backup', 'plus']);
+  await card.locator('button[data-action="tour-next"]').tap();
+  await card.waitFor({ state: 'detached' });
+  await page.waitForFunction(() => location.hash === '#/home');
+  assert.deepEqual(page.errors, []);
+});

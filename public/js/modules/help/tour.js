@@ -24,10 +24,10 @@ import { isCompact } from '../../core/viewport.js';
  * is shorter: the home page, Consoles in the tab bar, the console, Sauvegardes, Plus
  */
 const STEPS = [
-  { id: 'home', route: '#/home', target: 'section.view-home .ov-home' },
+  { id: 'home', route: '#/home', target: 'section.view-home .ov-home', phone: 'section.view-home .page-header' }, // the heading, not a card the person is about to use
   { id: 'bench', route: '#/consoles', target: '.lab-picker', phone: '[data-nav="consoles"]' },
   { id: 'team', route: '#/consoles', target: '.bench-bar', desktopOnly: true },
-  { id: 'console', route: '#/consoles', target: '.diagram-canvas' },
+  { id: 'console', route: '#/consoles', target: '.diagram-canvas', phone: '.device-list-wrap' }, // a phone opens on the list
   { id: 'keyboard', route: '#/consoles', target: '.pane-people', desktopOnly: true }, // the people on the console: the pilot's avatar carries the key
   { id: 'backup', route: null, target: '[data-nav="jobs"]' }, // the rail's entry, or the tab bar's on a phone
   { id: 'plus', route: null, target: '[data-nav="plus"]', phoneOnly: true },
@@ -66,6 +66,7 @@ export async function startTour() {
   await Promise.all([loadNamespace('help'), loadCss('help')]);
   const abort = new AbortController();
   const opener = document.activeElement;
+  const startHash = location.hash || '#/home'; // the tour ends where it began
   const steps = stepsNow(); // the length of the screen the tour starts on: a rotation does not change it half-way
   let index = 0;
   let target = null;
@@ -91,7 +92,13 @@ export async function startTour() {
     const margin = 12;
     let left;
     let top;
-    if (rect) {
+    if (rect && isCompact()) {
+      // A phone: the card takes the half of the screen the target is not in (above the tab bar when the target is high)
+      const bar = document.querySelector('.tabbar')?.getBoundingClientRect();
+      const floor = bar && bar.height ? bar.top : vh;
+      left = (vw - w) / 2;
+      top = rect.top + rect.height / 2 > vh / 2 ? margin : floor - ch - margin;
+    } else if (rect) {
       const options = [
         [rect.left, rect.bottom + margin],             // below
         [rect.right + margin, rect.top],               // right
@@ -140,7 +147,8 @@ export async function startTour() {
     next.focus({ preventScroll: true });
   }
 
-  function end(state) {
+  /** `back`: return to the page the tour started on (not when the person left the page by themselves) */
+  function end(state, { back: returnToStart = true } = {}) {
     if (abort.signal.aborted) return;
     abort.abort();
     ticket++;
@@ -150,6 +158,7 @@ export async function startTour() {
     offLocale();
     running = null;
     if (opener?.isConnected) opener.focus?.({ preventScroll: true });
+    if (returnToStart && (location.hash || '#/home') !== startHash) location.hash = startHash;
     remember(state).then(settle);
   }
 
@@ -160,7 +169,7 @@ export async function startTour() {
   addEventListener('hashchange', () => {
     const step = steps[index];
     const section = (location.hash || '#/home').split('/')[1];
-    if (step.route && section !== step.route.split('/')[1]) end('skipped');
+    if (step.route && section !== step.route.split('/')[1]) end('skipped', { back: false });
   }, { signal: abort.signal });
   const offLocale = onLocaleChange(write);
   running = { done };
