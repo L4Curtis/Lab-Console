@@ -2,6 +2,48 @@
 
 [English](CHANGELOG.md) · **Français**
 
+## 2.2.0 - 15 novembre 2026
+
+Une refonte de l'interface pour le téléphone, la tablette et le PC
+([UX.md](docs/v2/UX.md)). Les couleurs restent (le bleu console, thèmes clair
+et sombre) ; la mise en page, la navigation et les composants sont nouveaux.
+
+- **Navigation.** Cinq destinations : Accueil, Consoles, Équipe, Sauvegardes
+  et, pour les administrateurs, Admin. Le reste est dans **Plus** : Machines
+  et switchs, État du labo, Aide, Mon compte, les alertes, le thème, la
+  langue, la visite guidée et la déconnexion. Sur téléphone c'est une barre
+  d'onglets en bas (quatre entrées et Plus), sur PC un rail. Les anciennes
+  adresses fonctionnent toujours (`#/overview` mène à « Le labo » de
+  l'Accueil).
+- **Consoles.** Un en-tête d'une ligne (choix de la baie, recherche, En
+  direct, Discussion, un menu Outils) ; le schéma prend la page. Les tuiles
+  de console ont un en-tête fin avec les personnes présentes et un menu ⋯ qui
+  regroupe toutes les actions. Sur téléphone : une liste des équipements, le
+  schéma qui se pince et se déplace, et une console plein écran
+  (`#/consoles/<baie>/<équipement>`) avec une barre de touches (Échap, Tab,
+  Ctrl, flèches, ?, ^C…) et un mode ligne pour taper des commandes entières.
+- **La barre de la baie.** Une ligne qui dit qui tient la baie, avec le seul
+  bouton utile à ce moment et le reste dans ⋯ ; sur téléphone, la toucher
+  ouvre la baie en feuille.
+- **Équipe.** Onglets Mon équipe, **Baie** (nouveau : l'état de la baie, ses
+  demandes, ses occupants et son historique), Réservations (un agenda du jour
+  sur téléphone) et, pour les administrateurs, Toutes les équipes.
+- **Sauvegardes.** Sauvegarder, injecter ou comparer depuis l'en-tête ; une
+  carte de progression pour la tâche en cours ; sauvegardes, modèles de TP et
+  tâches en listes qui deviennent des cartes sur téléphone.
+- **L'Accueil** commence par ce qui vous attend (demandes, invitations, baie
+  bientôt libérée) et reprend l'ancienne Vue d'ensemble sous le nom « Le
+  labo ».
+- **Admin** regroupe ses écrans (Comptes, Labo, Suivi) : une liste à gauche
+  sur PC, un sommaire sur téléphone. L'Aide, Mon compte et les pages de
+  connexion sont aussi revues pour le téléphone.
+- Composants communs : en-tête de page, listes qui deviennent des cartes sur
+  téléphone, fenêtres qui deviennent des feuilles en bas de l'écran, menus,
+  panneaux latéraux ; cibles tactiles de 44 px, texte de 12 px au moins,
+  contraste AA dans les deux thèmes.
+- Corrigé : le mot « null » affiché dans l'aperçu d'une injection et dans
+  l'en-tête de certaines listes.
+
 ## 2.1.0 - 14 novembre 2026
 
 - **Adresses versionnées pour les fichiers de l'application.** Les pages

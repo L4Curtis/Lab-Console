@@ -2,6 +2,44 @@
 
 **English** · [Français](CHANGELOG.fr.md)
 
+## 2.2.0 - 2026-11-15
+
+A redesign of the interface for the phone, the tablet and the PC
+([UX.md](docs/v2/UX.md)). The colours stay (console blue, light and dark
+themes); the layout, the navigation and the components are new.
+
+- **Navigation.** Five destinations: Accueil, Consoles, Équipe, Sauvegardes
+  and, for administrators, Admin. Everything else is under **Plus**:
+  Machines et switchs, État du labo, Aide, Mon compte, alerts, theme,
+  language, the tour and sign-out. On a phone they are a bottom tab bar
+  (four entries and Plus), on a PC a rail. Old addresses keep working
+  (`#/overview` leads to Accueil's "Le labo").
+- **Consoles.** A one-line header (bench picker, finder, En direct,
+  Discussion, an Outils menu); the diagram takes the page. Console tiles have
+  a slim header with the people on the console and a ⋯ menu that holds every
+  action. On a phone: a device list, pinch and pan on the diagram, and a
+  full-screen console (`#/consoles/<bench>/<device>`) with a key bar (Esc,
+  Tab, Ctrl, arrows, ?, ^C…) and a line mode for whole commands.
+- **The bench strip.** One line saying who holds the bench, with the one
+  button that matters now and the rest in ⋯; a tap opens the bench as a
+  sheet on a phone.
+- **Équipe.** Tabs Mon équipe, **Baie** (new: the state of the bench, its
+  requests, occupants and history), Réservations (a day agenda on a phone)
+  and, for administrators, Toutes les équipes.
+- **Sauvegardes.** Back up, inject or compare from the header; a progress
+  card for the running job; backups, TP templates and jobs as lists that
+  become cards on a phone.
+- **Accueil** starts with what needs you (requests, invitations, a bench about
+  to be released) and absorbs the former Vue d'ensemble as "Le labo".
+- **Admin** groups its screens (Comptes, Labo, Suivi): a list at the left on
+  a PC, a hub on a phone. Aide, Mon compte and the sign-in pages are
+  rewritten for the phone too.
+- Shared components: page header, lists that become cards on a phone,
+  dialogs that become bottom sheets, menus, side panels; 44 px touch targets,
+  12 px text at least, AA contrast in both themes.
+- Fixed: the word "null" printed in the injection preview and in some list
+  headers.
+
 ## 2.1.0 - 2026-11-14
 
 - **Versioned addresses for the application's own files.** The pages load
