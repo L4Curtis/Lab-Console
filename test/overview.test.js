@@ -21,6 +21,7 @@ import { newSetId } from '../src/modules/jobs/configFiles.js';
 import { startTestApp } from './helpers/app.js';
 import { connectConsole } from './helpers/consoleClient.js';
 import { student } from './helpers/fakes.js';
+import { colorOf } from '../src/modules/auth/user.js';
 import { createOverviewModule } from '../src/modules/overview/index.js';
 import { createAdminModule } from '../src/modules/admin/index.js';
 
@@ -111,7 +112,11 @@ describe('overview: the benches', () => {
     for (const [who, c] of Object.entries(seen)) {
       assert.equal(c.state, 'taken', who);
       assert.equal(c.holder.teamName, 'Alpha', who);
-      assert.deepEqual(c.occupants, [{ name: 'Student 1', guest: false }, { name: 'Student 3', guest: true }], who);
+      // names and badges only (initials, the colour the consoles show too): no id, no user name
+      assert.deepEqual(c.occupants, [
+        { name: 'Student 1', guest: false, initials: 'S1', color: colorOf(S(1).id) },
+        { name: 'Student 3', guest: true, initials: 'S3', color: colorOf(S(3).id) },
+      ], who);
     }
     assert.equal(seen.member.holder.mine, true);
     assert.equal(seen.guest.holder.mine, false, 'a guest is not in the team');
@@ -265,7 +270,7 @@ describe('home: the personal page', () => {
   test('a member sees the team, the bench, its slots; a guest sees the bench but not the team', async () => {
     const member = await home('student1');
     assert.equal(member.team.name, 'Alpha');
-    assert.deepEqual(member.team.members, [{ name: 'Student 1', you: true }]);
+    assert.deepEqual(member.team.members, [{ name: 'Student 1', you: true, initials: 'S1', color: colorOf(S(1).id) }]);
     assert.equal(member.bench.bench, 'B4M');
     assert.equal(member.bench.holder.mine, true);
 

@@ -179,7 +179,7 @@ export async function mount(el, { navigate } = {}) {
       h('p.ov-holder', holder));
     if (b.lock) card.append(h('p.ov-lock', { role: 'status' }, icon('lock'), h('span', h('strong', t('overview.card.locked')), ' ', b.lock.reason)));
     card.append(
-      h('div.ov-hero-people', avatarStack(b.occupants.map((p) => p.name), { max: 4, label: t('overview.card.onBench') }),
+      h('div.ov-hero-people', avatarStack(b.occupants, { max: 4, label: t('overview.card.onBench') }),
         h('ul.sr-only', { 'aria-label': t('overview.card.onBench') }, b.occupants.map((p) => h('li', p.name)))),
       h('p.ov-meta', [
         t('overview.card.lines', { count: b.lines.open, total: b.lines.total }),
@@ -238,7 +238,7 @@ export async function mount(el, { navigate } = {}) {
         h('p.ov-eyebrow', t('overview.home.team.title')),
         h('p.ov-team-name', h('strong', d.team.name)),
         h('p.ov-meta', t('overview.home.team.count', { count: names.length })),
-        h('div.ov-members', avatarStack(names, { max: 4, label: t('overview.home.team.members') }),
+        h('div.ov-members', avatarStack(d.team.members, { max: 4, label: t('overview.home.team.members') }),
           h('ul.sr-only', { 'aria-label': t('overview.home.team.members') }, d.team.members.map((m) => h('li', { dataset: { you: String(m.you) } }, m.name)))));
     }
     return null;

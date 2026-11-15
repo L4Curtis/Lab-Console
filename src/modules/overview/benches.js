@@ -104,7 +104,7 @@ export function benchCards({ services, user, now }) {
       bench: lab.name,
       state: detail.lock ? 'locked' : detail.holder ? 'taken' : 'free',
       holder: detail.holder ? { teamName: detail.holder.teamName, since: detail.holder.since, mine: myTeam?.id === detail.holder.teamId } : null,
-      occupants: detail.occupants.map((o) => ({ name: o.name, guest: o.guest })),
+      occupants: detail.occupants.map((o) => ({ name: o.name, guest: o.guest, initials: o.initials, color: o.color })),
       lock: detail.lock ? { reason: detail.lock.reason, by: detail.lock.by?.name ?? '', at: detail.lock.at } : null,
       releaseAt: detail.releaseAt,
       lastActivity: detail.lastActivity,

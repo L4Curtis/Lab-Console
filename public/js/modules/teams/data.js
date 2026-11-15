@@ -100,7 +100,7 @@ export function initialsOf(name) {
   return letters.join('').toUpperCase();
 }
 
-/** A hue from the id, dark enough for white initials: the same person keeps the same colour on these screens */
+/** A hue from the id, dark enough for white initials, for a person the server sent without a colour (the team and bench views send auth/user.js's) */
 const colorOf = (key) => {
   let hash = 0;
   for (const ch of String(key)) hash = (hash * 31 + ch.codePointAt(0)) >>> 0;
@@ -109,7 +109,7 @@ const colorOf = (key) => {
 
 /** A round badge for a person of a team or a bench: { id, name, guest? } */
 export function personAvatar(person, cls = '') {
-  const el = h(`span.avatar${cls}`, { title: person.name, 'aria-hidden': 'true' }, initialsOf(person.name));
+  const el = h(`span.avatar${cls}`, { title: person.name, 'aria-hidden': 'true' }, person.initials || initialsOf(person.name));
   el.style.setProperty('--avatar', person.color ?? colorOf(person.id ?? person.username ?? person.name));
   return el;
 }

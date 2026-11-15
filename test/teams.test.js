@@ -9,6 +9,7 @@ import { startTeamsApp, T0 } from './helpers/teams.js';
 import { student } from './helpers/fakes.js';
 import { loadTestConfig } from './helpers/app.js';
 import { normalizeTeamName } from '../src/modules/teams/teams.js';
+import { colorOf } from '../src/modules/auth/user.js';
 
 describe('teams: lifecycle', () => {
   let t;
@@ -142,6 +143,8 @@ describe('teams: lifecycle', () => {
     const asAdmin = await t.api('admin', 'GET', '/api/teams');
     assert.equal(asAdmin.body.admin, true);
     assert.deepEqual(asAdmin.body.teams[0].people.map((p) => p.username), ['student1', 'student2']);
+    // each person's badge is the one the consoles draw: the same initials and the same colour everywhere
+    assert.deepEqual(asAdmin.body.teams[0].people.map((p) => [p.initials, p.color]), [['S1', colorOf(student(1).id)], ['S2', colorOf(student(2).id)]]);
     const adminRename = await t.api('admin', 'PATCH', `/api/teams/${teamId}`, { name: 'Les routeurs' });
     assert.equal(adminRename.status, 200);
   });

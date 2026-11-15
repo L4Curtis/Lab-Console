@@ -34,6 +34,7 @@ import { httpError } from '../../lib/httpError.js';
 import { targetKey } from '../../lib/consoleTarget.js';
 import { createCachedDocument } from '../../lib/cachedDocument.js';
 import { personOf } from './teams.js';
+import { initialsOf, colorOf } from '../auth/user.js';
 import { isAdmin } from '../auth/roles.js';
 
 export const WARNING_MINUTES = 10;
@@ -230,7 +231,7 @@ export class Benches {
       occupants: o ? [
         ...(team?.people ?? []).map((p) => ({ id: p.id, name: p.name, username: p.username, guest: false })),
         ...(o.guests ?? []).filter((g) => !team?.members.includes(g.id)).map((g) => ({ id: g.id, name: g.name, username: g.username, guest: true })),
-      ] : [],
+      ].map((p) => ({ ...p, initials: initialsOf(p.name), color: colorOf(p.id) })) : [],
       lock: this.lock(name),
       lastActivity: o?.lastActivity ?? null,
       releaseAt: o ? iso(lastActivity + this.#idleMs) : null,

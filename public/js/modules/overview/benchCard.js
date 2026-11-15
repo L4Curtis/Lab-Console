@@ -5,7 +5,7 @@
  *
  *   stateBadge(card)            a word and a dot: Libre, Prise, Verrouillée
  *   initialsOf(name)            "Alice Martin" → "AM"
- *   avatarStack(names, { max }) the first people of a list as avatars, then "+n"
+ *   avatarStack(people, { max }) the first people of a list as avatars, then "+n" (a name, or { name, initials, color } from the server)
  *   benchCard(card)             the compact card of the PC's grid
  *
  * `card` is one entry of GET /api/overview/benches. Text only (names come from
@@ -28,12 +28,13 @@ export function stateBadge(card) {
 
 export const initialsOf = (name) => (String(name ?? '').trim().split(/\s+/).slice(0, 2).map((w) => [...w][0] ?? '').join('') || '?');
 
-/** At most `max` avatars of the people in `names`, then "+n" */
-export function avatarStack(names, { max = 3, label } = {}) {
-  const shown = names.slice(0, max);
-  const more = names.length - shown.length;
-  return h('span.avatar-stack', { role: 'img', 'aria-label': label ?? names.join(', ') },
-    shown.map((n) => h('span.avatar', { title: n, 'aria-hidden': 'true' }, initialsOf(n))),
+/** At most `max` avatars of `people`, then "+n"; the colour is the server's, the same as on the consoles */
+export function avatarStack(people, { max = 3, label } = {}) {
+  const list = people.map((p) => (typeof p === 'string' ? { name: p } : p));
+  const shown = list.slice(0, max);
+  const more = list.length - shown.length;
+  return h('span.avatar-stack', { role: 'img', 'aria-label': label ?? list.map((p) => p.name).join(', ') },
+    shown.map((p) => h('span.avatar', { title: p.name, 'aria-hidden': 'true', style: p.color ? `--avatar:${p.color}` : null }, p.initials || initialsOf(p.name))),
     more > 0 ? h('span.avatar-more', { 'aria-hidden': 'true' }, `+${more}`) : null);
 }
 

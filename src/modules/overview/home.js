@@ -60,7 +60,7 @@ export async function describeHome({ services, audit, user, now }) {
 
   const announcement = services.admin?.announcement?.() ?? null;
   return {
-    team: team ? { id: team.id, name: team.name, members: team.people.map((p) => ({ name: p.name, you: p.id === user.id })) } : null,
+    team: team ? { id: team.id, name: team.name, members: team.people.map((p) => ({ name: p.name, you: p.id === user.id, initials: p.initials, color: p.color })) } : null,
     invitations: services.teams.invitationsFor(user).map((i) => ({ team: i.team.name, by: nameOf(i.by), at: i.at })),
     bench,
     slots,

@@ -23,6 +23,7 @@ import crypto from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { httpError } from '../../lib/httpError.js';
 import { createCachedDocument } from '../../lib/cachedDocument.js';
+import { initialsOf, colorOf } from '../auth/user.js';
 
 export const DEFAULT_MAX_MEMBERS = 8;
 
@@ -60,7 +61,8 @@ const view = (team) => team && ({
   name: team.name,
   createdAt: team.createdAt,
   members: team.members.map((m) => m.id),
-  people: team.members.map(({ id, username, name, since }) => ({ id, username, name, since })),
+  // initials and colour: the same badge as on the consoles (auth/user.js)
+  people: team.members.map(({ id, username, name, since }) => ({ id, username, name, since, initials: initialsOf(name), color: colorOf(id) })),
   invitations: team.invitations.map(({ username, userId, by, at }) => ({ username, userId: userId ?? null, by, at })),
 });
 
