@@ -7,7 +7,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { useHarness, openConsole, typeInConsole, sendInputFrame, waitForTerminal, terminalText, setLanguage } from './harness.js';
+import { useHarness, openConsole, typeInConsole, sendInputFrame, waitForTerminal, terminalText, setLanguage, paneAction, consolesTool } from './harness.js';
 
 const R1 = '10.22.9.211:2013';
 const h = useHarness({
@@ -25,9 +25,9 @@ async function signedIn(who) {
   await page.goto(`${h.url}/#/consoles/B4M`);
   await page.waitForSelector('section.view-consoles g.device');
   // The journal notice is shown once; out of the way for the scenario
-  if (await page.locator('.journal-notice').isVisible()) {
-    assert.match(await page.textContent('.journal-notice'), /journalisées/);
-    await page.click('.journal-notice button.icon-btn');
+  if (await page.locator('.cs-notice').isVisible()) {
+    assert.match(await page.textContent('.cs-notice'), /journalisées/);
+    await page.click('.cs-notice button.icon-btn');
   }
   return page;
 }
@@ -86,7 +86,7 @@ test('alice opens R1, bob joins and sees the history, asks for the keyboard, ali
   assert.match(await alice.textContent('.live-feed'), /a rejoint R1 \(B4M\)/);
 
   // The bench wall shows R1, read-only
-  await alice.click('.wall-btn');
+  await consolesTool(alice, 'wall');
   await alice.waitForSelector('.wall-tile[data-target="10.22.9.211:2013"] .xterm-rows');
   await alice.waitForFunction(() => /show users/.test(document.querySelector('.wall-tile .xterm-rows')?.textContent ?? ''));
   await alice.keyboard.press('Escape');
@@ -97,12 +97,15 @@ test('alice opens R1, bob joins and sees the history, asks for the keyboard, ali
     window.probeRuns = [];
     registerPaneAction({ id: 'probe', icon: 'check', title: () => 'Probe', when: (s) => s.kind === 'console', enabled: (pane) => pane.mayType, run: (pane) => window.probeRuns.push(pane.session.title) });
   });
-  const probe = paneA.locator('button[data-action="probe"]');
-  await probe.waitFor();
-  assert.equal(await probe.isDisabled(), true, 'alice gave the keyboard away: the action is off for her');
+  let probe = await paneAction(paneA, 'probe');
+  assert.equal(await probe.getAttribute('aria-disabled'), 'true', 'alice gave the keyboard away: the action is off for her');
+  assert.equal(await probe.textContent(), 'Probe', 'listed in the tile\'s menu with its label');
+  await alice.keyboard.press('Escape');
   await paneA.locator('button[data-action="request"]').click();
   await paneB.locator('.presence-prompt button[data-action="grant"]').click();
-  await alice.waitForFunction(() => !document.querySelector('button[data-action="probe"]').disabled);
+  await alice.waitForFunction((el) => el.dataset.role === 'pilot', await paneA.elementHandle());
+  probe = await paneAction(paneA, 'probe');
+  assert.equal(await probe.getAttribute('aria-disabled'), null, 'with the keyboard back, the action is on');
   await probe.click();
   assert.deepEqual(await alice.evaluate(() => window.probeRuns), ['R1']);
 
@@ -138,18 +141,28 @@ test('alice opens R1, bob joins and sees the history, asks for the keyboard, ali
   assert.deepEqual(redraws, { live: 1, after: 0 }, 'a destroyed view is not redrawn');
 
   // "Free the line" follows the task rule: on an unowned line anyone who may pilot sees it, not while a job runs
-  await paneA.locator('button[data-action="release"]').click();
-  const hangupB = paneB.locator('button[data-action="hangup"]');
-  await hangupB.waitFor();
+  await (await paneAction(paneA, 'release')).click();
+  await bob.waitForFunction(() => /Personne n|Nobody/.test(document.querySelector('.pane-console .presence-status')?.textContent ?? ''));
+  const menuHas = async (page, pane, id) => {
+    await pane.locator('.pane-more').click();
+    const menu = page.locator('.menu-pop:not(.user-menu) [role="menu"]');
+    await menu.waitFor();
+    const found = await menu.locator(`[data-id="${id}"]`).count();
+    await page.keyboard.press('Escape');
+    await menu.waitFor({ state: 'detached' });
+    return found > 0;
+  };
+  assert.equal(await menuHas(bob, paneB, 'hangup'), true, 'nobody holds the line: whoever may pilot frees it');
   const room = h.app.deps.services.consoles.rooms.get(R1);
   let finish;
   const job = room.runExclusive('system', 'backup', () => new Promise((resolve) => { finish = resolve; }));
   await bob.waitForFunction(() => /backup/.test(document.querySelector('.pane-console .presence-status')?.textContent ?? ''));
-  assert.equal(await hangupB.count(), 0, 'a bystander cannot cut a job in half');
-  assert.equal(await paneA.locator('button[data-action="hangup"]').count(), 0);
+  assert.equal(await menuHas(bob, paneB, 'hangup'), false, 'a bystander cannot cut a job in half');
+  assert.equal(await menuHas(alice, paneA, 'hangup'), false);
   finish('saved');
   assert.equal(await job, 'saved');
-  await hangupB.waitFor();
+  await bob.waitForFunction(() => !/backup/.test(document.querySelector('.pane-console .presence-status')?.textContent ?? ''));
+  assert.equal(await menuHas(bob, paneB, 'hangup'), true);
 
   assert.deepEqual(alice.errors, []);
   assert.deepEqual(bob.errors, []);

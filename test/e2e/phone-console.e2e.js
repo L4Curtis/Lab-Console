@@ -1,0 +1,173 @@
+/**
+ * The consoles on a phone (docs/v2/UX.md §8.3, §9), on a touch screen of
+ * 390 × 844:
+ *   - the bench as a list; a device opens its console on the whole screen,
+ *     at its own address, the tab bar hidden; the line field types a whole
+ *     command; the key toolbar sends Tab (the device completes the word),
+ *     Ctrl as a sticky modifier, the arrows; Back returns to the bench with
+ *     the console still connected (the dock says so);
+ *   - someone who only watches sees "Demander la main" and no field;
+ *   - nothing overflows, the keys and the field are finger-sized, the
+ *     terminal keeps at least 20 rows with the keyboard closed
+ */
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import { useHarness, openConsole, waitForTerminal, terminalText, waitForBench } from './harness.js';
+
+const h = useHarness({ oidc: false });
+
+async function onPhone(who, bench = 'B4M') {
+  const page = await h.newPhonePage();
+  await h.session(page, who);
+  await page.goto(`${h.url}/#/consoles/${bench}`);
+  await waitForBench(page, bench);
+  return page;
+}
+
+const field = (page) => page.locator('.pane.solo .term-line');
+const key = (page, id) => page.locator(`.pane.solo .term-key[data-key="${id}"]`);
+const send = async (page, text) => {
+  await field(page).fill(text);
+  await page.locator('.pane.solo .term-send').click();
+};
+
+test('a phone opens R1 from the list, types with the line field and the key toolbar, and goes back to the bench with the console still open', async () => {
+  const page = await onPhone('student1');
+  // The list: one row per device, finger-sized
+  await page.click('.cs-view [data-view="list"]');
+  const rows = page.locator('.device-row');
+  await rows.first().waitFor();
+  assert.equal(await rows.count(), 10);
+  const row = await rows.first().boundingBox();
+  assert.ok(row.height >= 64 && row.width <= 390, `a 64 px row (${row.width} × ${row.height})`);
+
+  // A tap opens the console screen, at its own address, without the tab bar
+  const pane = await openConsole(page, 'B4M', 'R1');
+  await page.waitForFunction(() => location.hash === '#/consoles/B4M/R1');
+  assert.equal(await page.locator('section.view-consoles').getAttribute('data-screen'), 'console');
+  assert.equal(await page.locator('.tabbar').isVisible(), false, 'the console has the whole screen');
+  assert.equal(await page.locator('.pane-head .pane-back').isVisible(), true);
+
+  // The line field: a whole command at once (Enter wakes the line first)
+  await send(page, '');
+  await waitForTerminal(pane, /^R1>$/m);
+  await send(page, 'show ip interface brief');
+  const text = await waitForTerminal(pane, /^FastEthernet0\/0 +unassigned[\s\S]*\nR1>$/m);
+  assert.match(text, /^R1>show ip interface brief$/m);
+  assert.equal(await field(page).inputValue(), '', 'the field is cleared after sending');
+
+  // Tab from the toolbar: the line so far, then Tab; the device completes the word
+  await field(page).fill('sh');
+  await key(page, 'tab').click();
+  await waitForTerminal(pane, /^R1>show$/m); // "show ": the screen's rows are read without their trailing spaces
+  assert.equal(await field(page).inputValue(), '', 'what was typed went to the device');
+  await send(page, 'clock');
+  await waitForTerminal(pane, /^R1>show clock\n.*\d{2}:\d{2}:\d{2}/m);
+
+  // While the field holds text, the keys that would make it disagree with the device wait
+  await field(page).fill('conf');
+  assert.equal(await key(page, 'up').isDisabled(), true);
+  assert.equal(await key(page, 'ctrlZ').isDisabled(), true);
+  // Ctrl+C from the toolbar drops the field and interrupts the line
+  await key(page, 'ctrlC').click();
+  assert.equal(await field(page).inputValue(), '');
+  await waitForTerminal(pane, /^R1>\^C\nR1>$/m);
+
+  // Ctrl is sticky: pressed, then a letter typed in the field, it is Ctrl+that letter
+  await send(page, 'enable');
+  await waitForTerminal(pane, /^R1#$/m);
+  await send(page, 'configure terminal');
+  await waitForTerminal(pane, /^R1\(config\)#$/m);
+  await key(page, 'ctrl').click();
+  assert.equal(await key(page, 'ctrl').getAttribute('aria-pressed'), 'true');
+  await field(page).focus();
+  await page.keyboard.type('z');
+  await waitForTerminal(pane, /^R1\(config\)#\^Z\nR1#$/m);
+  assert.equal(await key(page, 'ctrl').getAttribute('aria-pressed'), 'false', 'used once, Ctrl lets go');
+  assert.equal(await field(page).inputValue(), '', 'the letter went with Ctrl, not into the field');
+
+  // Finger-sized keys and field, nothing sideways, room for the console
+  const sizes = await page.evaluate(() => {
+    const box = (el) => el.getBoundingClientRect();
+    const keys = [...document.querySelectorAll('.pane.solo .term-key')].slice(0, 6).map((k) => ({ w: Math.round(box(k).width), h: Math.round(box(k).height) }));
+    const pane = [...document.querySelectorAll('.pane.solo')][0];
+    return { keys, field: Math.round(box(document.querySelector('.pane.solo .term-line')).height), overflow: document.documentElement.scrollWidth - innerWidth, rows: pane.querySelector('.xterm-rows').children.length };
+  });
+  assert.ok(sizes.keys.every((k) => k.w >= 44 && k.h >= 44), JSON.stringify(sizes.keys));
+  assert.ok(sizes.field >= 44, `the field is ${sizes.field} px high`);
+  assert.equal(sizes.overflow, 0);
+  assert.ok(sizes.rows >= 20, `${sizes.rows} rows of terminal with the keyboard closed`);
+
+  // Back: the bench again, the console still connected, the dock leads back to it
+  await page.locator('.pane-head .pane-back').click();
+  await page.waitForFunction(() => location.hash === '#/consoles/B4M');
+  await page.waitForFunction(() => !document.querySelector('section.view-consoles').dataset.screen);
+  assert.equal(await page.locator('.tabbar').isVisible(), true);
+  assert.equal(await pane.getAttribute('data-state'), 'connected');
+  const dock = page.locator('.dock');
+  await dock.waitFor();
+  assert.match(await dock.textContent(), /R1.*1 console ouverte/);
+  await dock.click();
+  await page.waitForFunction(() => location.hash === '#/consoles/B4M/R1');
+  assert.match(await terminalText(pane), /R1#/);
+  // The browser's Back too
+  await page.goBack();
+  await page.waitForFunction(() => location.hash === '#/consoles/B4M' && !document.querySelector('section.view-consoles').dataset.screen);
+
+  assert.deepEqual(page.errors, []);
+  await page.context().close();
+});
+
+test('a phone that only watches a console sees "Demander la main" and no field; asking works', async () => {
+  const pilot = await onPhone('student2', 'B5M');
+  const own = await openConsole(pilot, 'B5M', 'R1');
+  await send(pilot, '');
+  await waitForTerminal(own, /^R1>$/m);
+
+  const watcher = await onPhone('student3', 'B5M');
+  const pane = await openConsole(watcher, 'B5M', 'R1', { login: false });
+  await watcher.waitForFunction((el) => el.dataset.role === 'spectator', await pane.elementHandle());
+  const ask = watcher.locator('.pane.solo .term-ask');
+  await ask.waitFor();
+  assert.match(await ask.textContent(), /Demander la main/);
+  assert.equal(await field(watcher).isVisible(), false, 'no field for someone who may not type');
+  assert.equal(await watcher.locator('.pane.solo .term-toolbar').isVisible(), false);
+  const box = await ask.boundingBox();
+  assert.ok(box.height >= 48, `a 48 px button (${box.height})`);
+
+  await ask.click();
+  await watcher.waitForFunction(() => /Demande envoyée/.test(document.querySelector('.pane.solo .term-ask')?.textContent ?? ''));
+  // The pilot is asked on her own phone, in the presence row, and gives the keyboard
+  const prompt = pilot.locator('.pane.solo .presence-prompt');
+  await prompt.waitFor();
+  await prompt.locator('button[data-action="grant"]').click();
+  await field(watcher).waitFor();
+  await send(watcher, 'show clock');
+  await waitForTerminal(own, /^R1>show clock$/m);
+
+  assert.deepEqual(pilot.errors, []);
+  assert.deepEqual(watcher.errors, []);
+  await pilot.context().close();
+  await watcher.context().close();
+});
+
+test('the diagram on a phone: devices big enough to tap, a long press opens the device sheet', async () => {
+  const page = await onPhone('admin', 'B4H');
+  await page.click('.cs-view [data-view="diagram"]');
+  const tiles = await page.evaluate(() => [...document.querySelectorAll('section.view-consoles g.device .device-tile')].map((t) => Math.round(Math.min(t.getBoundingClientRect().width, t.getBoundingClientRect().height))));
+  assert.ok(tiles.length > 0 && tiles.every((s) => s >= 36), `device tiles on screen: ${tiles.join(', ')} px`);
+  const hits = await page.evaluate(() => [...document.querySelectorAll('section.view-consoles g.device .device-hit')].map((t) => Math.round(Math.min(t.getBoundingClientRect().width, t.getBoundingClientRect().height))));
+  assert.ok(hits.every((s) => s >= 44), `hit areas: ${hits.join(', ')} px`);
+
+  // A long press on a row of the list: the device sheet, with what can be done (nothing opened)
+  await page.click('.cs-view [data-view="list"]');
+  const row = page.locator('.device-row[data-device="R2"]');
+  await row.dispatchEvent('contextmenu'); // what a long press is to the browser (and a right click with a mouse)
+  const sheet = page.locator('dialog[open] .device-sheet');
+  await sheet.waitFor();
+  assert.match(await page.locator('dialog[open] .modal-head h2').textContent(), /R2 · B4H/);
+  assert.equal(await sheet.locator('button[data-action="open"]').isVisible(), true);
+  assert.equal(await page.locator('article.pane').count(), 0, 'the console is not opened by the sheet itself');
+  assert.deepEqual(page.errors, []);
+  await page.context().close();
+});

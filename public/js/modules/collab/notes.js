@@ -102,7 +102,7 @@ export function openNoteDialog(key) {
   const writeMeta = (n) => { meta.textContent = n ? t('collab.notes.lastBy', { name: n.by.name, time: fmtShort(n.updatedAt) }) : t('collab.notes.none'); };
   writeMeta(note);
   const problem = h('p.note-problem', { role: 'alert', hidden: true });
-  const theirs = h('button.btn.small', { type: 'button', hidden: true }, t('collab.notes.showTheirs'));
+  const theirs = h('button.btn.sm', { type: 'button', hidden: true }, t('collab.notes.showTheirs'));
 
   let body;
   let save = null;

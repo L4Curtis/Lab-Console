@@ -29,7 +29,7 @@ export async function openChecksDialog(lab) {
   let info = null; // GET /benches/:bench
 
   const notice = h('p.checks-notice', { hidden: true });
-  const buttons = KINDS.map((kind) => h('button.btn.small', { type: 'button', dataset: { action: kind }, onclick: () => run(kind) }, icon(ICONS[kind]), h('span.checks-label', kindText(kind))));
+  const buttons = KINDS.map((kind) => h('button.btn.sm', { type: 'button', dataset: { action: kind }, onclick: () => run(kind) }, icon(ICONS[kind]), h('span.checks-label', kindText(kind))));
   const current = h('section.checks-current', { hidden: true, 'aria-live': 'polite' });
   const results = h('div.checks-results');
   const body = h('div.checks-dialog.modal-body',
@@ -96,7 +96,7 @@ export async function openChecksDialog(lab) {
       h('div.checks-current-head',
         h('strong', kindText(c.kind)),
         h('span', t('checks.startedBy', { name: c.actor?.name ?? '' })),
-        h('button.btn.small.danger', { type: 'button', dataset: { action: 'cancel' }, onclick: cancel }, icon('stop'), h('span', t('checks.cancel')))),
+        h('button.btn.sm.danger', { type: 'button', dataset: { action: 'cancel' }, onclick: cancel }, icon('stop'), h('span', t('checks.cancel')))),
       h('table.checks-table',
         h('tbody', (c.devices ?? []).map((d) => h('tr', { dataset: { device: d.name ?? '', state: d.state } },
           h('th', d.name ?? ''),

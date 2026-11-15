@@ -14,7 +14,7 @@
  */
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { useHarness, signInAs, openConsole, typeInConsole, waitForTerminal } from './harness.js';
+import { useHarness, signInAs, openConsole, typeInConsole, waitForTerminal, waitForBench, consolesTool, paneAction } from './harness.js';
 
 const h = useHarness({ env: { JOB_TIME_SCALE: '0.1' } });
 
@@ -42,8 +42,8 @@ async function until(check, what, ms = 60_000) {
 /** Run one kind of check from the dialog and wait for its result */
 async function runCheck(page, kind) {
   await page.evaluate(() => { location.hash = '#/consoles/B4M'; });
-  await page.waitForFunction(() => document.querySelector('section.view-consoles .canvas-title')?.textContent === 'B4M');
-  await page.locator('section.view-consoles button[data-action="checks"]').click();
+  await waitForBench(page, 'B4M');
+  await consolesTool(page, 'checks');
   await checks(page).waitFor();
   const run = checks(page).locator(`button[data-action="${kind}"]`);
   await page.waitForFunction((el) => !el.disabled, await run.elementHandle());
@@ -108,7 +108,7 @@ test('a team checks its cabling and its lines, sees them on the diagram and the 
   const pane = await openConsole(bilal, 'B4M', 'R1');
   await typeInConsole(pane, '');
   await waitForTerminal(pane, /Password: ?$/m);
-  await pane.locator('button[data-action="recovery"]').click();
+  await (await paneAction(pane, 'recovery')).click();
   const dlg = recovery(bilal);
   await dlg.locator('button[data-action="start"]:not([disabled])').waitFor();
   await dlg.locator('select[name="family"]').selectOption('isr_g1');

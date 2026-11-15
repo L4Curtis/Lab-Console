@@ -122,7 +122,7 @@ test('it is replayed from the user menu, ringing the pane\'s keyboard bar once a
   assert.equal(await page.locator('#user-menu').isHidden(), true, 'the menu closes');
   for (let n = 0; n < 4; n++) await button(page, 'next').click();
   assert.equal(await stepOf(page), 'keyboard');
-  await page.locator('.pane-presence.tour-target').waitFor();
+  await page.locator('.pane-people.tour-target').waitFor();
 
   await button(page, 'skip').click();
   await card(page).waitFor({ state: 'detached' });

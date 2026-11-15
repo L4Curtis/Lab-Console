@@ -6,7 +6,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { useHarness, signInAs, openConsole } from './harness.js';
+import { useHarness, signInAs, openConsole, waitForBench } from './harness.js';
 
 const h = useHarness();
 
@@ -16,7 +16,7 @@ const toastWith = (page, text) => page.locator('.toast', { hasText: text });
 
 async function showBench(page, bench) {
   await page.evaluate((hash) => { location.hash = hash; }, `#/consoles/${bench}`);
-  await page.waitForFunction((name) => document.querySelector('section.view-consoles .canvas-title')?.textContent === name, bench);
+  await waitForBench(page, bench);
   await bar(page).waitFor();
 }
 

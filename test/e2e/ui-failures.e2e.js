@@ -16,7 +16,7 @@ const SECTIONS = [
   { route: 'account', api: '**/api/accounts/me', failure: 'section.view-account .load-failure', content: 'section.view-account .account-card' },
   { route: 'status', api: '**/api/admin/health*', failure: 'section.view-status .load-failure', content: 'section.view-status .health-card' },
   { route: 'team', api: '**/api/teams', failure: 'section.view-team .load-failure', content: 'section.view-team .team-card' },
-  { route: 'consoles', api: '**/api/consoles/labs', failure: 'section.view-consoles .canvas-hint [data-action="retry"]', content: 'section.view-consoles .rack-slot' },
+  { route: 'consoles', api: '**/api/consoles/labs', failure: 'section.view-consoles .load-failure', content: 'section.view-consoles g.device' },
 ];
 
 for (const { route, api, failure, content } of SECTIONS) {
@@ -34,7 +34,7 @@ for (const { route, api, failure, content } of SECTIONS) {
       assert.doesNotMatch(text, /Failed to fetch|Internal error/, 'nothing in English');
       assert.doesNotMatch(text, /\.\./, 'no doubled full stop');
       assert.match(text, how === 'a cut network' ? /Impossible de joindre le serveur/ : /Erreur interne du serveur/);
-      if (route === 'consoles') assert.equal(await page.locator('section.view-consoles .checks-btn').isVisible(), false, 'no controls for a diagram that is not there');
+      if (route === 'consoles') assert.equal(await page.locator('section.view-consoles .zoom-controls').isVisible(), false, 'no controls for a diagram that is not there');
       await page.unroute(api);
       await page.locator(`section.view-${route} [data-action="retry"]`).first().click();
       await page.waitForSelector(content);

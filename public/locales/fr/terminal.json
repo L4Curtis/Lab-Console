@@ -13,7 +13,16 @@
     "connectionLost": "La connexion à la plateforme a été perdue",
     "sessionClosed": "Session terminée",
     "notifyFree": "Prévenez-moi quand elle est libre",
-    "notifyArmed": "C’est noté : vous serez prévenu quand la ligne de {name} sera libre (pendant 30 minutes au plus)."
+    "notifyArmed": "C’est noté : vous serez prévenu quand la ligne de {name} sera libre (pendant 30 minutes au plus).",
+    "menu": "Actions de la console {title}",
+    "back": "Retour à la baie",
+    "copyScreen": "Copier l’écran",
+    "copyLines": {
+      "one": "Copier la dernière ligne",
+      "other": "Copier les {count} dernières lignes"
+    },
+    "copied": "Copié dans le presse-papiers.",
+    "copyFailed": "Le navigateur a refusé l’accès au presse-papiers."
   },
   "phase": {
     "ssh": "Accès au serveur de rebond",
@@ -24,12 +33,12 @@
     "silent": "Équipement muet"
   },
   "actions": {
-    "break": "Envoyer un BREAK (récupération de mot de passe, ROMMON)",
-    "export": "Exporter la config : télécharge le show running-config dans un fichier .txt",
-    "inject": "Injecter un script : envoie une liste de commandes, ligne par ligne",
+    "break": "Envoyer un BREAK",
+    "export": "Exporter la configuration",
+    "inject": "Injecter un script",
     "ctrlAltDel": "Envoyer Ctrl+Alt+Suppr",
-    "broadcast": "Envoyer à plusieurs consoles : les mêmes commandes sur toutes celles où vous avez la main",
-    "history": "Historique : chercher dans ce que la console a affiché, et le télécharger"
+    "broadcast": "Envoyer à plusieurs consoles",
+    "history": "Historique"
   },
   "vnc": {
     "opening": "Ouverture de l’écran",
@@ -48,21 +57,23 @@
   },
   "workspace": {
     "label": "Consoles ouvertes",
-    "togglePanel": "Afficher ou masquer le panneau latéral",
+    "togglePanel": "Afficher ou masquer le schéma",
     "layoutGroup": "Disposition",
     "layout": {
       "grid": "Disposition en grille",
       "columns": "Disposition en colonnes",
       "rows": "Disposition en lignes"
     },
-    "textSize": "Taille du texte",
-    "smaller": "Texte plus petit",
-    "larger": "Texte plus grand",
     "closeAll": "Tout fermer",
     "count": {
       "one": "{count} console ouverte",
       "other": "{count} consoles ouvertes"
-    }
+    },
+    "display": "Affichage",
+    "smallerSize": "Texte plus petit ({size} px)",
+    "largerSize": "Texte plus grand ({size} px)",
+    "keys": "Barre de touches et ligne de saisie",
+    "switcher": "Consoles ouvertes"
   },
   "task": {
     "stop": "Arrêter",
@@ -210,7 +221,7 @@
     }
   },
   "journal": {
-    "badge": "Journalisée",
+    "badge": "Console journalisée",
     "badgeHint": "Ce que l’équipement affiche sur cette console est gardé dans un journal, avec qui avait la main."
   },
   "presence": {
@@ -332,5 +343,58 @@
       "other": "{count} sessions"
     },
     "downloadDay": "Télécharger ce jour"
+  },
+  "actionHints": {
+    "break": "Envoyer un BREAK (récupération de mot de passe, ROMMON)",
+    "export": "Exporter la config : télécharge le show running-config dans un fichier .txt",
+    "inject": "Injecter un script : envoie une liste de commandes, ligne par ligne",
+    "broadcast": "Envoyer à plusieurs consoles : les mêmes commandes sur toutes celles où vous avez la main",
+    "history": "Historique : chercher dans ce que la console a affiché, et le télécharger"
+  },
+  "keys": {
+    "label": "Touches spéciales",
+    "field": "Ligne à envoyer à la console",
+    "placeholder": "Tapez une commande",
+    "send": "Envoyer (Entrée)",
+    "esc": "Échap",
+    "tab": "Tab",
+    "ctrl": "Ctrl",
+    "toLine": "Passer à la ligne de saisie",
+    "toDirect": "Taper directement dans le terminal",
+    "modeLine": "Mode de saisie : ligne",
+    "modeDirect": "Mode de saisie : direct",
+    "pasteRefused": "Le navigateur n’a pas donné le presse-papiers : collez dans la ligne de saisie.",
+    "names": {
+      "esc": "Échap",
+      "tab": "Tab",
+      "ctrl": "Ctrl",
+      "up": "Flèche haut",
+      "down": "Flèche bas",
+      "left": "Flèche gauche",
+      "right": "Flèche droite",
+      "help": "Point d’interrogation",
+      "ctrlC": "Ctrl+C",
+      "ctrlZ": "Ctrl+Z",
+      "break": "Interrompre (Ctrl+Maj+6)",
+      "space": "Espace",
+      "paste": "Coller",
+      "mode": "Mode de saisie"
+    },
+    "hints": {
+      "esc": "Échap",
+      "tab": "Tab : complète la commande IOS",
+      "ctrl": "Ctrl : la touche suivante part avec Ctrl (deux appuis : bloqué)",
+      "up": "Commande précédente",
+      "down": "Commande suivante",
+      "left": "Curseur à gauche",
+      "right": "Curseur à droite",
+      "help": "? : ce qui peut suivre",
+      "ctrlC": "Ctrl+C : annuler",
+      "ctrlZ": "Ctrl+Z : sortir du mode configuration",
+      "break": "Ctrl+Maj+6 : interrompre un ping ou un traceroute",
+      "space": "Espace : page suivante de --More--",
+      "paste": "Coller le presse-papiers",
+      "mode": "Ligne de saisie ou frappe directe"
+    }
   }
 }

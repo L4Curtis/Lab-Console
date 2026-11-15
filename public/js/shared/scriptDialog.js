@@ -32,8 +32,8 @@ export async function openScriptDialog({ session, onSend }) {
   const skipComments = h('input', { type: 'checkbox', checked: saved.skipComments !== false });
   const stopOnError = h('input', { type: 'checkbox', checked: Boolean(saved.stopOnError) });
   const send = h('button.btn.primary', { type: 'submit' }, icon('script'), tNode('terminal.script.send'));
-  const library = h('button.btn.small', { type: 'button', dataset: { action: 'library' }, onclick: () => fromLibrary() }, icon('library'), tNode('terminal.script.library'));
-  const keep = h('button.btn.small', { type: 'button', dataset: { action: 'keep' }, onclick: () => keepInLibrary() }, icon('download'), tNode('terminal.script.keep'));
+  const library = h('button.btn.sm', { type: 'button', dataset: { action: 'library' }, onclick: () => fromLibrary() }, icon('library'), tNode('terminal.script.library'));
+  const keep = h('button.btn.sm', { type: 'button', dataset: { action: 'keep' }, onclick: () => keepInLibrary() }, icon('download'), tNode('terminal.script.keep'));
 
   // Same rule as the server (parseScript): blank lines count, the final newline doesn't
   const lineCount = () => {
@@ -106,7 +106,7 @@ export async function openScriptDialog({ session, onSend }) {
     },
   },
   h('div.script-bar',
-    h('button.btn.small', { type: 'button', onclick: () => fileInput.click() }, icon('upload'), tNode('terminal.script.upload')),
+    h('button.btn.sm', { type: 'button', onclick: () => fileInput.click() }, icon('upload'), tNode('terminal.script.upload')),
     library, keep, fileName, fileInput, count),
   textarea,
   h('p.muted.script-hint', tNode('terminal.script.hint', 'span')),

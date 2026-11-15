@@ -12,7 +12,7 @@
  */
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { useHarness, signInAs, openConsole, typeInConsole, waitForTerminal, setLanguage, person } from './harness.js';
+import { useHarness, signInAs, openConsole, typeInConsole, waitForTerminal, setLanguage, person, waitForBench, paneAction } from './harness.js';
 
 const h = useHarness();
 
@@ -27,7 +27,7 @@ const deviceTile = (page, name) => view(page).locator('g.device', { has: page.lo
 
 async function showBench(page, bench) {
   await page.evaluate((hash) => { location.hash = hash; }, `#/consoles/${encodeURIComponent(bench)}`);
-  await page.waitForFunction((name) => document.querySelector('section.view-consoles .canvas-title')?.textContent === name, bench);
+  await waitForBench(page, bench);
   await deviceTile(page, 'R1').waitFor();
 }
 
@@ -129,7 +129,9 @@ test('a note written by an occupant shows on the diagram for everyone; outsiders
 
   // A note is also reachable from a console tile
   const pane = await openConsole(alice, 'B4M', 'R2');
-  await pane.locator('.pane-actions button[title="Note de l’équipement"], .pane-custom-actions button[title="Note de l’équipement"]').first().click();
+  const noteItem = await paneAction(pane, 'note');
+  assert.equal(await noteItem.textContent(), 'Note de l’équipement');
+  await noteItem.click();
   await dialog.locator('.note-text-input').waitFor();
   await dialog.locator('.modal-actions button', { hasText: 'Annuler' }).click();
   await dialog.waitFor({ state: 'detached' });
@@ -188,7 +190,7 @@ test('the chat of a bench: two members talk, a newcomer is left out, markup stay
   await view(bilal).locator('.collab-btn').click();
   await panel(bilal).waitFor({ state: 'hidden' });
   await say(alice, 'Pensez à sauvegarder');
-  const badge = view(bilal).locator('.collab-btn .live-badge');
+  const badge = view(bilal).locator('.collab-btn .count');
   await badge.waitFor({ state: 'visible' });
   assert.equal(await badge.textContent(), '1');
   await openPanel(bilal);
@@ -220,7 +222,7 @@ test('the chat of a bench: two members talk, a newcomer is left out, markup stay
   // The unread count is the one of the bench on screen, and a message taken down leaves it
   await view(ada).locator('.collab-btn').click();
   await panel(ada).waitFor({ state: 'hidden' });
-  const adaBadge = view(ada).locator('.collab-btn .live-badge');
+  const adaBadge = view(ada).locator('.collab-btn .count');
   await say(alice, 'Un de plus');
   await adaBadge.waitFor({ state: 'visible' });
   assert.equal(await adaBadge.textContent(), '1');

@@ -1,8 +1,7 @@
 {
   "panel": {
-    "button": "Notes et discussion",
-    "title": "Notes et discussion de la baie",
-    "titleFor": "Baie {bench}",
+    "button": "Discussion",
+    "titleFor": "Discussion · {bench}",
     "notesHeading": "Notes des équipements"
   },
   "notes": {

@@ -1,5 +1,5 @@
 /**
- * Status strip shown under a console tile's header while an export or a
+ * Status strip (32 px) shown under a console tile's head while an export or a
  * script runs: what is happening, a progress bar, a Stop button; then the
  * outcome, including each device error with its script line number
  *
@@ -21,9 +21,9 @@ export class TaskBar {
     this.text = h('span.task-text');
     this.bar = h('span.task-progress', h('span.task-fill'));
     this.details = h('ul.task-errors', { hidden: true });
-    this.stopBtn = h('button.btn.small', { type: 'button', onclick: onStop }, icon('stop'), tNode('terminal.task.stop'));
-    this.toggleBtn = h('button.btn.small.subtle', { type: 'button', hidden: true, onclick: () => this.#toggleDetails() }, t('terminal.task.showErrors'));
-    this.closeBtn = h('button.icon-btn', { type: 'button', ...tAttr('title', 'terminal.task.dismiss'), hidden: true, onclick: () => this.hide() }, icon('close'));
+    this.stopBtn = h('button.btn.sm', { type: 'button', dataset: { action: 'stop-task' }, onclick: onStop }, icon('stop'), tNode('terminal.task.stop'));
+    this.toggleBtn = h('button.btn.sm.ghost', { type: 'button', hidden: true, onclick: () => this.#toggleDetails() }, t('terminal.task.showErrors'));
+    this.closeBtn = h('button.icon-btn', { type: 'button', ...tAttr('title', 'terminal.task.dismiss'), ...tAttr('aria-label', 'terminal.task.dismiss'), hidden: true, onclick: () => this.hide() }, icon('close'));
     this.lead = h('span.task-lead');
     this.el = h('div.pane-task', { hidden: true, role: 'status', 'aria-live': 'polite' },
       h('div.task-row', this.lead, this.text, this.bar, this.toggleBtn, this.stopBtn, this.closeBtn),

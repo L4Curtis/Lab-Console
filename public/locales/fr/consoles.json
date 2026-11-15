@@ -1,14 +1,12 @@
 {
-  "title": "Consoles du labo",
-  "subtitle": "Choisissez une baie, puis cliquez sur un équipement.",
+  "title": "Consoles",
   "find": "Trouver un équipement",
   "topology": "Topologie",
   "noLabs": "Aucune baie trouvée dans le fichier de schéma",
-  "loadFailed": "Impossible de charger le schéma.",
-  "loadFailedHint": "Vérifiez que la plateforme tourne, puis réessayez.",
+  "loadFailed": "Le schéma n’a pas pu être chargé.",
   "hint": {
-    "one": "{count} équipement. Cliquez dessus pour ouvrir sa console.",
-    "other": "{count} équipements. Cliquez sur l’un d’eux pour ouvrir sa console."
+    "one": "Cliquez sur l’équipement pour ouvrir sa console.",
+    "other": "Cliquez sur un équipement pour ouvrir sa console."
   },
   "noDevice": "Cette page ne contient aucun équipement avec une adresse de console.",
   "notAllowed": "L’adresse de console de {name} n’est pas dans la liste autorisée de la plateforme.",
@@ -19,10 +17,24 @@
   "notesIntro": "Relevé à la lecture du fichier de schéma :",
   "picker": {
     "label": "Baies",
+    "none": "Baie",
+    "button": "Baie {name}, {state}. Changer de baie",
     "bay": "Baie {bay}",
+    "ours": "Votre baie",
+    "you": "vous",
     "devices": {
-      "one": "{name} : {count} équipement",
-      "other": "{name} : {count} équipements"
+      "one": "{count} équipement",
+      "other": "{count} équipements"
+    },
+    "open": {
+      "one": "{count} console ouverte",
+      "other": "{count} consoles ouvertes"
+    },
+    "state": {
+      "free": "Libre",
+      "taken": "Prise",
+      "mine": "Votre baie",
+      "locked": "Verrouillée"
     }
   },
   "quickOpen": {
@@ -43,9 +55,9 @@
     }
   },
   "state": {
-    "idle": "Libre. Cliquez pour ouvrir la console",
+    "idle": "Libre. Ouvrez-la pour piloter la console",
     "open": "Ouverte dans votre espace de travail",
-    "live": "Ouverte par quelqu’un d’autre. Cliquez pour la rejoindre",
+    "live": "Ouverte par quelqu’un d’autre : vous pouvez la rejoindre",
     "busy": "Occupée hors de Lab Console : le serveur de consoles a refusé la ligne",
     "disabled": "Adresse de console non autorisée par la plateforme"
   },
@@ -97,29 +109,17 @@
     }
   },
   "wall": {
-    "button": "Mur de la baie",
-    "title": "Mur de la baie {bench}",
+    "title": "Mur de consoles {bench}",
     "intro": "Toutes les consoles ouvertes de la baie, en direct et en lecture seule.",
     "empty": "Aucune console de cette baie n’est ouverte en ce moment.",
     "open": "Ouvrir"
   },
   "journal": {
-    "button": "Journaux",
     "title": "Mes journaux de console",
-    "loading": "Chargement…",
     "intro": "Ce que les équipements ont affiché, session par session. Vous relisez toute la journée d’une console où vous êtes passé avec le droit de la piloter (regarder seulement ne compte pas), ou que la baie de votre équipe avait ce jour-là : toutes les sessions de ce jour, y compris celles des autres (toutes pour un administrateur). Conservé {days} jours.",
     "none": "Aucun journal pour vous pour l’instant.",
-    "columns": {
-      "day": "Jour",
-      "time": "Heures",
-      "bench": "Baie",
-      "device": "Équipement",
-      "people": "Participants",
-      "size": "Taille",
-      "file": "Fichier"
-    },
     "download": "Télécharger",
-    "truncated": "(tronqué)",
+    "truncated": "Tronqué",
     "truncatedHint": "La taille maximale du journal pour la journée a été atteinte : la fin manque.",
     "ongoing": "en cours",
     "bytes": {
@@ -134,16 +134,62 @@
       "one": "{count} Mo",
       "other": "{count} Mo"
     },
-    "notice": "Les consoles sont journalisées : ce que les équipements affichent (jamais ce que vous tapez sans écho, comme les mots de passe) est gardé {days} jours avec qui avait la main. Qui est passé sur une console un jour donné avec le droit de la piloter, son équipe et les administrateurs relisent toute la journée de cette console.",
-    "dismiss": "J’ai compris"
+    "notice": "Les consoles sont journalisées pendant {days} jours : ce que les équipements affichent, pas ce que vous tapez sans écho.",
+    "dismiss": "J’ai compris",
+    "noneTitle": "Aucun journal",
+    "loadFailed": "Les journaux n’ont pas pu être chargés.",
+    "downloadOf": "Télécharger le journal de {device} du {day}",
+    "more": "En savoir plus"
   },
   "notify": {
     "free": "La console de {name} ({bench}) est libre : vous pouvez l’ouvrir.",
     "open": "La console de {name} ({bench}) est maintenant ouverte dans Lab Console : vous pouvez la rejoindre.",
     "expired": "La console de {name} ({bench}) est toujours occupée au bout de 30 minutes : on arrête de surveiller."
   },
-  "scripts": {
-    "button": "Scripts"
+  "noLabsHint": "Un administrateur importe le schéma du labo dans Admin › Schéma.",
+  "hintTouch": {
+    "one": "Touchez l’équipement pour ouvrir sa console.",
+    "other": "Touchez un équipement pour ouvrir sa console. Appui long : ses détails."
   },
-  "checks": "Vérifications"
+  "unknownDevice": "{name} n’existe pas sur la baie {bench}.",
+  "view": {
+    "label": "Affichage de la baie",
+    "diagram": "Schéma",
+    "list": "Liste"
+  },
+  "list": {
+    "idle": "Libre",
+    "open": "Ouverte ici",
+    "live": "Ouverte",
+    "with": "Avec {name} (main)",
+    "busy": "Occupée hors appli",
+    "disabled": "Indisponible"
+  },
+  "device": {
+    "title": "{name} · {bench}",
+    "note": "Note",
+    "open": "Ouvrir la console"
+  },
+  "dock": {
+    "count": {
+      "one": "{count} console ouverte",
+      "other": "{count} consoles ouvertes"
+    },
+    "label": {
+      "one": "{count} console ouverte : revenir à {name}",
+      "other": "{count} consoles ouvertes : revenir à {name}"
+    }
+  },
+  "rotate": {
+    "hint": "Tournez le téléphone pour afficher plus de colonnes.",
+    "dismiss": "J’ai compris"
+  },
+  "tools": {
+    "title": "Outils",
+    "checks": "Vérifications",
+    "wall": "Mur de consoles",
+    "wallNone": "Aucune console de cette baie n’est ouverte.",
+    "journals": "Journaux",
+    "scripts": "Bibliothèque de scripts"
+  }
 }

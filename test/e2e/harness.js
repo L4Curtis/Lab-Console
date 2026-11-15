@@ -416,8 +416,14 @@ export async function openConsole(page, bench, device, { login = Boolean(harness
   } else {
     await page.evaluate((hash) => { location.hash = hash; }, `#/consoles/${encodeURIComponent(bench)}`);
   }
-  await page.waitForFunction((name) => document.querySelector('section.view-consoles .canvas-title')?.textContent === name, bench);
-  const tile = page.locator('section.view-consoles g.device', { has: page.locator('tspan.name', { hasText: new RegExp(`^${escapeRe(device)}$`) }) });
+  await waitForBench(page, bench);
+  // A desktop clicks the device on the diagram; a phone taps its row in the list (UX.md §8.3, §9.5)
+  const phone = await onPhone(page);
+  const view = page.locator(`section.view-consoles .cs-view [data-view="${phone ? 'list' : 'diagram'}"]`);
+  if (await view.getAttribute('aria-pressed') === 'false') await view.click();
+  const tile = phone
+    ? page.locator(`section.view-consoles .device-row[data-device="${device}"]`)
+    : page.locator('section.view-consoles g.device', { has: page.locator('tspan.name', { hasText: new RegExp(`^${escapeRe(device)}$`) }) });
   await tile.waitFor();
   await tile.click();
   const pane = page.locator('article.pane.pane-console', {
@@ -434,6 +440,30 @@ export async function openConsole(page, bench, device, { login = Boolean(harness
 }
 
 const escapeRe = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/** The consoles section shows `bench` (its diagram drawn) */
+export function waitForBench(page, bench) {
+  return page.waitForSelector(`section.view-consoles[data-bench="${bench}"] .diagram-pane[data-state="ready"]`, { state: 'attached' });
+}
+
+/** A tool of the consoles section's Outils menu (UX.md §8.1: checks, wall, journals, scripts) */
+export async function consolesTool(page, id) {
+  await page.locator('section.view-consoles .tools-btn').click();
+  const item = page.locator(`:is(.menu-pop:not(.user-menu), dialog[open] .sheet-menu) [role^="menuitem"][data-id="${id}"]`);
+  await item.click();
+}
+
+/**
+ * An action of a console tile's ⋯ menu (UX.md §8.2): opens the menu and
+ * returns the item's locator (`aria-disabled="true"` when it may not be used now)
+ */
+export async function paneAction(pane, id) {
+  const page = pane.page();
+  await pane.locator('.pane-more').click();
+  const item = page.locator(`:is(.menu-pop:not(.user-menu), dialog[open] .sheet-menu) [role^="menuitem"][data-id="${id}"]`);
+  await item.waitFor();
+  return item;
+}
 
 /** The text on screen of a console pane (or of the first one on the page), one line per row, trailing spaces trimmed */
 export async function terminalText(target) {

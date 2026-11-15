@@ -88,13 +88,22 @@ test('a diagram is imported, previewed, activated, then rolled back; students fo
   await h.session(student, 'bilal');
   await student.goto(`${h.url}/#/consoles`);
   await waitForApp(student);
-  await student.waitForSelector('section.view-consoles >> text=B4M');
+  await student.waitForSelector('section.view-consoles .diagram-pane[data-state="ready"]');
 
   await admin.click('.diagram-preview button[data-action="activate-preview"]');
   await admin.click('dialog.modal button[data-action="confirm"]');
   await admin.waitForSelector('.toast >> text=Schéma activé');
   // The student's diagram follows (labs:version pushed live)
-  await student.waitForSelector('section.view-consoles .lab-picker >> text=NEWLAB');
+  const benches = async () => {
+    await student.click('section.view-consoles .bench-picker.in-header');
+    await student.waitForSelector('.bench-pop .rack-slot');
+    const names = await student.$$eval('.bench-pop button.rack-slot', (slots) => slots.map((b) => b.dataset.bench));
+    await student.keyboard.press('Escape');
+    await student.waitForSelector('.bench-pop', { state: 'detached' });
+    return names;
+  };
+  await student.waitForFunction(() => document.querySelector('section.view-consoles .bench-picker-name')?.textContent === 'NEWLAB');
+  assert.ok((await benches()).includes('NEWLAB'));
   const pane = await openConsole(student, 'NEWLAB', 'S4');
   await typeInConsole(pane, '');
   await waitForTerminal(pane, /^S4>$/m);
@@ -104,8 +113,9 @@ test('a diagram is imported, previewed, activated, then rolled back; students fo
   await admin.waitForSelector('.toast >> text=Schéma précédent rétabli');
   await admin.waitForSelector('tr[data-active="true"] >> text=fichier d’origine');
   // The bench list is back; the console opened meanwhile stays open in its pane
-  await student.waitForSelector('section.view-consoles .lab-picker >> text=B4M');
-  await student.waitForFunction(() => ![...document.querySelectorAll('section.view-consoles .lab-picker *')].some((n) => n.textContent === 'NEWLAB'));
+  await student.waitForFunction(() => document.querySelector('section.view-consoles .bench-picker-name')?.textContent !== 'NEWLAB');
+  const back = await benches();
+  assert.ok(back.includes('B4M') && !back.includes('NEWLAB'), back.join(' '));
 
   assert.deepEqual(admin.errors, []);
   assert.deepEqual(student.errors, []);

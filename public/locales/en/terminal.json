@@ -13,7 +13,16 @@
     "connectionLost": "Connection to the platform was lost",
     "sessionClosed": "Session closed",
     "notifyFree": "Tell me when it is free",
-    "notifyArmed": "Noted: you will be told when the line of {name} is free (for 30 minutes at most)."
+    "notifyArmed": "Noted: you will be told when the line of {name} is free (for 30 minutes at most).",
+    "menu": "Actions of the {title} console",
+    "back": "Back to the bench",
+    "copyScreen": "Copy the screen",
+    "copyLines": {
+      "one": "Copy the last line",
+      "other": "Copy the last {count} lines"
+    },
+    "copied": "Copied to the clipboard.",
+    "copyFailed": "The browser refused access to the clipboard."
   },
   "phase": {
     "ssh": "Reaching jump server",
@@ -24,12 +33,12 @@
     "silent": "Device silent"
   },
   "actions": {
-    "break": "Send BREAK (password recovery, ROMMON)",
-    "export": "Export config: download show running-config as a .txt file",
-    "inject": "Inject script: send a list of commands, line by line",
+    "break": "Send a BREAK",
+    "export": "Export the configuration",
+    "inject": "Inject a script",
     "ctrlAltDel": "Send Ctrl+Alt+Del",
-    "broadcast": "Send to several consoles: the same commands on every console where you hold the keyboard",
-    "history": "History: search what the console showed, and download it"
+    "broadcast": "Send to several consoles",
+    "history": "History"
   },
   "vnc": {
     "opening": "Opening screen",
@@ -48,21 +57,23 @@
   },
   "workspace": {
     "label": "Open consoles",
-    "togglePanel": "Show or hide the side panel",
+    "togglePanel": "Show or hide the diagram",
     "layoutGroup": "Layout",
     "layout": {
       "grid": "Grid layout",
       "columns": "Columns layout",
       "rows": "Rows layout"
     },
-    "textSize": "Text size",
-    "smaller": "Smaller text",
-    "larger": "Larger text",
     "closeAll": "Close all",
     "count": {
       "one": "{count} console open",
       "other": "{count} consoles open"
-    }
+    },
+    "display": "Display",
+    "smallerSize": "Smaller text ({size} px)",
+    "largerSize": "Larger text ({size} px)",
+    "keys": "Key bar and input line",
+    "switcher": "Open consoles"
   },
   "task": {
     "stop": "Stop",
@@ -210,7 +221,7 @@
     }
   },
   "journal": {
-    "badge": "Journaled",
+    "badge": "Journaled console",
     "badgeHint": "What the device prints on this console is kept in a journal, with who had the keyboard."
   },
   "presence": {
@@ -332,5 +343,58 @@
       "other": "{count} sessions"
     },
     "downloadDay": "Download this day"
+  },
+  "actionHints": {
+    "break": "Send BREAK (password recovery, ROMMON)",
+    "export": "Export config: download show running-config as a .txt file",
+    "inject": "Inject script: send a list of commands, line by line",
+    "broadcast": "Send to several consoles: the same commands on every console where you hold the keyboard",
+    "history": "History: search what the console showed, and download it"
+  },
+  "keys": {
+    "label": "Special keys",
+    "field": "Line to send to the console",
+    "placeholder": "Type a command",
+    "send": "Send (Enter)",
+    "esc": "Esc",
+    "tab": "Tab",
+    "ctrl": "Ctrl",
+    "toLine": "Switch to the input line",
+    "toDirect": "Type straight into the terminal",
+    "modeLine": "Input mode: line",
+    "modeDirect": "Input mode: direct",
+    "pasteRefused": "The browser did not hand over the clipboard: paste into the input line.",
+    "names": {
+      "esc": "Escape",
+      "tab": "Tab",
+      "ctrl": "Ctrl",
+      "up": "Up arrow",
+      "down": "Down arrow",
+      "left": "Left arrow",
+      "right": "Right arrow",
+      "help": "Question mark",
+      "ctrlC": "Ctrl+C",
+      "ctrlZ": "Ctrl+Z",
+      "break": "Interrupt (Ctrl+Shift+6)",
+      "space": "Space",
+      "paste": "Paste",
+      "mode": "Input mode"
+    },
+    "hints": {
+      "esc": "Escape",
+      "tab": "Tab: completes the IOS command",
+      "ctrl": "Ctrl: the next key goes with Ctrl (twice: locked)",
+      "up": "Previous command",
+      "down": "Next command",
+      "left": "Cursor left",
+      "right": "Cursor right",
+      "help": "?: what may follow",
+      "ctrlC": "Ctrl+C: cancel",
+      "ctrlZ": "Ctrl+Z: leave configuration mode",
+      "break": "Ctrl+Shift+6: stop a ping or a traceroute",
+      "space": "Space: next page of --More--",
+      "paste": "Paste the clipboard",
+      "mode": "Input line or direct typing"
+    }
   }
 }

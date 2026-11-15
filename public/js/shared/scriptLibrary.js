@@ -50,7 +50,7 @@ export async function openScriptLibrary({ pick = true } = {}) {
   let failure = '';
 
   const search = h('input.field', { type: 'search', autocomplete: 'off', ...tAttr('placeholder', 'scripts.library.search'), ...tAttr('aria-label', 'scripts.library.search') });
-  const create = h('button.btn.small', { type: 'button', onclick: () => edit(null) }, icon('plus'), tNode('scripts.library.new'));
+  const create = h('button.btn.sm', { type: 'button', onclick: () => edit(null) }, icon('plus'), tNode('scripts.library.new'));
   const list = h('div.lib-list');
   const body = h('div.modal-body.lib', h('div.lib-bar', search, create), list);
   const dlg = openDialog(body, { title: t(pick ? 'scripts.library.titlePick' : 'scripts.library.title'), wide: true, initialFocus: search });
@@ -73,7 +73,7 @@ export async function openScriptLibrary({ pick = true } = {}) {
     ? ` · ${s.team.name ? t('scripts.library.otherTeam', { team: s.team.name }) : t('scripts.library.noTeam')}` : '');
 
   function row(s) {
-    const use = h('button.btn.small.primary', { type: 'button', dataset: { action: 'use' }, onclick: () => choose(s) }, tNode('scripts.library.use'));
+    const use = h('button.btn.sm.primary', { type: 'button', dataset: { action: 'use' }, onclick: () => choose(s) }, tNode('scripts.library.use'));
     const buttons = [
       pick ? use : null,
       s.canEdit ? h('button.icon-btn', { type: 'button', dataset: { action: 'edit' }, ...tAttr('title', 'scripts.library.edit'), onclick: () => edit(s) }, icon('edit')) : null,

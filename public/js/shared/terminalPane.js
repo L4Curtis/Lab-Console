@@ -6,9 +6,11 @@
  * A lab console is shared (ARCHITECTURE §9): the tile shows who is on the
  * line and who holds the keyboard (PresenceBar), replays the recent output
  * when it joins, and only lets the keys through when the server says this
- * user may type. The buttons of the header come from the pane action
- * registry (paneActions.js); those below are registered here (break, export,
- * inject, send to several consoles, history)
+ * user may type. Its ⋯ menu (UX.md §8.2) lists the pane action registry
+ * (paneActions.js: those below are registered here: break, export, inject,
+ * send to several consoles, history), the presence actions, copying the
+ * screen, the text size and the way of typing. Under the terminal, the key
+ * toolbar and the line field of a touch screen (terminalKeys.js)
  *
  * A multi-line paste is not typed: it is sent as one `paste` request, and the
  * server types it line by line, like an injection, through the room (so a
@@ -18,13 +20,15 @@ import { Terminal } from '/vendor/xterm/lib/xterm.mjs';
 import { FitAddon } from '/vendor/xterm-addon-fit/lib/addon-fit.mjs';
 import { icon, h, toast, loadCss } from '../core/dom.js';
 import { request } from '../core/api.js';
-import { t, tAttr, tNode, setTAttr } from '../core/i18n.js';
+import { t, tAttr } from '../core/i18n.js';
 import { BasePane } from './pane.js';
 import { TaskBar, downloadText } from './taskBar.js';
 import { openScriptDialog } from './scriptDialog.js';
 import { serverText, errorText } from './serverText.js';
 import { PresenceBar } from './presenceBar.js';
 import { registerPaneAction, paneActionsFor, onPaneActionsChange } from './paneActions.js';
+import { TerminalKeys, inputMode, setInputMode } from './terminalKeys.js';
+import { isCoarse } from '../core/viewport.js';
 
 // High-contrast palette tuned for long CLI sessions; every ANSI colour,
 // including "bright black" (used for dim text), stays readable on the background
@@ -50,32 +54,32 @@ const LINE_REFUSED = `consoles.${'line_refused'}`;
 
 // ── The tile's own buttons, through the registry other lots use too ─────────
 registerPaneAction({
-  id: 'break', icon: 'break', title: 'terminal.actions.break', order: 10,
+  id: 'break', icon: 'break', label: 'terminal.actions.break', title: 'terminal.actionHints.break', order: 10,
   when: (s) => s.kind === 'console',
   enabled: (pane) => pane.mayType,
   run: (pane) => pane.sendBreak(),
 });
 registerPaneAction({
-  id: 'export', icon: 'download', title: 'terminal.actions.export', order: 20,
+  id: 'export', icon: 'download', label: 'terminal.actions.export', title: 'terminal.actionHints.export', order: 20,
   when: (s) => s.kind === 'console',
   enabled: (pane) => pane.canAutomate,
   run: (pane) => pane.exportConfig(),
 });
 registerPaneAction({
-  id: 'inject', icon: 'script', title: 'terminal.actions.inject', order: 30,
+  id: 'inject', icon: 'script', label: 'terminal.actions.inject', title: 'terminal.actionHints.inject', order: 30,
   when: (s) => s.kind === 'console' || s.kind === 'serial',
   enabled: (pane) => pane.canAutomate,
   run: (pane) => pane.openInject(),
 });
 
 registerPaneAction({
-  id: 'broadcast', icon: 'broadcast', title: 'terminal.actions.broadcast', order: 40,
+  id: 'broadcast', icon: 'broadcast', label: 'terminal.actions.broadcast', title: 'terminal.actionHints.broadcast', order: 40,
   when: (s) => s.kind === 'console',
   enabled: (pane) => pane.isPilot && !pane.task.running,
   run: async (pane) => (await import('./broadcastDialog.js')).openBroadcastDialog({ from: pane }),
 });
 registerPaneAction({
-  id: 'history', icon: 'history', title: 'terminal.actions.history', order: 50,
+  id: 'history', icon: 'history', label: 'terminal.actions.history', title: 'terminal.actionHints.history', order: 50,
   when: (s) => s.kind === 'console' && Boolean(s.device),
   run: async (pane) => (await import('./historyDialog.js')).openHistoryDialog({ pane }),
 });
@@ -83,26 +87,32 @@ registerPaneAction({
 const enabledFor = (action, pane) => {
   try { return action.enabled(pane) !== false; } catch { return false; }
 };
+const words = (v) => (typeof v === 'function' ? v() : v ? t(v) : '');
+/** Lines copied by "copy the last lines" */
+const COPY_LINES = 200;
 
 export class TerminalPane extends BasePane {
-  #actionsEl;
+  #pinnedEl;
   #releaseActions;
   #automationListeners = new Set();
 
   constructor(session, opts) {
-    const actionsEl = h('span.pane-custom-actions');
-    const journalBadge = session.kind === 'console'
-      ? h('span.pane-journal', { ...tAttr('title', 'terminal.journal.badgeHint') }, tNode('terminal.journal.badge'))
+    const pinnedEl = h('span.pane-pinned');
+    // Lab consoles are journaled: a small record mark says it (its tooltip says what is kept)
+    const record = session.kind === 'console'
+      ? h('span.pane-record', { role: 'img', ...tAttr('title', 'terminal.journal.badgeHint'), ...tAttr('aria-label', 'terminal.journal.badge') }, icon('record'))
       : null;
-    super(session, opts, [journalBadge, actionsEl]);
+    const presenceBar = session.kind === 'console' ? new PresenceBar({ send: (m) => this.#send(m), device: session.title }) : null;
+    super(session, opts, [record, presenceBar?.avatars, pinnedEl]);
     loadCss('consoles');
-    this.#actionsEl = actionsEl;
+    loadCss('terminal');
+    this.#pinnedEl = pinnedEl;
+    this.fontSize = opts.fontSize;
     this.shared = session.kind === 'console';
-    this.presenceBar = this.shared ? new PresenceBar({ send: (m) => this.#send(m), device: session.title }) : null;
+    this.presenceBar = presenceBar;
     this.task = new TaskBar({ onStop: () => this.#send({ type: 'automation-cancel' }) });
-    this.el.querySelector('.pane-head').after(...[this.presenceBar?.el, this.task.el].filter(Boolean));
+    this.head.after(...[this.presenceBar?.el, this.task.el].filter(Boolean));
     this.#releaseActions = onPaneActionsChange(() => this.#renderActions());
-    this.#renderActions();
 
     this.term = new Terminal({
       fontFamily: '"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace',
@@ -115,8 +125,7 @@ export class TerminalPane extends BasePane {
     });
     this.fitAddon = new FitAddon();
     this.term.loadAddon(this.fitAddon);
-    this.term.onData((data) => { if (this.mayType) this.#send({ type: 'input', data }); else this.#hintWatching(); });
-    this.term.textarea?.addEventListener('focus', () => opts.onFocus(this));
+    this.term.onData((data) => (this.keys ? this.keys.direct(data) : this.sendInput(data)));
     // Ctrl+Shift+C copies the selection (Ctrl+C must stay "interrupt" for the device)
     this.term.attachCustomKeyEventHandler((e) => {
       if (e.type === 'keydown' && e.ctrlKey && e.shiftKey && e.code === 'KeyC' && this.term.hasSelection()) {
@@ -125,6 +134,71 @@ export class TerminalPane extends BasePane {
       }
       return true;
     });
+    this.keys = null; // the key toolbar, once the terminal is open (attach)
+    this.presenceBar?.onChange(() => this.keys?.update());
+    this.#renderActions();
+  }
+
+  /** Keys typed or sent by the toolbar: through when the user may type, a word of explanation otherwise */
+  sendInput(data) {
+    if (this.mayType) return this.#send({ type: 'input', data });
+    this.#hintWatching();
+    return false;
+  }
+
+  /** The ⋯ menu: the registered actions, the presence actions, copying, the text size and the way of typing */
+  menuItems() {
+    const actions = paneActionsFor(this.session).map((a) => {
+      const enabled = enabledFor(a, this);
+      return { id: a.id, icon: a.icon, label: () => words(a.label), hint: enabled || a.title === a.label ? null : () => words(a.title), disabled: !enabled, run: () => a.run(this) };
+    });
+    const presence = this.presenceBar?.menuItems() ?? [];
+    const size = this.fontSize ?? this.term.options.fontSize;
+    const mode = this.keys?.mode ?? inputMode();
+    // The text size and the way of typing: here on the phone's console screen and wherever the key bar shows
+    // (elsewhere the workspace bar's Affichage has the size, and typing goes to the terminal)
+    const touch = this.solo || Boolean(this.el.closest('[data-keys="on"]'));
+    const typing = touch && (this.shared || this.session.kind === 'serial');
+    return [
+      ...actions,
+      presence.length ? 'separator' : null,
+      ...presence,
+      'separator',
+      { id: 'copy-screen', icon: 'copy', label: 'terminal.pane.copyScreen', run: () => this.#copy(this.screenText()) },
+      { id: 'copy-lines', icon: 'copy', label: () => t('terminal.pane.copyLines', { count: COPY_LINES }), run: () => this.#copy(this.lastLines(COPY_LINES)) },
+      touch ? 'separator' : null,
+      touch ? { id: 'text-smaller', icon: 'textSmaller', label: () => t('terminal.workspace.smallerSize', { size: size - 1 }), disabled: size <= 10, run: () => this.callbacks.onFontSize?.(size - 1) } : null,
+      touch ? { id: 'text-larger', icon: 'textLarger', label: () => t('terminal.workspace.largerSize', { size: size + 1 }), disabled: size >= 24, run: () => this.callbacks.onFontSize?.(size + 1) } : null,
+      typing ? { id: 'input-line', label: 'terminal.keys.modeLine', checked: mode === 'line', run: () => setInputMode('line') } : null,
+      typing ? { id: 'input-direct', label: 'terminal.keys.modeDirect', checked: mode === 'direct', run: () => setInputMode('direct') } : null,
+    ];
+  }
+
+  /** The rows on screen, as text */
+  screenText() {
+    const buf = this.term.buffer.active;
+    const rows = [];
+    for (let y = buf.viewportY; y < buf.viewportY + this.term.rows; y++) rows.push(buf.getLine(y)?.translateToString(true) ?? '');
+    return rows.join('\n').trimEnd();
+  }
+
+  /** The last `count` lines of the scrollback, as text */
+  lastLines(count) {
+    const buf = this.term.buffer.active;
+    let end = buf.length;
+    while (end > 0 && !(buf.getLine(end - 1)?.translateToString(true) ?? '').trim()) end--;
+    const rows = [];
+    for (let y = Math.max(0, end - count); y < end; y++) rows.push(buf.getLine(y)?.translateToString(true) ?? '');
+    return rows.join('\n');
+  }
+
+  async #copy(text) {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast(t('terminal.pane.copied'), 'success', 2500);
+    } catch {
+      toast(t('terminal.pane.copyFailed'), 'warn');
+    }
   }
 
   /** May this user type now? A shared console: when the server says so; a VM's serial console: always */
@@ -150,8 +224,13 @@ export class TerminalPane extends BasePane {
   /** Called once the element is in the DOM (xterm needs real dimensions) */
   attach() {
     this.term.open(this.body);
+    this.term.textarea?.addEventListener('focus', () => this.callbacks.onFocus(this, false));
     // Before xterm's own listener (capture phase): a paste of several lines is ours to pace
     if (this.shared) this.term.element.addEventListener('paste', (e) => this.#onPaste(e), true);
+    this.keys = new TerminalKeys(this);
+    this.el.append(this.keys.el);
+    // Scrolling the scrollback with a finger never scrolls the page behind it
+    this.term.element.querySelector('.xterm-viewport')?.classList.add('touch-scroll');
     this.fit();
     new ResizeObserver(() => this.fit()).observe(this.body);
     this.connect();
@@ -251,6 +330,12 @@ export class TerminalPane extends BasePane {
     if (text.replace(/\r\n?/g, '\n').replace(/\n$/, '').split('\n').length < 2) return;
     event.preventDefault();
     event.stopImmediatePropagation();
+    this.pasteText(text);
+  }
+
+  /** Several lines to paste (the terminal's paste, the key toolbar's): handed to the server, which types them one by one */
+  pasteText(text) {
+    if (!this.shared) { this.sendInput(text); return; }
     if (!this.mayType) {
       // Nothing is lost silently: a console that is only watched, or busy with a task, says why the paste was not sent
       if (this.state === 'connected') toast(t(this.task.running || this.presenceBar?.presence?.task ? 'terminal.paste.taskRunning' : 'terminal.presence.typingHint'), 'info', 4000);
@@ -294,22 +379,23 @@ export class TerminalPane extends BasePane {
     toast(t('terminal.presence.typingHint'), 'info', 3500);
   }
 
-  /** The header's buttons: every registered action for this kind of tile, enabled or not for this user now */
+  /** Pinned actions as icons in the head of a wide tile; the rest lives in ⋯ (asked again when it opens) */
   #renderActions() {
-    const list = paneActionsFor(this.session);
-    const existing = new Map([...this.#actionsEl.children].map((b) => [b.dataset.action, b]));
-    const buttons = list.map((a) => {
+    const pinned = paneActionsFor(this.session).filter((a) => a.pinned);
+    const existing = new Map([...this.#pinnedEl.children].map((b) => [b.dataset.action, b]));
+    const buttons = pinned.map((a) => {
       let b = existing.get(a.id);
       if (!b) {
         b = h('button.icon-btn', { type: 'button', dataset: { action: a.id }, onclick: () => a.run(this) }, icon(a.icon));
-        if (typeof a.title === 'function') b.title = a.title();
-        else setTAttr(b, 'title', a.title);
+        b.title = words(a.label);
+        b.setAttribute('aria-label', words(a.label));
       }
       b.disabled = !enabledFor(a, this);
       return b;
     });
-    this.#actionsEl.replaceChildren(...buttons);
+    this.#pinnedEl.replaceChildren(...buttons);
     this.el.dataset.task = this.task.running ? 'running' : '';
+    this.keys?.update();
   }
 
   /** The line ended (or was refused): why, and what can be done */
@@ -353,26 +439,39 @@ export class TerminalPane extends BasePane {
   }
 
   setFontSize(px) {
+    this.fontSize = px;
     this.term.options.fontSize = px;
     this.fit();
   }
 
-  focus() { this.term.focus(); }
+  /**
+   * In line mode the keys go to the field: with a keyboard it takes the focus; on a touch screen
+   * nothing does (the phone's keyboard would cover the console): a tap on the field opens it
+   */
+  focus() {
+    if (this.keys?.mode === 'line' && this.keys.el.offsetParent) {
+      if (!isCoarse()) this.keys.focus();
+      return;
+    }
+    this.term.focus();
+  }
 
   retranslate() {
     super.retranslate();
     this.task.retranslate();
     this.presenceBar?.retranslate();
-    for (const b of this.#actionsEl.children) {
+    for (const b of this.#pinnedEl.children) {
       const a = paneActionsFor(this.session).find((x) => x.id === b.dataset.action);
-      if (typeof a?.title === 'function') b.title = a.title();
+      if (a) { b.title = words(a.label); b.setAttribute('aria-label', words(a.label)); }
     }
+    this.keys?.update();
   }
 
   dispose() {
     this.release();
     this.#releaseActions?.();
     this.presenceBar?.dispose();
+    this.keys?.dispose();
     if (this.ws) { this.ws.onclose = null; this.ws.close(); }
     this.term.dispose();
     this.el.remove();

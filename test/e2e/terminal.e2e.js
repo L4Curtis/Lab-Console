@@ -11,7 +11,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { useHarness, openConsole, typeInConsole, waitForTerminal, terminalText } from './harness.js';
+import { useHarness, openConsole, typeInConsole, waitForTerminal, terminalText, paneAction, consolesTool } from './harness.js';
 
 const h = useHarness({ oidc: false, mockLab: { slowConsole: true } });
 
@@ -20,11 +20,10 @@ async function signedIn(who, bench) {
   await h.session(page, who);
   await page.goto(`${h.url}/#/consoles/${bench}`);
   await page.waitForSelector('section.view-consoles g.device');
-  if (await page.locator('.journal-notice').isVisible()) await page.click('.journal-notice button.icon-btn');
+  if (await page.locator('.cs-notice').isVisible()) await page.click('.cs-notice button.icon-btn');
   return page;
 }
 
-const action = (pane, name) => pane.locator(`.pane-custom-actions button[data-action="${name}"]`);
 const taskBar = (pane) => pane.locator('.pane-task');
 const toast = (page, text) => page.locator('.toast', { hasText: text });
 
@@ -92,7 +91,7 @@ test('a multi-line paste is paced by the server and reaches every line; a specta
   assert.deepEqual(bilal.errors, []);
 
   // The history: what the console showed, as text, and a file to keep
-  await action(pane, 'history').click();
+  await (await paneAction(pane, 'history')).click();
   const dialog = alice.locator('dialog.modal[open]');
   await dialog.locator('input[type="search"]').fill('description second');
   await dialog.locator('button[data-action="search"]').click();
@@ -133,9 +132,11 @@ test('the same lines go to every console the person holds the keyboard of, each 
   await waitForTerminal(theirs, /^R3>$/m);
   const watched = await join(alice, 'B6B', 'R3');
   await alice.waitForFunction((el) => el.dataset.role === 'spectator', await watched.elementHandle());
-  assert.equal(await action(watched, 'broadcast').isDisabled(), true, 'not offered from a console she does not pilot');
+  assert.equal(await (await paneAction(watched, 'broadcast')).getAttribute('aria-disabled'), 'true', 'not offered from a console she does not pilot');
+  await alice.keyboard.press('Escape');
+  await alice.locator('.menu-pop:not(.user-menu)').waitFor({ state: 'detached' });
 
-  await action(first, 'broadcast').click();
+  await (await paneAction(first, 'broadcast')).click();
   const dialog = alice.locator('dialog.modal[open]');
   await dialog.getByRole('heading', { name: 'Envoyer à plusieurs consoles' }).waitFor();
   const targets = dialog.locator('.bc-target');
@@ -187,7 +188,7 @@ test('the inject dialog takes a script from the library and keeps one in it; som
   const pane = await openConsole(alice, 'B4M', 'R3');
   await typeInConsole(pane, '');
   await waitForTerminal(pane, /^R3>$/m);
-  await action(pane, 'inject').click();
+  await (await paneAction(pane, 'inject')).click();
   const inject = alice.locator('dialog.modal[open]');
   await inject.locator('button[data-action="library"]').click();
 
@@ -220,7 +221,7 @@ test('the inject dialog takes a script from the library and keeps one in it; som
   assert.equal(h.lab.device('10.22.9.211:2015').cfg.hostname, 'LIBRARY');
 
   // The section's own button manages the library: she deletes her script
-  await alice.locator('section.view-consoles button[data-action="scripts"]').click();
+  await consolesTool(alice, 'scripts');
   const manage = alice.locator('dialog.modal[open]');
   await manage.getByRole('heading', { name: 'Bibliothèque de scripts' }).waitFor();
   assert.equal(await manage.locator('[data-action="use"]').count(), 0, 'nothing to pick when only managing');
@@ -238,8 +239,8 @@ test('the inject dialog takes a script from the library and keeps one in it; som
 test('the inject dialog is a dialog like the others: named, the keyboard kept inside, its title in the current language, the focus given back', async () => {
   const page = await signedIn('chloe', 'B4M');
   const pane = await openConsole(page, 'B4M', 'R4');
-  const button = action(pane, 'inject');
-  await button.click();
+  const button = pane.locator('.pane-more'); // the ⋯ menu that holds "Injecter un script"
+  await (await paneAction(pane, 'inject')).click();
   const dlg = page.locator('dialog.modal[open]');
   const title = dlg.locator('header.modal-head h2');
   await title.filter({ hasText: /^Injecter un script dans .*R4/ }).waitFor();

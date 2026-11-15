@@ -3,11 +3,14 @@
  * platform right now (bench, device, the people on it, who holds the
  * keyboard, the last command, a task), and a feed of what happened on them.
  * Fed by the SSE topics consoles:rooms (sticky) and consoles:activity; a
- * click on a console opens it (or joins it) in the workspace
+ * click on a console opens it (or joins it) in the workspace. It is a side
+ * panel (shared/sidePanel.js): a column beside the consoles from 1200 px, a
+ * drawer below, a full-height sheet on a phone
  */
-import { h, icon } from '../../core/dom.js';
+import { h } from '../../core/dom.js';
 import { getJson, live } from '../../core/api.js';
-import { t, tNode, tAttr, onLocaleChange } from '../../core/i18n.js';
+import { t, tNode, onLocaleChange } from '../../core/i18n.js';
+import { sidePanel } from '../../shared/sidePanel.js';
 import { fmtTime } from '../../core/format.js';
 import { avatar } from '../../shared/presenceBar.js';
 import { taskName } from '../../shared/serverText.js';
@@ -19,15 +22,19 @@ export class LivePanel {
   #rooms = [];
   #feed = [];
 
-  /** @param onOpen (summary) => void: open or join that console */
-  constructor({ onOpen }) {
+  /**
+   * @param host     the side host of the section (shared/sidePanel.js sideHost())
+   * @param onOpen   (summary) => void: open or join that console
+   */
+  constructor({ host, onOpen }) {
     this.onOpen = onOpen;
     this.list = h('ul.live-rooms');
     this.feedEl = h('ol.live-feed');
-    this.count = h('span.live-count');
-    this.el = h('aside.live-panel', { hidden: true, ...tAttr('aria-label', 'consoles.live.title') },
-      h('header.live-head', h('h2', tNode('consoles.live.title')), this.count,
-        h('button.icon-btn', { type: 'button', ...tAttr('title', 'common.actions.close'), onclick: () => this.toggle(false) }, icon('close'))),
+    this.count = h('p.live-count');
+    this.panel = sidePanel(host, { title: 'consoles.live.title' });
+    this.panel.el.classList.add('live-panel');
+    this.el = this.panel.el;
+    this.panel.body.append(this.count,
       h('section.live-section', h('h3', tNode('consoles.live.open')), this.list),
       h('section.live-section', h('h3', tNode('consoles.live.activity')), this.feedEl));
     live.on('consoles:rooms', (rooms) => { this.#rooms = rooms; this.#renderRooms(); });
@@ -41,12 +48,14 @@ export class LivePanel {
     this.#loadFeed();
   }
 
-  get open() { return !this.el.hidden; }
+  get open() { return this.panel.isOpen; }
 
-  toggle(on = this.el.hidden) {
-    this.el.hidden = !on;
-    this.el.dispatchEvent(new Event('toggle'));
+  toggle(on = !this.panel.isOpen) {
+    this.panel.toggle(on);
   }
+
+  /** fn(open) when the panel opens or closes → stop */
+  onToggle(fn) { return this.panel.onToggle(fn); }
 
   async #loadFeed() {
     try {
@@ -68,7 +77,7 @@ export class LivePanel {
     this.list.replaceChildren(...sorted.map((r) => h('li.live-room', { dataset: { target: r.target } },
       h('button.live-open', { type: 'button', onclick: () => this.onOpen(r), title: t('consoles.live.join', { name: r.device }) },
         h('span.live-name', h('strong', r.device), h('span.muted', r.bench)),
-        h('span.live-people', ...r.users.map((u) => avatar(u, u.pilot))),
+        h('span.avatar-stack.live-people', ...r.users.slice(0, 3).map((u) => avatar(u, u.pilot)), r.users.length > 3 ? h('span.avatar-more', `+${r.users.length - 3}`) : null),
         h('span.live-detail',
           r.task ? t('consoles.live.task', { task: taskName(r.task.label), name: r.task.by.name })
             : r.pilot ? t('consoles.live.pilot', { name: r.pilot.name }) : t('consoles.live.noPilot'),
