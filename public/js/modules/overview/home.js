@@ -63,6 +63,7 @@ export async function mount(el, { navigate } = {}) {
   let extra = { requests: [], invitations: [], pendingAccounts: 0, health: null }; // what the home data alone cannot say
   let extraTicket = 0;
   let adminReadAt = 0;
+  let wantLab = false;       // #/home/lab: the heading of Le labo gets the focus once the page is drawn
   let timer = null;
 
   const header = pageHeader({
@@ -95,7 +96,7 @@ export async function mount(el, { navigate } = {}) {
   function attentionItems(d) {
     const items = [];
     const b = d.bench;
-    for (const r of extra.requests) {
+    for (const r of b ? extra.requests : []) { // a request read for a bench we may no longer be on is not shown
       items.push({
         id: 'request', tone: 'warning', icon: 'team', key: `request-${r.id}`,
         text: t('overview.attention.request', { name: r.name, bench: b.bench }),
@@ -312,6 +313,10 @@ export async function mount(el, { navigate } = {}) {
       attentionPanel(d),
       ...personal,
     ].filter(Boolean));
+    if (wantLab) {
+      wantLab = false;
+      lab.focusHeading();
+    }
   }
 
   // The few things the home data alone cannot say: who asks to join, the invitations' teams, the accounts waiting
@@ -382,8 +387,9 @@ export async function mount(el, { navigate } = {}) {
       timer ??= setInterval(() => { if (data) render(); }, TICK_MS);
       if (sub === 'lab') {
         if (isFilter(filter)) lab.setFilter(filter);
-        // The block exists once the data is there
-        queueMicrotask(() => lab.focusHeading());
+        // The block is in the page once the data is there
+        wantLab = true;
+        if (data) render();
       }
     },
     hide() {
