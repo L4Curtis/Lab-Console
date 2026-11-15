@@ -94,7 +94,8 @@ export async function mount(el, { navigate }) {
   const tools = h('div.cs-tools', finder, liveBtn); // Discussion joins once the panel is mounted, before Outils
 
   // ── Bench line, notice ────────────────────────────────────────────────────
-  const benchLine = h('div.cs-benchline', picker.button('.in-line'));
+  const benchLine = h('div.cs-benchline');
+  const linePicker = picker.button('.in-line'); // on a phone: the first thing of the bench strip's line (UX.md §8.3)
   const noticeText = h('p');
   const notice = h('div.cs-notice', { role: 'note', hidden: true },
     icon('info'), noticeText,
@@ -130,7 +131,7 @@ export async function mount(el, { navigate }) {
   livePanel.onToggle((on) => { liveBtn.setAttribute('aria-pressed', String(on)); requestAnimationFrame(() => { diagram.refit(); workspace.refit(); }); });
   group.onToggle(() => requestAnimationFrame(() => { diagram.refit(); workspace.refit(); }));
 
-  const benchBar = mountBenchBar(benchLine, { variant: 'strip' }); // who holds the bench on screen (lot teams)
+  const benchBar = mountBenchBar(benchLine, { variant: 'strip', lead: linePicker }); // who holds the bench on screen (lot teams)
   const diagram = new DiagramView(canvas, {
     onOpen: (d) => openDevice(d),
     onMenu: (d) => deviceMenu(d),

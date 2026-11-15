@@ -380,8 +380,11 @@ dialog.modal.quick-open { --dlg-w: 560px; margin-top: 12vh; }
   .cs-tools .btn .count { position: absolute; top: 2px; right: 0; margin: 0; }
 
   /* The bench line: the picker and who holds the bench */
-  .cs-benchline { gap: var(--sp-2); padding: 0 var(--gutter) var(--sp-2); align-items: center; flex-wrap: wrap; }
-  .cs-benchline > .bench-bar { flex-basis: 100%; margin-inline: calc(-1 * var(--gutter)); }
+  /* The picker opens the strip's line (benchBar's `lead`); alone while the strip has nothing to say */
+  .cs-benchline { align-items: center; }
+  .cs-benchline > .bench-picker { margin: 0 var(--gutter) var(--sp-2); }
+  .cs-benchline .bench-main > .bench-picker { flex: none; margin-left: calc(-1 * var(--sp-2)); }
+  .cs-benchline .bench-main > .bench-picker ~ .bench-status .bench-dot { display: none; } /* the picker has its own */
   .cs-notice { padding-left: var(--gutter); }
 
   /* The bench screen: Schéma | Liste on top, the diagram or the list under it, no tiles (the dock) */

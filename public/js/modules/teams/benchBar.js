@@ -6,6 +6,7 @@
  * team section (docs/v2/UX.md §7.13)
  *
  *   const bar = mountBenchBar(viewEl);     // appended to viewEl; mountBenchBar(viewEl, { variant: 'strip' }) is the same
+ *   mountBenchBar(host, { lead: el })        // `el` opens the main line (the Consoles page puts its bench picker there on a phone)
  *   bar.setBench('B4M');                    // the lab on screen
  *   bar.decorate(diagram);                  // diagram rings, when the diagram offers decorate()
  *   bar.mayOpen(device, ['B4M', 'B4H'])     // false: the server would refuse this console
@@ -32,7 +33,7 @@ import { kindText } from '../jobs/text.js';
 
 const FINAL = new Set(['done', 'failed', 'cancelled', 'partial', 'skipped']);
 
-export function mountBenchBar(host, { variant = 'strip' } = {}) { // the strip is the only variant: the parameter keeps room for the contract of UX.md §7.13
+export function mountBenchBar(host, { variant = 'strip', lead = null } = {}) { // the strip is the only variant: the parameter keeps room for the contract of UX.md §7.13
   const el = h('section.bench-bar', { hidden: true, 'aria-label': t('benches.strip.label') });
   el.dataset.variant = variant;
   host.append(el);
@@ -133,7 +134,7 @@ export function mountBenchBar(host, { variant = 'strip' } = {}) { // the strip i
     const main = mainButton(d);
     const more = moreButton(() => menuItems(), { onSelect: () => {}, label: () => t('benches.strip.more') });
     const open = h('button.icon-btn.bench-open', { type: 'button', dataset: { action: 'sheet' }, title: t('benches.strip.details'), 'aria-label': t('benches.strip.details'), onclick: () => openSheet() }, icon('chevronUp'));
-    const line = h('div.bench-line.bench-main', { dataset: { tone: tone ?? '' } }, status, people, idle, soonText, h('span.bench-actions', main, more), open);
+    const line = h('div.bench-line.bench-main', { dataset: { tone: tone ?? '' } }, lead ?? '', status, people, idle, soonText, h('span.bench-actions', main, more), open);
     // A tap on the strip opens the bench's page on a phone; the buttons keep their own meaning
     line.addEventListener('click', (e) => { if (isCompact() && !e.target.closest('button, a')) openSheet(); });
     return line;
@@ -165,7 +166,10 @@ export function mountBenchBar(host, { variant = 'strip' } = {}) { // the strip i
   let drawn = ''; // what the strip shows, to leave it alone (focus included) when an event brings nothing new
   function render(force = false) {
     const d = model.detail;
-    if (!ready || !model.bench || !d) { el.hidden = true; drawn = ''; return; }
+    if (!ready || !model.bench || !d) {
+      if (lead && lead.parentNode !== host) host.insertBefore(lead, el); // the lead stays on screen without a strip
+      el.hidden = true; drawn = ''; return;
+    }
     const signature = JSON.stringify([d, model.job, releaseSoon(d), isCompact()]);
     if (!force && signature === drawn && !el.hidden) return;
     drawn = signature;
