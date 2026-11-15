@@ -1,11 +1,11 @@
 {
   "title": "Team",
-  "subtitle": "Your lab group: the bench, the bookings and the backups belong to the team",
   "loadFailed": "Could not load the teams.",
   "tabs": {
     "mine": "My team",
     "calendar": "Bookings",
-    "all": "All teams"
+    "all": "All teams",
+    "bench": "Bench"
   },
   "create": {
     "title": "Create a team",
@@ -19,7 +19,7 @@
   "invitations": {
     "title": "Invitations",
     "line": "{name} invites you to team {team}",
-    "accept": "Join",
+    "accept": "Accept",
     "decline": "Decline",
     "joined": "You joined team {team}."
   },
@@ -37,7 +37,9 @@
     "submit": "Invite",
     "done": "Invitation sent to {username}.",
     "pending": "{username} has not answered yet",
-    "withdraw": "Withdraw the invitation"
+    "withdraw": "Withdraw the invitation",
+    "waiting": "Pending invitations",
+    "menu": "Actions for the invitation of {username}"
   },
   "rename": {
     "button": "Rename",
@@ -55,14 +57,18 @@
     "title": "Bench",
     "holds": "Your team holds bench {bench}.",
     "open": "Open its consoles",
-    "none": "Your team holds no bench."
+    "none": "Your team holds no bench.",
+    "manage": "Manage the bench",
+    "noneTitle": "No bench",
+    "take": "Take a bench"
   },
   "slots": {
     "title": "Upcoming bookings",
     "none": "No booking.",
     "cancel": "Cancel",
     "cancelTitle": "Cancel this booking?",
-    "cancelBody": "Bench {bench}, {slot}."
+    "cancelBody": "Bench {bench}, {slot}.",
+    "book": "Book a slot"
   },
   "calendar": {
     "bench": "Bench",
@@ -70,7 +76,7 @@
     "next": "Next week",
     "thisWeek": "This week",
     "week": "{from} to {to}",
-    "hint": "Click a free hour to book the bench for your team; click your slot to cancel it.",
+    "hint": "Pick a free hour to book the bench for your team; pick your slot to cancel it.",
     "noBench": "No bench in the diagram.",
     "outside": "Bookings that do not fit between {from} and {to}:",
     "bookTitle": "Book {bench}, {day}",
@@ -81,7 +87,14 @@
     "team": "Team",
     "book": "Book",
     "needTeamTitle": "You need a team",
-    "needTeam": "Benches are booked by teams: create yours or join one in the “My team” tab."
+    "needTeam": "Benches are booked by teams: create yours or join one in the “My team” tab.",
+    "context": "Schedule of bench {bench}",
+    "picker": "Bench {bench}",
+    "days": "Days of the week",
+    "bookHover": "Book {from}–{to}",
+    "free": "Free",
+    "past": "Past",
+    "yourTeam": "Your team"
   },
   "all": {
     "team": "Team",
@@ -94,7 +107,17 @@
     "removeBody": "If they were the last member, the team is dissolved.",
     "dissolve": "Dissolve",
     "dissolveTitle": "Dissolve team {team}?",
-    "dissolveBody": "Its members are left without a team, its bench is released and its bookings are cancelled."
+    "dissolveBody": "Its members are left without a team, its bench is released and its bookings are cancelled.",
+    "title": "All teams",
+    "created": "Created",
+    "manage": "Members",
+    "manageTitle": "Team {team}",
+    "removeShort": "Remove",
+    "noneTitle": "No team",
+    "context": {
+      "one": "{count} team",
+      "other": "{count} teams"
+    }
   },
   "notify": {
     "invited": "{name} invites you to team {team}. Answer in the Team section."
@@ -112,5 +135,7 @@
     "no_invitation": "This invitation does not exist (any more).",
     "ambiguous_user": "Several accounts have this user name: an administrator must sort it out first.",
     "unknown_user": "Nobody with this user name can sign in here. A classmate who signs in through the university is known after their first sign-in."
-  }
+  },
+  "context": "{team}",
+  "contextNone": "You have no team yet"
 }

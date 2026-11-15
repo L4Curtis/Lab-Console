@@ -1,11 +1,11 @@
 {
   "title": "Équipe",
-  "subtitle": "Votre groupe de TP : la baie, les réservations et les sauvegardes sont à l’équipe",
   "loadFailed": "Impossible de charger les équipes.",
   "tabs": {
     "mine": "Mon équipe",
     "calendar": "Réservations",
-    "all": "Toutes les équipes"
+    "all": "Toutes les équipes",
+    "bench": "Baie"
   },
   "create": {
     "title": "Créer une équipe",
@@ -19,7 +19,7 @@
   "invitations": {
     "title": "Invitations reçues",
     "line": "{name} vous invite dans l’équipe {team}",
-    "accept": "Rejoindre",
+    "accept": "Accepter",
     "decline": "Refuser",
     "joined": "Vous avez rejoint l’équipe {team}."
   },
@@ -37,7 +37,9 @@
     "submit": "Inviter",
     "done": "Invitation envoyée à {username}.",
     "pending": "{username} n’a pas encore répondu",
-    "withdraw": "Retirer l’invitation"
+    "withdraw": "Retirer l’invitation",
+    "waiting": "Invitations en attente",
+    "menu": "Actions pour l’invitation de {username}"
   },
   "rename": {
     "button": "Renommer",
@@ -55,14 +57,18 @@
     "title": "Baie",
     "holds": "Votre équipe occupe la baie {bench}.",
     "open": "Ouvrir ses consoles",
-    "none": "Votre équipe n’occupe aucune baie."
+    "none": "Votre équipe n’occupe aucune baie.",
+    "manage": "Gérer la baie",
+    "noneTitle": "Pas de baie",
+    "take": "Prendre une baie"
   },
   "slots": {
     "title": "Réservations à venir",
     "none": "Aucune réservation.",
     "cancel": "Annuler",
     "cancelTitle": "Annuler cette réservation ?",
-    "cancelBody": "Baie {bench}, {slot}."
+    "cancelBody": "Baie {bench}, {slot}.",
+    "book": "Réserver un créneau"
   },
   "calendar": {
     "bench": "Baie",
@@ -70,7 +76,7 @@
     "next": "Semaine suivante",
     "thisWeek": "Cette semaine",
     "week": "Du {from} au {to}",
-    "hint": "Cliquez sur une heure libre pour réserver la baie pour votre équipe ; cliquez sur votre créneau pour l’annuler.",
+    "hint": "Choisissez une heure libre pour réserver la baie pour votre équipe ; choisissez votre créneau pour l’annuler.",
     "outside": "Réservations qui ne tiennent pas entre {from} et {to} :",
     "noBench": "Aucune baie dans le schéma.",
     "bookTitle": "Réserver {bench}, {day}",
@@ -81,7 +87,14 @@
     "team": "Équipe",
     "book": "Réserver",
     "needTeamTitle": "Il faut une équipe",
-    "needTeam": "Les baies se réservent par équipe : créez la vôtre ou rejoignez-en une dans l’onglet « Mon équipe »."
+    "needTeam": "Les baies se réservent par équipe : créez la vôtre ou rejoignez-en une dans l’onglet « Mon équipe ».",
+    "context": "Planning de la baie {bench}",
+    "picker": "Baie {bench}",
+    "days": "Jours de la semaine",
+    "bookHover": "Réserver {from}–{to}",
+    "free": "Libre",
+    "past": "Passé",
+    "yourTeam": "Votre équipe"
   },
   "all": {
     "team": "Équipe",
@@ -94,7 +107,17 @@
     "removeBody": "S’il était le dernier membre, l’équipe est dissoute.",
     "dissolve": "Dissoudre",
     "dissolveTitle": "Dissoudre l’équipe {team} ?",
-    "dissolveBody": "Ses membres se retrouvent sans équipe, sa baie est libérée et ses réservations sont annulées."
+    "dissolveBody": "Ses membres se retrouvent sans équipe, sa baie est libérée et ses réservations sont annulées.",
+    "title": "Toutes les équipes",
+    "created": "Créée le",
+    "manage": "Membres",
+    "manageTitle": "Équipe {team}",
+    "removeShort": "Retirer",
+    "noneTitle": "Aucune équipe",
+    "context": {
+      "one": "{count} équipe",
+      "other": "{count} équipes"
+    }
   },
   "notify": {
     "invited": "{name} vous invite dans l’équipe {team}. Répondez dans la section Équipe."
@@ -112,5 +135,7 @@
     "no_invitation": "Cette invitation n’existe pas (ou plus).",
     "ambiguous_user": "Plusieurs comptes portent ce nom d’utilisateur : un administrateur doit d’abord régler la question.",
     "unknown_user": "Personne ne se connecte ici avec ce nom d’utilisateur. Un camarade qui se connecte par l’université est connu après sa première connexion."
-  }
+  },
+  "context": "{team}",
+  "contextNone": "Vous n’avez pas encore d’équipe"
 }

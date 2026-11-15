@@ -1,19 +1,21 @@
 /**
- * "My team": the invitations waiting for me, then either a form to create a
- * team or my team (members, invitations sent, the bench it holds, its slots)
- * with invite / rename / leave
+ * "Mon équipe" (#/team/mine): the invitations waiting for me, then either a
+ * form to create a team, or my team: its members, the invitation form, the
+ * invitations still open, the bench it holds and its slots (docs/v2/UX.md
+ * §10.2). Renaming and leaving are in the header
  */
 import { h, icon, toast } from '../../../core/dom.js';
 import { live, request, getJson, callOrToast } from '../../../core/api.js';
-import { loading, loadFailure } from '../../../shared/loadState.js';
+import { loading, loadFailure, emptyState } from '../../../shared/loadState.js';
 import { t, onLocaleChange } from '../../../core/i18n.js';
 import { session } from '../../../core/session.js';
 import { confirmDialog, formDialog } from '../../../shared/dialog.js';
-import { teamUrl, onBenches, fmtSlot } from '../data.js';
+import { moreButton } from '../../../shared/menu.js';
+import { teamUrl, onBenches, fmtSlot, personAvatar } from '../data.js';
 import { fmtDateTime } from '../../../core/format.js';
 
-export function mount(el) {
-  const root = h('div.panel.team-panel');
+export function mount(el, { header }) {
+  const root = h('div.team-page');
   el.append(root);
   let data = null;
   let slots = [];
@@ -96,62 +98,91 @@ export function mount(el) {
 
   // ── Rendering ─────────────────────────────────────────────────────────────
 
+  /** The header follows what is on screen: rename and leave only with a team */
+  function syncHeader() {
+    if (!visible) return;
+    const team = data?.mine;
+    header.update({
+      context: team ? () => t('teams.context', { team: team.name }) : () => t('teams.contextNone'),
+      primary: null,
+      actions: team ? [
+        { id: 'rename', label: 'teams.rename.button', icon: 'edit', run: () => rename(team) },
+        { id: 'leave', label: 'teams.leave.button', icon: 'logout', run: () => leave(team), danger: true },
+      ] : [],
+    });
+  }
+
   function render() {
+    syncHeader();
     if (!data) { root.replaceChildren(failure ? loadFailure('teams.loadFailed', failure, load) : loading()); return; }
-    root.replaceChildren(invitations(), data.mine ? myTeam(data.mine) : createForm());
+    // What someone is typing survives a redraw caused by an event
+    const typed = new Map([...root.querySelectorAll('input[name]')].map((input) => [input.name, input.value]));
+    const hadFocus = document.activeElement?.name;
+    root.replaceChildren(...(data.mine ? myTeam(data.mine) : [invitations(), createForm()]).filter(Boolean));
+    for (const input of root.querySelectorAll('input[name]')) {
+      if (typed.get(input.name)) input.value = typed.get(input.name);
+      if (hadFocus && input.name === hadFocus) input.focus();
+    }
   }
 
   function invitations() {
-    if (!data.invitations.length) return '';
-    return h('section.team-card.team-invitations', h('h2', t('teams.invitations.title')),
+    if (!data.invitations.length) return null;
+    return h('section.card.team-invitations', { 'aria-label': t('teams.invitations.title') },
+      h('div.card-head', h('h2', t('teams.invitations.title')), h('span.count', { dataset: { tone: 'danger' } }, String(data.invitations.length))),
       h('ul.team-list', data.invitations.map((inv) => h('li', { dataset: { team: inv.team.id } },
-        h('span', t('teams.invitations.line', { team: inv.team.name, name: inv.by?.name ?? '' })),
+        h('span.team-line', t('teams.invitations.line', { team: inv.team.name, name: inv.by?.name ?? '' })),
         h('span.team-row-actions',
-          h('button.btn.small.primary', { type: 'button', dataset: { action: 'accept' }, onclick: () => answer(inv, true) }, t('teams.invitations.accept')),
-          h('button.btn.small', { type: 'button', dataset: { action: 'decline' }, onclick: () => answer(inv, false) }, t('teams.invitations.decline')))))));
+          h('button.btn.sm.primary', { type: 'button', dataset: { action: 'accept' }, onclick: () => answer(inv, true) }, t('teams.invitations.accept')),
+          h('button.btn.sm.ghost', { type: 'button', dataset: { action: 'decline' }, onclick: () => answer(inv, false) }, t('teams.invitations.decline')))))));
   }
 
   function createForm() {
-    return h('section.team-card',
-      h('h2', t('teams.create.title')),
-      h('p.muted', session.isAdmin ? t('teams.create.adminNote') : t('teams.create.intro')),
-      h('form.team-form', { onsubmit: (e) => { e.preventDefault(); create(e.target); } },
+    return h('section.card', { 'aria-label': t('teams.create.title') },
+      h('div.card-head', h('h2', t('teams.create.title'))),
+      h('form.team-form.form-grid', { onsubmit: (e) => { e.preventDefault(); create(e.target); } },
+        h('p.card-meta', session.isAdmin ? t('teams.create.adminNote') : t('teams.create.intro')),
         h('label', h('span', t('teams.create.name')), h('input.field', { name: 'name', required: true, minlength: 2, maxlength: 40, autocomplete: 'off', placeholder: t('teams.create.placeholder') })),
-        h('button.btn.primary', { type: 'submit', dataset: { action: 'create' } }, icon('plus'), t('teams.create.submit'))));
+        h('div.team-form-actions', h('button.btn.primary', { type: 'submit', dataset: { action: 'create' } }, icon('plus'), t('teams.create.submit')))));
   }
 
   function myTeam(team) {
     const held = [...benches.values()].find((b) => b.holder?.teamId === team.id);
     const mySlots = slots.filter((r) => r.teamId === team.id);
-    return h('section.team-card.team-mine', { dataset: { team: team.id } },
-      h('div.team-head',
-        h('h2', icon('team'), h('span.team-name', team.name)),
-        h('span.team-row-actions',
-          h('button.btn.small.subtle', { type: 'button', dataset: { action: 'rename' }, onclick: () => rename(team) }, t('teams.rename.button')),
-          h('button.btn.small.danger', { type: 'button', dataset: { action: 'leave' }, onclick: () => leave(team) }, t('teams.leave.button')))),
-      h('h3', t('teams.members.title', { count: team.people.length })),
-      h('ul.team-list.team-members', team.people.map((p) => h('li', { dataset: { user: p.username } },
-        h('strong', p.name), h('span.muted', `@${p.username}`), h('span.muted', t('teams.members.since', { time: fmtDateTime(p.since) }))))),
-      h('h3', t('teams.invite.title')),
-      h('form.team-form', { onsubmit: (e) => { e.preventDefault(); invite(e.target, team); } },
-        h('label', h('span', t('teams.invite.username')), h('input.field', { name: 'username', required: true, maxlength: 64, autocomplete: 'off', spellcheck: 'false', placeholder: t('teams.invite.placeholder') })),
-        h('button.btn', { type: 'submit', dataset: { action: 'invite' } }, t('teams.invite.submit'))),
-      team.invitations.length ? h('ul.team-list.team-sent', team.invitations.map((inv) => h('li', { dataset: { invitee: inv.username } },
-        h('span', t('teams.invite.pending', { username: inv.username })),
-        h('button.btn.small.subtle', { type: 'button', dataset: { action: 'withdraw' }, onclick: () => withdraw(team, inv.username) }, t('teams.invite.withdraw'))))) : '',
-      h('h3', t('teams.bench.title')),
-      held
-        ? h('p.team-bench', t('teams.bench.holds', { bench: held.bench }), ' ', h('a', { href: `#/consoles/${encodeURIComponent(held.bench)}` }, t('teams.bench.open')))
-        : h('p.muted', t('teams.bench.none')),
-      h('h3', t('teams.slots.title')),
-      mySlots.length
-        ? h('ul.team-list', mySlots.map((r) => h('li', h('span', `${r.bench} · ${fmtSlot(r)}`),
-          h('button.btn.small.subtle', { type: 'button', dataset: { action: 'cancel-slot' }, onclick: () => cancelSlot(r) }, t('teams.slots.cancel')))))
-        : h('p.muted', t('teams.slots.none')));
+    return [
+      h('section.card.team-mine', { dataset: { team: team.id }, 'aria-label': team.name },
+        h('div.card-head', h('h2', icon('team'), h('span.team-name', team.name)), h('span.card-meta', t('teams.members.title', { count: team.people.length }))),
+        h('ul.team-list.team-members', team.people.map((p) => h('li', { dataset: { user: p.username } },
+          personAvatar(p, '.md'),
+          h('span.team-person', h('strong', p.name), h('span.card-meta', `@${p.username} · ${t('teams.members.since', { time: fmtDateTime(p.since) })}`)))))),
+      h('section.card', { 'aria-label': t('teams.invite.title') },
+        h('div.card-head', h('h2', t('teams.invite.title'))),
+        h('form.team-form.form-grid', { onsubmit: (e) => { e.preventDefault(); invite(e.target, team); } },
+          h('label', h('span', t('teams.invite.username')), h('input.field', { name: 'username', required: true, maxlength: 64, autocomplete: 'off', autocapitalize: 'none', spellcheck: 'false', placeholder: t('teams.invite.placeholder') })),
+          h('div.team-form-actions', h('button.btn.primary', { type: 'submit', dataset: { action: 'invite' } }, icon('send'), t('teams.invite.submit')))),
+        team.invitations.length ? h('div.card-section',
+          h('h3', t('teams.invite.waiting')),
+          h('ul.team-list.team-sent', team.invitations.map((inv) => h('li', { dataset: { invitee: inv.username } },
+            h('span.team-line', t('teams.invite.pending', { username: inv.username })),
+            moreButton(() => [{ id: 'withdraw', label: 'teams.invite.withdraw', icon: 'close', danger: true }], { onSelect: () => withdraw(team, inv.username), label: () => t('teams.invite.menu', { username: inv.username }) }))))) : null),
+      h('section.card', { 'aria-label': t('teams.bench.title') },
+        h('div.card-head', h('h2', t('teams.bench.title'))),
+        held
+          ? h('div.team-bench', h('p', t('teams.bench.holds', { bench: held.bench })),
+            h('span.team-row-actions',
+              h('a.btn.sm', { href: `#/team/bench/${encodeURIComponent(held.bench)}` }, icon('rack'), t('teams.bench.manage')),
+              h('a.btn.sm', { href: `#/consoles/${encodeURIComponent(held.bench)}` }, icon('topology'), t('teams.bench.open'))))
+          : emptyState({ icon: 'rack', title: 'teams.bench.noneTitle', text: 'teams.bench.none', action: { label: 'teams.bench.take', icon: 'check', run: () => { location.hash = '#/team/bench'; } } }),
+        h('div.card-section',
+          h('div.card-head', h('h3', t('teams.slots.title')), h('a.btn.sm', { href: '#/team/calendar', dataset: { action: 'calendar' } }, icon('calendar'), t('teams.slots.book'))),
+          mySlots.length
+            ? h('ul.team-list', mySlots.map((r) => h('li', h('span.team-line', `${r.bench} · ${fmtSlot(r)}`),
+              h('button.btn.sm.ghost.danger', { type: 'button', dataset: { action: 'cancel-slot' }, onclick: () => cancelSlot(r) }, t('teams.slots.cancel')))))
+            : h('p.card-meta', t('teams.slots.none')))),
+    ];
   }
 
   return {
-    show() { visible = true; load(); },
+    show() { visible = true; syncHeader(); load(); },
     hide() { visible = false; },
   };
 }

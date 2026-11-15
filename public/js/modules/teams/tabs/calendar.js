@@ -1,20 +1,24 @@
 /**
- * Reservation calendar: one bench, one week, 8:00 to 20:00. A click on a
- * free hour books a slot for my team (admins choose the team); a click on a
- * slot of my team (any slot, for admins) cancels it. The server checks the
- * overlaps and the limits; its refusal is shown in the dialog
+ * Reservations (#/team/calendar[/<bench>]): one bench, one week, 08:00 to
+ * 20:00. From 720 px a week grid; on a phone one day at a time, as an
+ * agenda (docs/v2/UX.md §10.4). A free hour books a slot for my team (admins
+ * choose the team); a slot of my team (any slot, for admins) cancels it. The
+ * server checks the overlaps and the limits; its refusal is shown in the dialog
  */
 import { h, icon } from '../../../core/dom.js';
 import { getJson, live, request, callOrToast } from '../../../core/api.js';
-import { t, onLocaleChange } from '../../../core/i18n.js';
+import { t, getLocale, onLocaleChange } from '../../../core/i18n.js';
 import { session } from '../../../core/session.js';
 import { confirmDialog, formDialog } from '../../../shared/dialog.js';
+import { openMenu } from '../../../shared/menu.js';
+import { emptyState } from '../../../shared/loadState.js';
 import { fmtSlot } from '../data.js';
 import { fmtDay, fmtTime } from '../../../core/format.js';
 
 const FIRST_HOUR = 8;
 const LAST_HOUR = 20;
 const DAY = 24 * 3_600_000;
+const SWIPE_PX = 60;
 
 /** The local time `hour`:00 of the day that starts at `day` (setHours, not an addition: days of 23 or 25 hours exist) */
 function atHour(day, hour) {
@@ -31,29 +35,42 @@ function weekStart(date) {
   return d;
 }
 
-export function mount(el, { navigate }) {
+const hh = (hour) => `${String(hour).padStart(2, '0')}:00`;
+const sameDay = (a, b) => a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+
+export function mount(el, { header, navigate }) {
   let benchNames = [];
   let bench = null;
   let monday = weekStart(new Date());
+  let dayIndex = (new Date().getDay() + 6) % 7; // the agenda's day: 0 = Monday
   let reservations = [];
   let limits = null;
   let teams = null;
   let visible = false;
 
-  const select = h('select.field', { 'aria-label': t('teams.calendar.bench'), onchange: () => { bench = select.value; navigate(`#/team/calendar/${encodeURIComponent(bench)}`); load(); } });
+  const picker = h('button.btn.sm.cal-picker', { type: 'button', dataset: { action: 'pick' }, 'aria-haspopup': 'menu', onclick: () => pickBench() });
   const title = h('strong.cal-week');
-  const prev = h('button.icon-btn', { type: 'button', onclick: () => move(-7) }, icon('chevronLeft'));
-  const today = h('button.btn.small', { type: 'button', onclick: () => { monday = weekStart(new Date()); load(); } });
-  const next = h('button.icon-btn', { type: 'button', onclick: () => move(7) }, icon('chevronRight'));
-  const note = h('p.muted.cal-note');
+  const prev = h('button.icon-btn', { type: 'button', dataset: { action: 'previous' }, onclick: () => move(-7) }, icon('chevronLeft'));
+  const today = h('button.btn.sm', { type: 'button', dataset: { action: 'today' }, onclick: () => { monday = weekStart(new Date()); dayIndex = (new Date().getDay() + 6) % 7; load(); } });
+  const next = h('button.icon-btn', { type: 'button', dataset: { action: 'next' }, onclick: () => move(7) }, icon('chevronRight'));
+  const note = h('p.card-meta.cal-note');
   const grid = h('div.cal-grid', { role: 'grid' });
+  const agenda = h('div.cal-agenda');
   const outside = h('div.cal-outside');
-  el.append(h('div.panel.cal-panel', h('div.panel-toolbar', select, prev, today, next, title), note, h('div.cal-scroll', grid), outside));
+  el.append(h('div.cal-panel',
+    h('div.cal-toolbar', picker, h('span.cal-nav', prev, today, next), title),
+    note, h('div.cal-scroll', grid), agenda, outside));
 
   function move(days) {
     monday = new Date(monday.getTime() + days * DAY);
     monday = weekStart(new Date(monday.getTime() + 12 * 3_600_000)); // daylight saving changes stay on Monday
     load();
+  }
+
+  async function pickBench() {
+    const items = benchNames.map((n) => ({ id: n, label: n, checked: n === bench }));
+    const id = await openMenu(picker, items, { label: t('teams.calendar.bench') });
+    if (id && id !== bench) { bench = id; navigate?.(`#/team/calendar/${encodeURIComponent(bench)}`); load(); }
   }
 
   async function load() {
@@ -62,7 +79,7 @@ export function mount(el, { navigate }) {
       benchNames = (data?.benches ?? []).map((b) => b.bench);
       if (!bench || !benchNames.includes(bench)) bench = benchNames[0] ?? null;
     }
-    if (!bench) { grid.replaceChildren(h('p.muted', t('teams.calendar.noBench'))); return; }
+    if (!bench) { render(); return; }
     const from = monday.toISOString();
     const nextMonday = new Date(monday);
     nextMonday.setDate(nextMonday.getDate() + 7);
@@ -91,7 +108,7 @@ export function mount(el, { navigate }) {
     const durations = [];
     for (let m = 30; m <= maxHours * 60; m += 30) durations.push({ value: m, label: t('teams.calendar.duration', { hours: Math.floor(m / 60), minutes: String(m % 60).padStart(2, '0') }) });
     const fields = [
-      { name: 'time', label: t('teams.calendar.start'), type: 'time', value: `${String(hour).padStart(2, '0')}:00`, required: true, attrs: { step: 900 } },
+      { name: 'time', label: t('teams.calendar.start'), type: 'time', value: hh(hour), required: true, attrs: { step: 900 } },
       { name: 'minutes', label: t('teams.calendar.length'), type: 'select', options: durations, value: 120 },
     ];
     if (session.isAdmin) fields.push({ name: 'teamId', label: t('teams.calendar.team'), type: 'select', options: (info?.teams ?? []).map((x) => ({ value: x.id, label: x.name })), value: info?.mine?.id });
@@ -101,9 +118,9 @@ export function mount(el, { navigate }) {
       fields,
       submitLabel: t('teams.calendar.book'),
       onSubmit: async ({ time, minutes, teamId }) => {
-        const [hh, mm] = String(time).split(':').map(Number);
+        const [h1, m1] = String(time).split(':').map(Number);
         const s = new Date(day);
-        s.setHours(hh, mm, 0, 0);
+        s.setHours(h1, m1, 0, 0);
         const e = new Date(s.getTime() + Number(minutes) * 60_000);
         await request('POST', '/api/benches/reservations', { bench, start: s.toISOString(), end: e.toISOString(), ...(teamId ? { teamId } : {}) });
         await load();
@@ -116,35 +133,47 @@ export function mount(el, { navigate }) {
     if (ok && await callOrToast('DELETE', `/api/benches/reservations/${encodeURIComponent(r.id)}`)) await load();
   }
 
+  const weekDays = () => Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + i);
+    return d;
+  });
+
   function render() {
-    select.replaceChildren(...benchNames.map((n) => h('option', { value: n, selected: n === bench }, n)));
-    select.setAttribute('aria-label', t('teams.calendar.bench'));
+    if (visible) header.update({ context: () => (bench ? t('teams.calendar.context', { bench }) : ''), primary: null, actions: [] });
+    picker.replaceChildren(icon('rack'), bench ? t('teams.calendar.picker', { bench }) : t('teams.calendar.bench'), icon('chevronDown'));
     today.textContent = t('teams.calendar.thisWeek');
     prev.title = t('teams.calendar.previous');
     prev.setAttribute('aria-label', prev.title);
     next.title = t('teams.calendar.next');
     next.setAttribute('aria-label', next.title);
-    const sunday = new Date(monday);
-    sunday.setDate(sunday.getDate() + 6);
-    title.textContent = t('teams.calendar.week', { from: fmtDay(monday), to: fmtDay(sunday) });
+    const days = weekDays();
+    title.textContent = t('teams.calendar.week', { from: fmtDay(days[0]), to: fmtDay(days[6]) });
     note.textContent = t('teams.calendar.hint');
+    if (!bench) {
+      grid.replaceChildren(emptyState({ icon: 'rack', title: 'teams.calendar.noBench' }));
+      agenda.replaceChildren();
+      outside.replaceChildren();
+      return;
+    }
+    const myTeamId = teams?.mine?.id;
+    renderGrid(days, myTeamId);
+    renderAgenda(days, myTeamId);
+    renderOutside(days, myTeamId);
+  }
 
-    const days = Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(monday);
-      d.setDate(monday.getDate() + i);
-      return d;
-    });
+  /** From 720 px: the week */
+  function renderGrid(days, myTeamId) {
     const hours = Array.from({ length: LAST_HOUR - FIRST_HOUR }, (_, i) => FIRST_HOUR + i);
     const now = Date.now();
-    const myTeamId = teams?.mine?.id;
-
-    const head = h('div.cal-row.cal-head', h('div.cal-corner'), days.map((d) => h('div.cal-day', { role: 'columnheader' }, fmtDay(d))));
+    const head = h('div.cal-row.cal-head', h('div.cal-corner'), days.map((d) => h(`div.cal-day${sameDay(d, new Date()) ? '.today' : ''}`, { role: 'columnheader' }, fmtDay(d))));
     const columns = days.map((d) => {
       const dayStart = atHour(d, FIRST_HOUR);
       const dayEnd = atHour(d, LAST_HOUR);
       const cells = hours.map((hour) => {
         const past = atHour(d, hour + 1) <= now;
-        return h('button.cal-cell', { type: 'button', disabled: past, dataset: { hour: String(hour) }, title: `${fmtDay(d)} ${String(hour).padStart(2, '0')}:00`, onclick: () => book(d, hour) });
+        const label = t('teams.calendar.bookHover', { from: hh(hour), to: hh(hour + 1) });
+        return h('button.cal-cell', { type: 'button', disabled: past, dataset: { hour: String(hour), label }, 'aria-label': `${fmtDay(d)} ${label}`, onclick: () => book(d, hour) });
       });
       const blocks = reservations.filter((r) => Date.parse(r.end) > dayStart && Date.parse(r.start) < dayEnd).map((r) => {
         const top = (Math.max(Date.parse(r.start), dayStart) - dayStart) / (dayEnd - dayStart) * 100;
@@ -154,7 +183,7 @@ export function mount(el, { navigate }) {
         const block = h(`${canCancel ? 'button' : 'div'}.cal-slot`, {
           type: canCancel ? 'button' : undefined,
           dataset: { mine: String(mine), team: r.teamId },
-          title: `${r.teamName ?? '?'} · ${fmtTime(r.start)}–${fmtTime(r.end)}`,
+          title: `${r.teamName ?? '?'} · ${fmtTime(r.start)}–${fmtTime(r.end)}${canCancel ? ` · ${t('teams.slots.cancel')}` : ''}`,
           onclick: canCancel ? () => cancel(r) : undefined,
         }, h('strong', r.teamName ?? '?'), h('span', `${fmtTime(r.start)}–${fmtTime(r.end)}`));
         block.style.top = `${top}%`;
@@ -165,7 +194,64 @@ export function mount(el, { navigate }) {
     });
     const times = h('div.cal-times', hours.map((hour) => h('div.cal-time', fmtTime(new Date(2026, 0, 1, hour)))));
     grid.replaceChildren(head, h('div.cal-row.cal-body', times, columns));
-    renderOutside(days, myTeamId);
+  }
+
+  /** On a phone: a row of days, then the hours of the chosen one */
+  function renderAgenda(days, myTeamId) {
+    const now = Date.now();
+    const intl = new Intl.DateTimeFormat(getLocale(), { weekday: 'short' });
+    const chosen = days[dayIndex];
+    const chips = h('div.cal-days.chips', { role: 'group', 'aria-label': t('teams.calendar.days') }, days.map((d, i) => {
+      const past = atHour(d, LAST_HOUR) <= now;
+      const isToday = sameDay(d, new Date());
+      return h('button.chip.cal-day-chip', {
+        type: 'button', 'aria-pressed': String(i === dayIndex), dataset: { day: String(i), today: String(isToday), past: String(past) },
+        'aria-label': fmtDay(d), onclick: () => { dayIndex = i; render(); },
+      }, h('span.cal-dow', intl.format(d)), h('span.cal-dom', String(d.getDate())));
+    }));
+    const hours = Array.from({ length: LAST_HOUR - FIRST_HOUR }, (_, i) => FIRST_HOUR + i);
+    const rows = hours.map((hour) => {
+      const from = atHour(chosen, hour);
+      const to = atHour(chosen, hour + 1);
+      const past = to <= now;
+      const r = reservations.find((x) => Date.parse(x.end) > from && Date.parse(x.start) < to);
+      let content;
+      if (r) {
+        const mine = r.teamId === myTeamId;
+        const canCancel = mine || session.isAdmin;
+        const label = mine ? t('teams.calendar.yourTeam') : r.teamName ?? '?';
+        content = canCancel
+          ? h('button.cal-booked', { type: 'button', dataset: { mine: String(mine), team: r.teamId }, onclick: () => cancel(r) },
+            h('span.cal-booked-text', h('strong', label), h('span.card-meta', `${fmtTime(r.start)}–${fmtTime(r.end)}`)), h('span.cal-act', t('teams.slots.cancel')))
+          : h('div.cal-booked', { dataset: { mine: 'false', team: r.teamId } }, h('span.cal-booked-text', h('strong', label), h('span.card-meta', `${fmtTime(r.start)}–${fmtTime(r.end)}`)));
+      } else if (past) {
+        content = h('div.cal-past', t('teams.calendar.past'));
+      } else {
+        content = h('button.cal-free', { type: 'button', dataset: { hour: String(hour) }, onclick: () => book(chosen, hour) }, h('span', t('teams.calendar.free')), h('span.cal-act', t('teams.calendar.book')));
+      }
+      return h('li.cal-hour', { dataset: { hour: String(hour) } }, h('time.cal-hour-label', hh(hour)), content);
+    });
+    const hoursList = h('ol.cal-hours', { 'aria-label': fmtDay(chosen) }, rows);
+    // A swipe changes the day (past the ends: the next or the previous week)
+    let startX = null;
+    let startY = null;
+    hoursList.addEventListener('touchstart', (e) => { startX = e.touches[0].clientX; startY = e.touches[0].clientY; }, { passive: true });
+    hoursList.addEventListener('touchend', (e) => {
+      if (startX === null) return;
+      const dx = e.changedTouches[0].clientX - startX;
+      const dy = e.changedTouches[0].clientY - startY;
+      startX = null;
+      if (Math.abs(dx) < SWIPE_PX || Math.abs(dy) > Math.abs(dx) / 2) return;
+      step(dx < 0 ? 1 : -1);
+    }, { passive: true });
+    agenda.replaceChildren(chips, h('p.cal-day-title', h('strong', fmtDay(chosen))), hoursList);
+  }
+
+  function step(by) {
+    const to = dayIndex + by;
+    if (to >= 0 && to <= 6) { dayIndex = to; render(); return; }
+    dayIndex = to < 0 ? 6 : 0;
+    move(to < 0 ? -7 : 7);
   }
 
   /** The grid shows 08:00 to 20:00 only: a booking that does not fit in it is listed below, so the week never looks free when it is not */
@@ -174,12 +260,12 @@ export function mount(el, { navigate }) {
     const rest = reservations.filter((r) => !fits(r));
     if (!rest.length) { outside.replaceChildren(); return; }
     outside.replaceChildren(
-      h('p.muted.cal-note', t('teams.calendar.outside', { from: `${String(FIRST_HOUR).padStart(2, '0')}:00`, to: `${String(LAST_HOUR).padStart(2, '0')}:00` })),
+      h('p.card-meta.cal-note', t('teams.calendar.outside', { from: hh(FIRST_HOUR), to: hh(LAST_HOUR) })),
       h('ul.cal-outside-list', rest.map((r) => {
         const canCancel = r.teamId === myTeamId || session.isAdmin;
         return h('li', { dataset: { team: r.teamId } },
           h('strong', r.teamName ?? '?'), ' ', h('span', fmtSlot(r)),
-          canCancel ? h('button.icon-btn.small', { type: 'button', title: t('teams.slots.cancel'), 'aria-label': t('teams.slots.cancel'), onclick: () => cancel(r) }, icon('close')) : null);
+          canCancel ? h('button.icon-btn', { type: 'button', title: t('teams.slots.cancel'), 'aria-label': t('teams.slots.cancel'), onclick: () => cancel(r) }, icon('close')) : null);
       })));
   }
 

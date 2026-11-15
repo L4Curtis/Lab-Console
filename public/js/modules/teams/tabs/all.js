@@ -1,24 +1,42 @@
 /**
- * Every team, for admins: members (remove one), invitations waiting, the
- * bench each team holds; rename or dissolve. The server answers 403 to
+ * Every team, for admins (#/team/all): members (open the row to remove one),
+ * the bench each team holds, rename or dissolve. The server answers 403 to
  * anyone else, whatever this screen shows
  */
 import { h, icon } from '../../../core/dom.js';
 import { live, request, getJson, callOrToast } from '../../../core/api.js';
 import { loadFailure } from '../../../shared/loadState.js';
 import { t, onLocaleChange } from '../../../core/i18n.js';
-import { confirmDialog, formDialog } from '../../../shared/dialog.js';
-import { teamUrl, onBenches } from '../data.js';
+import { confirmDialog, formDialog, openDialog } from '../../../shared/dialog.js';
+import { dataList } from '../../../shared/dataList.js';
+import { teamUrl, onBenches, avatarStack, personAvatar } from '../data.js';
+import { fmtDate } from '../../../core/format.js';
 
-export function mount(el) {
-  const body = h('tbody');
-  const table = h('table.vm-table.team-table', h('thead', h('tr', h('th'), h('th'), h('th'), h('th'))), body);
-  const head = table.querySelector('tr');
+export function mount(el, { header }) {
   const failure = h('div');
-  el.append(h('div.panel', failure, h('div.table-wrap', table)));
   let teams = [];
   let benches = new Map();
   let visible = false;
+
+  const heldBy = (team) => [...benches.values()].find((b) => b.holder?.teamId === team.id);
+  const list = dataList({
+    label: () => t('teams.all.title'),
+    columns: [
+      { id: 'team', label: 'teams.all.team', cell: (team) => team.name, primary: true },
+      { id: 'members', label: 'teams.all.members', cell: (team) => h('span.team-members-cell', avatarStack(team.people ?? [], { max: 4 }), h('span.card-meta', t('teams.members.title', { count: team.people?.length ?? 0 }))) },
+      { id: 'bench', label: 'teams.all.bench', cell: (team) => { const held = heldBy(team); return held ? h('a', { href: `#/team/bench/${encodeURIComponent(held.bench)}` }, held.bench) : h('span.card-meta', '—'); }, meta: true },
+      { id: 'created', label: 'teams.all.created', cell: (team) => fmtDate(team.createdAt), hideCompact: true },
+    ],
+    actions: () => [
+      { id: 'members', label: 'teams.all.manage', icon: 'team', primary: true, run: (team) => manage(team) },
+      { id: 'rename', label: 'teams.rename.button', icon: 'edit', run: (team) => rename(team) },
+      { id: 'dissolve', label: 'teams.all.dissolve', icon: 'trash', danger: true, run: (team) => dissolve(team) },
+    ],
+    empty: { icon: 'team', title: 'teams.all.noneTitle', text: 'teams.all.none' },
+    onOpen: (team) => manage(team),
+    rowKey: (team) => team.id,
+  });
+  el.append(h('div.team-wide', failure, list.el));
 
   async function load() {
     try {
@@ -53,30 +71,32 @@ export function mount(el) {
     if (ok && await callOrToast('DELETE', teamUrl(team.id, `/members/${encodeURIComponent(person.id)}`))) await load();
   }
 
+  /** The members of a team, each with a way to remove them, and who was invited */
+  function manage(team) {
+    const body = h('div.modal-body.team-manage');
+    const draw = () => {
+      const now = teams.find((x) => x.id === team.id);
+      if (!now) { dlg.close(); return; }
+      body.replaceChildren(
+        h('ul.team-list', (now.people ?? []).map((p) => h('li', { dataset: { user: p.username } },
+          personAvatar(p, '.md'),
+          h('span.team-person', h('strong', p.name), h('span.card-meta', `@${p.username}`)),
+          h('button.btn.sm.ghost.danger', { type: 'button', dataset: { action: 'remove-member' }, 'aria-label': `${t('teams.all.remove')} · ${p.name}`, onclick: async () => { await removeMember(now, p); draw(); } }, icon('close'), t('teams.all.removeShort'))))),
+        now.invitations?.length ? h('p.card-meta', t('teams.all.invited', { names: now.invitations.map((i) => i.username).join(', ') })) : null);
+    };
+    const dlg = openDialog(body, { title: () => t('teams.all.manageTitle', { team: team.name }), size: 'md' });
+    draw();
+    const stop = live.on('teams:changed', () => load().then(draw));
+    dlg.closed.then(stop);
+  }
+
   function render() {
-    const labels = [t('teams.all.team'), t('teams.all.members'), t('teams.all.bench')];
-    [...head.children].forEach((th, i) => { th.textContent = labels[i] ?? ''; });
-    head.lastElementChild.replaceChildren(h('span.sr-only', t('common.columns.actions')));
-    if (!teams.length) {
-      body.replaceChildren(h('tr', h('td.empty-row', { colspan: 4 }, t('teams.all.none'))));
-      return;
-    }
-    body.replaceChildren(...teams.map((team) => {
-      const held = [...benches.values()].find((b) => b.holder?.teamId === team.id);
-      return h('tr', { dataset: { team: team.id } },
-        h('td', h('strong', team.name)),
-        h('td', h('ul.team-chips', (team.people ?? []).map((p) => h('li', p.name,
-          h('button.icon-btn.small', { type: 'button', title: t('teams.all.remove'), 'aria-label': `${t('teams.all.remove')} · ${p.name}`, onclick: () => removeMember(team, p) }, icon('close'))))),
-        team.invitations?.length ? h('small.muted', t('teams.all.invited', { names: team.invitations.map((i) => i.username).join(', ') })) : ''),
-        h('td', held ? h('a', { href: `#/consoles/${encodeURIComponent(held.bench)}` }, held.bench) : h('span.muted', '—')),
-        h('td.right',
-          h('button.btn.small.subtle', { type: 'button', dataset: { action: 'rename' }, onclick: () => rename(team) }, t('teams.rename.button')),
-          h('button.btn.small.danger', { type: 'button', dataset: { action: 'dissolve' }, onclick: () => dissolve(team) }, t('teams.all.dissolve'))));
-    }));
+    if (visible) header.update({ context: () => t('teams.all.context', { count: teams.length }), primary: null, actions: [] });
+    list.render(teams);
   }
 
   return {
-    show() { visible = true; load(); },
+    show() { visible = true; render(); load(); },
     hide() { visible = false; },
   };
 }
