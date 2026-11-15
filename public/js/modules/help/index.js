@@ -13,7 +13,10 @@
  */
 import { h, icon, loadCss } from '../../core/dom.js';
 import { getJson } from '../../core/api.js';
-import { t, tNode, loadNamespace, onLocaleChange } from '../../core/i18n.js';
+import { t, loadNamespace, onLocaleChange } from '../../core/i18n.js';
+import { isCompact, isCoarse, onViewportChange } from '../../core/viewport.js';
+import { pageHeader } from '../../shared/pageHeader.js';
+import { openMenu } from '../../shared/menu.js';
 import { startTour } from './tour.js';
 
 /**
@@ -26,7 +29,7 @@ import { startTour } from './tour.js';
 const SECTIONS = [
   { id: 'sections', blocks: [
     { p: 'intro' },
-    { ul: ['home', 'consoles', 'overview', 'team', 'jobs', 'infra', 'status', 'admin', 'account', 'help', 'extras'] },
+    { ul: ['home', 'consoles', 'team', 'jobs', 'infra', 'status', 'admin', 'account', 'help', 'extras'] },
   ] },
   { id: 'home', blocks: [
     { p: 'intro' },
@@ -88,6 +91,10 @@ const SECTIONS = [
     { h: 'watchTitle' }, { p: 'watch' },
     { h: 'lostTitle' }, { p: 'lost' },
   ] },
+  { id: 'phone', blocks: [
+    { p: 'intro' },
+    { ul: ['tabbar', 'consoles', 'screen', 'toolbar', 'line', 'interrupt', 'landscape'] },
+  ] },
   { id: 'keys', blocks: [
     { p: 'intro' },
     { keys: ['finder', 'finderMove', 'device', 'copy', 'send', 'chat', 'close', 'splitter'] },
@@ -99,13 +106,20 @@ const NO_FIGURES = { journalDays: null, idleHours: null, sessionIdle: null, sess
 export async function mount(el) {
   await Promise.all([loadNamespace('help'), loadCss('help')]);
   let figures = { ...NO_FIGURES };
+  let wanted = null;           // the section the address asks for
+  const open = new Set();      // the sections unfolded on a phone
 
-  const toc = h('nav.help-toc');
+  const header = pageHeader({
+    title: 'help.title',
+    context: 'help.subtitle',
+    actions: [{ id: 'replay-tour', label: 'help.replayTour', icon: 'tour', run: () => startTour() }],
+  });
+  const toc = h('nav.help-toc', { 'aria-label': t('help.toc') });
+  const summary = h('button.btn.help-summary', { type: 'button', 'aria-haspopup': 'menu', dataset: { action: 'summary' }, onclick: (e) => pickSection(e.currentTarget) }, icon('menu'), h('span.lbl'));
   const article = h('div.help-sections');
-  const replay = h('button.btn', { type: 'button', dataset: { action: 'replay-tour' }, onclick: () => startTour() }, icon('play'), tNode('help.replayTour'));
-  el.append(
-    h('header.view-head', h('div.view-title', h('h1', tNode('help.title')), h('p', tNode('help.subtitle'))), replay),
-    h('div.help-scroll', h('div.help-body', toc, article)));
+  const body = h('div.view-body');
+  body.append(h('div.help-body', toc, h('div.help-main', summary, article)));
+  el.append(header.el, body);
 
   const text = (section, item) => {
     const key = typeof item === 'string' ? item : item.key;
@@ -119,7 +133,7 @@ export async function mount(el) {
     if (block.h) return h('h3', text(section, block.h));
     if (block.ul) return h('ul', shown(block.ul, figures).map((i) => h('li', text(section, i))));
     if (block.ol) return h('ol', shown(block.ol, figures).map((i) => h('li', text(section, i))));
-    if (block.link) return h('p', h('a.btn.small', { href: block.href }, text(section, block.link)));
+    if (block.link) return h('p', h('a.btn.sm', { href: block.href }, text(section, block.link)));
     if (block.keys) {
       return h('table.help-keys',
         h('thead', h('tr', h('th', t('help.s.keys.col.keys')), h('th', t('help.s.keys.col.what')))),
@@ -128,13 +142,35 @@ export async function mount(el) {
     return null;
   }
 
+  /** On a phone a section is folded (its title is the button); from 720 px all of them are open */
+  const isOpen = (id) => !isCompact() || open.has(id);
+
+  function renderSection(s) {
+    const id = `help-${s.id}`;
+    const on = isOpen(s.id);
+    const toggle = h('button.help-toggle', { type: 'button', 'aria-expanded': String(on), 'aria-controls': `${id}-body`, dataset: { toggle: s.id },
+      onclick: () => { if (open.has(s.id)) open.delete(s.id); else open.add(s.id); render(); } },
+    h('span', { id: `${id}-title` }, t(`help.s.${s.id}.title`)), isCompact() ? icon(on ? 'chevronUp' : 'chevronDown') : null);
+    return h('section.card.help-section', { id, dataset: { section: s.id }, 'aria-labelledby': `${id}-title` },
+      h('h2', toggle),
+      h('div.help-text', { id: `${id}-body`, hidden: !on }, s.blocks.map((b) => renderBlock(s.id, b))));
+  }
+
+  /** The keyboard shortcuts mean nothing on a touch screen: "Sur téléphone" takes their place there */
+  const sections = () => SECTIONS.filter((s) => !(isCoarse() && s.id === 'keys'));
+
   function render() {
-    toc.replaceChildren(h('strong', t('help.toc')), h('ul', SECTIONS.map((s) =>
+    const list = sections();
+    toc.replaceChildren(h('strong', t('help.toc')), h('ul', list.map((s) =>
       h('li', h('a', { href: `#/help/${s.id}`, dataset: { section: s.id } }, t(`help.s.${s.id}.title`))))));
-    article.replaceChildren(...SECTIONS.map((s) =>
-      h('section.help-section', { id: `help-${s.id}`, dataset: { section: s.id }, 'aria-labelledby': `help-${s.id}-title` },
-        h('h2', { id: `help-${s.id}-title` }, t(`help.s.${s.id}.title`)),
-        s.blocks.map((b) => renderBlock(s.id, b)))));
+    toc.setAttribute('aria-label', t('help.toc'));
+    summary.querySelector('.lbl').textContent = t('help.summary');
+    article.replaceChildren(...list.map(renderSection));
+  }
+
+  async function pickSection(button) {
+    const id = await openMenu(button, sections().map((s) => ({ id: s.id, label: () => t(`help.s.${s.id}.title`) })), { label: t('help.summary') });
+    if (id) location.hash = `#/help/${id}`;
   }
 
   async function loadFigures() {
@@ -152,16 +188,21 @@ export async function mount(el) {
 
   function scrollTo(id) {
     const target = id && el.querySelector(`#help-${CSS.escape(id)}`);
-    if (target) target.scrollIntoView({ block: 'start' });
-    else el.querySelector('.help-scroll')?.scrollTo({ top: 0 });
+    if (target) {
+      if (!open.has(id)) { open.add(id); render(); }
+      el.querySelector(`#help-${CSS.escape(id)}`).scrollIntoView({ block: 'start' });
+    } else body.scrollTo({ top: 0 });
   }
 
   render();
   onLocaleChange(render);
+  let compact = isCompact();
+  onViewportChange((now) => { if (now.compact !== compact) { compact = now.compact; render(); } });
   return {
     show: ([section] = []) => {
+      wanted = section ?? null;
       loadFigures();
-      scrollTo(section);
+      scrollTo(wanted);
     },
   };
 }

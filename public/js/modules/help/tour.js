@@ -15,17 +15,25 @@
  */
 import { h, loadCss } from '../../core/dom.js';
 import { request, getJson } from '../../core/api.js';
-import { t, loadNamespace, onLocaleChange } from '../../core/i18n.js';
+import { t, has, loadNamespace, onLocaleChange } from '../../core/i18n.js';
+import { isCompact } from '../../core/viewport.js';
 
-/** `target` is a selector (the step is shown without a pointer when it never appears); `route` the address it needs */
+/**
+ * `target` is a selector (the step is shown without a pointer when it never appears); `route` the address it needs.
+ * On a phone (`phone` is the target there; `desktopOnly` steps are left out, `phoneOnly` ones are only there) the tour
+ * is shorter: the home page, Consoles in the tab bar, the console, Sauvegardes, Plus
+ */
 const STEPS = [
   { id: 'home', route: '#/home', target: 'section.view-home .ov-home' },
-  { id: 'bench', route: '#/consoles', target: '.lab-picker' },
-  { id: 'team', route: '#/consoles', target: '.bench-bar' },
+  { id: 'bench', route: '#/consoles', target: '.lab-picker', phone: '[data-nav="consoles"]' },
+  { id: 'team', route: '#/consoles', target: '.bench-bar', desktopOnly: true },
   { id: 'console', route: '#/consoles', target: '.diagram-canvas' },
-  { id: 'keyboard', route: '#/consoles', target: '.pane-presence' },
+  { id: 'keyboard', route: '#/consoles', target: '.pane-presence', desktopOnly: true },
   { id: 'backup', route: null, target: '[data-nav="jobs"]' }, // the rail's entry, or the tab bar's on a phone
+  { id: 'plus', route: null, target: '[data-nav="plus"]', phoneOnly: true },
 ];
+const stepsNow = () => STEPS.filter((s) => (isCompact() ? !s.desktopOnly : !s.phoneOnly));
+const targetOf = (step) => (isCompact() && step.phone ? step.phone : step.target);
 const TARGET_WAIT_MS = 2500;
 
 let running = null; // the tour on screen, if any
@@ -58,6 +66,7 @@ export async function startTour() {
   await Promise.all([loadNamespace('help'), loadCss('help')]);
   const abort = new AbortController();
   const opener = document.activeElement;
+  const steps = stepsNow(); // the length of the screen the tour starts on: a rotation does not change it half-way
   let index = 0;
   let target = null;
   let settle;
@@ -67,7 +76,7 @@ export async function startTour() {
   const title = h('h2#tour-title');
   const body = h('p#tour-body');
   const back = h('button.btn.small', { type: 'button', dataset: { action: 'tour-back' }, onclick: () => go(index - 1) });
-  const next = h('button.btn.small.primary', { type: 'button', dataset: { action: 'tour-next' }, onclick: () => (index === STEPS.length - 1 ? end('done') : go(index + 1)) });
+  const next = h('button.btn.small.primary', { type: 'button', dataset: { action: 'tour-next' }, onclick: () => (index === steps.length - 1 ? end('done') : go(index + 1)) });
   const skip = h('button.btn.small.subtle.tour-skip', { type: 'button', dataset: { action: 'tour-skip' }, onclick: () => end('skipped') });
   const card = h('div.tour-card', { role: 'dialog', 'aria-labelledby': 'tour-title', 'aria-describedby': 'tour-body', dataset: { tour: 'card' } },
     count, title, body, h('div.tour-actions', skip, back, next));
@@ -99,13 +108,14 @@ export async function startTour() {
   }
 
   function write() {
-    const step = STEPS[index];
-    count.textContent = t('help.tour.step', { n: index + 1, total: STEPS.length });
+    const step = steps[index];
+    count.textContent = t('help.tour.step', { n: index + 1, total: steps.length });
     title.textContent = t(`help.tour.steps.${step.id}.title`);
-    body.textContent = t(`help.tour.steps.${step.id}.body`);
+    const phoneBody = `help.tour.steps.${step.id}.bodyPhone`;
+    body.textContent = t(isCompact() && has(phoneBody) ? phoneBody : `help.tour.steps.${step.id}.body`);
     back.textContent = t('help.tour.back');
     back.hidden = index === 0;
-    next.textContent = t(index === STEPS.length - 1 ? 'help.tour.finish' : 'help.tour.next');
+    next.textContent = t(index === steps.length - 1 ? 'help.tour.finish' : 'help.tour.next');
     skip.textContent = t('help.tour.skip');
     card.setAttribute('aria-label', t('help.tour.label'));
     place();
@@ -113,16 +123,16 @@ export async function startTour() {
 
   let ticket = 0;
   async function go(to) {
-    index = Math.max(0, Math.min(STEPS.length - 1, to));
+    index = Math.max(0, Math.min(steps.length - 1, to));
     const mine = ++ticket;
     target?.classList.remove('tour-target');
     target = null;
-    const step = STEPS[index];
+    const step = steps[index];
     // No address is the home page (main.js): the landing page after a sign-in
     if (step.route && (location.hash || '#/home').split('/')[1] !== step.route.split('/')[1]) location.hash = step.route;
     write();
     card.dataset.step = step.id;
-    const found = await whenVisible(step.target, abort.signal);
+    const found = await whenVisible(targetOf(step), abort.signal);
     if (mine !== ticket || abort.signal.aborted) return;
     target = found;
     target?.classList.add('tour-target');
@@ -148,7 +158,7 @@ export async function startTour() {
   // Someone who leaves the step's page by themselves (rail, address bar) is done with the tour:
   // a card describing another page must not follow them around. It can be replayed from Help.
   addEventListener('hashchange', () => {
-    const step = STEPS[index];
+    const step = steps[index];
     const section = (location.hash || '#/home').split('/')[1];
     if (step.route && section !== step.route.split('/')[1]) end('skipped');
   }, { signal: abort.signal });

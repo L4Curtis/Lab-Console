@@ -9,30 +9,29 @@
   "s": {
     "sections": {
       "title": "Les sections de Lab Console",
-      "intro": "La barre de gauche donne accès à chaque section. Votre pastille, en bas, ouvre le menu de votre compte.",
-      "home": "Accueil : la page où vous arrivez après la connexion : votre équipe, sa baie, vos dernières sauvegardes, l’activité de la baie, vos prochains créneaux.",
+      "intro": "Le menu donne accès à chaque section : à gauche sur un ordinateur, en bas sur un téléphone (« Plus » ouvre le reste). Votre pastille, en bas du menu de gauche, ouvre le menu de votre compte.",
+      "home": "Accueil : la page où vous arrivez après la connexion : ce qui demande votre attention, votre baie, le labo en entier, vos prochains créneaux, vos dernières sauvegardes.",
       "consoles": "Consoles : choisissez une baie, puis cliquez sur un équipement du schéma pour ouvrir sa console. C’est là que vous prenez la baie pour votre équipe, que vous tapez vos commandes et que vous voyez qui travaille sur quoi (« En direct », « Mur de la baie »).",
-      "overview": "Vue d’ensemble : toutes les baies du labo d’un coup d’œil, une carte par baie.",
       "team": "Équipe : créer l’équipe de votre groupe de TP, inviter vos camarades, répondre à une invitation, réserver une baie dans le calendrier.",
       "jobs": "Sauvegardes : sauvegarder la configuration de tous les équipements d’une baie, la comparer, la réinjecter, ou réinitialiser la baie. Vos sauvegardes et les modèles de TP y sont aussi.",
-      "infra": "Infra : les VM Proxmox quand Proxmox est configuré, et les switchs d’administration du labo.",
-      "status": "État du labo : la chaîne d’accès répond-elle (rebond, serveurs de consoles), et ce qui est journalisé.",
-      "admin": "Administration (administrateurs seulement) : comptes, invitations, connexion SSO, paramètres du labo, schéma, sessions, journal d’audit, annonce.",
-      "account": "Mon compte (menu de la pastille) : nom d’affichage, mot de passe et clés d’accès d’un compte local, sessions ouvertes.",
+      "infra": "Machines et switchs (dans Plus, ou dans Admin pour un administrateur) : les VM Proxmox quand Proxmox est configuré, et les switchs d’administration du labo.",
+      "status": "État du labo (dans Plus, ou dans Admin) : la chaîne d’accès répond-elle (rebond, serveurs de consoles), et ce qui est journalisé.",
+      "admin": "Admin (administrateurs seulement) : comptes, invitations, connexion SSO, équipes, paramètres du labo, schéma, switchs d’admin, sessions, journal d’audit, annonce ; et des liens vers Machines et switchs et État du labo.",
+      "account": "Mon compte (menu de la pastille, ou Plus sur un téléphone) : profil, mot de passe et clés d’accès d’un compte local, sessions ouvertes, thème et langue.",
       "help": "Aide : cette page. Le menu du compte permet aussi de revoir la visite guidée.",
-      "extras": "Toujours dans la barre de gauche : FR / EN change la langue, « Thème » bascule clair / sombre, et la cloche « Alertes » active les alertes du navigateur (clavier demandé, ligne libre, tâche terminée)."
+      "extras": "Dans le menu du compte (ou dans Plus sur un téléphone) : le thème clair, sombre ou automatique, et la langue FR / EN. La cloche « Alertes » active les alertes du navigateur (clavier demandé, ligne libre, tâche terminée)."
     },
     "home": {
-      "title": "Accueil et vue d’ensemble",
-      "intro": "Ces deux pages ne font que montrer, et se mettent à jour d’elles-mêmes. Prendre, rejoindre ou libérer une baie se fait toujours dans la barre de la baie, section Consoles.",
-      "homeTeam": "Accueil : votre équipe et ses membres, les invitations qui vous attendent, la baie de votre équipe (ou celle où vous êtes invité), vos prochains créneaux, le labo en chiffres et l’annonce en cours.",
-      "homeBackups": "Les cinq dernières sauvegardes de votre équipe : seuls ses membres les voient, ni un invité, ni une autre équipe.",
-      "homeActivity": "L’activité de votre baie depuis que votre équipe l’a prise : qui l’a prise, rejointe ou quittée, les tâches lancées, les consoles ouvertes. Seuls les occupants de la baie la voient.",
-      "homeNone": "Sans équipe, ou si votre équipe n’a pas de baie, l’Accueil vous dit quoi faire et vous mène à la bonne section.",
-      "overview": "Vue d’ensemble : pour chaque baie, l’équipe qui la tient et depuis quand, qui est dessus (les invités sont signalés), les consoles ouvertes et qui a la main, la tâche en cours, le verrou et son motif, les trois prochains créneaux et l’heure de libération automatique.",
-      "overviewLines": "Les lignes d’une carte : ouvertes dans Lab Console, occupées hors de Lab Console, muettes ; et, pendant une demi-heure après une vérification « État des lignes », les lignes trouvées libres et l’heure de la vérification.",
-      "overviewFilter": "Le filtre montre toutes les baies, les libres ou la vôtre. Une carte mène à la baie (section Consoles) et à ses sauvegardes.",
-      "overviewPrivate": "La Vue d’ensemble ne montre jamais les sauvegardes ni le journal d’une équipe, ni ce qui a été tapé sur une console."
+      "title": "Accueil et Le labo",
+      "intro": "L’Accueil se met à jour tout seul. Il met en haut ce qui demande votre attention et vous laisse répondre d’un bouton : accepter une demande pour rejoindre votre baie, rejoindre une équipe, rester sur la baie qui va être libérée. Une équipe sans baie en prend une libre depuis l’Accueil ; rejoindre ou libérer une baie se fait dans la barre de la baie (section Consoles) ou dans Équipe, onglet « Baie ».",
+      "homeTeam": "Ma baie : la baie de votre équipe (ou celle où vous êtes invité), son état, qui est dessus et les consoles ouvertes ; « Ouvrir les consoles » y mène. Mon équipe : ses membres. Plus bas, vos prochains créneaux et l’annonce en cours (en haut de la page).",
+      "homeBackups": "Les deux dernières sauvegardes de votre équipe, avec « Télécharger » : seuls ses membres les voient, ni un invité, ni une autre équipe.",
+      "homeActivity": "L’activité de votre baie depuis que votre équipe l’a prise : qui l’a prise, rejointe ou quittée, les tâches lancées, les consoles ouvertes. Les cinq dernières lignes, « Voir plus » en montre davantage. Seuls les occupants de la baie la voient.",
+      "homeNone": "Sans équipe, ou si votre équipe n’a pas de baie, l’Accueil vous dit quoi faire : créer une équipe, ou prendre l’une des baies libres.",
+      "overview": "Le labo : toutes les baies, en cartes sur un ordinateur et en liste sur un téléphone : pour chacune, son état (libre, prise, verrouillée), l’équipe qui la tient, les consoles ouvertes, la tâche en cours et le prochain créneau. Les pastilles filtrent : toutes, libres, prises, verrouillées, la nôtre.",
+      "overviewLines": "Sous une carte : les lignes occupées hors de Lab Console ou muettes ; et, pendant une demi-heure après une vérification « État des lignes », les lignes trouvées libres et l’heure de la vérification.",
+      "overviewFilter": "Le filtre choisi reste dans l’adresse de la page, donc dans un lien. Une carte, ou une ligne de la liste, mène à la baie (section Consoles).",
+      "overviewPrivate": "Le labo ne montre jamais les sauvegardes ni le journal d’une équipe, ni ce qui a été tapé sur une console."
     },
     "team": {
       "title": "Prendre une baie avec son équipe",
@@ -94,8 +93,8 @@
     },
     "checks": {
       "title": "Vérifier la baie",
-      "intro": "Le bouton « Vérifications », en haut de la section Consoles, ouvre les vérifications de la baie choisie. Elles ne font que lire : des commandes show et des pings, rien n’est configuré. Ceux qui regardent une console voient la vérification passer.",
-      "lines": "État des lignes : pour chaque équipement, la ligne est-elle libre, occupée hors de Lab Console, déjà ouverte dans Lab Console, ou l’équipement est-il muet ? Le résultat s’affiche sur le schéma pendant une demi-heure et sur la carte de la baie dans la Vue d’ensemble ; tout le monde le voit.",
+      "intro": "L’entrée « Vérifications » du menu Outils, en haut de la section Consoles, ouvre les vérifications de la baie choisie. Elles ne font que lire : des commandes show et des pings, rien n’est configuré. Ceux qui regardent une console voient la vérification passer.",
+      "lines": "État des lignes : pour chaque équipement, la ligne est-elle libre, occupée hors de Lab Console, déjà ouverte dans Lab Console, ou l’équipement est-il muet ? Le résultat s’affiche sur le schéma pendant une demi-heure et sur la carte de la baie dans Le labo ; tout le monde le voit.",
       "cabling": "Câblage (CDP) : show cdp neighbors detail sur chaque équipement, comparé aux liens du schéma : conforme, sur un autre port, manquant (avec la raison : interface en shutdown, hors service, port inexistant), non vérifiable, ou câble en trop. Le verdict s’affiche aussi sur les liens du schéma.",
       "ping": "Matrice de ping : les adresses des routeurs sont lues sur leurs interfaces actives, puis chaque routeur pingue les adresses des autres. Vert : répond ; orange : en partie ; rouge : ne répond pas.",
       "interfaces": "Adresses et interfaces : show ip interface brief sur chaque équipement ; l’adresse et l’état de chaque extrémité de lien s’écrivent près des liens du schéma.",
@@ -188,6 +187,17 @@
         "keys": "← → ↑ ↓",
         "what": "Sur la barre qui sépare le schéma des consoles : la déplacer."
       }
+    },
+    "phone": {
+      "title": "Sur téléphone",
+      "intro": "Tout se fait aussi sur un téléphone, même taper dans une console. Seule la navigation change.",
+      "tabbar": "La barre du bas donne accès à Accueil, Consoles, Équipe et Sauvegardes. « Plus » ouvre le reste : Admin pour les administrateurs, les alertes, Machines et switchs, État du labo, l’aide, votre compte, le thème et la langue.",
+      "consoles": "Consoles : choisissez la baie avec le bouton en haut, puis « Schéma » (pincez pour zoomer, touchez un équipement pour ouvrir sa console) ou « Liste » (une ligne par équipement). Un appui long sur un équipement ouvre sa fiche.",
+      "screen": "Une console s’ouvre en plein écran. La flèche en haut revient à la baie ; la console reste connectée. Avec plusieurs consoles ouvertes, des pastilles permettent de passer de l’une à l’autre.",
+      "toolbar": "Sous le terminal, une rangée de touches envoie ce que le clavier du téléphone n’a pas : Échap, Tab (complète les commandes), Ctrl, les flèches, ?, Ctrl C, Ctrl Z, Interrompre, Espace et Coller.",
+      "line": "Mode « ligne » : écrivez la commande dans le champ du bas, puis touchez Entrée ; elle part d’un bloc. Tab et ? envoient le début de la ligne et laissent l’équipement compléter ou aider. L’icône clavier passe en mode « direct » : le clavier du téléphone tape alors dans le terminal comme sur un ordinateur.",
+      "interrupt": "Pour arrêter un ping ou un traceroute sur Cisco IOS : « Interrompre » (Ctrl Maj 6).",
+      "landscape": "Tournez le téléphone : le terminal gagne des colonnes. La barre du bas se masque quand une console est en plein écran, et quand le clavier est ouvert."
     }
   },
   "tour": {
@@ -200,11 +210,12 @@
     "steps": {
       "home": {
         "title": "Votre page d’accueil",
-        "body": "Après la connexion, vous arrivez ici : votre équipe, la baie qu’elle a prise, vos dernières sauvegardes et ce qui s’est passé sur la baie. « Vue d’ensemble », dans la barre de gauche, montre toutes les baies du labo."
+        "body": "Après la connexion, vous arrivez ici : ce qui demande votre attention, votre baie, puis « Le labo », avec toutes les baies d’un coup d’œil."
       },
       "bench": {
         "title": "Choisir une baie",
-        "body": "Le labo est découpé en baies de routeurs et de switchs. Cliquez sur le nom d’une baie, puis sur un équipement du schéma pour ouvrir sa console."
+        "body": "Le labo est découpé en baies de routeurs et de switchs. Choisissez une baie avec le sélecteur en haut de la page, puis un équipement du schéma pour ouvrir sa console.",
+        "bodyPhone": "Touchez Consoles dans la barre du bas, choisissez une baie, puis un équipement du schéma ou de la liste."
       },
       "team": {
         "title": "Prendre la baie avec votre équipe",
@@ -212,7 +223,8 @@
       },
       "console": {
         "title": "Ouvrir une console",
-        "body": "Cliquez sur un équipement du schéma : sa console s’ouvre dans votre espace de travail. Si un camarade l’a déjà ouverte, vous la rejoignez et voyez ce qui s’est affiché."
+        "body": "Cliquez sur un équipement du schéma : sa console s’ouvre dans votre espace de travail. Si un camarade l’a déjà ouverte, vous la rejoignez et voyez ce qui s’est affiché.",
+        "bodyPhone": "Touchez un équipement : sa console s’ouvre en plein écran, avec Tab, Ctrl et les flèches sous le terminal. La flèche en haut revient à la baie."
       },
       "keyboard": {
         "title": "Demander la main",
@@ -221,10 +233,15 @@
       "backup": {
         "title": "Sauvegarder avant de partir",
         "body": "Dans Sauvegardes, « Sauvegarder » lit la configuration de tous les équipements de la baie. Le serveur n’est pas une sauvegarde : téléchargez ensuite le ZIP. La section Aide détaille le reste ; le menu de votre compte permet de revoir cette visite."
+      },
+      "plus": {
+        "title": "Plus : le reste",
+        "body": "« Plus » ouvre Machines et switchs, État du labo, l’aide, votre compte, le thème et la langue ; les administrateurs y trouvent aussi Admin. La visite guidée se revoit depuis là."
       }
     }
   },
   "errors": {
     "bad_state": "La visite se termine par « terminée » ou « passée »."
-  }
+  },
+  "summary": "Sommaire"
 }

@@ -166,7 +166,7 @@ test('the help page: its sections, the figures of the server, both languages', a
   await page.click('.menu-pop [role="menuitem"][data-id="help"]');
   const view = page.locator('section.view-help');
   await view.locator('h1', { hasText: /^Aide$/ }).waitFor();
-  const ids = ['sections', 'home', 'team', 'share', 'backup', 'tasks', 'checks', 'recovery', 'journal', 'trouble', 'keys'];
+  const ids = ['sections', 'home', 'team', 'share', 'backup', 'tasks', 'checks', 'recovery', 'journal', 'trouble', 'phone', 'keys'];
   for (const id of ids) await view.locator(`section.help-section[data-section="${id}"] h2`).waitFor();
   assert.equal(await view.locator('section.help-section').count(), ids.length);
   assert.equal(await view.locator('.help-toc a').count(), ids.length);

@@ -115,7 +115,7 @@ describe('the help text', () => {
 
   test('the tour has a title and a body for each step, in both languages', () => {
     const steps = [...tour.matchAll(/\{ id: '(\w+)', route/g)].map((m) => m[1]);
-    assert.equal(steps.length, 6);
+    assert.equal(steps.length, 7, 'six steps on a computer, five on a phone (Plus is only there, two others are not)');
     assert.equal(steps[0], 'home', 'the tour starts where a sign-in lands');
     for (const lang of ['fr', 'en']) {
       for (const id of steps) {
