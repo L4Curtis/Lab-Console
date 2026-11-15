@@ -1,109 +1,199 @@
-/* Teams and benches: the bench bar above the diagram, the Team section and
-   its reservation calendar. Only the shared custom properties are used, so
-   both themes work */
+/* Teams and benches: the bench strip above the diagram, the Team section
+   (my team, the bench, the reservations, every team). Tokens and the shared
+   components only (docs/v2/UX.md §6, §7), so both themes work */
 
-/* ── Bench bar ─────────────────────────────────────────────────────────── */
-/* One line when it can: the bar takes height from the consoles below it */
-.bench-bar {
-  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px;
-  padding: 6px 20px;
-  background: var(--surface);
-  border-bottom: 1px solid var(--line);
-  font-size: 13px;
-}
+/* ── Bench strip (§7.13) ───────────────────────────────────────────────── */
+.bench-bar { flex: none; background: var(--surface); border-bottom: 1px solid var(--border); }
 .bench-bar[hidden] { display: none; }
-.bench-bar[data-state="taken"] { box-shadow: inset 3px 0 0 var(--led-amber); }
-.bench-bar[data-state="taken"][data-mine="true"] { box-shadow: inset 3px 0 0 var(--led-green); }
-.bench-bar[data-state="locked"] { box-shadow: inset 3px 0 0 var(--led-red); }
-.bench-main { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; flex: 1 1 auto; }
-.bench-lock, .bench-requests { flex: 1 1 100%; }
-.bench-status { display: inline-flex; align-items: center; gap: 6px; font-weight: 500; }
-.bench-status .icon { width: 17px; height: 17px; }
-.bench-people { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; list-style: none; }
-.bench-people li, .team-chips li {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 2px 8px; border-radius: 99px;
-  background: var(--console-soft); color: var(--console-strong); font-size: 12px;
+.bench-line {
+  display: flex; align-items: center; gap: var(--sp-3);
+  min-height: 44px; padding: 0 var(--gutter);
+  font: var(--fs-body); color: var(--text);
 }
-.bench-people li[data-guest="true"] { background: var(--surface-2); color: var(--ink-2); border: 1px dashed var(--line); }
-.bench-people small { color: var(--ink-3); }
-.icon-btn.small { width: 20px; height: 20px; }
-.icon-btn.small .icon { width: 13px; height: 13px; }
-.bench-idle { font-size: 12px; }
-.bench-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-left: auto; }
-.bench-actions a.btn { text-decoration: none; }
+@media (pointer: coarse) { .bench-line { min-height: 52px; } }
+.bench-line[data-tone="warning"] { background: var(--warning-bg); }
+.bench-line[data-tone="danger"] { background: var(--danger-bg); }
+.bench-line[data-tone="info"] { background: var(--info-bg); }
+.bench-line > .icon { flex: none; width: 20px; height: 20px; color: var(--accent-text); }
+.bench-status { display: inline-flex; align-items: center; gap: var(--sp-2); min-width: 0; font-weight: 500; }
+.bench-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--led-off); }
+.bench-bar[data-state="free"] .bench-dot { background: var(--success); }
+.bench-bar[data-state="taken"] .bench-dot { background: var(--warning); }
+.bench-bar[data-state="taken"][data-mine="true"] .bench-dot { background: var(--accent); }
+.bench-bar[data-state="locked"] .bench-dot { background: var(--danger); }
+.bench-text { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bench-text.short, .bench-open { display: none; }
+.bench-people { display: inline-flex; flex: none; }
+.bench-idle { flex: none; font: var(--fs-small); color: var(--text-muted); white-space: nowrap; }
+.bench-soon { color: var(--warning-text); font-weight: 500; }
+.bench-actions { display: flex; align-items: center; gap: var(--sp-2); flex: none; margin-left: auto; }
+.bench-requests { margin: 0; padding: 0; list-style: none; }
+.bench-requests .bench-line { border-top: 1px solid var(--border); }
+.bench-requests .bench-text { flex: 1; }
+.bench-job .bench-text { flex: 1; }
+.bench-progress {
+  appearance: none; width: 120px; height: 6px; border: 0; border-radius: var(--r-pill);
+  background: var(--surface-2); overflow: hidden;
+}
+.bench-progress::-webkit-progress-bar { background: var(--surface); border-radius: var(--r-pill); }
+.bench-progress::-webkit-progress-value { background: var(--accent); border-radius: var(--r-pill); }
+.bench-progress::-moz-progress-bar { background: var(--accent); border-radius: var(--r-pill); }
+@media (max-width: 719.98px) {
+  .bench-line { padding-inline: var(--gutter); }
+  .bench-main { cursor: pointer; }
+  .bench-text.long, .bench-idle.long { display: none; }
+  .bench-text.short, .bench-open { display: inline; }
+  .bench-open { display: inline-grid; }
+  .bench-people { display: none; }
+  .bench-progress, .bench-optional { display: none; }
+  .bench-requests .bench-text, .bench-job .bench-text { white-space: normal; }
+}
+
+/* ── Lists inside cards ───────────────────────────────────────────────── */
+.team-list { margin: 0; padding: 0; list-style: none; display: grid; }
+.team-list > li {
+  display: flex; align-items: center; gap: var(--sp-3);
+  min-height: 52px; padding: var(--sp-2) 0; border-bottom: 1px solid var(--border);
+}
+.team-list > li:last-child { border-bottom: 0; }
+.team-line { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.team-person { display: grid; min-width: 0; flex: 1; }
+.team-person .card-meta { overflow-wrap: anywhere; }
+.team-row-actions { display: inline-flex; align-items: center; gap: var(--sp-2); margin-left: auto; flex: none; }
+
+/* ── My team ──────────────────────────────────────────────────────────── */
+.team-page { display: grid; gap: var(--sp-4); align-content: start; max-width: 760px; margin-inline: auto; }
+.team-page .card-head h2 { display: flex; align-items: center; gap: var(--sp-2); }
+.team-page .card-head h3, .team-page .card-section h3 { margin: 0; font: var(--fs-subheading); }
+.team-page .card-section > h3 { margin-bottom: var(--sp-2); }
+.team-invitations { border-color: var(--accent); }
+.team-form { gap: var(--sp-3); }
+.team-form-actions { display: flex; justify-content: flex-end; }
+.team-bench { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; }
+.team-bench p { margin: 0; }
+.team-wide { display: grid; gap: var(--sp-4); align-content: start; }
+.team-members-cell { display: inline-flex; align-items: center; gap: var(--sp-3); }
+@media (min-width: 720px) {
+  .team-members { grid-template-columns: 1fr 1fr; column-gap: var(--sp-6); }
+  .team-members > li:nth-last-child(2):nth-child(odd) { border-bottom: 0; }
+}
+@media (max-width: 719.98px) {
+  .team-form-actions .btn { width: 100%; }
+  .team-invitations .team-list > li { flex-wrap: wrap; }
+  .team-invitations .team-row-actions { margin-left: 0; width: 100%; }
+  .team-invitations .team-row-actions .btn { flex: 1; }
+}
+
+/* ── The bench page and sheet (§10.3) ─────────────────────────────────── */
+.bench-tab { display: grid; gap: var(--sp-4); }
+.bench-chooser { display: grid; gap: var(--sp-4); align-content: start; }
+.bench-chooser-head > p { margin: 0; }
+.bench-chooser-head .card-head { margin-bottom: var(--sp-2); }
+.bench-picker, .cal-picker { max-width: 100%; }
+.bench-panel { display: grid; gap: var(--sp-4); align-items: start; }
+.bench-col { display: grid; gap: var(--sp-4); align-content: start; min-width: 0; }
+.bench-col:empty { display: none; }
+@media (min-width: 1200px) {
+  .bench-panel:not(.in-sheet) { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: var(--sp-6); }
+}
+.bench-sheet .bench-panel { padding-bottom: var(--sp-4); }
+.card-head h2.bench-name { font: var(--fs-display); }
+.bench-status-card .card-head { flex-wrap: wrap; }
+.bench-status-card .card-body p { margin: 0; }
+.bench-row { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; }
 .bench-lock {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  padding: 6px 10px; border-radius: 6px;
-  background: color-mix(in srgb, var(--led-red) 12%, var(--surface));
-  color: var(--ink);
+  display: flex; align-items: flex-start; gap: var(--sp-3);
+  padding: var(--sp-3); border-radius: var(--r-md);
+  background: var(--danger-bg); color: var(--text);
 }
-.bench-lock .icon { width: 17px; height: 17px; color: var(--danger-ink); }
-.bench-lock .btn { margin-left: auto; }
-.bench-requests { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
-.bench-requests li {
-  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-  padding: 4px 10px; border-radius: 6px;
-  background: color-mix(in srgb, var(--led-amber) 14%, var(--surface));
+.bench-lock > .icon { flex: none; width: 20px; height: 20px; color: var(--danger-text); }
+.bench-lock p { margin: 2px 0 0; }
+.bench-people .team-person { gap: 2px; }
+.bench-person { display: flex; align-items: center; gap: var(--sp-2); flex: 1; min-width: 0; }
+.bench-request-actions { display: inline-flex; gap: var(--sp-2); margin-left: auto; flex: none; }
+.bench-requests-card .team-list > li { flex-wrap: wrap; }
+.bench-request-text { flex: 1 1 12em; min-width: 0; }
+.bench-slots > li { display: grid; gap: 2px; }
+.bench-admin { display: flex; flex-wrap: wrap; gap: var(--sp-2); }
+.bench-history-list { max-height: 360px; overflow: auto; }
+.bench-history-list > li, .bench-history ol > li { display: grid; grid-template-columns: 10em 1fr; gap: var(--sp-3); align-items: baseline; min-height: 0; font: var(--fs-small); }
+.bench-history ol { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--sp-2); }
+.bench-history time, .bench-history-list time { color: var(--text-muted); font-variant-numeric: tabular-nums; }
+@media (max-width: 719.98px) {
+  .bench-history-list > li, .bench-history ol > li { grid-template-columns: 1fr; gap: 2px; padding-block: var(--sp-2); }
+  .bench-request-actions { width: 100%; margin-left: 0; }
+  .bench-request-actions .btn { flex: 1; }
 }
-.bench-request-actions { display: inline-flex; gap: 6px; margin-left: auto; }
-.bench-slots { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12px; flex: 0 1 auto; }
-.bench-slot { padding: 1px 8px; border-radius: 99px; border: 1px solid var(--line); }
-.bench-slots a.btn { margin-left: auto; text-decoration: none; }
-.bench-history ol { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; max-height: 60vh; overflow: auto; }
-.bench-history li { display: grid; grid-template-columns: 11em 1fr; gap: 10px; font-size: 13px; }
-.bench-history time { color: var(--ink-3); font-variant-numeric: tabular-nums; }
 
-/* ── Team section ──────────────────────────────────────────────────────── */
-.view-team .view-head { justify-content: space-between; flex-wrap: wrap; }
-.team-view { flex: 1; min-height: 0; overflow: auto; background: var(--paper); display: flex; flex-direction: column; }
-.team-panel { max-width: 760px; }
-.team-card {
-  display: grid; gap: 10px; padding: 16px 18px;
-  background: var(--surface); border: 1px solid var(--line); border-radius: 10px;
-}
-.team-card h2 { margin: 0; font-size: 15px; display: flex; align-items: center; gap: 8px; }
-.team-card h3 { margin: 6px 0 0; font-size: 13px; color: var(--ink-2); font-weight: 600; }
-.team-card p { margin: 0; font-size: 13px; }
-.team-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.team-head .team-row-actions { margin-left: auto; }
-.team-row-actions { display: inline-flex; gap: 6px; }
-.team-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 13px; }
-.team-list li { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 4px 0; border-bottom: 1px solid var(--line); }
-.team-list li:last-child { border-bottom: 0; }
-.team-list .team-row-actions, .team-list li > .btn { margin-left: auto; }
-.team-form { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; }
-.team-form label { display: grid; gap: 4px; font-size: 12.5px; color: var(--ink-2); flex: 1 1 220px; max-width: 320px; }
-.team-invitations { border-color: var(--console); }
-.team-chips { display: flex; flex-wrap: wrap; gap: 4px; margin: 0; padding: 0; list-style: none; }
-.team-table td { vertical-align: top; }
-.team-table td.right { white-space: nowrap; }
-
-/* ── Reservation calendar ──────────────────────────────────────────────── */
-.cal-panel { gap: 10px; }
-.cal-week { font-size: 13px; }
-.cal-note { margin: 0; font-size: 12.5px; }
+/* ── Reservations (§10.4) ─────────────────────────────────────────────── */
+.cal-panel { --cal-row: 40px; display: grid; gap: var(--sp-4); align-content: start; }
+@media (pointer: coarse) { .cal-panel { --cal-row: 44px; } }
+.cal-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-3); }
+.cal-nav { display: inline-flex; align-items: center; gap: var(--sp-1); }
+.cal-week { font: var(--fs-label); color: var(--text-2); }
+.cal-note { margin: 0; }
 .cal-scroll { overflow-x: auto; }
-.cal-grid { min-width: 720px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); overflow: hidden; }
-.cal-row { display: grid; grid-template-columns: 56px repeat(7, 1fr); }
-.cal-head { border-bottom: 1px solid var(--line); background: var(--surface-2); }
-.cal-day { padding: 6px 8px; font-size: 12px; font-weight: 500; color: var(--ink-2); }
-.cal-times { display: grid; grid-auto-rows: 36px; }
-.cal-time { font-size: 12px; color: var(--ink-3); padding: 2px 6px; border-bottom: 1px solid var(--line); }
-.cal-col { position: relative; display: grid; grid-auto-rows: 36px; border-left: 1px solid var(--line); }
-.cal-cell { border: 0; border-bottom: 1px solid var(--line); background: none; cursor: pointer; padding: 0; }
-.cal-cell:hover:not(:disabled) { background: var(--console-soft); }
+.cal-grid { min-width: 560px; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); overflow: hidden; }
+.cal-row { display: grid; grid-template-columns: 56px repeat(7, minmax(0, 1fr)); }
+.cal-head { border-bottom: 1px solid var(--border); background: var(--surface-2); }
+.cal-day { padding: var(--sp-2); font: var(--fs-caption); color: var(--text-2); }
+.cal-day.today { color: var(--accent-text); }
+.cal-times { display: grid; grid-auto-rows: var(--cal-row); }
+.cal-time { font: var(--fs-caption); color: var(--text-muted); padding: var(--sp-1) var(--sp-2); border-bottom: 1px solid var(--border); }
+.cal-col { position: relative; display: grid; grid-auto-rows: var(--cal-row); border-left: 1px solid var(--border); }
+.cal-cell { position: relative; border: 0; border-bottom: 1px solid var(--border); background: none; cursor: pointer; padding: 0; }
+.cal-cell::after {
+  content: attr(data-label); position: absolute; inset: 0; display: none; align-items: center; justify-content: center;
+  padding: 0 var(--sp-1); background: var(--accent-soft); color: var(--on-accent-soft); font: var(--fs-caption); text-align: center;
+}
+.cal-cell:hover:not(:disabled)::after, .cal-cell:focus-visible::after { display: flex; }
 .cal-cell:disabled { background: var(--surface-2); cursor: default; }
-.cal-cell:focus-visible, .cal-slot:focus-visible { outline: 2px solid var(--console); outline-offset: -2px; }
+.cal-cell:focus-visible, .cal-slot:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
 .cal-slot {
   position: absolute; left: 3px; right: 3px; z-index: 1;
   display: grid; align-content: start; gap: 1px; overflow: hidden;
-  padding: 3px 6px; border: 1px solid var(--line); border-radius: 6px;
-  background: var(--surface-2); color: var(--ink); font: inherit; font-size: 12px; text-align: left;
+  padding: var(--sp-1) var(--sp-2); border: 1px solid var(--border); border-radius: var(--r-sm);
+  background: var(--surface-2); color: var(--text); font: var(--fs-caption); text-align: left;
 }
 button.cal-slot { cursor: pointer; }
-.cal-slot[data-mine="true"] { background: var(--console-soft); border-color: var(--console); color: var(--console-strong); }
-.cal-slot span { color: var(--ink-3); }
-.cal-outside-list { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; font-size: 12.5px; }
-.cal-outside-list li { display: flex; align-items: center; gap: 6px; }
-.team-bench a { color: var(--console-strong); }
+.cal-slot[data-mine="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--on-accent-soft); }
+.cal-slot span { color: var(--text-2); }
+.cal-slot[data-mine="true"] span { color: var(--on-accent-soft); }
+.cal-outside-list { margin: 0; padding: 0; list-style: none; display: grid; gap: var(--sp-1); font: var(--fs-small); }
+.cal-outside-list li { display: flex; align-items: center; gap: var(--sp-2); }
+
+/* The agenda: one day at a time, on a phone */
+.cal-agenda { display: none; gap: var(--sp-3); }
+.cal-days { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: var(--sp-1); }
+.cal-day-chip { flex-direction: column; justify-content: center; gap: 2px; min-height: 56px; padding: 0; min-width: 0; }
+.cal-dow { font: var(--fs-caption); text-transform: capitalize; }
+.cal-dom { font: var(--fs-subheading); }
+.cal-day-chip[data-today="true"] .cal-dom { text-decoration: underline; text-underline-offset: 3px; }
+.cal-day-chip[data-past="true"]:not([aria-pressed="true"]) { border-style: dashed; color: var(--text-muted); }
+.cal-day-title { margin: 0; font: var(--fs-subheading); }
+.cal-day-title::first-letter { text-transform: uppercase; }
+.cal-hours { margin: 0; padding: 0; list-style: none; display: grid; border: 1px solid var(--border); border-radius: var(--r-lg); background: var(--surface); overflow: hidden; }
+.cal-hour { display: grid; grid-template-columns: 56px minmax(0, 1fr); min-height: 52px; border-bottom: 1px solid var(--border); }
+.cal-hour:last-child { border-bottom: 0; }
+.cal-hour-label { padding: var(--sp-3) 0 0 var(--sp-3); font: var(--fs-small); color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.cal-free, .cal-booked {
+  display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3);
+  min-width: 0; min-height: 52px; padding: var(--sp-2) var(--sp-4); border: 0; background: none;
+  font: var(--fs-body); color: var(--text); text-align: left; text-decoration: none;
+}
+button.cal-free, button.cal-booked { cursor: pointer; width: 100%; }
+.cal-free { color: var(--text-2); }
+.cal-act { flex: none; color: var(--accent-text); font: var(--fs-label); }
+.cal-booked { background: var(--surface-2); }
+.cal-booked[data-mine="true"] { background: var(--accent-soft); color: var(--on-accent-soft); }
+.cal-booked[data-mine="true"] .card-meta { color: var(--on-accent-soft); }
+.cal-booked[data-mine="true"] .cal-act { color: var(--on-accent-soft); }
+.cal-booked-text { display: grid; flex: 1; min-width: 0; }
+.cal-past { display: flex; align-items: center; padding: var(--sp-2) var(--sp-4); color: var(--text-muted); font: var(--fs-small); }
+.cal-free:focus-visible, .cal-booked:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+@media (max-width: 719.98px) {
+  .cal-scroll { display: none; }
+  .cal-agenda { display: grid; }
+  .cal-toolbar { gap: var(--sp-2); }
+  .cal-week { flex: 1 1 100%; }
+}
