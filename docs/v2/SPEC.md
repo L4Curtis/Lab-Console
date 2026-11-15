@@ -566,7 +566,7 @@ backups, recent activity. A guided tour at first sign-in and a help page.
   silent) and, since the wave 4 integration, the last line status of the
   checks lot while it is fresh (see "Wave 4 as integrated").
 - Not done on purpose: no action on the cards (taking, joining, releasing and
-  locking stay in the bench bar), no history beyond the last 15 entries, no
+  locking stay in the bench strip and on the Team › Bench tab), no history beyond the last 15 entries, no
   per-team statistics.
 
 *As built (help lot):* contracts in ARCHITECTURE §9f.

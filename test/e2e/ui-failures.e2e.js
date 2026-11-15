@@ -12,10 +12,10 @@ const h = useHarness({ oidc: false, mockLab: false });
 before(async () => { await h.ready; });
 
 const SECTIONS = [
-  { route: 'jobs', api: '**/api/jobs/**', failure: 'section.view-jobs .load-failure', content: 'section.view-jobs [data-action="backup"]' },
+  { route: 'jobs', api: '**/api/jobs/**', failure: 'section.view-jobs .load-failure', content: 'section.view-jobs .jobs-snapshots' },
   { route: 'account', api: '**/api/accounts/me', failure: 'section.view-account .load-failure', content: 'section.view-account .account-card' },
   { route: 'status', api: '**/api/admin/health*', failure: 'section.view-status .load-failure', content: 'section.view-status .health-card' },
-  { route: 'team', api: '**/api/teams', failure: 'section.view-team .load-failure', content: 'section.view-team .team-card' },
+  { route: 'team', api: '**/api/teams', failure: 'section.view-team .load-failure', content: 'section.view-team .team-page .card' },
   { route: 'consoles', api: '**/api/consoles/labs', failure: 'section.view-consoles .canvas-hint [data-action="retry"]', content: 'section.view-consoles .rack-slot' },
 ];
 

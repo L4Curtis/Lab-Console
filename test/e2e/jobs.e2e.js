@@ -27,6 +27,18 @@ const api = (page, method, path, body) => page.evaluate(async ({ method, path, b
 
 const section = (page) => page.locator('section.view-jobs');
 const dialog = (page) => page.locator('dialog.modal[open]');
+/** A button of the page header (it is also in the phone's app bar: only the visible one) */
+const headerButton = (page, action) => section(page).locator(`.page-header button[data-action="${action}"]:visible`);
+/** An entry of the header's ⋯ menu (reset, import) */
+async function fromHeaderMenu(page, id) {
+  await section(page).locator('.page-header .more-btn:visible').click();
+  await page.locator(`.menu-pop [data-id="${id}"]`).click();
+}
+/** An entry of the ⋯ menu of a row of the snapshots list */
+async function fromRowMenu(row, id) {
+  await row.locator('.more-btn:visible').click();
+  await row.page().locator(`.menu-pop [data-id="${id}"]`).click();
+}
 
 before(async () => {
   await h.ready;
@@ -45,7 +57,7 @@ async function aliceOnJobs() {
   const taken = await api(page, 'POST', '/api/benches/B4M/take');
   assert.ok([200, 409].includes(taken.status), JSON.stringify(taken.body));
   await page.evaluate(() => { location.hash = '#/jobs/B4M'; });
-  await section(page).locator('.jobs-actions button[data-action="backup"]:not([disabled])').waitFor();
+  await section(page).locator('.page-header button[data-action="backup"]:visible:not([disabled])').waitFor();
   return page;
 }
 
@@ -60,7 +72,7 @@ async function only(page, names) {
 test('backup of R1 and S1, then the ZIP right away, with the reminder that the server is not a backup', async () => {
   r1.configure(['interface FastEthernet0/0', ' ip address 192.168.4.1 255.255.255.0', ' no shutdown']);
   const page = await aliceOnJobs();
-  await section(page).locator('.jobs-actions button[data-action="backup"]').click();
+  await headerButton(page, 'backup').click();
   await only(page, ['R1', 'S1']);
   // Shared devices are unticked by default: S5 is on a console line other benches use
   assert.equal(await dialog(page).locator('.jobs-devices li[data-device="S5"] input').isChecked(), false);
@@ -68,7 +80,7 @@ test('backup of R1 and S1, then the ZIP right away, with the reminder that the s
   await dialog(page).locator('button[data-action="confirm"]').click();
 
   // Followed live, device by device
-  await section(page).locator('.jobs-current tr[data-device="R1"]').waitFor();
+  await section(page).locator('.jobs-current li[data-device="R1"]').waitFor({ state: 'attached' }); // the device list is folded: "Détail" opens it
   await section(page).locator('.jobs-current[data-state="done"]').waitFor({ timeout: 60_000 });
   const box = section(page).locator('.jobs-download');
   await box.waitFor();
@@ -88,7 +100,7 @@ test('backup of R1 and S1, then the ZIP right away, with the reminder that the s
 test('reset: the dialog says what is erased and who is connected; the bench name unlocks it; the countdown can be stopped, then runs', async () => {
   const page = await aliceOnJobs();
   const openReset = async () => {
-    await section(page).locator('.jobs-actions button[data-action="reset"]:not([disabled])').click();
+    await fromHeaderMenu(page, 'reset');
     await only(page, ['R1']);
   };
   await openReset();
@@ -137,7 +149,7 @@ test('injection: the preview shows the exact script of each device; once the ben
   // Something changes on the bench afterwards
   s1.configure(['no vlan 40']);
 
-  await section(page).locator('.jobs-snapshots tr', { hasText: 'source' }).first().locator('button[data-action="inject"]').click();
+  await fromRowMenu(section(page).locator('.jobs-snapshots tbody tr', { hasText: 'source' }).first(), 'inject');
   await only(page, ['S1']);
   await dialog(page).locator('button[data-action="confirm"]').click();
   const script = dialog(page).locator('details.jobs-script[data-device="S1"]');
@@ -153,7 +165,7 @@ test('injection: the preview shows the exact script of each device; once the ben
   await go.click();
   await section(page).locator('.jobs-current[data-state="running"]').waitFor();
   await section(page).locator('.jobs-current[data-state="done"]').waitFor({ timeout: 90_000 });
-  assert.match(await section(page).locator('.jobs-current tr[data-device="S1"]').textContent(), /identique à la source/);
+  assert.match(await section(page).locator('.jobs-current li[data-device="S1"]').textContent(), /identique à la source/);
   assert.deepEqual(page.errors, []);
   await page.context().close();
 });
@@ -161,11 +173,11 @@ test('injection: the preview shows the exact script of each device; once the ben
 test('an administrator imports a template from a ZIP; a student has no such button', async () => {
   const admin = await h.newPage();
   await signInAsAdmin(admin);
-  await admin.evaluate(() => { location.hash = '#/jobs/B4M'; });
+  await admin.evaluate(() => { location.hash = '#/jobs/B4M/templates'; });
   await section(admin).locator('button[data-action="import-template"]').waitFor();
   const zip = zipSync({ 'R1.cfg': strToU8('hostname R1\n logging synchronous\n'), '_any.cfg': strToU8('service password-encryption\n') });
-  await section(admin).locator('input[type="file"]').last().setInputFiles({ name: 'TP-reseau.zip', mimeType: 'application/zip', buffer: Buffer.from(zip) });
-  const row = section(admin).locator('.jobs-template-list li[data-template="TP-reseau"]');
+  await section(admin).locator('.jobs-templates input[type="file"]').setInputFiles({ name: 'TP-reseau.zip', mimeType: 'application/zip', buffer: Buffer.from(zip) });
+  const row = section(admin).locator('.jobs-templates tbody tr[data-key="TP-reseau"]');
   await row.waitFor();
   assert.match(await row.textContent(), /R1/);
   await admin.screenshot({ path: '/srv/lab-console-dev/tmp/template-import.png' });
@@ -175,6 +187,8 @@ test('an administrator imports a template from a ZIP; a student has no such butt
   await admin.context().close();
 
   const page = await aliceOnJobs();
+  await page.evaluate(() => { location.hash = '#/jobs/B4M/templates'; });
+  await section(page).locator('.jobs-templates').waitFor();
   assert.equal(await section(page).locator('button[data-action="import-template"]').count(), 0);
   await page.context().close();
 });

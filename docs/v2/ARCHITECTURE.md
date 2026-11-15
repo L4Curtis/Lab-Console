@@ -666,13 +666,30 @@ administrators only and carry `{ what, at }`: `accounts:changed` (the
 directory or the links changed: the Users and Invitations tabs reload) and
 `admin:changed` (sessions, diagram versions, switches: the Sessions and
 Diagram tabs reload). In the browser,
-the rail section `#/team` (`public/js/modules/teams/`: my team, the
-reservation calendar, all teams for admins) and the bench bar
-(`teams/benchBar.js`), which the consoles view mounts above the diagram:
+the section `#/team` (`public/js/modules/teams/`) has four tabs, one file each
+under `tabs/`: `mine` (my team: members, invitations, the bench and slots of
+the team), `bench` (`#/team/bench[/<bench>]`: everything about one bench, or
+the list of benches when the team holds none), `calendar` (the reservations: a
+week grid from 720 px, a day agenda below) and `all` (every team, for admins).
+Each tab sets the header's context line and actions when it is shown
+(`header` is in the context `mountTabs` passes). The bench strip
+(`teams/benchBar.js`), which the consoles view mounts above the diagram, is
+one line (the state, the one action that matters now, ⋯) plus a line for each
+request to join and for a job running:
 `mountBenchBar(viewEl)` → `{ setBench(name), decorate(diagramView),
-mayOpen(device, benchNames), refusal(benchNames) }`. `decorate` uses the
-diagram's `decorate()` layer when the diagram has one and does nothing
-otherwise.
+mayOpen(device, benchNames), refusal(benchNames), isOccupant(), openSheet(),
+ready }`. `decorate` uses the diagram's `decorate()` layer when the diagram has
+one and does nothing otherwise. `openSheet()` shows the bench's page as a sheet
+(what a tap on the strip does on a phone). The strip and the `bench` tab share
+`teams/benchModel.js` (`watchBench(onChange)`: the bench's detail, its next
+slots and the job running on it, kept live; `benchActions(model)`: take,
+release, join, lock… each asks, calls the server, refreshes) and
+`teams/benchPanel.js` (the page of one bench: state, requests, occupants,
+slots, history, administrators' tools). The "Backups" section `#/jobs/<bench>`
+has three tabs (`snapshots`, `templates`, `runs`, addressed as
+`#/jobs/<bench>`, `/templates`, `/runs`; `/backup`, `/reset` and `/inject` open
+the matching dialog); `modules/jobs/index.js` holds the state and the header,
+one file per tab list and one for the running job.
 
 `createApp().close()` first calls every module's `drain()` and waits for
 them all (what must still use the consoles to end cleanly: the recovery

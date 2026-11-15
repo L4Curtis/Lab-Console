@@ -14,9 +14,15 @@ const bar = (page) => page.locator('section.view-consoles .bench-bar');
 const action = (page, name) => bar(page).locator(`button[data-action="${name}"]`);
 const toastWith = (page, text) => page.locator('.toast', { hasText: text });
 
+/** An entry of the strip's ⋯ menu (history, assign, lock…) */
+async function fromMenu(page, id) {
+  await bar(page).locator('.more-btn').click();
+  await page.locator(`.menu-pop [data-id="${id}"]`).click();
+}
+
 async function showBench(page, bench) {
   await page.evaluate((hash) => { location.hash = hash; }, `#/consoles/${bench}`);
-  await page.waitForFunction((name) => document.querySelector('section.view-consoles .canvas-title')?.textContent === name, bench);
+  await page.waitForFunction((name) => document.querySelector('section.view-consoles .bench-bar .bench-status')?.textContent.includes(name), bench);
   await bar(page).waitFor();
 }
 
@@ -25,7 +31,7 @@ test('Alice\'s team takes B4M, Bilal asks to join, Alice accepts and Bilal reach
   await signInAs(alice, 'alice');
 
   // Alice creates her team in the Team section
-  await alice.click('#rail-items a[href="#/team"]');
+  await alice.evaluate(() => { location.hash = '#/team/mine'; });
   const create = alice.locator('section.view-team form.team-form');
   await create.locator('input[name="name"]').fill('Les routeurs');
   await create.locator('button[data-action="create"]').click();
@@ -33,9 +39,9 @@ test('Alice\'s team takes B4M, Bilal asks to join, Alice accepts and Bilal reach
 
   // …and takes B4M for it
   await showBench(alice, 'B4M');
-  await alice.waitForSelector('section.view-consoles .bench-bar .bench-status:has-text("Baie libre")');
+  await alice.waitForSelector('section.view-consoles .bench-bar .bench-status:has-text("est libre")');
   await action(alice, 'take').click();
-  await bar(alice).locator('.bench-status', { hasText: 'Prise par l’équipe Les routeurs' }).waitFor();
+  await bar(alice).locator('.bench-status', { hasText: 'Les routeurs (vous)' }).waitFor();
   assert.equal(await bar(alice).getAttribute('data-mine'), 'true');
 
   // Bilal, in his own browser, sees who holds the bench and cannot open its consoles
@@ -57,13 +63,13 @@ test('Alice\'s team takes B4M, Bilal asks to join, Alice accepts and Bilal reach
 
   // Bilal is told, becomes a guest and opens R1
   await toastWith(bilal, 'Vous avez rejoint la baie B4M').waitFor();
-  await action(bilal, 'leave').waitFor();
-  await bar(bilal).locator('.bench-people li[data-guest="true"]', { hasText: 'Bilal Haddad' }).waitFor();
+  await bar(bilal).locator('.bench-status', { hasText: 'Les routeurs (invité)' }).waitFor();
+  await bar(bilal).locator('.bench-people .avatar-stack[aria-label*="Bilal Haddad"]').waitFor();
   assert.equal(await bar(alice).locator('.bench-requests li').count(), 0, 'the request is answered');
   await openConsole(bilal, 'B4M', 'R1');
 
   // The bench history says what happened
-  await action(alice, 'history').click();
+  await fromMenu(alice, 'history');
   const history = alice.locator('dialog .bench-history');
   await history.waitFor();
   assert.match(await history.textContent(), /Alice Martin a pris la baie pour l’équipe Les routeurs/);
@@ -79,10 +85,10 @@ test('a locked bench refuses everyone but admins, and shows its reason', async (
   const ada = await h.newPage();
   await signInAs(ada, 'ada');
   await showBench(ada, 'B6B');
-  await action(ada, 'lock').click();
+  await fromMenu(ada, 'lock');
   await ada.fill('dialog input[name="reason"]', 'Préparée pour le TP noté');
   await ada.click('dialog button[data-action="confirm"]');
-  await bar(ada).locator('.bench-lock', { hasText: 'Préparée pour le TP noté' }).waitFor();
+  await bar(ada).locator('.bench-status', { hasText: 'Préparée pour le TP noté' }).waitFor();
 
   // A student with a team: the reason is shown, nothing to take, consoles refused
   const chloe = await h.newPage();
@@ -90,7 +96,7 @@ test('a locked bench refuses everyone but admins, and shows its reason', async (
   const created = await chloe.evaluate(() => fetch('/api/teams', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ name: 'Les switchs' }) }).then((r) => r.status));
   assert.equal(created, 201);
   await showBench(chloe, 'B6B');
-  await bar(chloe).locator('.bench-lock', { hasText: 'Préparée pour le TP noté' }).waitFor();
+  await bar(chloe).locator('.bench-status', { hasText: 'Préparée pour le TP noté' }).waitFor();
   assert.equal(await bar(chloe).getAttribute('data-state'), 'locked');
   assert.equal(await action(chloe, 'take').count(), 0);
   assert.equal(await action(chloe, 'unlock').count(), 0, 'only admins lift a lock');
@@ -108,7 +114,7 @@ test('a locked bench refuses everyone but admins, and shows its reason', async (
   await action(ada, 'unlock').click();
   await ada.click('dialog button[data-action="confirm"]');
   await action(chloe, 'take').waitFor();
-  assert.equal(await bar(chloe).locator('.bench-lock').count(), 0);
+  assert.equal(await bar(chloe).getAttribute('data-state'), 'free');
 
   assert.deepEqual(ada.errors, []);
   assert.deepEqual(chloe.errors, []);
@@ -127,15 +133,16 @@ test('the reservation calendar books a slot for the team and shows it on the ben
   await chloe.goto(`${h.url}/#/team/calendar/B5M`);
   await chloe.waitForSelector('section.view-team .cal-grid .cal-col');
   // Next week, so that the hour is never in the past
-  await chloe.click('section.view-team .cal-panel .panel-toolbar .icon-btn >> nth=1');
+  await chloe.click('section.view-team .cal-panel button[data-action="next"]');
   await chloe.locator('section.view-team .cal-col').nth(2).locator('button.cal-cell[data-hour="10"]').click();
   await chloe.click('dialog button[data-action="confirm"]');
   const slot = chloe.locator('section.view-team .cal-slot[data-mine="true"]', { hasText: 'Les switchs' });
   await slot.waitFor();
   assert.match(await slot.textContent(), /10:00.12:00/);
 
-  await showBench(chloe, 'B5M');
-  await bar(chloe).locator('.bench-slot', { hasText: 'Les switchs' }).waitFor();
+  // The bench's own page lists it as one of the next slots
+  await chloe.evaluate(() => { location.hash = '#/team/bench/B5M'; });
+  await chloe.locator('section.view-team .bench-slots li', { hasText: 'Les switchs' }).waitFor();
   assert.deepEqual(chloe.errors, []);
   await chloe.context().close();
 });
@@ -218,6 +225,52 @@ test('the bench bar decorates the diagram: ours, taken, locked, nothing on a fre
   assert.equal(await chloe.evaluate(() => window.decorations.B4M({ labName: 'B6H' })), null, 'another bench\'s device is not decorated');
 
   for (const page of [ada, alice, chloe]) {
+    assert.deepEqual(page.errors, []);
+    await page.context().close();
+  }
+});
+
+test('the Baie tab: the one action of the bench, who is on it, a request answered, a guest removed by an administrator', async () => {
+  const alice = await h.newPage(); // her team holds B4M, Bilal is on it as a guest (first scenario)
+  await signInAs(alice, 'alice');
+  await alice.goto(`${h.url}/#/team/bench`);
+  const view = alice.locator('section.view-team:not([hidden])');
+  await view.locator('.bench-status-card .bench-name', { hasText: 'B4M' }).waitFor();
+  assert.equal(await view.locator('.page-header button[data-action="release"]:visible').count(), 1, 'one primary: release the bench');
+  assert.match(await view.locator('.bench-status-card').textContent(), /Prise par l’équipe Les routeurs/);
+  await view.locator('.bench-people li[data-guest="true"]', { hasText: 'Bilal Haddad' }).waitFor();
+  assert.equal(await view.locator('.bench-people li[data-guest="false"]').count(), 1);
+  await view.locator('.bench-history-card li', { hasText: 'a pris la baie pour l’équipe Les routeurs' }).waitFor();
+  assert.equal(await view.locator('.bench-people button').count(), 0, 'a student cannot remove a guest');
+
+  // Chloé asks to join: the request is on the page, live, and is answered there
+  const chloe = await h.newPage();
+  await signInAs(chloe, 'chloe');
+  await chloe.goto(`${h.url}/#/team/bench/B4M`);
+  await chloe.locator('section.view-team .page-header button[data-action="join"]:visible').click();
+  await chloe.locator('section.view-team .page-header button[data-action="cancel-join"]:visible').waitFor();
+  const request = view.locator('.bench-requests-card li', { hasText: 'Chloé Dubois' });
+  await request.waitFor();
+  await request.locator('button[data-action="accept"]').click();
+  await view.locator('.bench-people li[data-guest="true"]', { hasText: 'Chloé Dubois' }).waitFor();
+  assert.equal(await view.locator('.bench-requests-card').count(), 0, 'the request is answered');
+  await chloe.locator('section.view-team .page-header button[data-action="leave"]:visible').waitFor();
+
+  // An administrator removes a guest from the same page
+  const ada = await h.newPage();
+  await signInAs(ada, 'ada');
+  await ada.goto(`${h.url}/#/team/bench/B4M`);
+  const guest = ada.locator('section.view-team .bench-people li[data-guest="true"]', { hasText: 'Chloé Dubois' });
+  await guest.locator('button').click();
+  await ada.click('dialog button[data-action="confirm"]');
+  await guest.waitFor({ state: 'detached' });
+  await ada.locator('section.view-team button[data-action="assign"]').waitFor();
+
+  // Without a bench of one's own, the page lists the benches
+  await chloe.goto(`${h.url}/#/team/bench`);
+  await chloe.locator('section.view-team .bench-chooser table tbody tr[data-key="B6H"] button[data-action="take"]').waitFor();
+  assert.equal(await chloe.locator('section.view-team .bench-chooser tbody tr[data-key="B4M"] button[data-action="take"]').count(), 0, 'a taken bench is not offered');
+  for (const page of [alice, chloe, ada]) {
     assert.deepEqual(page.errors, []);
     await page.context().close();
   }
