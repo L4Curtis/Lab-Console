@@ -10,7 +10,7 @@
  */
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { useHarness, signInAs } from './harness.js';
+import { useHarness, signInAs, waitForBench, consolesTool } from './harness.js';
 
 const h = useHarness();
 
@@ -40,8 +40,8 @@ async function onChecks(who, { take = false } = {}) {
     assert.ok([200, 409].includes(taken.status), JSON.stringify(taken.body));
   }
   await page.evaluate(() => { location.hash = '#/consoles/B4M'; });
-  await page.waitForFunction(() => document.querySelector('section.view-consoles .canvas-title')?.textContent === 'B4M');
-  await page.locator('section.view-consoles button[data-action="checks"]').click();
+  await waitForBench(page, 'B4M');
+  await consolesTool(page, 'checks');
   await dialog(page).waitFor();
   return page;
 }
@@ -126,7 +126,7 @@ test('cabling: a cable pulled out and one on the wrong port, in the report and o
 
   // A reload: the result comes back from the server
   await page.reload();
-  await page.waitForFunction(() => document.querySelector('section.view-consoles .canvas-title')?.textContent === 'B4M');
+  await waitForBench(page, 'B4M');
   await page.locator('section.view-consoles .edge[data-tone="cabling-missing"]').first().waitFor();
   assert.deepEqual(page.errors, []);
   await page.context().close();

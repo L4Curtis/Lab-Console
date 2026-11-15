@@ -12,7 +12,7 @@
  */
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { useHarness, signInAs } from './harness.js';
+import { useHarness, signInAs, waitForBench } from './harness.js';
 
 const h = useHarness({ env: { JOB_TIME_SCALE: '0.05', JOB_COUNTDOWN_SECONDS: '2' } });
 
@@ -53,7 +53,7 @@ const waitForJobNotes = (page, count) => page.waitForFunction((c) => window.__no
 
 async function showBench(page, bench) {
   await page.evaluate((hash) => { location.hash = hash; }, `#/consoles/${encodeURIComponent(bench)}`);
-  await page.waitForFunction((name) => document.querySelector('section.view-consoles .canvas-title')?.textContent === name, bench);
+  await waitForBench(page, bench);
   await deviceTile(page, 'R1').waitFor();
 }
 async function openPanel(page) {

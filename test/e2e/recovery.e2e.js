@@ -11,7 +11,7 @@
  */
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { useHarness, signInAs, openConsole, typeInConsole, waitForTerminal } from './harness.js';
+import { useHarness, signInAs, openConsole, typeInConsole, waitForTerminal, paneAction } from './harness.js';
 
 const h = useHarness({ env: { JOB_TIME_SCALE: '0.1' } });
 
@@ -53,7 +53,7 @@ async function aliceAtTheAssistant() {
   const taken = await api(alice, 'POST', '/api/benches/B4M/take');
   assert.ok([200, 409].includes(taken.status), JSON.stringify(taken.body));
   const pane = await openConsole(alice, 'B4M', 'R1');
-  await pane.locator('button[data-action="recovery"]').click();
+  await (await paneAction(pane, 'recovery')).click();
   const dlg = dialog(alice);
   await dlg.locator('button[data-action="start"]:not([disabled])').waitFor();
   return { alice, pane, dlg };
@@ -78,7 +78,7 @@ test('a router locked by a console password, walked through the assistant from i
   await typeInConsole(pane, '');
 
   // The assistant, from the tile
-  await pane.locator('button[data-action="recovery"]').click();
+  await (await paneAction(pane, 'recovery')).click();
   const dlg = dialog(alice);
   await dlg.locator('button[data-action="start"]:not([disabled])').waitFor();
   assert.match(await dlg.textContent(), /ni effacée ni modifiée/);

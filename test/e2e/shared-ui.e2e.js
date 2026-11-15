@@ -9,7 +9,7 @@
  */
 import { test, before } from 'node:test';
 import assert from 'node:assert/strict';
-import { useHarness, waitForApp, setLanguage } from './harness.js';
+import { useHarness, waitForApp, setLanguage, waitForBench } from './harness.js';
 
 const h = useHarness({ oidc: false, mockLab: false });
 let page;
@@ -387,10 +387,10 @@ test('language switch: the FR / EN buttons of the account menu change the visibl
     rail: [...document.querySelectorAll('#rail-items .rail-btn')].map((a) => a.textContent.trim()),
     theme: document.querySelector('#user-menu [data-theme-choice="dark"]').textContent.trim(),
     bell: document.querySelector('#notify-toggle').textContent.trim(),
-    title: document.querySelector('section.view-consoles .view-title h1').textContent,
+    title: document.querySelector('section.view-consoles .page-header h1').textContent,
   }));
   // The destinations and Plus, then the notification bell (lot collab) at the bottom of the rail
-  assert.deepEqual(await texts(), { rail: ['Accueil', 'Consoles', 'Équipe', 'Sauvegardes', 'Admin', 'Plus'], theme: 'Sombre', bell: 'Alertes', title: 'Consoles du labo' });
+  assert.deepEqual(await texts(), { rail: ['Accueil', 'Consoles', 'Équipe', 'Sauvegardes', 'Admin', 'Plus'], theme: 'Sombre', bell: 'Alertes', title: 'Consoles' });
   const before = await texts();
   await setLanguage(page, 'en');
   assert.equal(await page.getAttribute('.lang-btn[data-lang="en"]', 'aria-pressed'), 'true');
@@ -455,7 +455,7 @@ test('routing: an address change while a section is still loading mounts it once
   });
   await fresh.goto(`${h.url}/#/consoles`);
   await waitForApp(fresh);
-  await fresh.waitForFunction(() => document.querySelector('section.view-consoles .canvas-title')?.textContent === 'B4M');
+  await waitForBench(fresh, 'B4M');
   const views = await fresh.evaluate(() => [...document.querySelectorAll('#views > section.view')].map((s) => `${s.className}:${s.hidden ? 'hidden' : 'shown'}`));
   assert.deepEqual(views.filter((v) => v.includes('view-consoles')), ['view view-consoles:shown'], 'one consoles section, the one shown');
   assert.ok(views.every((v) => v.includes('view-consoles') || v.endsWith(':hidden')), `nothing else is shown: ${views}`);

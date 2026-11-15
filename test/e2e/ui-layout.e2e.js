@@ -54,25 +54,50 @@ test('administration > users: the header row and the body share their columns', 
 
 for (const locale of ['fr', 'en']) {
   for (const width of [1280, 1440]) {
-    test(`consoles header at ${width} px (${locale}): one line per button, every bench of the picker reachable`, async () => {
+    test(`consoles header at ${width} px (${locale}): one row, every control whole, every bench of the picker reachable, the diagram owns the screen`, async () => {
       const page = await open({ locale, width });
-      await go(page, 'consoles', 'section.view-consoles .rack-slot');
+      await go(page, 'consoles', 'section.view-consoles .diagram-pane[data-state="ready"] g.device');
       const m = await page.evaluate(() => {
         const box = (e) => e.getBoundingClientRect();
-        const picker = document.querySelector('.lab-picker');
+        const header = document.querySelector('.view-consoles .page-header');
+        const tools = document.querySelector('.view-consoles .cs-tools');
+        const notice = document.querySelector('.view-consoles .cs-notice');
         return {
-          buttons: [...document.querySelectorAll('.view-consoles .head-actions .find-btn')].map((b) => ({ text: b.textContent.trim(), height: Math.round(box(b).height), width: Math.round(box(b).width) })),
-          kbd: Math.round(box(document.querySelector('.find-btn kbd')).height),
-          pickerClipped: picker.scrollWidth - picker.clientWidth,
-          slots: [...document.querySelectorAll('.rack-slot:not(.blank)')].map((s) => Math.round(box(s).height)),
+          header: Math.round(box(header).height),
+          controls: [...header.querySelectorAll('button')].filter((b) => b.offsetParent).map((b) => ({ text: b.textContent.trim(), height: Math.round(box(b).height), width: Math.round(box(b).width) })),
+          clipped: tools.scrollWidth - tools.clientWidth,
+          kbd: Math.round(box(document.querySelector('.finder kbd')).height),
+          canvas: { top: Math.round(box(document.querySelector('.diagram-canvas')).top), height: Math.round(box(document.querySelector('.diagram-canvas')).height) },
+          viewport: innerHeight,
+          notice: notice.hidden ? null : { bottom: Math.round(box(notice).bottom), position: getComputedStyle(notice).position },
         };
       });
-      assert.equal(m.buttons.length, 4);
-      for (const b of m.buttons) assert.ok(b.height <= 36, `"${b.text}" stays on one line (${b.height} px high)`);
-      assert.ok(m.buttons.every((b) => b.width >= 34), 'the icon button is not squeezed');
+      assert.ok(m.header <= 64, `the header is one row (${m.header} px)`);
+      assert.equal(m.controls.length, 5, 'Consoles header: the bench, the finder, En direct, Discussion, Outils');
+      for (const b of m.controls) assert.ok(b.height <= 44, `"${b.text}" stays on one line (${b.height} px high)`);
+      assert.ok(m.clipped <= 0, `nothing in the header is cut off (${m.clipped} px hidden)`);
       assert.ok(m.kbd <= 24, 'Ctrl K stays in one piece');
-      assert.ok(m.pickerClipped <= 0, `the picker is not cut off (${m.pickerClipped} px hidden)`);
-      assert.ok(m.slots.every((height) => height >= 22), 'a bench button can be hit');
+      assert.ok(m.canvas.height >= 0.7 * m.viewport, `with no console open the diagram has at least 70 % of the height (${m.canvas.height} px)`);
+      if (m.notice) assert.deepEqual({ position: m.notice.position, above: m.notice.bottom <= m.canvas.top }, { position: 'static', above: true }, 'the journal notice pushes the diagram down, it never covers it');
+      // The bench picker: the racks in a popover, every bench a whole button
+      await page.click('.view-consoles .bench-picker.in-header');
+      await page.waitForSelector('.bench-pop .rack-slot');
+      const slots = await page.evaluate(() => {
+        const pop = document.querySelector('.bench-pop').getBoundingClientRect();
+        return [...document.querySelectorAll('.bench-pop button.rack-slot')].map((s) => {
+          const r = s.getBoundingClientRect();
+          return { name: s.dataset.bench, height: Math.round(r.height), inside: r.right <= pop.right && r.bottom <= pop.bottom && r.right <= innerWidth };
+        });
+      });
+      assert.equal(slots.length, 8);
+      assert.ok(slots.every((x) => x.height >= 32 && x.inside), `every bench can be hit: ${JSON.stringify(slots)}`);
+      // The keyboard: the arrows move between the slots, Enter picks one
+      await page.keyboard.press('ArrowDown');
+      const next = await page.evaluate(() => document.activeElement.dataset.bench);
+      await page.keyboard.press('Enter');
+      await page.waitForSelector('.bench-pop', { state: 'detached' });
+      await page.waitForFunction((b) => location.hash === `#/consoles/${b}`, next);
+      assert.deepEqual(page.errors, []);
       await page.context().close();
     });
   }
@@ -132,12 +157,12 @@ test('a phone: nothing overflows the page, five items in the tab bar, every sect
   assert.ok(scrolled.h1 >= 0, 'its header stays where it is');
 
   await page.evaluate(() => localStorage.removeItem('labconsole.journalNoticeSeen'));
-  await go(page, 'consoles', 'section.view-consoles .rack-slot');
+  await go(page, 'consoles', 'section.view-consoles .diagram-pane[data-state="ready"]');
   await page.reload();
   await waitForApp(page);
-  await go(page, 'consoles', 'section.view-consoles .rack-slot');
+  await go(page, 'consoles', 'section.view-consoles .diagram-pane[data-state="ready"]');
   const notice = await page.evaluate(() => {
-    const el = document.querySelector('.journal-notice');
+    const el = document.querySelector('.cs-notice');
     return el && !el.hidden ? { position: getComputedStyle(el).position, height: Math.round(el.getBoundingClientRect().height) } : null;
   });
   if (notice) assert.deepEqual({ position: notice.position, short: notice.height < 120 }, { position: 'static', short: true });
