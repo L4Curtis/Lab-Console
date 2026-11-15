@@ -198,3 +198,6 @@ button.cal-free, button.cal-booked { cursor: pointer; width: 100%; }
   .cal-toolbar { gap: var(--sp-2); }
   .cal-week { flex: 1 1 100%; }
 }
+
+/* An administrator's Équipe: the Admin list and the back arrow only on Toutes les équipes (admin.css draws them) */
+.view-team:not(.admin-sub) .admin-nav, .view-team:not(.admin-sub) .ph-back { display: none; }
