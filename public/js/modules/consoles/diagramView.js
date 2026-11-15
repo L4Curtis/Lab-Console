@@ -58,6 +58,8 @@ const ZOOM_MIN = 0.25;
 const ZOOM_MAX = 3;
 /** On screen, a device tile is at least this big at the first zoom (UX.md §8.3), and its hit area at least TAP */
 const MIN_TILE_PX = 36;
+const FIT_MIN = 0.7;        // a column that is wide enough does not fit the diagram smaller than this (its names stay readable): the rest is a pan away
+const FIT_MIN_WIDTH = 400;  // under this the consoles page shows the list instead
 const TAP = 44;
 /** Under this zoom only the devices' names stay: addresses and link labels would be specks */
 const LABELS_FROM = 0.5;
@@ -375,7 +377,9 @@ export class DiagramView {
     const whole = Math.min(width / b.w, room / b.h, 1.6);
     const smallest = Math.min(...this.#lab.devices.map((d) => Math.min(d.w, d.h)).filter((n) => n > 0), Infinity);
     // A phone needs devices it can read and hit: they keep their size, the rest is a pan away
-    const readable = Number.isFinite(smallest) && isCompact() ? MIN_TILE_PX / smallest : 0;
+    const readable = isCompact()
+      ? (Number.isFinite(smallest) ? MIN_TILE_PX / smallest : 0)
+      : width >= FIT_MIN_WIDTH ? FIT_MIN : 0;
     if (whole >= readable) {
       this.#set(whole, (width - b.w * whole) / 2 - b.x * whole, top + (room - b.h * whole) / 2 - b.y * whole);
       return;

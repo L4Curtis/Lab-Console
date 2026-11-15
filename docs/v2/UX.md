@@ -871,7 +871,8 @@ Part A. Files in 11.3.
   and a legend line. Keyboard: arrows move between slots, Enter selects.
   The rack picker no longer sits in the header.
 - **Strip (44 px)**: 7.13.
-- **Journal notice**: shown once per browser (pref `journalNoticeSeen`), as a
+- **Journal notice**: shown once per browser (pref `journalNoticeSeen`, set when
+  it is first shown: it stays until closed, then never again), as a
   40 px info line **above** the canvas (pushes it down, never over it), one
   sentence ("Les consoles sont journalisées pendant {days} jours : ce que les
   équipements affichent, pas ce que vous tapez sans écho.") with "En savoir
@@ -946,7 +947,7 @@ Two screens and two sheets.
 │ Consoles            💬•    ⋯     │ app bar: Discussion (badge), Outils menu (+ Trouver, En direct)
 │ [● B4M ▾]  Prise par vous    │ picker button + strip text (tap → bench sheet)
 │ ⚠ Alice demande à rejoindre  [Accepter] │ only when a request waits (Refuser in the sheet)
-│ [  Schéma  |  Liste  ]           │ segmented, remembered (pref consolesView)
+│ [  Schéma  |  Liste  ]           │ segmented, remembered (pref consolesView); Liste until chosen
 ├──────────────────────────────────┤
 │                                  │
 │   diagram, pinch / pan,          │
@@ -1043,7 +1044,8 @@ desktop from ⋯ (useful on a touch laptop).
   scrolls to the bottom.
 - First time a console opens in portrait on a phone: a one-time hint line
   "Tournez le téléphone pour afficher plus de colonnes." (pref
-  `rotateHintSeen`), dismissible.
+  `rotateHintSeen`, set when it is first shown), dismissible, never shown while
+  the keyboard is open or the phone is on its side.
 - Scrollback: a vertical finger drag on the terminal scrolls it
   (`.xterm-viewport { touch-action: pan-y; overscroll-behavior: contain }`).
   The page never scrolls behind it.

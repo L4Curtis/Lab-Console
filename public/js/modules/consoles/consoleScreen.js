@@ -9,7 +9,8 @@
  *   screen.enter(pane);  screen.leave();  screen.active
  *
  * The first time a console opens upright on a phone, a line suggests turning
- * it for more columns (once per browser)
+ * it for more columns: once per browser (on screen until closed, and never
+ * while the keyboard is open)
  */
 import { h, icon, prefs } from '../../core/dom.js';
 import { t, tAttr, onLocaleChange } from '../../core/i18n.js';
@@ -19,10 +20,11 @@ const SWIPE_PX = 60;
 
 export function consoleScreen({ section, onLeave, onSwitch }) {
   let active = false;
+  let hintOn = false; // the line is on screen (it was shown for the first time, or is still there)
   const hintText = h('p');
   const hint = h('div.rotate-hint', { role: 'note', hidden: true },
     icon('phone-rotate'), hintText,
-    h('button.icon-btn', { type: 'button', ...tAttr('title', 'consoles.rotate.dismiss'), ...tAttr('aria-label', 'consoles.rotate.dismiss'), onclick: () => { prefs.set('rotateHintSeen', true); hint.hidden = true; workspace.refit(); } }, icon('close')));
+    h('button.icon-btn', { type: 'button', ...tAttr('title', 'consoles.rotate.dismiss'), ...tAttr('aria-label', 'consoles.rotate.dismiss'), onclick: () => { hintOn = false; hint.hidden = true; workspace.refit(); } }, icon('close')));
   const writeHint = () => { hintText.textContent = t('consoles.rotate.hint'); };
   writeHint();
   onLocaleChange(writeHint);
@@ -56,7 +58,8 @@ export function consoleScreen({ section, onLeave, onSwitch }) {
       document.documentElement.dataset.chrome = 'immersive';
       workspace.solo(pane.session.key);
       (pane.presenceBar?.el ?? pane.head).after(hint); // under the console's head (and its presence row)
-      hint.hidden = prefs.get('rotateHintSeen', false) || innerWidth > innerHeight;
+      if (!hintOn && !prefs.get('rotateHintSeen', false) && innerWidth <= innerHeight) { hintOn = true; prefs.set('rotateHintSeen', true); }
+      hint.hidden = !hintOn || innerWidth > innerHeight;
       requestAnimationFrame(() => { workspace.refit(); pane.term?.scrollToBottom?.(); });
     },
     leave() {

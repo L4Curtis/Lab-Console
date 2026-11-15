@@ -208,7 +208,7 @@
 }
 .rotate-hint > .icon { width: 20px; height: 20px; color: var(--accent-text); flex: none; }
 .rotate-hint p { flex: 1; margin: 0; }
-.workspace:not(.solo) .rotate-hint { display: none; }
+.workspace:not(.solo) .rotate-hint, :root[data-keyboard="open"] .rotate-hint { display: none; }
 .rotate-hint .icon-btn { color: var(--text-2); }
 
 /* ── Medium and below (≤ 900 px): the side above the consoles ──────────── */

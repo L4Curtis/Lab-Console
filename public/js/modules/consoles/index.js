@@ -66,7 +66,8 @@ export async function mount(el, { navigate }) {
   let shown = false;
   let autoPicked = false;        // the bench on screen is the default one, not a choice (the first answer about benches may change it)
   let pushedScreen = false;      // the console screen added a history entry (Back takes it away)
-  let view = prefs.get('consolesView', 'diagram');
+  // The list on a phone (a diagram that does not fit makes a student pan before the first tap); the diagram elsewhere, unless chosen
+  let view = prefs.get('consolesView', null) ?? (isCompact() ? 'list' : 'diagram');
 
   const targetOf = (d) => `${d.target.host}:${d.target.port}`;
   const stateOf = (d) => {
@@ -98,11 +99,12 @@ export async function mount(el, { navigate }) {
   // ── Bench line, notice ────────────────────────────────────────────────────
   const benchLine = h('div.cs-benchline');
   const linePicker = picker.button('.in-line'); // on a phone: the first thing of the bench strip's line (UX.md §8.3)
+  let noticeOnScreen = false;  // shown once per browser: on screen until closed or the page is left, then never again
   const noticeText = h('p');
   const notice = h('div.cs-notice', { role: 'note', hidden: true },
     icon('info'), noticeText,
     h('a.btn.sm.ghost', { href: '#/help/journal', dataset: { action: 'journal-help' } }, tNode('consoles.journal.more')),
-    h('button.icon-btn', { type: 'button', ...tAttr('title', 'consoles.journal.dismiss'), ...tAttr('aria-label', 'consoles.journal.dismiss'), onclick: () => { prefs.set('journalNoticeSeen', true); notice.hidden = true; } }, icon('close')));
+    h('button.icon-btn', { type: 'button', ...tAttr('title', 'consoles.journal.dismiss'), ...tAttr('aria-label', 'consoles.journal.dismiss'), onclick: () => { noticeOnScreen = false; notice.hidden = true; } }, icon('close')));
 
   // ── The diagram, the list ─────────────────────────────────────────────────
   const viewBtns = Object.fromEntries(['diagram', 'list'].map((v) => [v,
@@ -263,13 +265,22 @@ export async function mount(el, { navigate }) {
     writeHint();
   }
 
-  function setView(next) {
+  function setView(next, { chosen = true } = {}) {
     view = next;
-    prefs.set('consolesView', next);
+    if (chosen) prefs.set('consolesView', next);
     diagramPane.dataset.view = next;
     for (const [v, b] of Object.entries(viewBtns)) b.setAttribute('aria-pressed', String(v === next));
     if (next === 'diagram') requestAnimationFrame(() => diagram.refit());
   }
+
+  // Until the person chooses, a diagram column too narrow to read (consoles open beside it) shows the list
+  const NARROW_PX = 400;
+  new ResizeObserver(([entry]) => {
+    const width = entry.contentRect.width;
+    if (!width || prefs.get('consolesView', null) !== null || isCompact()) return;
+    const next = width < NARROW_PX ? 'list' : width >= NARROW_PX + 40 ? 'diagram' : view; // a little room before it flips back
+    if (next !== view) setView(next, { chosen: false });
+  }).observe(diagramPane);
 
   /** The hint over the canvas while no console is open: what to do, with a mouse or a finger */
   function writeHint() {
@@ -281,7 +292,9 @@ export async function mount(el, { navigate }) {
 
   // Sessions are journaled: say it, once, until the user has read it
   function renderNotice() {
-    notice.hidden = retentionDays === null || prefs.get('journalNoticeSeen', false);
+    const show = retentionDays !== null && (noticeOnScreen || !prefs.get('journalNoticeSeen', false));
+    notice.hidden = !show;
+    if (show && !noticeOnScreen) { noticeOnScreen = true; prefs.set('journalNoticeSeen', true); }
     noticeText.textContent = retentionDays === null ? '' : t('consoles.journal.notice', { days: retentionDays });
   }
 
