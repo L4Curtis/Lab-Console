@@ -11,7 +11,7 @@
 .help-summary { display: none; justify-self: start; }
 .help-sections { display: grid; gap: var(--sp-4); }
 .help-section { scroll-margin-top: var(--sp-2); }
-.help-section > h2 { margin: 0; }
+.help-section > h2 { margin: 0; font: var(--fs-heading); }
 .help-toggle { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); width: 100%; padding: 0; border: 0; background: none; color: inherit; font: var(--fs-heading); text-align: left; cursor: default; }
 .help-text { display: grid; gap: var(--sp-3); margin-top: var(--sp-3); }
 .help-text h3 { margin: var(--sp-2) 0 0; font: var(--fs-subheading); }

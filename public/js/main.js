@@ -106,7 +106,7 @@ const screenOf = (hash) => hashParts(hash).join('/');
 function redirect() {
   const target = routeRedirect(location.hash, { isAdmin: session.isAdmin, compact: isCompact() });
   if (!target) return;
-  // A section that still answers its old address keeps it until it is retired (the overview, part C)
+  // A section reached from links only (nav: 'hidden') that answers an old address keeps it
   if (available().some((m) => m.path === hashParts(location.hash)[0] && m.nav === 'hidden')) return;
   history.replaceState(history.state, '', target);
 }

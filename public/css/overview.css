@@ -68,7 +68,8 @@
 .ov-card .ov-holder { font: var(--fs-body); }
 .ov-card .ov-lock { display: block; font: var(--fs-small); }
 .ov-open { justify-self: start; margin-top: var(--sp-1); text-decoration: none; }
-.ov-link { color: inherit; text-decoration: none; }
+.ov-lab .dl-table td:empty { display: none; }
+.ov-link { display: flex; align-items: center; min-height: var(--tap); color: inherit; text-decoration: none; }
 .ov-link:hover { text-decoration: underline; }
 .ov-lines { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); }
 .ov-slot[data-mine="true"] { color: var(--on-accent-soft); }

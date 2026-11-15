@@ -87,12 +87,14 @@ monde les voit en direct.
   startup-config est contournée pour un démarrage, jamais effacée. Elle n'a pas
   encore été essayée sur tous les modèles réels, et le dit.
 
-## Accueil, vue d'ensemble et aide
+## Accueil, Le labo et aide
 
-**Accueil** est la page après la connexion : votre équipe, vos invitations,
-votre baie avec ses dernières sauvegardes et son activité, vos prochains
-créneaux. **Vue d'ensemble** montre une carte en direct par baie. **Aide**
-explique chaque section.
+**Accueil** est la page après la connexion : ce qui demande votre attention (une
+invitation, une demande pour rejoindre votre baie, une baie bientôt libérée),
+votre baie, **Le labo** (toutes les baies en direct, filtrées par état : libres,
+prises, verrouillées, la nôtre), vos prochains créneaux, vos dernières
+sauvegardes et l'activité de votre baie. **Aide** explique chaque section, avec
+une section pour le téléphone.
 
 ## Bonnes habitudes
 

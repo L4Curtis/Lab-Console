@@ -148,9 +148,11 @@ export async function mount(el) {
   function renderSection(s) {
     const id = `help-${s.id}`;
     const on = isOpen(s.id);
-    const toggle = h('button.help-toggle', { type: 'button', 'aria-expanded': String(on), 'aria-controls': `${id}-body`, dataset: { toggle: s.id },
-      onclick: () => { if (open.has(s.id)) open.delete(s.id); else open.add(s.id); render(); } },
-    h('span', { id: `${id}-title` }, t(`help.s.${s.id}.title`)), isCompact() ? icon(on ? 'chevronUp' : 'chevronDown') : null);
+    const title = h('span', { id: `${id}-title` }, t(`help.s.${s.id}.title`));
+    const toggle = isCompact()
+      ? h('button.help-toggle', { type: 'button', 'aria-expanded': String(on), 'aria-controls': `${id}-body`, dataset: { toggle: s.id },
+        onclick: () => { if (open.has(s.id)) open.delete(s.id); else open.add(s.id); render(); } }, title, icon(on ? 'chevronUp' : 'chevronDown'))
+      : title;
     return h('section.card.help-section', { id, dataset: { section: s.id }, 'aria-labelledby': `${id}-title` },
       h('h2', toggle),
       h('div.help-text', { id: `${id}-body`, hidden: !on }, s.blocks.map((b) => renderBlock(s.id, b))));

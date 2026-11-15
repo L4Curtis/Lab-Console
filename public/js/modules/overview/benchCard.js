@@ -37,8 +37,8 @@ export function avatarStack(names, { max = 3, label } = {}) {
     more > 0 ? h('span.avatar-more', { 'aria-hidden': 'true' }, `+${more}`) : null);
 }
 
-/** "Les routeurs", or a dash: who holds the bench */
-export const holderText = (c) => (c.holder ? c.holder.teamName ?? '?' : '—');
+/** "Les routeurs", or nothing for a bench nobody holds */
+export const holderText = (c) => (c.holder ? c.holder.teamName ?? '?' : '');
 
 /**
  * How the console lines stand, when there is something to say: refused by the

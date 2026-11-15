@@ -166,7 +166,7 @@
     "context": "Schéma actif : {name} · {count} équipements"
   },
   "switches": {
-    "intro": "Les consoles qui ne sont pas sur le schéma (switchs d’administration des baies), visibles dans la section Infra. Enregistrées d’un bloc, utilisées tout de suite.",
+    "intro": "Les consoles qui ne sont pas sur le schéma (switchs d’administration des baies), visibles dans Machines et switchs. Enregistrées d’un bloc, utilisées tout de suite.",
     "columns": {
       "id": "Identifiant",
       "name": "Nom",
@@ -251,7 +251,8 @@
       "other": "{count} entrées"
     },
     "none": "Aucune entrée pour ces filtres.",
-    "title": "Journal d’audit"
+    "title": "Journal d’audit",
+    "filtersTitle": "Filtres"
   },
   "announcement": {
     "intro": "Un message affiché en bandeau à toutes les personnes connectées, tout de suite, jusqu’à ce que vous le retiriez ou que sa durée soit passée.",

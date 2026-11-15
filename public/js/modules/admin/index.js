@@ -102,7 +102,13 @@ export async function mount(el, { navigate }) {
   }
   let last = [];
   live.on('accounts:changed', () => { if (visible && !current) readCounts(); });
-  onViewportChange(() => { if (visible && !TAB_IDS.includes(last[0])) showScreen(last); });
+  // Crossing 720 px changes what #/admin is (the hub, or its first screen)
+  let wasCompact = isCompact();
+  onViewportChange((now) => {
+    if (now.compact === wasCompact) return;
+    wasCompact = now.compact;
+    if (visible && !TAB_IDS.includes(last[0])) showScreen(last);
+  });
 
   return {
     show(params = []) {

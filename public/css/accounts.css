@@ -7,7 +7,8 @@
 .admin-waiting .card-head > .icon { color: var(--warning-text); }
 .admin-waiting p { margin: 0; }
 .dl-table td[data-col="name"] { min-width: 200px; }
-.data-list tr[data-state="pending"] td { background: var(--warning-bg); }
+.data-list tr[data-state="pending"] { background: var(--warning-bg); }
+@media (min-width: 720px) { .data-list tr[data-state="pending"] td { background: var(--warning-bg); } }
 .role-select { min-height: max(32px, var(--tap)); font-size: 13px; max-width: 100%; }
 @media (min-width: 720px) {
   .data-list th[data-col="roleText"], .data-list td[data-col="roleText"] { display: none; }

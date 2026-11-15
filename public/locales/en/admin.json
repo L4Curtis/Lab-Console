@@ -166,7 +166,7 @@
     "context": "Active diagram: {name} · {count} devices"
   },
   "switches": {
-    "intro": "Consoles that are not on the diagram (the benches’ administration switches), shown in the Infra section. Saved as a whole, used at once.",
+    "intro": "Consoles that are not on the diagram (the benches’ administration switches), shown in Machines and switches. Saved as a whole, used at once.",
     "columns": {
       "id": "Id",
       "name": "Name",
@@ -251,7 +251,8 @@
       "other": "{count} entries"
     },
     "none": "No entry for these filters.",
-    "title": "Audit trail"
+    "title": "Audit trail",
+    "filtersTitle": "Filters"
   },
   "announcement": {
     "intro": "A message shown in a banner to everyone signed in, right away, until you remove it or its time is over.",

@@ -33,11 +33,30 @@
 .admin-link > .icon { display: none; width: 20px; height: 20px; color: var(--text-muted); }
 .admin-link .count { flex: none; }
 
+/* From 720 px to 1199 px a column of 220 px would leave the tables too little: the list becomes a strip above the screen */
+@media (min-width: 720px) and (max-width: 1199.98px) {
+  .admin-layout { flex-direction: column; }
+  .admin-nav {
+    flex: none; width: auto; display: flex; flex-wrap: nowrap; align-items: center; gap: var(--sp-4);
+    overflow-x: auto; overflow-y: hidden; scrollbar-width: none; padding: var(--sp-2) var(--gutter) var(--sp-3);
+  }
+  .admin-nav::-webkit-scrollbar { display: none; }
+  .admin-group { display: flex; flex: none; align-items: center; gap: var(--sp-2); }
+  .admin-group:not(:last-child) { padding-right: var(--sp-4); border-right: 1px solid var(--border); }
+  .admin-group-title { padding: 0; }
+  .admin-group ul { display: flex; gap: var(--sp-1); }
+  .admin-link { white-space: nowrap; }
+  .admin-layout > .split-body { flex: 1; min-height: 0; }
+}
+
 /* The page header's back arrow only makes sense on a phone, inside a screen of the area */
 .admin-area .ph-back, .admin-sub .ph-back { display: none; }
 
 @media (max-width: 719.98px) {
   .admin-layout { display: block; overflow: auto; overscroll-behavior: contain; }
+  /* Machines et switchs and État du labo: a back arrow to the hub instead of the list */
+  .admin-sub .admin-nav { display: none; }
+  .admin-sub .admin-layout { display: flex; overflow: visible; }
   .admin-layout > .admin-content { overflow: visible; }
   .admin-area[data-mode="hub"] .admin-content { display: none; }
   .admin-area[data-mode="tab"] .admin-nav { display: none; }
@@ -78,9 +97,11 @@ textarea.field.mono { padding-block: var(--sp-2); }
 /* The footer of a long form: the save button stays in reach, above the tab bar on a phone */
 .form-footer {
   position: sticky; bottom: 0; z-index: var(--z-sticky);
-  display: grid; gap: var(--sp-2); margin: 0 calc(-1 * var(--gutter)); padding: var(--sp-3) var(--gutter);
+  display: grid; gap: var(--sp-2); margin: 0; padding: var(--sp-3) 0;
   background: var(--bg); border-top: 1px solid var(--border);
 }
+/* The scroll container pads its bottom: the footer sticks above that padding unless it is told to go down to the edge */
+@media (min-width: 720px) { .form-footer { bottom: calc(-1 * var(--sp-10)); padding-bottom: calc(var(--sp-3) + var(--sp-2)); } }
 .form-footer .form-actions { justify-content: flex-end; }
 .sso-actions { display: flex; flex-wrap: wrap; gap: var(--sp-2); justify-content: flex-end; }
 .sso-result { display: grid; gap: var(--sp-2); padding: var(--sp-4) var(--sp-5); border: 1px solid var(--border); border-left: 4px solid var(--success); border-radius: var(--r-lg); background: var(--surface); }
@@ -113,6 +134,10 @@ textarea.field.mono { padding-block: var(--sp-2); }
 .announcement-preview .muted { font: var(--fs-small); }
 
 .audit-grid { grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); }
+.audit-filters > summary { display: flex; align-items: center; justify-content: space-between; min-height: var(--tap); font: var(--fs-heading); cursor: pointer; list-style: none; }
+.audit-filters > summary::-webkit-details-marker { display: none; }
+.audit-filters[open] > summary { margin-bottom: var(--sp-4); }
+@media (min-width: 720px) { .audit-filters > summary { display: none; } }
 .audit-filters .form-actions { margin-top: var(--sp-4); }
 .audit-details { margin: var(--sp-2) 0 0; padding: var(--sp-2); max-width: 520px; max-height: 240px; overflow: auto; border-radius: var(--r-sm); background: var(--surface-2); font: 12px/1.4 var(--mono); white-space: pre-wrap; }
 .audit-table td { vertical-align: top; }
@@ -127,14 +152,22 @@ textarea.field.mono { padding-block: var(--sp-2); }
 .diff { display: grid; gap: var(--sp-3); grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
 .diff-group h4 { margin: 0 0 var(--sp-1); font: var(--fs-label); }
 .diff-group ul, .diagram-preview .notice ul { margin: 0; padding-left: var(--sp-5); font: var(--fs-small); }
-.data-list tr[data-active="true"] td { background: var(--success-bg); }
+.data-list tr[data-active="true"] { background: var(--success-bg); }
+@media (min-width: 720px) { .data-list tr[data-active="true"] td { background: var(--success-bg); } }
 
 /* ── Switchs d'admin: one card per switch ──────────────────────────────── */
 .sw-rows { display: grid; gap: var(--sp-4); }
 .sw-row { display: grid; gap: var(--sp-3); grid-template-columns: minmax(0, 1fr); padding-bottom: var(--sp-4); border-bottom: 1px solid var(--border); }
 .sw-row:last-child { padding-bottom: 0; border-bottom: 0; }
 .sw-row .btn { justify-self: end; }
-@media (min-width: 720px) {
+/* Narrow: a card per switch, the bay and the port side by side; wide enough: one line per switch, the labels once above */
+@media (max-width: 1199.98px) {
+  .sw-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .sw-row > .sw-cell { grid-column: 1 / -1; }
+  .sw-row > .sw-cell[data-cell="bay"], .sw-row > .sw-cell[data-cell="port"] { grid-column: auto; }
+  .sw-row > .btn { grid-column: 1 / -1; }
+}
+@media (min-width: 1200px) {
   .sw-row { grid-template-columns: 7rem minmax(0, 1.2fr) 6rem minmax(0, 1.2fr) 6rem auto; align-items: start; border-bottom: 0; padding-bottom: 0; }
   .sw-row .fld > label { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip-path: inset(50%); }
   .sw-rows > .sw-row:first-child .fld > label { position: static; width: auto; height: auto; margin: 0; clip-path: none; font: var(--fs-caption); color: var(--text-muted); }
@@ -149,7 +182,8 @@ textarea.field.mono { padding-block: var(--sp-2); }
 .health-summary[data-state="unknown"] { border-left-color: var(--led-off); }
 .health-summary .icon { width: 24px; height: 24px; color: var(--success-text); }
 .health-summary[data-state="problem"] .icon { color: var(--danger-text); }
-.health-cards { display: grid; gap: var(--sp-4); grid-template-columns: repeat(auto-fit, minmax(min(100%, 260px), 1fr)); }
+.health-cards { display: grid; gap: var(--sp-4); grid-template-columns: minmax(0, 1fr); }
+@media (min-width: 720px) { .health-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 .health-card { display: flex; gap: var(--sp-3); align-items: center; padding: var(--sp-4) var(--sp-5); }
 .health-card strong { display: block; font: var(--fs-subheading); }
 .health-state { font: var(--fs-small); color: var(--text-2); }
@@ -167,3 +201,4 @@ textarea.field.mono { padding-block: var(--sp-2); }
 .account-cell strong { font: var(--fs-label); overflow-wrap: anywhere; }
 .account-notes { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-1); }
 .vm-meta { font: 400 12px/16px var(--mono); color: var(--text-muted); overflow-wrap: anywhere; }
+.admin-page .data-list { overflow-x: auto; }

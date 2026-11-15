@@ -21,6 +21,7 @@
 import { h, icon, loadCss, toast } from '../../core/dom.js';
 import { t, loadNamespace, onLocaleChange } from '../../core/i18n.js';
 import { getJson, request, live } from '../../core/api.js';
+import { setNavBadge } from '../../core/nav.js';
 import { session } from '../../core/session.js';
 import { pageHeader } from '../../shared/pageHeader.js';
 import { loading, loadFailure } from '../../shared/loadState.js';
@@ -44,6 +45,7 @@ const activityText = (e) => {
 
 const RELEASE_WARNING_MS = 30 * 60_000;
 const TICK_MS = 30_000;
+const ADMIN_REFRESH_MS = 30_000;
 const ACTIVITY_SHOWN = 5;
 const BACKUPS_SHOWN = 2;
 const SLOTS_SHOWN = 3;
@@ -60,6 +62,7 @@ export async function mount(el, { navigate } = {}) {
   let more = false;          // the activity list shows everything the server sent
   let extra = { requests: [], invitations: [], pendingAccounts: 0, health: null }; // what the home data alone cannot say
   let extraTicket = 0;
+  let adminReadAt = 0;
   let timer = null;
 
   const header = pageHeader({
@@ -126,11 +129,13 @@ export async function mount(el, { navigate } = {}) {
         actions: [link(`#/jobs/${encodeURIComponent(b.bench)}`, t('overview.attention.see'), 'job', '.sm')],
       });
     }
-    if (b?.lock && b.you.occupant) {
+    // Our own bench, locked; for an administrator every locked bench of the lab
+    const locked = session.isAdmin ? (cards ?? []).filter((c) => c.state === 'locked') : b?.lock && b.you.occupant ? [b] : [];
+    for (const c of locked) {
       items.push({
-        id: 'locked', tone: 'danger', icon: 'lock', key: 'locked',
-        text: t('overview.attention.locked', { bench: b.bench, reason: b.lock.reason }),
-        actions: [link(`#/consoles/${encodeURIComponent(b.bench)}`, t('overview.attention.see'), 'locked', '.sm')],
+        id: 'locked', tone: 'danger', icon: 'lock', key: `locked-${c.bench}`,
+        text: t('overview.attention.locked', { bench: c.bench, reason: c.lock.reason }),
+        actions: [link(`#/consoles/${encodeURIComponent(c.bench)}`, t('overview.attention.see'), 'locked', '.sm')],
       });
     }
     if (session.isAdmin && extra.pendingAccounts) {
@@ -310,17 +315,20 @@ export async function mount(el, { navigate } = {}) {
   }
 
   // The few things the home data alone cannot say: who asks to join, the invitations' teams, the accounts waiting
-  async function readExtra() {
+  async function readExtra({ force = false } = {}) {
     const ticket = ++extraTicket;
     const d = data;
     if (!d) return;
-    const next = { requests: [], invitations: [], pendingAccounts: 0, health: null };
+    // The administration's numbers move slowly and cost a request each: read them again every 30 s, or when accounts change
+    const adminFresh = !force && Date.now() - adminReadAt < ADMIN_REFRESH_MS;
+    const next = { requests: [], invitations: [], pendingAccounts: adminFresh ? extra.pendingAccounts : 0, health: adminFresh ? extra.health : null };
     const jobs = [];
     if (d.bench?.requests && d.bench.you.occupant) {
       jobs.push(getJson(benchPath(d.bench.bench)).then((b) => { next.requests = b.requests ?? []; }));
     }
     if (d.invitations.length) jobs.push(getJson('/api/teams').then((r) => { next.invitations = r.invitations ?? []; }));
-    if (session.isAdmin) {
+    if (session.isAdmin && !adminFresh) {
+      adminReadAt = Date.now();
       jobs.push(getJson('/api/accounts/users').then(({ users }) => { next.pendingAccounts = users.filter((u) => u.state === 'pending').length; }));
       jobs.push(getJson('/api/admin/health').then((hl) => {
         const bad = (s) => s === 'down' || s === 'partial';
@@ -329,11 +337,12 @@ export async function mount(el, { navigate } = {}) {
     }
     await Promise.allSettled(jobs);
     if (ticket !== extraTicket) return;
+    if (session.isAdmin) setNavBadge('admin', next.pendingAccounts ? { count: next.pendingAccounts, tone: 'danger' } : null);
     const same = JSON.stringify(next) === JSON.stringify(extra);
     extra = next;
     if (!same) render();
   }
-  const extraFeed = () => { readExtra(); };
+  const extraFeed = (options) => { readExtra(options); };
 
   const topics = ['benches:state', 'benches:reservations', 'consoles:rooms', 'jobs:running', 'jobs:done', 'jobs:snapshots', 'teams:changed', 'teams:invitation', 'admin:announcement', 'checks:running'];
   const feed = followApi('/api/overview/home', {
@@ -360,7 +369,7 @@ export async function mount(el, { navigate } = {}) {
     onError: () => {},
   });
   // Accounts waiting for validation move with the administration's own topic
-  live.on('accounts:changed', () => { if (session.isAdmin && timer) extraFeed(); });
+  live.on('accounts:changed', () => { if (session.isAdmin && timer) extraFeed({ force: true }); });
 
   onLocaleChange(render);
   render();

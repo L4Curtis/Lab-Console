@@ -877,23 +877,34 @@ services.collab = {                            // lot collab
   section is one line there and one folder in `public/js/modules/`. `id` is
   the server module (`/api/modules`), `path` the address and the section's
   class (`section.view-<path>`); `when: () => session.isAdmin` keeps a section
-  away from students. The **Administration** section (`#/admin/<tab>`,
-  `modules/admin/index.js`) is for administrators, built with
-  `shared/tabs.js`; the accounts lot's tabs are `users`, `invitations`,
-  `sso`; the admin lot's are `lab`, `diagram`, `switches`, `sessions`,
-  `audit`, `announcement` (one file in `modules/admin/tabs/`, one line each).
-  **Lab status** (`#/status/<tab>`, `modules/status/index.js`, every
-  signed-in user): `health` and `journaling`. The **announcement banner**
-  (`shared/announcement.js`, mounted once by `main.js`, placed under the
-  header of the section on screen) follows the sticky SSE topic
-  `admin:announcement`. **My account** (`#/account`) is reached from the
-  account menu. Passkeys in the browser go through `core/passkeys.js`
-  (public: the login page and `/join` use it). **Accueil** (`#/home`, the
-  landing page) and **Vue d'ensemble** (`#/overview`) are the overview lot's
-  (§9d). **Sauvegardes** (`#/jobs/<bench>[/<action>]`, `modules/jobs/`, every
-  signed-in user; `#/jobs/B4M/backup` opens the backup dialog, which is where
-  the release offer of the bench bar leads) holds the bench jobs, the
-  snapshots and the templates (§9b). `main.js` also starts, for every
+  away from students. The **Admin** section (`#/admin/<tab>`,
+  `modules/admin/index.js`) is for administrators: its screens are in three
+  groups (`modules/admin/nav.js`: Comptes, Labo, Suivi), a list of 220 px at
+  the left from 720 px and, on a phone, the hub that `#/admin` shows (rows with
+  counts, a screen opens full height with a back arrow). The screens are
+  `shared/tabs.js` tabs without a visible strip: `users`, `invitations`, `sso`
+  (the accounts lot's), `lab`, `diagram`, `switches`, `sessions`, `audit`,
+  `announcement` (the admin lot's); one file in `modules/admin/tabs/`, one line
+  in `index.js` and one in `nav.js` each. A tab says what the page header shows
+  through `ctx.setHeader(ctx.tab, { context, primary, actions })` (the one on
+  screen is applied) and builds its lists with `shared/dataList.js` (`tagRows()`
+  of `admin/common.js` puts data attributes on the rows). `#/team/all`,
+  **Machines et switchs** (`#/infra`) and **État du labo** (`#/status/<tab>`,
+  `modules/status/index.js`: `health`, `journaling`, every signed-in user)
+  belong to the administration for an administrator, who sees the same list
+  there (`adminNav()`); for a student they are reached from Plus. The
+  **announcement banner** (`shared/announcement.js`, mounted once by
+  `main.js`, placed under the header of the section on screen) follows the
+  sticky SSE topic `admin:announcement`. **Mon compte** (`#/account`) is
+  reached from the account menu: cards for the profile, the password (local
+  accounts), the passkeys, the sessions and the preferences (the account
+  menu's own controls, `preferenceRows()`). Passkeys in the browser go through
+  `core/passkeys.js` (public: the login page and `/join` use it). **Accueil**
+  (`#/home`, the landing page, which also holds **Le labo**, `#/home/lab[/<filter>]`)
+  is the overview lot's (§9d). **Sauvegardes** (`#/jobs/<bench>[/<action>]`,
+  `modules/jobs/`, every signed-in user; `#/jobs/B4M/backup` opens the backup
+  dialog, which is where the release offer of the bench bar leads) holds the
+  bench jobs, the snapshots and the templates (§9b). `main.js` also starts, for every
   section, the diagram layer of the jobs (`modules/jobs/layer.js`), the
   checks' diagram layers (`modules/checks/layer.js`), the group work
   (`modules/collab/index.js`: the notes layer, and the notification bell
@@ -920,8 +931,7 @@ services.collab = {                            // lot collab
   `data-nav="<path>"`. Old addresses are redirected before routing, with
   `history.replaceState`, by `core/routes.js` (`routeRedirect(hash, {
   isAdmin, compact })`, pure, tested by `test/navRoutes.test.js`):
-  `#/overview[/<filter>]` → `#/home/lab[/<filter>]` (not applied while the
-  overview section still answers its address), `#/team` → `#/team/mine`,
+  `#/overview[/<filter>]` → `#/home/lab[/<filter>]`, `#/team` → `#/team/mine`,
   `#/admin` → `#/admin/users` from 720 px. The page never scrolls as a
   whole: each section scrolls inside itself (`.view-body`), and the shell
   keeps each section's scroll position while it is hidden.
@@ -1670,25 +1680,40 @@ source of truth.
 - Errors: `overview.unavailable` (503) when the consoles, teams and benches
   modules are not there. Both routes answer `Cache-Control: no-store`.
 
-In the browser (`public/js/modules/overview/`) two rail sections: **Accueil**
-(`#/home`, `home.js`, the address a signed-in user lands on, and the one no
-section answers) and **Vue d'ensemble** (`#/overview`, `index.js`, with a
-filter: all, free, mine, kept in `prefs`). `live.js` keeps them live with the
-topics the services already publish, each under its own audience: it reads the
-API again, once for a burst (250 ms), when `benches:state`,
-`benches:reservations`, `consoles:rooms`, `consoles:busy`, `jobs:running`,
-`teams:changed`, `checks:running` (home also `jobs:done`, `jobs:snapshots`,
-`teams:invitation`, `admin:announcement`) moves. `consoles:rooms` moves at
-every command typed in the lab, so it is compared on what the screen shows
-(`roomsSignature`: line, state, pilot, people, task) and ignored otherwise;
-`checks:running` moves at every device a check reaches, so only a check that
-starts or ends counts (`checksSignature`). Sections stay mounted when
-hidden: a hidden one reads nothing and catches up when shown. The cards
-(`benchCard.js`) are text only and lead to the bench (`#/consoles/<bench>`)
-and to its backups (`#/jobs/<bench>`); taking, joining and releasing stay in
-the bench bar. The announcement banner is hidden on the home page, which shows
-the announcement in a card. `teams/data.js` exports `historyText(entry)`, the
-sentence of a bench history entry, shared with the bench bar.
+In the browser (`public/js/modules/overview/`) **Accueil** (`#/home`, `home.js`,
+the address a signed-in user lands on, and the one no section answers) holds
+four blocks (docs/v2/UX.md §10.1): what needs the person now (`data-panel=
+"attention"`: a join request on their bench, answered with Accepter / Refuser
+through `POST /api/benches/<bench>/requests/<id>/accept|refuse`; a team
+invitation, Rejoindre through `POST /api/teams/<id>/accept`; the bench about to
+be released, "On est toujours là" through `POST /api/benches/<bench>/touch`;
+a running job; a locked bench; for administrators the accounts waiting for
+validation and a health problem; the ids come from `GET /api/benches/<bench>`
+and `GET /api/teams`, the counts from `GET /api/accounts/users` and
+`GET /api/admin/health`), **Ma baie** (the hero card, or what to do without a
+team or a bench: a team with no bench is offered three free ones to take),
+**Le labo** (`index.js`, the former overview: filter chips `all`, `free`, `taken`,
+`locked`, `mine` kept in `prefs` and in the address `#/home/lab/<filter>`; cards
+on a PC, a dense `dataList` on a phone) and the cards of the bottom row (next
+slots, last two backups with their ZIP, the five last lines of the bench's
+activity). An administrator's page puts Le labo first, then shortcuts to the
+administration. `#/overview[/<filter>]` is redirected to `#/home/lab[/<filter>]`
+(`core/routes.js`). `live.js` keeps the page live with the topics the services
+already publish, each under its own audience: it reads the API again, once for a
+burst (250 ms), when `benches:state`, `benches:reservations`, `consoles:rooms`,
+`consoles:busy`, `jobs:running`, `teams:changed`, `checks:running` (home also
+`jobs:done`, `jobs:snapshots`, `teams:invitation`, `admin:announcement`)
+moves. `consoles:rooms` moves at every command typed in the lab, so it is
+compared on what the screen shows (`roomsSignature`: line, state, pilot,
+people, task) and ignored otherwise; `checks:running` moves at every device a
+check reaches, so only a check that starts or ends counts (`checksSignature`).
+Sections stay mounted when hidden: a hidden one reads nothing and catches up
+when shown. A bench card (`benchCard.js`) is text only: its name and state, the
+team that holds it, the consoles open, a running job, the lines busy / silent /
+found free, the next slot, and a button that leads to the bench
+(`#/consoles/<bench>`). The announcement is the shell's banner (once, under the
+page header). `teams/data.js` exports `historyText(entry)`, the sentence of a
+bench history entry, shared with the bench bar.
 
 ## 9e. Password recovery (lot: recovery)
 
@@ -1797,27 +1822,33 @@ where a sign-in lands (`section.view-home .ov-home`), pick a bench
 (`.diagram-canvas`), ask for the keyboard (`.pane-presence`, only present once
 a shared console is open; the card is then shown without a pointer), back up
 (the Sauvegardes entry, `[data-nav="jobs"]`, of the rail or of the phone's
-tab bar). A step whose target does not show within 2.5 s
+tab bar; on a phone also Plus, `[data-nav="plus"]`). A step whose target does not show within 2.5 s
 is shown without a pointer. A step's `route` is followed when the address is
 another section's; no address is the home page, as in `main.js`. The user menu's "Replay the guided tour" button and
 the help page's both call `startTour()`; a replay writes nothing but the
 record above. Texts: `help.tour.steps.<id>.title` and `.body`.
 
-**Help page** (`#/help[/<section>]`, `modules/help/index.js`, a rail section
-for everyone, server module `help`). The text is the `help` dictionary
+**Help page** (`#/help[/<section>]`, `modules/help/index.js`, reached from
+Plus, for everyone, server module `help`). The text is the `help` dictionary
 (`help.s.<section>.<key>`); the page file lists which keys make which section
-(`SECTIONS`: the sections of the application, home and overview, the team and
+(`SECTIONS`: the sections of the application, home and the lab, the team and
 the bench, sharing a console, backups, injection and reset, the bench checks,
-the password recovery, the journal, troubleshooting, keyboard shortcuts;
-the checks, recovery and home sections were written at the wave 4
-integration), and `test/help.test.js` checks that every listed key exists in
-both languages and that no sentence is left out of the page. The figures the
-server decides are read when the page opens and written into the sentence:
-the console journal's retention (`/api/admin/journaling`), the bench's idle
-release (`idleHours` of `/api/benches`), the session's idle and maximum length;
-while unknown, or if the request fails, the sentence without a number is shown
-(`consolesUnknown`, `idleUnknown`). When a feature changes, its sentence in
-the dictionary changes in the same commit.
+the password recovery, the journal, troubleshooting, **on a phone**, keyboard
+shortcuts), and `test/help.test.js` checks that every listed key exists in both
+languages and that no sentence is left out of the page. From 720 px a table of
+contents at the left (220 px) and every section open; on a phone a "Sommaire"
+button (a sheet) and sections folded, their title being the button; the
+shortcuts table is left out on a coarse pointer, where "Sur téléphone" (the
+tab bar, Plus, the console screen, the key toolbar, line mode, Ctrl Maj 6,
+landscape) takes its place. The figures the server decides are read when the
+page opens and written into the sentence: the console journal's retention
+(`/api/admin/journaling`), the bench's idle release (`idleHours` of
+`/api/benches`), the session's idle and maximum length; while unknown, or if
+the request fails, the sentence without a number is shown (`consolesUnknown`,
+`idleUnknown`). When a feature changes, its sentence in the dictionary changes
+in the same commit. The guided tour's steps carry a `phone` target and
+`desktopOnly` / `phoneOnly` marks: five steps on a phone (the home page, Consoles
+in the tab bar, the console, Sauvegardes, Plus), six on a PC.
 
 ## 10. Data directory
 
@@ -2136,6 +2167,13 @@ version (pre-production included) already wrote.
    ], { navigate, base: '#/admin', label: t('admin.title') });
    return { show: (params) => tabs.show(params), hide: () => tabs.hide() };
    ```
+
+3. A screen of the administration is also one entry in `modules/admin/nav.js`
+   (its group and its label, `admin.tabs.<id>`), and says what the page
+   header shows with `ctx.setHeader(ctx.tab, { context, primary, actions })`
+   (a function for the context line, so that it follows the language). Its
+   lists are `dataList()`s; `tagRows()` (`admin/common.js`) gives the rows the
+   data attributes the scenarios look at.
 
 ### Add a locale namespace
 

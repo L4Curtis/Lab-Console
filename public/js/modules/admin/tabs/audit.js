@@ -3,7 +3,8 @@
  * filters (action, person, bench, dates). Entries are shown as text; the
  * details of an entry unfold on demand
  */
-import { h } from '../../../core/dom.js';
+import { h, icon } from '../../../core/dom.js';
+import { isCompact } from '../../../core/viewport.js';
 import { getJson } from '../../../core/api.js';
 import { t, onLocaleChange } from '../../../core/i18n.js';
 import { dataList } from '../../../shared/dataList.js';
@@ -16,11 +17,13 @@ export function mount(el, ctx) {
   const limit = h('select.field', { id: 'audit-limit' }, [100, 200, 500, 1000].map((n) => h('option', { value: n, selected: n === 200 }, String(n))));
   const apply = h('button.btn.primary', { type: 'submit', dataset: { action: 'filter' } });
   const clear = h('button.btn', { type: 'button', dataset: { action: 'clear' } });
-  const form = h('form.card.audit-filters', { novalidate: true },
+  const form = h('form', { novalidate: true },
     h('div.form-grid.audit-grid',
       FILTERS.map(([name]) => h('div.fld', h('label', { for: `audit-${name}`, dataset: { label: name } }), inputs[name])),
       h('div.fld', h('label', { for: 'audit-limit', dataset: { label: 'limit' } }), limit)),
     h('div.form-actions', clear, apply));
+  // On a phone the six filters are folded behind their title; from 720 px they are open and the title is hidden
+  const filters = h('details.card.audit-filters', { open: !isCompact() }, h('summary', h('span', { dataset: { text: 'filtersTitle' } }), icon('filter')), form);
   const notice = h('p.form-error', { role: 'alert' });
 
   const list = dataList({
@@ -45,7 +48,7 @@ export function mount(el, ctx) {
     empty: { icon: 'history', title: 'admin.audit.none' },
   });
   list.el.querySelector('table').classList.add('audit-table');
-  el.append(h('div.admin-page', h('p.muted.panel-intro', { dataset: { text: 'intro' } }), form, notice, list.el));
+  el.append(h('div.admin-page', h('p.muted.panel-intro', { dataset: { text: 'intro' } }), filters, notice, list.el));
 
   let entries = [];
 
