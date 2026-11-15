@@ -301,7 +301,8 @@ auth.sessions.open(req, res, user)   // sign this browser in as someone the serv
                                //   a local account's browser becomes known for its name (lc_device)
 auth.accounts.add(provider)    // another source of local accounts → remove()
 auth.steps.peek(req) / .complete(req, res, { method, user }) / .fail(req, res) / .start(req, res, user, requires, { binding })
-                               // a sign-in whose password was right and that still owes a passkey;
+                               // a sign-in whose password was right and that still owes a passkey (every
+                               //   local account; start(): a sign-up or a reset link, which owe one too);
                                //   peek() hands back the provider's `binding` (see Ways in)
 auth.extend(router, { describe })    // public routes mounted above the gate; describe(req) adds fields to /auth/me
 auth.reauthenticate(user, { password, code })   // → boolean: the environment's administrator proves itself
@@ -353,26 +354,41 @@ at every sign-in.
   RFC 6238 TOTP ±1 step, a step that was accepted is dead, even across a
   restart), the second the directory of the accounts module (accounts created
   through invitations; the code is ignored). A provider is `{ id, verify({
-  username, password, code }) → { user, requires? } | null }` and does the
-  same work whether or not the name exists. One generic refusal (401
-  `auth.invalid_credentials`) for every cause. A provider that answers
-  `requires: ['passkey' | 'passkey-enrol']` (a local account promoted to
-  administrator) gets no session: the answer is `{ step }`, a 5-minute,
-  single-use step is kept on the server (cookie `lc_step`, `__Host-` over
-  https), and the accounts module finishes it with `auth.steps.complete()`
-  once the passkey is given or registered. The provider may add an opaque
+  username, password, code }) → { user, requires?, binding?, refused? } |
+  null }` and does the same work whether or not the name exists. One generic
+  refusal (401 `auth.invalid_credentials`) for every cause. A provider that
+  answers `requires: ['passkey' | 'passkey-enrol']` gets no session: the
+  answer is `{ step }`, a 5-minute, single-use step is kept on the server
+  (cookie `lc_step`, `__Host-` over https; up to 100 per client address, a
+  classroom behind one address), and the accounts module finishes it with
+  `auth.steps.complete()` once the passkey is given or registered. The
+  directory answers so for **every** local account (owner decision, 15 Nov):
+  `passkey` when it has one, `passkey-enrol` when it has none yet; its
+  password alone never opens a session. The provider may add an opaque
   `binding` to its answer, kept with the step: the directory binds a step to
   a fingerprint of the password hash and to the passkeys the account had, so
   a password reset or change, or passkeys cleared, end the steps in progress
-  as they end the sessions.
+  as they end the sessions. A provider that recognised the credentials but
+  will not let the account in on this site answers `refused: { status, code,
+  message }`, sent as is instead of the generic refusal (only someone who
+  typed the right password reads it): the directory does when passkeys are
+  unavailable (409 `accounts.passkeys_unavailable`).
 - Passkeys (accounts module, `@simplewebauthn/server`): one-click sign-in with
   a discoverable credential and user verification (`/auth/passkey/options`,
-  `/auth/passkey/verify`), and the step above. Relying party = the host of
-  `PUBLIC_URL`, origin = `PUBLIC_URL`; offered only over https on a domain
-  name, or on `http://localhost` (tests). Challenges stay on the server, 5
+  `/auth/passkey/verify`), and the step above. A sign-up through an
+  invitation and a password reset link end in the same step
+  (`auth.steps.start()`, `passkey-enrol`): no session before a passkey is
+  registered; a reset link removes the account's passkeys when it is used. A
+  pending account (link for several people) registers its passkey in that
+  step and ends it without a session (`{ pending }`). Relying party = the
+  host of `PUBLIC_URL`, origin = `PUBLIC_URL`; offered only over https on a
+  domain name, or on `http://localhost` (tests). Without them, local accounts
+  are refused outright (sign-in, sign-up, invitations, reset links:
+  `accounts.passkeys_unavailable`). Challenges stay on the server, 5
   minutes, single use, bound to the browser (cookie `lc_passkey`) and to what
   they were issued for. Local accounts only: SSO accounts rely on their
-  provider, the environment's administrator keeps password + TOTP.
+  provider, the environment's administrator keeps password + TOTP. The rules
+  and their reasons: [AUTH.md](AUTH.md) §2b.
 - Attempts on the local form are limited (`throttle.js`) per client address
   (5 per 15 min), per user name (exponential backoff after 2 failures, one
   attempt in flight), and globally (past 50 failures per 15 min, a name that

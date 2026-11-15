@@ -2,6 +2,36 @@
 
 **English** · [Français](CHANGELOG.fr.md)
 
+## Unreleased
+
+### Changed
+
+- **Every local account signs in with a passkey**, students included (only
+  administrators made from a local account needed one). The passkey is
+  registered as part of the sign-up through an invitation, before any
+  session; a local account that has none yet (every student account made
+  before this version) types its password at its next sign-in, then
+  registers one before reaching the application. Once it has one, its
+  password alone no longer opens a session: one click on **Sign in with a
+  passkey**, or the password then the passkey. The last passkey of an
+  account cannot be removed from My account. SSO accounts and the server's
+  administrator (password + code) are unchanged. No migration: accounts are
+  asked at their next sign-in, and their open sessions run to their end.
+- **A password reset link also replaces the passkeys.** Using it sets the
+  new password, removes the account's passkeys and ends its sessions; the
+  person then registers a new passkey before the first session (a lost
+  phone is the usual reason to ask for a link).
+- **Local accounts need https.** Where `PUBLIC_URL` is not https on a
+  domain name (or `http://localhost`), local accounts can neither be
+  created nor sign in, and the pages and the API say so
+  (`accounts.passkeys_unavailable`) instead of falling back to passwords;
+  invitations and reset links are refused there. The server's
+  administrator still signs in. See [AUTH.md](docs/v2/AUTH.md) §2b and
+  [DEPLOY.md](docs/DEPLOY.md) ("Local accounts and passkeys").
+- Passkey requests are limited per address with room for a classroom behind
+  one public address (300 one-click and 240 step requests a minute), and up
+  to 100 sign-ins of one address may wait for their passkey at once.
+
 ## 2.1.0 - 2026-11-14
 
 - **Versioned addresses for the application's own files.** The pages load

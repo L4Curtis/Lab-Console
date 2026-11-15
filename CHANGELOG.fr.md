@@ -2,6 +2,40 @@
 
 [English](CHANGELOG.md) · **Français**
 
+## Non publié
+
+### Modifié
+
+- **Chaque compte local se connecte avec une clé d'accès**, étudiants compris
+  (seuls les administrateurs issus d'un compte local en avaient besoin). La
+  clé est enregistrée pendant l'inscription par invitation, avant toute
+  session ; un compte local qui n'en a pas encore (tout compte étudiant créé
+  avant cette version) tape son mot de passe à sa connexion suivante, puis en
+  enregistre une avant d'arriver dans l'application. Dès qu'il en a une, son
+  mot de passe seul n'ouvre plus de session : un clic sur **Se connecter avec
+  une clé d'accès**, ou le mot de passe puis la clé. La dernière clé d'un
+  compte ne peut pas être supprimée depuis Mon compte. Les comptes SSO et
+  l'administrateur du serveur (mot de passe + code) ne changent pas. Pas de
+  migration : les comptes sont sollicités à leur connexion suivante, et leurs
+  sessions ouvertes vont jusqu'à leur terme.
+- **Un lien de réinitialisation remplace aussi les clés d'accès.** L'utiliser
+  fixe le nouveau mot de passe, supprime les clés du compte et met fin à ses
+  sessions ; la personne enregistre ensuite une nouvelle clé avant la
+  première session (un téléphone perdu est la raison habituelle de demander
+  un lien).
+- **Les comptes locaux demandent https.** Quand `PUBLIC_URL` n'est pas en
+  https sur un nom de domaine (ou `http://localhost`), les comptes locaux ne
+  peuvent être ni créés ni connectés, et les pages comme l'API le disent
+  (`accounts.passkeys_unavailable`) au lieu de se rabattre sur les mots de
+  passe ; invitations et liens de réinitialisation y sont refusés.
+  L'administrateur du serveur se connecte toujours. Voir
+  [AUTH.md](docs/fr/AUTH.md) §2b et [DEPLOY.md](docs/fr/DEPLOY.md)
+  (« Comptes locaux et clés d'accès »).
+- Les requêtes de clé d'accès sont limitées par adresse avec de la place
+  pour une classe derrière une seule adresse publique (300 requêtes de
+  connexion en un clic et 240 d'étape par minute), et jusqu'à 100 connexions
+  d'une même adresse peuvent attendre leur clé en même temps.
+
 ## 2.1.0 - 14 novembre 2026
 
 - **Adresses versionnées pour les fichiers de l'application.** Les pages

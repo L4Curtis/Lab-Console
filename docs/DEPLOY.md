@@ -12,7 +12,7 @@ The checklist below is what makes that safe.
 
 ## 0. Checklist
 
-- [ ] `PUBLIC_URL` is the https address users type.
+- [ ] `PUBLIC_URL` is the https address users type (local accounts sign in with a passkey, which needs it).
 - [ ] `TRUSTED_PROXIES` lists every hop between the Internet and the container.
 - [ ] `APP_SECRET` is set (32 characters or more).
 - [ ] The local administrator exists (`LOCAL_ADMIN_*`) and you signed in once.
@@ -48,7 +48,7 @@ The settings that matter for a public installation (every setting:
 
 | Setting | What to put |
 |---|---|
-| `PUBLIC_URL` | `https://lab.example.org`: scheme and host, no path. It makes the session cookie `__Host-` prefixed and `Secure`, sets the callback URL given to the identity provider, the origin the WebSockets accept, the relying party of the passkeys, and turns on HSTS (`Strict-Transport-Security: max-age=31536000; includeSubDomains`) on every response. Use https: with http none of this applies. |
+| `PUBLIC_URL` | `https://lab.example.org`: scheme and host, no path. It makes the session cookie `__Host-` prefixed and `Secure`, sets the callback URL given to the identity provider, the origin the WebSockets accept, the relying party of the passkeys, and turns on HSTS (`Strict-Transport-Security: max-age=31536000; includeSubDomains`) on every response. Use https: with http none of this applies, and local accounts can neither be created nor sign in (they sign in with a passkey; only the local administrator and the SSO remain). |
 | `TRUSTED_PROXIES` | Every reverse proxy, CDN and load balancer in front of the container, as addresses or CIDR blocks. See below. |
 | `ALLOWED_ORIGINS` | Only when the site is also reached under another name; empty otherwise. |
 | `APP_SECRET` | At least 32 characters: `openssl rand -base64 48`. It encrypts the secrets saved from the administration pages (the SSO client secret, the jump server and console passwords). Without it they are stored in clear in the database. Keep it with the backup of `.env`: changing or losing it makes those secrets unreadable and they must be typed again. |
@@ -193,11 +193,34 @@ answers 200 with `private, max-age=31536000, immutable`; behind Cloudflare,
 4. **Diagram**: replace the shipped diagram by yours (preview, versions, rollback).
 5. Create the first teachers' accounts by **Invitations** (links valid 1 h,
    24 h or 7 days, for one person or up to 100 with approval), or configure
-   the SSO next.
+   the SSO next. Every local account registers a passkey as part of its
+   sign-up and signs in with it (see below).
 6. Keep the local administrator as the emergency account. Sign in once from
    the browser you would use in an emergency (it becomes a known browser
-   with its own attempt budget, see AUTH.md). Add a passkey to your own
-   administrator account if you make one.
+   with its own attempt budget, see AUTH.md). A local administrator account
+   made for daily work signs in with its passkey, like every local account:
+   add a second device on **My account**.
+
+### Local accounts and passkeys
+
+Every local account signs in with a passkey, students included (AUTH.md
+§2b): registered as part of the sign-up, its password alone never opens a
+session. What it means for the person running the site:
+
+- `PUBLIC_URL` must be https on a domain name. Otherwise local accounts can
+  neither be created nor sign in: the pages say so, the server logs a warning
+  at start-up, invitations and reset links are refused. Only the local
+  administrator (password + code) and the SSO remain.
+- A passkey belongs to the name it was registered on: changing the public
+  name of the site means every local account needs a reset link.
+- Someone who lost their phone, or forgot their password: **Users > Reset
+  link**. Using the link sets a new password, removes the account's passkeys
+  and has a new one registered before the first session.
+- Upgrading from a version where only administrators had passkeys: nothing
+  to do. Local accounts without a passkey register one at their next
+  sign-in, after their password; the Users tab marks them "passkey to
+  register" until then. Their open sessions run to their end (24 hours at
+  most).
 
 ## 6. Configuring the SSO from the administration page
 

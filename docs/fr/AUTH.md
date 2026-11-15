@@ -9,14 +9,15 @@ Trois façons d'entrer, un seul type de session :
 | Qui | Comment | Configuré avec |
 |---|---|---|
 | Étudiants et enseignants | le fournisseur d'identité de l'école (OpenID Connect) | `OIDC_*`, ou l'onglet **Connexion (SSO)** de la section Administration |
-| Comptes locaux | nom d'utilisateur + mot de passe, créés par un lien d'invitation ; une clé d'accès pour les administrateurs parmi eux | les onglets **Utilisateurs** et **Invitations** |
+| Comptes locaux | créés par un lien d'invitation ; une **clé d'accès** enregistrée à l'inscription (un clic), ou le mot de passe puis la clé, jamais le mot de passe seul ; https nécessaire | les onglets **Utilisateurs** et **Invitations** |
 | L'administrateur local | nom d'utilisateur + mot de passe + code à 6 chiffres | `LOCAL_ADMIN_*` |
 
 L'administrateur local est obligatoire : c'est le compte de secours, celui qui
 fonctionne encore quand le fournisseur d'identité est en panne ou pas encore
 configuré. La plateforme refuse de démarrer sans lui. OpenID Connect et les
 comptes locaux sont facultatifs ; sans eux, seul l'administrateur local peut
-se connecter.
+se connecter. Les comptes locaux se connectent avec une clé d'accès : il leur
+faut un `PUBLIC_URL` en https (§2b).
 
 Rôles : un compte SSO est **admin** quand l'un de ses groupes figure parmi les
 groupes d'administration (`OIDC_ADMIN_GROUPS` ou l'onglet SSO), sinon
@@ -331,12 +332,24 @@ une adresse interne.
 
 ## 2b. Comptes locaux et clés d'accès
 
+**Chaque compte local se connecte avec une clé d'accès** (décision du
+propriétaire, 15 nov.), étudiants compris : son mot de passe seul n'ouvre
+jamais de session. Les comptes SSO s'en remettent à leur fournisseur
+d'identité (Pocket ID repose lui-même sur les clés d'accès), et
+l'administrateur local garde mot de passe + code : c'est le compte de secours.
+
 - **Invitations** (onglet Invitations) : un lien valable 1 h, 24 h ou 7 jours,
   pour une personne ou jusqu'à 100, donnant le rôle étudiant (par défaut) ou
   admin. Le lien n'est montré qu'une fois ; seul un hachage de son jeton est
-  conservé. Un lien à usage unique donne aussitôt un compte actif ; un lien
-  pour plusieurs personnes donne des comptes qui attendent l'approbation d'un
-  administrateur (onglet Utilisateurs). Les liens peuvent être retirés.
+  conservé. Les liens peuvent être retirés. L'inscription demande un nom
+  d'utilisateur, un nom d'affichage et un mot de passe, puis **enregistre une
+  clé d'accès avant que le compte puisse servir** : pas de session avant.
+  Un lien à usage unique donne un compte actif, connecté une fois sa clé
+  enregistrée ; un lien pour plusieurs personnes donne des comptes qui
+  enregistrent aussi leur clé, puis attendent sans session l'approbation d'un
+  administrateur (onglet Utilisateurs). Une inscription abandonnée avant sa
+  clé (onglet fermé, appareil qui refuse) laisse un compte qui en enregistre
+  une à sa connexion suivante, après son mot de passe.
 - **Noms d'utilisateur** : 3 à 32 lettres et chiffres avec des `.`, `-` ou `_`
   isolés entre eux, uniques sans tenir compte de la casse (le nom de
   l'administrateur local et chaque compte de l'annuaire compris, comptes SSO
@@ -349,24 +362,58 @@ une adresse interne.
   limités à 10 par lien par 15 minutes. **Mots de passe** : 10 caractères au
   moins, pas un mot de passe courant, ne contenant pas le nom d'utilisateur ;
   stockés sous forme de hachages scrypt.
-- **Mot de passe oublié** : il n'y a pas d'e-mail. Un administrateur fabrique un
-  lien de réinitialisation (onglet Utilisateurs, 1 h ou 24 h, à usage unique) ;
-  l'utiliser met fin aux sessions du compte, et à toute connexion commencée
-  avec l'ancien mot de passe qui attendait encore sa clé d'accès. Changer le mot
-  de passe dans Mon compte, ou effacer les clés d'accès d'un compte, y met fin
-  aussi.
-- **Les clés d'accès** (passkeys) sont proposées quand `PUBLIC_URL` est en
-  https sur un nom de domaine (ou `http://localhost`, pour les tests) : la
-  partie utilisatrice (relying party) est l'hôte de `PUBLIC_URL`. Un compte local
-  promu admin enregistre une clé d'accès à sa connexion suivante et se connecte
-  dès lors avec mot de passe + clé d'accès, ou avec la clé d'accès seule (le
-  bouton de clé d'accès de la page de connexion) ; son mot de passe seul
-  n'ouvre plus de session. Les étudiants peuvent ajouter des clés d'accès dans
-  **Mon compte** et garder leur mot de passe. Les comptes SSO s'en remettent à
-  leur fournisseur, et l'administrateur local garde mot de passe + code. Un
-  appareil perdu : un administrateur retire les clés d'accès du compte dans
-  l'onglet Utilisateurs, et une nouvelle est enregistrée à la connexion
-  suivante.
+- **Se connecter.** Dès qu'un compte a une clé d'accès, **Se connecter avec une
+  clé d'accès** sur la page de connexion le connecte en un clic (de même que la
+  clé que le navigateur propose parmi les suggestions du nom d'utilisateur à
+  l'ouverture du formulaire local, quand il sait le faire). Le formulaire
+  local accepte toujours le mot de passe, puis demande la clé. Un compte qui
+  n'a pas encore de clé (tout compte local créé avant cette règle, une
+  inscription abandonnée, des clés effacées par un administrateur) tape son
+  mot de passe et enregistre une clé avant d'arriver dans l'application ;
+  l'onglet Utilisateurs le signale par « clé d'accès à enregistrer ». Rien
+  n'est migré : ces comptes sont sollicités à leur connexion suivante, et les
+  sessions qu'ils ont déjà vont jusqu'à leur terme (24 heures au plus).
+- **Mon compte** : ajouter une clé par appareil (10 au plus), renommer,
+  supprimer. **La dernière ne peut pas être supprimée** : c'est elle qui
+  connecte le compte. Changement de téléphone : ajoutez d'abord la clé du
+  nouveau, puis supprimez l'ancienne.
+- **Mot de passe oublié, appareil perdu** : il n'y a pas d'e-mail. Un
+  administrateur fabrique un **lien de réinitialisation** (onglet
+  Utilisateurs, 1 h ou 24 h, à usage unique). Il fixe un nouveau mot de passe
+  **et remplace les clés d'accès** : à l'utilisation du lien, les clés du
+  compte sont supprimées (un téléphone perdu ou volé peut encore en contenir
+  une : les garder lui laisserait une porte d'entrée) et ses sessions prennent
+  fin, puis la personne enregistre aussitôt une nouvelle clé, avant la
+  première session. Abandonné en route, le compte en enregistre une à sa
+  connexion suivante avec son nouveau mot de passe. Un compte désactivé ne
+  reçoit que son nouveau mot de passe, et enregistre une clé une fois
+  réactivé. Un lien fabriqué avant une mise à jour fait de même. L'utiliser
+  met aussi fin à toute connexion commencée avec l'ancien mot de passe qui
+  attendait encore sa clé, et un enregistrement de clé commencé avant la
+  réinitialisation n'aboutit jamais après elle. Changer le mot de passe dans
+  Mon compte y met fin aussi, de même que **Effacer les clés** dans l'onglet
+  Utilisateurs (la personne en enregistre alors une nouvelle à sa connexion
+  suivante, après son mot de passe : pour un appareil perdu quand le mot de
+  passe ne l'est pas, préférez le lien de réinitialisation).
+- **Les clés d'accès demandent https.** Elles sont proposées quand
+  `PUBLIC_URL` est en https sur un nom de domaine (ou `http://localhost`, pour
+  les tests et le poste d'un développeur) : la partie utilisatrice (relying
+  party) est l'hôte de `PUBLIC_URL`, et une clé ne fonctionne que sur le nom
+  pour lequel elle a été enregistrée. Partout ailleurs (http simple, adresse
+  IP nue), **les comptes locaux ne peuvent être ni créés ni connectés**, et
+  Lab Console le dit au lieu de se rabattre sur les mots de passe : la page de
+  connexion indique que seul l'administrateur du serveur peut se connecter ;
+  un compte local qui tape le bon mot de passe reçoit « Les comptes locaux se
+  connectent avec une clé d'accès, ce qui demande que Lab Console soit servi
+  en https » (409 `accounts.passkeys_unavailable` ; un mauvais mot de passe
+  reçoit toujours le refus générique) ; les invitations, les pages
+  d'inscription et d'invitation, les liens de réinitialisation et la promotion
+  d'un compte local en administrateur sont refusés avec le même code, avant
+  qu'aucun lien ne soit utilisé ; le serveur l'écrit dans son journal au
+  démarrage. Comptes et clés sont conservés, et refonctionnent dès que
+  `PUBLIC_URL` repasse en https sous le même nom.
+- Un compte local nommé administrateur dans l'onglet Utilisateurs (un
+  changement confirmé) se connecte comme avant, avec sa clé d'accès.
 - Le dernier administrateur de l'annuaire ne peut être ni rétrogradé ni
   désactivé.
 
@@ -431,6 +478,12 @@ lui passe `--expose`, et n'est pas dans l'image Docker.
 `--misbehave wrongNonce,groupsInUserinfoOnly,groupsAsString` le fait mal se
 comporter exprès.
 
+Pour essayer aussi les comptes locaux, servez l'application sous
+`http://localhost:<port>` (`PUBLIC_URL=http://localhost:3000`) et ouvrez-la
+sous ce nom : les clés d'accès, avec lesquelles chaque compte local se
+connecte, demandent un nom de domaine, et `localhost` est le seul nom en http
+simple que les navigateurs acceptent (§2b).
+
 ## 6. Une pile de préproduction
 
 `docker-compose.preprod.yml` ajoute le faux fournisseur à la pile Docker et y
@@ -469,3 +522,8 @@ L'image de production est inchangée et n'a toujours pas de `dev/` : le faux
 fournisseur tourne dans un simple conteneur `node:22-alpine` depuis
 `dev/mock-oidc.js` monté en lecture seule, avec `NODE_ENV=development` (il
 refuse `production`).
+
+Les comptes locaux (invitations) ne fonctionnent sur une telle pile que si
+son `PUBLIC_URL` est en https sur un nom de domaine (§2b) : jointe en http
+simple sur une adresse, elle n'a que les utilisateurs du faux fournisseur et
+l'administrateur local.

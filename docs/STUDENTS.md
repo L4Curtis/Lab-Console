@@ -10,9 +10,13 @@ a short guided tour starts at your first sign-in (replay it from the user menu).
 
 Use the sign-in button of your school's identity provider. If your teacher
 gave you an invitation link, open it, choose a user name and a password, then
-sign in with **Local account**. A passkey can be added on **My account** to sign
-in with one click. There is no e-mail: if you forget a password, ask an
-administrator for a reset link.
+register a passkey (fingerprint, device PIN or security key): a local account
+signs in with it, in one click with **Sign in with a passkey** on the sign-in
+page. On a device without your passkey, type your user name and password under
+**Local account**, then confirm with the passkey; add a passkey for each device
+you use on **My account**. There is no e-mail: if you forget your password or
+lose your device, ask an administrator for a reset link: it sets a new password
+and has you register a new passkey.
 
 ## Consoles
 
