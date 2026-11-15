@@ -9,7 +9,7 @@
  * kept, can be previewed, downloaded, activated again; "Roll back" returns
  * to the diagram that was active before, in one click.
  */
-import { h, toast } from '../../../core/dom.js';
+import { h, icon, toast } from '../../../core/dom.js';
 import { request, getJson, live } from '../../../core/api.js';
 import { t, onLocaleChange } from '../../../core/i18n.js';
 import { tagRows, stateBadge } from '../common.js';
@@ -26,7 +26,10 @@ const uploadFile = (file) => request('POST', `/api/admin/diagrams?name=${encodeU
 
 export function mount(el, ctx) {
   const input = h('input', { type: 'file', accept: '.drawio,.xml,application/xml', id: 'diagram-file', hidden: true });
-  const notice = h('p.form-error', { role: 'alert' });
+  // A refusal is a notice with an icon, by the page's own button, not a line of red text above it
+  const noticeText = h('span');
+  const notice = h('div.notice.error', { role: 'alert', hidden: true }, icon('warning'), noticeText);
+  const setNotice = (message) => { noticeText.textContent = message ?? ''; notice.hidden = !message; };
   const intro = h('p.muted.panel-intro');
   const preview = h('section.card.diagram-preview', { hidden: true, 'aria-live': 'polite' });
   const list = dataList({
@@ -61,9 +64,9 @@ export function mount(el, ctx) {
   async function load() {
     try {
       state = await getJson('/api/admin/diagrams');
-      notice.textContent = '';
+      setNotice('');
     } catch (err) {
-      notice.textContent = err.message;
+      setNotice(err.message);
     }
     render();
   }
@@ -157,6 +160,7 @@ export function mount(el, ctx) {
     const file = input.files?.[0];
     input.value = '';
     if (!file) return;
+    setNotice('');
     if (file.size > MAX_BYTES) {
       toast(t('admin.errors.diagram_too_large'), 'error', 7000);
       return;
@@ -167,7 +171,7 @@ export function mount(el, ctx) {
       await load();
       await showPreview(result.version.id);
     } catch (err) {
-      notice.textContent = err.message;
+      setNotice(err.message);
     }
   });
 

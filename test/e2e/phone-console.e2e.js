@@ -290,3 +290,22 @@ test('a column of 400 px or more beside an open console never fits the diagram u
   assert.deepEqual(page.errors, []);
   await page.context().close();
 });
+
+test('Outils › Mur de consoles says why it is off while no console is open, and nothing once one is', async () => {
+  const page = await h.newPage();
+  await h.session(page, 'student2');
+  await page.goto(`${h.url}/#/consoles/B5M`);
+  await waitForBench(page, 'B5M');
+  const wall = () => page.locator('.menu-pop [role^="menuitem"][data-id="wall"]');
+  await page.locator('section.view-consoles .tools-btn').click();
+  assert.equal(await wall().getAttribute('aria-disabled'), 'true');
+  assert.match(await wall().textContent(), /Aucune console de cette baie n’est ouverte/);
+  await page.keyboard.press('Escape');
+  await openConsole(page, 'B5M', 'S1');
+  await page.locator('section.view-consoles .tools-btn').click();
+  await wall().waitFor();
+  assert.equal(await wall().getAttribute('aria-disabled'), null);
+  assert.doesNotMatch(await wall().textContent(), /Aucune console/, 'enabled: no sentence that says it is off');
+  assert.deepEqual(page.errors, []);
+  await page.context().close();
+});

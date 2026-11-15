@@ -6,9 +6,18 @@
 import { h, icon } from '../../../core/dom.js';
 import { isCompact } from '../../../core/viewport.js';
 import { getJson } from '../../../core/api.js';
-import { t, onLocaleChange } from '../../../core/i18n.js';
+import { t, has, onLocaleChange } from '../../../core/i18n.js';
 import { dataList } from '../../../shared/dataList.js';
-import { fmtLong } from '../../../core/format.js';
+import { fmtLong, fmtShort } from '../../../core/format.js';
+
+/** The code of an action in words: a sentence of the dictionary, the kind of a job or a check named in it, else the code itself */
+export function actionLabel(code) {
+  const known = `admin.audit.actions.${code.replace(/\./g, '_')}`;
+  if (has(known)) return t(known);
+  const kind = /^(job|check)\.([a-z_]+?)(?:\.(cancel|end))?$/.exec(code);
+  if (kind) return t(`admin.audit.dynamic.${kind[1]}${kind[3] === 'cancel' ? 'Cancel' : kind[3] === 'end' ? 'End' : 'Start'}`, { kind: kind[2] });
+  return code;
+}
 
 const FILTERS = [['action', 'text'], ['actor', 'text'], ['bench', 'text'], ['since', 'datetime-local'], ['until', 'datetime-local']];
 
@@ -30,12 +39,13 @@ export function mount(el, ctx) {
     label: () => t('admin.audit.title'),
     dense: true,
     columns: [
-      { id: 'ts', label: () => t('admin.audit.columns.ts'), cell: (e) => fmtLong(e.ts), meta: true },
+      { id: 'ts', label: () => t('admin.audit.columns.ts'), cell: (e) => h('time.audit-time', { datetime: e.ts, title: fmtLong(e.ts) }, fmtShort(e.ts)), meta: true },
       {
         id: 'actor', label: () => t('admin.audit.columns.actor'), meta: true,
         cell: (e) => h('div.account-cell', h('strong', e.actor?.name || e.actor?.username || e.actor?.id), h('span.vm-meta', [e.actor?.id, e.ip].filter(Boolean).join(' · '))),
       },
-      { id: 'action', label: () => t('admin.audit.columns.action'), cell: (e) => h('span.mono', e.action), primary: true },
+      // The action in words, its code small and grey beneath (the exact date is the tooltip of the short one)
+      { id: 'action', label: () => t('admin.audit.columns.action'), cell: (e) => h('div.account-cell', h('strong', actionLabel(e.action)), h('span.vm-meta', e.action)), primary: true },
       { id: 'bench', label: () => t('admin.audit.columns.bench'), cell: (e) => (e.details ?? {}).bench ?? '', meta: true },
       {
         id: 'details', label: () => t('admin.audit.columns.details'), meta: true,
@@ -77,6 +87,7 @@ export function mount(el, ctx) {
     apply.textContent = t('admin.audit.apply');
     clear.textContent = t('admin.audit.clear');
     list.render(entries);
+    list.el.classList.toggle('no-bench', !entries.some((e) => (e.details ?? {}).bench)); // an empty column says nothing
     ctx.setHeader(ctx.tab, { context: () => t('admin.audit.count', { count: entries.length }) });
   }
 

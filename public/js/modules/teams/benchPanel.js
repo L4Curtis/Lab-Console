@@ -36,7 +36,6 @@ export function releaseSoon(detail, now = Date.now()) {
 export function primaryOf(detail, act) {
   const you = detail?.you;
   if (!you) return null;
-  if (you.canRelease) return { id: 'release', label: 'benches.actions.release', icon: 'power', run: () => act.release() };
   // A team holds one bench at a time: from another free one, the way to its own (on the page the person is on)
   if (you.teamBench && !detail.holder && !detail.lock) {
     const page = location.hash.startsWith('#/consoles') ? 'consoles' : 'team/bench';
@@ -48,6 +47,15 @@ export function primaryOf(detail, act) {
   if (you.guest) return { id: 'leave', label: 'benches.actions.leave', icon: 'logout', run: () => act.leave(), secondary: true };
   return null;
 }
+
+/**
+ * Giving the bench back is never the page's main action (it was a big blue button that the first tap
+ * of a thumb reached): a secondary danger button at the bottom of the bench's card, and a danger
+ * confirmation behind it
+ */
+export const releaseOf = (detail, act) => (detail?.you?.canRelease
+  ? { id: 'release', label: 'benches.actions.release', icon: 'power', run: () => act.release() }
+  : null);
 
 /** The whole history of the bench, in a dialog */
 export async function showHistory(act, bench) {
@@ -80,6 +88,7 @@ export function createBenchPanel({ model, act, inlinePrimary = false, inSheet = 
     const [tone, word] = stateBadge(d);
     const soon = releaseSoon(d);
     const primary = inlinePrimary ? primaryOf(d, act) : null;
+    const release = releaseOf(d, act);
     const heroTone = d.lock ? 'danger' : !d.holder ? 'success' : soon ? 'warning' : null;
     const lines = [];
     if (d.lock) {
@@ -105,7 +114,9 @@ export function createBenchPanel({ model, act, inlinePrimary = false, inSheet = 
       h('div.card-head', h('h2.bench-name', d.bench), h('span.badge', { dataset: { tone } }, h('span.dot'), word),
         d.lock && you.admin ? h('button.btn.sm', { type: 'button', dataset: { action: 'unlock' }, onclick: () => act.unlock() }, icon('lock'), t('benches.unlock.button')) : null),
       h('div.card-body', lines),
-      primary ? h('div.card-foot', h(`button.btn.${primary.secondary ? 'sm' : 'primary.lg'}`, { type: 'button', dataset: { action: primary.id }, onclick: primary.run }, icon(primary.icon), typeof primary.label === 'function' ? primary.label() : t(primary.label))) : null);
+      primary || release ? h('div.card-foot',
+        primary ? h(`button.btn.${primary.secondary ? 'sm' : 'primary.lg'}`, { type: 'button', dataset: { action: primary.id }, onclick: primary.run }, icon(primary.icon), typeof primary.label === 'function' ? primary.label() : t(primary.label)) : null,
+        release ? h('button.btn.sm.danger', { type: 'button', dataset: { action: release.id }, onclick: release.run }, icon(release.icon), t(release.label)) : null) : null);
   }
 
   function requestsCard(d) {

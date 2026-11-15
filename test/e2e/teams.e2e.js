@@ -231,13 +231,14 @@ test('the bench bar decorates the diagram: ours, taken, locked, nothing on a fre
   }
 });
 
-test('the Baie tab: the one action of the bench, who is on it, a request answered, a guest removed by an administrator', async () => {
+test('the Baie tab: releasing in the card, who is on it, who is on it, a request answered, a guest removed by an administrator', async () => {
   const alice = await h.newPage(); // her team holds B4M, Bilal is on it as a guest (first scenario)
   await signInAs(alice, 'alice');
   await alice.goto(`${h.url}/#/team/bench`);
   const view = alice.locator('section.view-team:not([hidden])');
   await view.locator('.bench-status-card .bench-name', { hasText: 'B4M' }).waitFor();
-  assert.equal(await view.locator('.page-header button[data-action="release"]:visible').count(), 1, 'one primary: release the bench');
+  assert.equal(await view.locator('.page-header button.primary:visible').count(), 0, 'releasing the bench is not the page\'s main action');
+  assert.equal(await view.locator('.bench-status-card button.danger[data-action="release"]:visible').count(), 1, 'it is a danger button in the bench\'s card');
   assert.match(await view.locator('.bench-status-card').textContent(), /Prise par l’équipe Les routeurs/);
   await view.locator('.bench-people li[data-guest="true"]', { hasText: 'Bilal Haddad' }).waitFor();
   assert.equal(await view.locator('.bench-people li[data-guest="false"]').count(), 1);

@@ -62,7 +62,10 @@ export class VmPanel {
       this.bulkBar, this.jobsEl, this.notice, this.list.el, this.empty, this.foot);
 
     if (!this.proxmox) {
-      const [title, hint] = proxmox ? ['infra.vm.adminOnly', 'infra.vm.adminOnlyHint'] : ['infra.vm.notConfigured', 'infra.vm.notConfiguredHint'];
+      // The names of the settings are an administrator's business: a student is only told it is not there
+      const [title, hint] = proxmox ? ['infra.vm.adminOnly', 'infra.vm.adminOnlyHint']
+        : admin ? ['infra.vm.notConfigured', 'infra.vm.notConfiguredHint']
+          : ['infra.vm.unavailable', null];
       this.el.replaceChildren(emptyState({ icon: 'rack', title, text: hint }));
       return;
     }
@@ -168,8 +171,8 @@ export class VmPanel {
     const running = vm.status === 'running';
     const label = (key) => () => t('infra.vm.rowLabel', { action: t(key), name: vm.name });
     return [
-      { id: 'serial', label: () => t('infra.vm.serial'), icon: 'terminal', primary: true, disabled: !running || !vm.hasSerial, hint: !vm.hasSerial ? 'infra.vm.noSerial' : 'infra.vm.startFirst', run: () => workspace.open(vmSerialSession(vm)) },
-      { id: 'vnc', label: () => t('infra.vm.vnc'), icon: 'screen', disabled: !running, hint: 'infra.vm.startFirst', run: () => workspace.open(vmScreenSession(vm)) },
+      { id: 'serial', label: () => t('infra.vm.serial'), icon: 'terminal', primary: true, disabled: !running || !vm.hasSerial, hint: !vm.hasSerial ? 'infra.vm.noSerial' : !running ? 'infra.vm.startFirst' : null, run: () => workspace.open(vmSerialSession(vm)) },
+      { id: 'vnc', label: () => t('infra.vm.vnc'), icon: 'screen', disabled: !running, hint: running ? null : 'infra.vm.startFirst', run: () => workspace.open(vmScreenSession(vm)) },
       ...(running
         ? [{ id: 'stop', label: label('infra.vm.stop'), icon: 'power', run: () => this.#power(vm, 'stop') },
           { id: 'force-stop', label: label('infra.vm.forceStop'), icon: 'close', danger: true, run: () => this.#power(vm, 'force-stop') }]

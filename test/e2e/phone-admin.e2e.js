@@ -305,11 +305,12 @@ test('on a laptop of 1280 px the users table needs no sideways scroll: Valider s
     await page.evaluate(() => document.fonts.ready); // the table is laid out with the real font
     const list = page.locator('section.view-admin .admin-page .data-list');
     const [scroll, client] = await list.evaluate((el) => [el.scrollWidth, el.clientWidth]);
-    assert.ok(scroll <= client, `${theme}: the table is ${scroll} px in a card of ${client}`);
+    const widths = await list.locator('th').evaluateAll((ths) => ths.map((th) => `${th.dataset.col}:${Math.round(th.getBoundingClientRect().width)}`).join(' '));
+    assert.ok(scroll <= client, `${theme}: the table is ${scroll} px in a card of ${client} (${widths})`);
     const card = await list.boundingBox();
     const approve = await row.locator('button[data-action="approve"]').boundingBox();
     assert.ok(approve.x + approve.width <= card.x + card.width, `${theme}: Valider ends at ${approve.x + approve.width}, the card at ${card.x + card.width}`);
-    assert.match(await row.locator('.account-signin').textContent(), /Dernière connexion : .*Clés d’accès : 0/, `${theme}: what the dropped columns held`);
+    assert.match(await row.locator('.account-signin').textContent(), /Dernière connexion\s: .*Clés d’accès\s: 0/, `${theme}: what the dropped columns held`);
     assert.deepEqual(page.errors, []);
   }
 });

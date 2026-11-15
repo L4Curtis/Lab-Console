@@ -70,8 +70,8 @@
       "passkeys": "Clés d’accès",
       "lastSignIn": "Dernière connexion"
     },
-    "signInMeta": "Dernière connexion : {when}",
-    "passkeysMeta": "Clés d’accès : {count}",
+    "signInMeta": "Dernière connexion : {when}",
+    "passkeysMeta": "Clés d’accès : {count}",
     "roleAuto": "Selon les groupes ({role})",
     "roleForced": "{role} (forcé)",
     "roleOf": "Rôle de {name}",
@@ -143,6 +143,7 @@
     "used": "{uses} sur {max}",
     "withApproval": "avec validation",
     "create": "Nouvelle invitation",
+    "createSubmit": "Créer le lien",
     "createTitle": "Nouvelle invitation",
     "createIntro": "Le lien n’est affiché qu’une fois, juste après sa création.",
     "note": "Note (pour qui ?)",

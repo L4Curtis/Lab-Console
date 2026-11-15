@@ -30,6 +30,7 @@
     "clone": "Cloner un modèle",
     "colVm": "VM",
     "colVlan": "VLAN (net0)",
+    "unavailable": "Proxmox n’est pas disponible pour le moment.",
     "notConfigured": "Proxmox n’est pas configuré",
     "notConfiguredHint": "Renseignez PROXMOX_URL, PROXMOX_USERNAME et PROXMOX_PASSWORD dans le fichier .env, puis redémarrez la plateforme.",
     "adminOnly": "Les machines virtuelles sont réservées aux administrateurs",

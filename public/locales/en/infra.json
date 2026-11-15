@@ -30,6 +30,7 @@
     "clone": "Clone template",
     "colVm": "VM",
     "colVlan": "VLAN (net0)",
+    "unavailable": "Proxmox is not available right now.",
     "notConfigured": "Proxmox is not configured",
     "notConfiguredHint": "Set PROXMOX_URL, PROXMOX_USERNAME and PROXMOX_PASSWORD in .env and restart the platform.",
     "adminOnly": "Virtual machines are for administrators",

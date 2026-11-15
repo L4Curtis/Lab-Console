@@ -115,11 +115,14 @@ textarea.field.mono { padding-block: var(--sp-2); }
 .sso-claims { margin: var(--sp-2) 0 0; padding: var(--sp-3); max-height: 320px; overflow: auto; border-radius: var(--r-md); background: var(--term-bg); color: var(--term-head-ink); font: 12px/1.45 var(--mono); }
 .notice { margin: 0; padding: var(--sp-2) var(--sp-3); border-radius: var(--r-md); border-left: 4px solid var(--accent); background: var(--surface-2); font: var(--fs-small); }
 .notice.warn { border-left-color: var(--warning); background: var(--warning-bg); }
+.notice.error { display: flex; align-items: flex-start; gap: var(--sp-2); border-left-color: var(--danger); background: var(--danger-bg); color: var(--text); }
+.notice.error > .icon { color: var(--danger-text); margin-top: 1px; }
 .notice[hidden] { display: none; }
 
 .lab-row.check-row .lab-label { margin: 0; }
 .lab-label { display: flex; align-items: center; flex-wrap: wrap; gap: var(--sp-2); }
-.origin-pill[data-origin="environment"] { background: var(--neutral-bg); color: var(--text-2); }
+/* A value nobody changed says nothing (the page's sentence says it once); one saved here, or on its way back, is marked */
+.origin-pill[data-origin="environment"] { display: none; }
 .origin-pill[data-origin="saved"] { background: var(--accent-soft); color: var(--on-accent-soft); }
 .origin-pill[data-origin="resetting"] { background: var(--warning-bg); color: var(--warning-text); }
 .range-pair { display: flex; align-items: center; gap: var(--sp-2); }
@@ -141,6 +144,8 @@ textarea.field.mono { padding-block: var(--sp-2); }
 .audit-filters .form-actions { margin-top: var(--sp-4); }
 .audit-details { margin: var(--sp-2) 0 0; padding: var(--sp-2); max-width: 520px; max-height: 240px; overflow: auto; border-radius: var(--r-sm); background: var(--surface-2); font: 12px/1.4 var(--mono); white-space: pre-wrap; }
 .audit-table td { vertical-align: top; }
+.audit-time, .audit-table summary { white-space: nowrap; } /* a date and "détails" stay on one line */
+.no-bench .audit-table :is(th, td)[data-col="bench"] { display: none; }
 
 /* ── Schéma ────────────────────────────────────────────────────────────── */
 .diagram-preview { display: grid; gap: var(--sp-3); }

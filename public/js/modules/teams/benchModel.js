@@ -141,6 +141,7 @@ export function benchActions(model) {
         title: t('benches.release.title', { bench: name }),
         body: t('benches.release.body'),
         confirmLabel: t('benches.release.confirm'),
+        danger: true,
       });
       if (!ok) return null;
       const result = await act('POST', '/release');

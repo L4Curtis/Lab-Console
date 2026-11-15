@@ -143,6 +143,7 @@
     "used": "{uses} of {max}",
     "withApproval": "with approval",
     "create": "New invitation",
+    "createSubmit": "Create the link",
     "createTitle": "New invitation",
     "createIntro": "The link is shown once, right after it is created.",
     "note": "Note (for whom?)",

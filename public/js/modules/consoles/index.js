@@ -309,7 +309,7 @@ export async function mount(el, { navigate }) {
       compact ? { id: 'live', icon: 'network', label: 'consoles.live.button', trail: rooms.size ? String(rooms.size) : null, run: () => livePanel.toggle(true) } : null,
       compact ? 'separator' : null,
       { id: 'checks', icon: 'check', label: 'consoles.tools.checks', disabled: !current, run: () => current && openChecksDialog(current) },
-      { id: 'wall', icon: 'grid', label: 'consoles.tools.wall', disabled: !openHere, hint: 'consoles.tools.wallNone', run: () => current && openBenchWall(current, { onOpen: (d) => openDevice(d) }) },
+      { id: 'wall', icon: 'grid', label: 'consoles.tools.wall', disabled: !openHere, hint: openHere ? null : 'consoles.tools.wallNone', run: () => current && openBenchWall(current, { onOpen: (d) => openDevice(d) }) },
       { id: 'journals', icon: 'script', label: 'consoles.tools.journals', run: () => openJournalDialog() },
       { id: 'scripts', icon: 'library', label: 'consoles.tools.scripts', run: () => openScriptLibrary({ pick: false }) },
     ], { label: t('consoles.tools.title') });

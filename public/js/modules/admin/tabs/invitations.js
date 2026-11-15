@@ -69,7 +69,7 @@ export function mount(el, ctx) {
         { name: 'uses', label: t('accounts.invitations.uses'), type: 'number', value: 1, hint: t('accounts.invitations.usesHint'), attrs: { min: 1, max: 100, step: 1 } },
         { name: 'role', label: t('accounts.invitations.role'), type: 'select', value: 'student', options: roles, hint: t('accounts.invitations.roleHint') },
       ],
-      submitLabel: t('accounts.invitations.create'),
+      submitLabel: t('accounts.invitations.createSubmit'),
       validate: (values) => (Number.isInteger(values.uses) && values.uses >= 1 && values.uses <= 100 ? '' : t('accounts.errors.bad_uses')),
       // An invitation as administrator is confirmed first (the server asks): null when it was not
       onSubmit: (values) => withConfirmation((confirmation) => request('POST', '/api/accounts/invitations', { ...values, confirmation }), { returnTo: 'invitations' }),

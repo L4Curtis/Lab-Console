@@ -48,7 +48,7 @@ export const MAX_INFLATED_BYTES = 4 * MAX_DIAGRAM_BYTES;
 const MAX_VERSIONS = 30;
 const ID = /^[0-9TZ-]{20,30}-[A-Za-z0-9._-]{1,40}-[0-9a-f]{6}$/;
 /** Warnings that make `npm run check-diagram` fail: two different devices on one console line */
-const BLOCKING_WARNING = 'consoles.warn_different_devices';
+export const BLOCKING_WARNING = 'consoles.warn_different_devices';
 
 /** Device keys → target, per lab, for a comparison */
 function devicesOf(labs) {

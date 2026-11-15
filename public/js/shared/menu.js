@@ -16,7 +16,8 @@
  *   el.append(moreButton(() => items, { label, onSelect: (id) => … }));   // the ⋯ icon button
  *
  * A label, a hint or a group is a dictionary key or a function returning the
- * text (never HTML). An item may also carry `run()`: it is called after the
+ * text (never HTML). A hint explains an item: give it when it says something that
+ * is true now (why a disabled item is off), not always. An item may also carry `run()`: it is called after the
  * menu closed, with the same result. An item with `href` is a link
  * Keyboard: arrows, Home / End, a letter jumps to the next item starting
  * with it, Enter / Space choose, Escape and Tab close; the focus returns to

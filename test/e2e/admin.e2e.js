@@ -8,7 +8,7 @@
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { useHarness, signInAs, signInAsAdmin, person, waitForApp, openConsole, typeInConsole, waitForTerminal, TEST_ADMIN, MOCK_TELNET } from './harness.js';
+import { useHarness, signInAs, signInAsAdmin, setLanguage, person, waitForApp, openConsole, typeInConsole, waitForTerminal, TEST_ADMIN, MOCK_TELNET } from './harness.js';
 
 const h = useHarness();
 
@@ -183,7 +183,9 @@ test('the diagram page refuses a shared console line and warns about consoles ou
   await admin.waitForSelector('tr[data-active="true"]');
 
   await admin.setInputFiles('#diagram-file', { name: 'clash.drawio', mimeType: 'application/xml', buffer: Buffer.from(withTargets('.211 - 2050', '.211 - 2050')) });
-  await admin.waitForSelector('section.view-admin p.form-error >> text=Refusé : 1 ligne de console est partagée');
+  await admin.waitForSelector('section.view-admin .notice.error[role="alert"] >> text=Refusé : 1 ligne de console est partagée');
+  assert.equal(await admin.locator('section.view-admin .notice.error svg').count() > 0, true, 'with an icon');
+  assert.doesNotMatch(await admin.locator('section.view-admin .notice.error').textContent(), /npm run/, 'no developer command in an administrator\'s error');
   assert.equal(await admin.locator('.diagram-preview').isHidden(), true);
 
   await admin.setInputFiles('#diagram-file', { name: 'outside.drawio', mimeType: 'application/xml', buffer: Buffer.from(withTargets('.215 - 2013', '.211 - 2019')) });
@@ -249,6 +251,29 @@ test('the audit trail is searched by a person\'s name, and the sessions tab list
   const names = await admin.locator('.audit-table tbody tr td:nth-child(2) strong').allTextContents();
   assert.ok(names.length > 0 && names.every((n) => n === 'Student 2'), `only Student 2: ${names}`);
   await admin.screenshot({ path: '/srv/lab-console-dev/tmp/audit-by-name.png' });
+  assert.deepEqual(admin.errors, []);
+  await admin.context().close();
+});
+
+test('the audit trail says what happened in words with the code beneath, dates on one line, and no empty bench column', async () => {
+  const admin = await h.newPage();
+  await signInAsAdmin(admin);
+  await admin.evaluate(() => { location.hash = '#/admin/audit'; });
+  const rows = admin.locator('.audit-table tbody tr');
+  await rows.first().waitFor();
+  const login = rows.filter({ has: admin.locator('td[data-col="action"] .vm-meta', { hasText: /^auth\.login$/ }) }).first();
+  await login.waitFor();
+  assert.equal(await login.locator('td[data-col="action"] strong').textContent(), 'Connexion');
+  const time = await login.locator('td[data-col="ts"] time').boundingBox();
+  assert.ok(time.height < 24, `the date is on one line (${time.height} px)`);
+  assert.match(await login.locator('td[data-col="ts"] time').getAttribute('title'), /\d{4}/, 'with the year');
+  // Sign-ins are not about a bench: filtered on them, the column has nothing to say and goes
+  await admin.fill('#audit-action', 'auth.login');
+  await admin.click('button[data-action="filter"]');
+  await admin.waitForFunction(() => [...document.querySelectorAll('.audit-table tbody tr td[data-col="action"] .vm-meta')].every((c) => c.textContent.startsWith('auth.login')));
+  assert.equal(await admin.locator('.audit-table th[data-col="bench"]').isVisible(), false, 'nothing here is about a bench: no column');
+  await setLanguage(admin, 'en');
+  await admin.waitForFunction(() => document.querySelector('.audit-table td[data-col="action"] strong')?.textContent === 'Sign-in');
   assert.deepEqual(admin.errors, []);
   await admin.context().close();
 });

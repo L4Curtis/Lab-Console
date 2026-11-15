@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { parseDrawio } from '../src/modules/consoles/drawio.js';
+import { BLOCKING_WARNING } from '../src/lib/diagrams.js';
 
 const file = path.resolve(process.argv[2] || process.env.DIAGRAM_PATH || './diagrams/diagram.drawio');
 const prefix = process.env.CONSOLE_NETWORK_PREFIX || '10.22.9';
@@ -24,5 +25,6 @@ for (const lab of labs) {
   for (const s of unmapped) console.log(`  ⚠ device shape without console info: "${s.label.lines.join(' ')}"`);
 }
 console.log(`\n${labs.length} labs, ${total} clickable devices`);
-if (warnings.length) console.log('\nWarnings:\n  ' + warnings.join('\n  '));
-process.exit(warnings.some((w) => w.includes('different devices')) ? 1 : 0);
+// A warning is { code, params, message }: the message is the English sentence, the code decides the exit status
+if (warnings.length) console.log('\nWarnings:\n  ' + warnings.map((w) => w.message).join('\n  '));
+process.exit(warnings.some((w) => w.code === BLOCKING_WARNING) ? 1 : 0);

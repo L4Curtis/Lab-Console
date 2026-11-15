@@ -61,7 +61,7 @@ export function createRunning({ onCancel, onReport, onDismiss, zipOf }) {
         h('h2', t('jobs.current.title', { kind: kindText(job.kind), bench: job.bench })),
         stateBadge(job.state),
         h('span.card-actions',
-          !final ? h('button.btn.sm.ghost.danger', { type: 'button', dataset: { action: 'cancel' }, onclick: () => onCancel(job) }, icon('stop'), t('jobs.current.stop')) : null,
+          !final ? h('button.btn.sm.danger', { type: 'button', dataset: { action: 'cancel' }, onclick: () => onCancel(job) }, icon('stop'), t('jobs.current.stop')) : null,
           final ? h('button.btn.sm', { type: 'button', dataset: { action: 'report' }, onclick: () => onReport(job) }, t('jobs.current.report')) : null)),
       h('div.card-body',
         h('div.jobs-progress-row',

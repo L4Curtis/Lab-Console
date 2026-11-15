@@ -85,14 +85,20 @@ test('Mon équipe on a phone: the form is a full-width 44 px target, rename and 
   await alice.context().close();
 });
 
-test('the bench on a phone: the primary action under the app bar, the strip is one line and opens the bench as a sheet that Back closes', async () => {
+test('the bench on a phone: Libérer la baie is a secondary danger button in the card under the tabs, the strip is one line and opens the bench as a sheet that Back closes', async () => {
   const { alice, chloe } = await setup();
   await go(alice, '#/team/bench');
   const view = alice.locator('section.view-team:not([hidden])');
   await view.locator('.bench-status-card .bench-name', { hasText: 'B4M' }).waitFor();
-  const release = view.locator('.page-header button[data-action="release"]:visible');
-  const primary = await release.boundingBox();
-  assert.ok(primary.height >= 48 && primary.width >= 340, `Libérer la baie: ${primary.width} x ${primary.height}`);
+  // Giving the bench back is not the page's main action: a danger button in the card, the tabs stay under the title
+  assert.equal(await view.locator('.page-header button.btn.primary:visible').count(), 0, 'no big blue button above the tabs');
+  const release = view.locator('.bench-status-card button[data-action="release"]');
+  assert.equal(await release.evaluate((b) => b.classList.contains('primary') || !b.classList.contains('danger')), false, 'secondary, in the danger colour');
+  const button = await release.boundingBox();
+  assert.ok(button.height >= 44, `Libérer la baie: ${button.width} x ${button.height}`);
+  const tabs = await view.locator('.page-header [role="tablist"]').boundingBox();
+  const heading = await view.locator('.page-header h1').boundingBox();
+  assert.ok(tabs.y - (heading.y + heading.height) < 120, `the tabs are ${Math.round(tabs.y - heading.y - heading.height)} px under the title`);
   assert.deepEqual(await overflow(alice), { page: 0, body: 0 });
 
   // Chloé asks to join: the request is on the page right away

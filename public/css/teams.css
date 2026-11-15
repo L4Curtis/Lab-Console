@@ -75,6 +75,7 @@
 .team-form-actions { display: flex; justify-content: flex-end; }
 .team-bench { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; }
 .team-bench p { margin: 0; }
+.team-bench .team-row-actions { margin-left: 0; } /* wrapped under the sentence, the buttons start at the card's content edge */
 .team-wide { display: grid; gap: var(--sp-4); align-content: start; }
 .team-bench-link { display: inline-flex; align-items: center; min-height: var(--tap); min-width: var(--tap); }
 .team-members-cell { display: inline-flex; align-items: center; gap: var(--sp-3); }
@@ -102,6 +103,7 @@
   .bench-panel:not(.in-sheet) { grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: var(--sp-6); }
 }
 .bench-sheet .bench-panel { padding-bottom: var(--sp-4); }
+.bench-status-card .card-foot { justify-content: flex-start; }
 .card-head h2.bench-name { font: var(--fs-display); }
 .bench-status-card .card-head { flex-wrap: wrap; }
 .bench-status-card .card-body p { margin: 0; }
