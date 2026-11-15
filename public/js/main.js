@@ -51,9 +51,6 @@ const MODULES = [
   { id: 'help', path: 'help', titleKey: 'common.shell.help', icon: 'help', nav: 'plus', order: 80, load: () => import('./modules/help/index.js') },
   // My account: the account menu on a PC, the Plus sheet on a phone
   { id: 'accounts', path: 'account', titleKey: 'common.shell.account', icon: 'user', nav: 'plus', order: 90, desktopMenu: false, parent: () => 'account-menu', load: () => import('./modules/account/index.js') },
-  // Every bench of the lab on one screen. Becomes "Le labo" on the home page (part C); until then it stays, out of the navigation,
-  // and its old address keeps leading here instead of to #/home/lab
-  { id: 'overview', path: 'overview', titleKey: 'common.shell.overview', icon: 'dashboard', nav: 'hidden', parent: () => 'home', load: () => import('./modules/overview/index.js') },
 ];
 const available = () => MODULES.filter((m) => m.when?.() !== false);
 
