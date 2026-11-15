@@ -1294,7 +1294,8 @@ LED + label + detail, as today but in a 2-column grid on PC. No primary.
 ### 10.11 Mon compte (`#/account`, part C)
 
 Cards: Profil (name, identifiant, rôle, connexion), Mot de passe (local
-accounts), Clés d'accès (list + **Ajouter une clé d'accès**), Sessions
+accounts), Clés d'accès (list + **Ajouter une clé d'accès**; the last one's
+Supprimer is disabled, AUTH.md §2b), Sessions
 (`dataList`: device, last seen, Fermer; "Fermer les autres sessions" ghost
 danger), Préférences (Thème, Langue: the same controls as the account menu).
 Phone: the cards stacked; actions inside each card. No header primary.
@@ -1308,6 +1309,14 @@ Phone: the cards stacked; actions inside each card. No header primary.
   today (440 px), with the new tokens.
 - Join / reset: same frame; the form fields as 7.11; errors under the field;
   the invalid-link state as an empty state with "Retour à la connexion".
+- The passkey steps (2.3.0, AUTH.md §2b) stay in the same card or phone
+  frame: a heading, one sentence, one lg block primary (Enregistrer une clé
+  d'accès / Utiliser ma clé d'accès) and, on the login page, "Recommencer la
+  connexion" as a ghost block. Above the step of the join / reset page, what
+  went well (account created, password saved, waiting for approval) is a
+  success notice; a timed-out step or a disabled account a warning. A browser
+  without passkeys or a site without https gets the empty state titled
+  "Clés d'accès indisponibles ici" (not "Ce lien ne fonctionne pas").
 - 404: empty state with "Retour à l'accueil".
 
 ### 10.13 Alertes (notifications, `modules/collab/notifications.js`, part A owns the module, shell places it)
