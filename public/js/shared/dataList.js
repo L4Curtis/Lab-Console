@@ -47,7 +47,7 @@ export function dataList({ label, columns = [], actions, empty, onOpen, dense = 
   function renderHead() {
     head.replaceChildren(
       ...columns.map((c) => h(`th${c.num ? '.num' : ''}`, { scope: 'col', dataset: { col: c.id } }, text(c.label))),
-      actions ? h('th.dl-actions', { scope: 'col' }, h('span.sr-only', t('common.columns.actions'))) : null,
+      ...(actions ? [h('th.dl-actions', { scope: 'col' }, h('span.sr-only', t('common.columns.actions')))] : []),
     );
     if (typeof label === 'function') table.setAttribute('aria-label', label());
   }
