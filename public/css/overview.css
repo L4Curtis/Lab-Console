@@ -72,10 +72,10 @@
 /* The list of a phone: 64 px rows with a chevron, the whole row is the way into the bench */
 .ov-chevron { display: none; }
 @media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) {
-  .ov-lab .dl-table tr { position: relative; padding: var(--sp-2) calc(var(--sp-4) + 24px) var(--sp-2) var(--sp-4); gap: 0 var(--sp-3); cursor: pointer; }
-  .ov-lab .dl-table .ov-link { min-height: 0; }
+  .ov-lab .dl-table tr { position: relative; padding: 0 calc(var(--sp-4) + 24px) var(--sp-1) var(--sp-4); gap: 0 var(--sp-3); cursor: pointer; }
+  .ov-lab .dl-table td.dl-badge { padding-top: var(--sp-3); }
   .ov-lab .dl-table td.dl-meta { overflow-wrap: anywhere; }
-  .ov-lab .ov-chevron { display: inline-grid; position: absolute; right: var(--sp-3); top: 50%; transform: translateY(-50%); color: var(--text-muted); }
+  .ov-lab .ov-chevron { display: inline-grid; position: absolute; right: var(--sp-3); top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; }
 }
 .ov-link { display: flex; align-items: center; min-height: var(--tap); color: inherit; text-decoration: none; }
 .ov-link:hover { text-decoration: underline; }

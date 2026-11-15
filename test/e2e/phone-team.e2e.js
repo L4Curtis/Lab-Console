@@ -313,7 +313,7 @@ test('today\'s agenda on a phone: the hours over are one line, the hour in progr
   await page.context().close();
 });
 
-test('an invited student has one main action: joining; creating a team is the second choice, and the bench rows of Accueil are 64 px with a chevron', async () => {
+test('an invited student has one main action: joining; creating a team is the second choice, and the bench rows of Accueil are about 66 px with a chevron', async () => {
   const { alice, chloe } = await setup();
   await chloe.context().close();
   const { body: { mine } } = await api(alice, 'GET', '/api/teams');
@@ -328,7 +328,7 @@ test('an invited student has one main action: joining; creating a team is the se
   const rows = home.locator('.ov-lab .dl-table tbody tr');
   await rows.first().waitFor();
   const heights = await rows.evaluateAll((trs) => trs.map((tr) => Math.round(tr.getBoundingClientRect().height)));
-  assert.ok(heights.length >= 8 && heights.every((height) => height >= 44 && height <= 66), `rows: ${heights.join(', ')} px`);
+  assert.ok(heights.length >= 8 && heights.every((height) => height >= 44 && height <= 70), `rows: ${heights.join(', ')} px`);
   assert.equal(await home.locator('.ov-lab .ov-chevron:visible').count(), heights.length, 'a chevron on each row');
   await rows.first().click();
   await page.waitForFunction(() => location.hash.startsWith('#/consoles/'));

@@ -250,7 +250,13 @@ full screen with a back arrow to the hub.
 
 For an administrator, `#/infra`, `#/status` and `#/team/all` light **Admin** in
 the navigation and show the Admin secondary list (desktop) or a back arrow to
-the hub (phone). For a student, `#/infra` and `#/status` light **Plus**.
+the hub (phone). For a student, `#/infra` and `#/status` light **Plus**. On a
+PC those three screens keep their own tabs **in the content column**, to the
+right of the Admin list (`tabsBesideNav` in `admin/nav.js`), so that the list
+starts at the same height as on the other Admin screens and two navigations do
+not stack on the same width; on a phone, and for a student, the tabs stay in
+the page header. A student without Proxmox is told "Proxmox n'est pas
+disponible pour le moment"; the names of the settings are the administrator's.
 
 ### 4.4 Module table in `main.js`
 
@@ -871,6 +877,11 @@ Part A. Files in 11.3.
   and a legend line. Keyboard: arrows move between slots, Enter selects.
   The rack picker no longer sits in the header.
 - **Strip (44 px)**: 7.13.
+- **Which bench**: the one in the address; else the one the user works on
+  (their team's, or one they were let into, as soon as the state of the
+  benches is known); else the last one used; else the first. On a phone the
+  bench screen opens on **Liste** until a view is chosen, and so does a diagram
+  column narrower than 400 px beside open consoles.
 - **Journal notice**: shown once per browser (pref `journalNoticeSeen`, set when
   it is first shown: it stays until closed, then never again), as a
   40 px info line **above** the canvas (pushes it down, never over it), one
@@ -1058,19 +1069,25 @@ scrolling sideways. Each key sends to the console through the same path as
 xterm's input (`pane` sends an `input` frame; refused locally when the user
 may not type, as today).
 
+The order is the one of the screen, left to right: what a first-year student
+needs most is in view on a 390 px phone without a swipe (Tab, ?, Ctrl, ^C, ^Z,
+↑ ↓), the rest waits behind the swipe, and the keys there carry a word, not a
+symbol alone.
+
 | key | label | sends | note |
 |---|---|---|---|
-| Esc | `Échap` / `Esc` | `\x1b` | |
 | Tab | `Tab` | `\t` | completes IOS commands |
-| Ctrl | `Ctrl` | modifier | sticky: the next key (toolbar or typed letter) is sent as its control code; pressed again → locked until tapped again; shown `aria-pressed` |
-| ↑ ↓ ← → | arrows | `\x1b[A` `\x1b[B` `\x1b[D` `\x1b[C` (or `\x1bOA`… when xterm's application cursor mode is on) | IOS history and line editing |
 | ? | `?` | `?` | context help |
+| Ctrl | `Ctrl` | modifier | sticky: the next key (toolbar or typed letter) is sent as its control code; pressed again → locked until tapped again; shown `aria-pressed` |
 | Ctrl+C | `^C` | `\x03` | |
 | Ctrl+Z | `^Z` | `\x1a` | leaves configuration mode |
-| Ctrl+Maj+6 | `^⇧6` labelled "Interrompre" | `\x1e` | stops a ping or traceroute on IOS |
-| Espace | `␣` | ` ` | next page of `--More--` |
-| Coller | clipboard icon | clipboard text | uses `navigator.clipboard.readText()`; long text goes through the existing paste guard of `terminalPane` |
-| ⌨ | keyboard icon | — | toggles line / direct mode (9.3) |
+| ↑ ↓ | arrows | `\x1b[A` `\x1b[B` (or `\x1bOA`… when xterm's application cursor mode is on) | IOS history |
+| ← → | arrows | `\x1b[D` `\x1b[C` | line editing |
+| Esc | `Échap` / `Esc` | `\x1b` | |
+| Ctrl+Maj+6 | `Break` | `\x1e` | stops a ping or traceroute on IOS |
+| Espace | `Espace` / `Space` | ` ` | next page of `--More--` |
+| Coller | clipboard icon + `Coller` / `Paste` | clipboard text | uses `navigator.clipboard.readText()`; long text goes through the existing paste guard of `terminalPane` |
+| ⌨ | keyboard icon + `Clavier` / `Keyboard` | — | toggles line / direct mode (9.3) |
 
 Keys are buttons with `aria-label`s in both languages (`terminal.keys.*`) and
 `title`s that explain (e.g. "Ctrl+Maj+6 : interrompre un ping").
@@ -1195,11 +1212,17 @@ The full bench management that today hides in the bench bar.
   **next slots** (link to Réservations), **history** (last 20 entries inline,
   "Tout voir" opens the dialog), admin block (Attribuer, Verrouiller /
   Déverrouiller with reason).
-- Primary: **Libérer la baie** when we hold one (confirm with the backup
-  offer, as today); **Prendre une baie** when we hold none (shows the free
-  benches list with Prendre each).
-- Phone: the status card, then requests, then the rest; the primary as a
-  full-width button under the status card.
+- Primary: **Prendre la baie** when we hold none (shows the free benches list
+  with Prendre each), **Demander à rejoindre** on a bench another team holds.
+  **Libérer la baie** is not a primary: it is a secondary danger button at the
+  foot of the status card (outline, `--danger-text`) with a danger
+  confirmation (and the backup offer, as today). A team holds one bench at a
+  time: on another free bench the primary is **Aller à B4M** (the bench the
+  team holds, `you.teamBench`), never a Prendre the server would refuse.
+- The page opens on the bench of the address, else the bench the user works
+  on, else the one used last, else the first.
+- Phone: the status card, then requests, then the rest; the tabs stay right
+  under the title (no primary slot for releasing).
 
 ### 10.4 Équipe › Réservations (`#/team/calendar[/<bench>]`, part B)
 
@@ -1212,8 +1235,13 @@ The full bench management that today hides in the bench bar.
 - Phone: **day agenda**: the bench picker, a row of 7 day chips (lun 9 … dim
   15, today marked, past days muted), then the hours of that day as 52 px rows:
   free → "Libre · Réserver" (tap opens the confirm sheet), booked → team name
-  (ours: "Votre équipe · Annuler"). Swipe left/right on the agenda changes the
-  day.
+  (ours: "Votre équipe · Annuler"). Hours already over with nothing booked are
+  one line ("08:00 Passé jusqu'à 13:00"); the hour in progress says "En cours"
+  and is not offered (the server refuses a slot that has begun; an
+  administrator still may). The sheet's start is a list of 24 h times, every
+  half hour, still to come and not inside another booking. Swipe left/right on
+  the agenda changes the day. The week button reads **Aujourd'hui**; the
+  bench is the one of the address, else the user's, else the last used.
 - Primary: none in the header; the action is on the slot.
 
 ### 10.5 Équipe › Toutes les équipes (`#/team/all`, admins, part B)
@@ -1259,7 +1287,7 @@ Dissoudre (danger) in ⋯. Reached from Admin › Comptes › Équipes as well.
 | Schéma | current diagram card (version, benches, warnings) | Importer un schéma |
 | Switchs d'admin | the table | Enregistrer |
 | Sessions | `dataList` of sessions | none (Fermer per row) |
-| Journal d'audit | filters + `dataList` | none (Exporter in ⋯) |
+| Journal d'audit | filters + `dataList`: the action in words ("Connexion", "Schéma refusé") with its code small and grey beneath, the date on one line (the exact one in the tooltip), no Baie column when no entry has one | none (Exporter in ⋯) |
 | Annonce | current announcement preview | Publier |
 
 - Phone: `#/admin` = hub list (groups, 52 px rows with counts); a tab opens
@@ -1295,7 +1323,11 @@ LED + label + detail, as today but in a 2-column grid on PC. No primary.
 - Guided tour (`modules/help/tour.js`): steps target `[data-nav="…"]`
   attributes provided by the shell (stable across rail and tab bar); on a
   phone the tour has fewer steps (tab bar, Consoles bench screen, console
-  screen, Plus).
+  screen, Plus). On a phone the card goes to the half of the screen the target
+  is not in (the top when the target is low, above the tab bar otherwise), the
+  first step rings the page heading, not the card it is about to use, and the
+  console step points at the list. Finishing or skipping returns to the page
+  the tour started on; leaving the page by oneself just ends it.
 
 ### 10.11 Mon compte (`#/account`, part C)
 
@@ -1312,7 +1344,13 @@ Phone: the cards stacked; actions inside each card. No header primary.
   subtitle) at the top third, then **Se connecter avec {provider}** (lg,
   block), the "Compte local" disclosure (fields 48 px, 16 px text), the
   language segmented control at the bottom with the safe area. PC: the card as
-  today (440 px), with the new tokens.
+  today (440 px), with the new tokens. The method this browser used last
+  (`localStorage` `labconsole.lastLogin`: sso, passkey, local; a convenience,
+  never sent to the server) is the filled button and comes first: after a
+  passkey sign-in (or an account made by invitation) the passkey button is the
+  primary one and the provider's is outlined; after a local sign-in the local
+  form is open. Where both are offered, one small line says "Compte créé avec
+  une invitation ? Utilisez la clé d'accès.".
 - Join / reset: same frame; the form fields as 7.11; errors under the field;
   the invalid-link state as an empty state with "Retour à la connexion".
 - The passkey steps (2.3.0, AUTH.md §2b) stay in the same card or phone

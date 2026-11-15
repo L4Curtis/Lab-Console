@@ -7,7 +7,9 @@
 The redesign of 2.2.0 (bottom tab bar on a phone, the five destinations and
 Plus, the new components) now comes with **mandatory passkeys for every local
 account**. The passkey steps of sign-up, sign-in and reset links are drawn
-with the redesign's login frame, on a phone and on a PC.
+with the redesign's login frame, on a phone and on a PC. It also carries the
+fixes that came out of using the redesign on a phone and a laptop (below,
+"Fixed").
 
 ### Changed
 
@@ -44,6 +46,55 @@ with the redesign's login frame, on a phone and on a PC.
 - Passkey requests are limited per address with room for a classroom behind
   one public address (300 one-click and 240 step requests a minute), and up
   to 100 sign-ins of one address may wait for their passkey at once.
+
+### Fixed
+
+- **Turning the phone keeps the console.** A touch screen shorter than 500 px
+  is compact whatever its width: the console keeps the whole screen (no tab
+  bar, a slimmer head, key bar and field), turning back and forth or loading
+  its address on its side shows it again, and the bench screen has no journal
+  notice there.
+- **Consoles and Réservations open on your team's bench**, then the last one
+  used, then the first. A bench detail says where the team already sits
+  (`you.teamBench`) and no longer offers to take another: the strip and the
+  Baie tab say **Aller à B4M** instead of a button the server refuses.
+- **A phone opens the bench as a list**, not a diagram that runs off the
+  screen; the diagram stays one tap away and is remembered once chosen.
+  Beside open consoles, a diagram column under 400 px shows the list too. The journal notice shows
+  once per browser, with a short sentence on a phone.
+- **The IOS keys most used come first** (Tab, ?, Ctrl, ^C, ^Z, the history
+  arrows) and the ones after the swipe say a word (Break, Espace, Coller,
+  Clavier). One **Demander la main**, not two; the pilot reads "Sans réponse,
+  la main passe à Zoé dans 28 s" on its own line; the chips row and the
+  turn-your-phone line leave while the keyboard is open.
+- **Admin › Utilisateurs fits a 1280 px laptop**: the sign-in columns give
+  way up to 1359 px (what they held is under the name), so Valider is never
+  behind a sideways scroll. Machines et switchs, État du labo and Toutes les
+  équipes put their tabs in the content column beside the administration
+  list instead of stacking two navigations.
+- **Réservations**: today's hours already over fold into one line, the hour
+  in progress is not offered (the server refuses it), the start is a list of
+  24 h times that are still free, and the week button says Aujourd'hui.
+- **Libérer la baie** is a danger button in the bench's card (it was a big
+  blue button that pushed the tabs down) with a danger confirmation; button
+  rows start at the card's content edge; the bench strip's state word is
+  never cut ("Libre", "Prise par vous").
+- **The guided tour** puts its card on the half of a phone's screen the
+  target is not in, rings the heading on its first step and ends on the page
+  it began on.
+- **Accueil and Équipe**: an invited student has one blue button (Rejoindre,
+  Accepter); the lab list of a phone is 58 px rows with a chevron. The login
+  page puts the method this browser used last first, and says that an account
+  made by invitation uses its passkey.
+- **Administration**: the audit trail says "Connexion", "Schéma refusé"…
+  with the code beneath, dates on one line and no empty Baie column; a
+  diagram refusal is a notice with an icon and no developer command; the
+  invitation form's button is **Créer le lien**; a lab value nobody changed
+  has no "environnement" pill; a student is told "Proxmox n'est pas
+  disponible pour le moment", not to edit `.env`; **Mur de consoles** no
+  longer says no console is open while some are.
+- `npm run check-diagram` prints the parser's warnings (it printed
+  `[object Object]` and crashed) and exits 1 on the blocking one.
 
 ## 2.2.0 - 2026-11-15
 

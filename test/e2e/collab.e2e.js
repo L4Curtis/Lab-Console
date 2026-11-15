@@ -28,6 +28,8 @@ const deviceTile = (page, name) => view(page).locator('g.device', { has: page.lo
 async function showBench(page, bench) {
   await page.evaluate((hash) => { location.hash = hash; }, `#/consoles/${encodeURIComponent(bench)}`);
   await waitForBench(page, bench);
+  // The notes panel narrows the diagram's column, which then shows the list until a view is chosen: these notes are drawn on the diagram
+  await view(page).locator('.cs-view [data-view="diagram"]').click();
   await deviceTile(page, 'R1').waitFor();
 }
 

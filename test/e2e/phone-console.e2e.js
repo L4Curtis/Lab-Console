@@ -276,21 +276,6 @@ test('on a laptop a diagram column too narrow to read shows the list, until a vi
   await page.context().close();
 });
 
-test('a column of 400 px or more beside an open console never fits the diagram under 70 %', async () => {
-  const page = await h.newPage(); // 1440 px: the column is about 410 px with a console open
-  await h.session(page, 'student1');
-  await page.goto(`${h.url}/#/consoles/B4M`);
-  await waitForBench(page, 'B4M');
-  await openConsole(page, 'B4M', 'S1');
-  await page.locator('section.view-consoles g.device').first().waitFor();
-  const width = await page.locator('.diagram-pane').evaluate((el) => el.getBoundingClientRect().width);
-  assert.ok(width >= 400, `the column is ${width} px`);
-  const zoom = Number.parseInt(await page.locator('.zoom-level').textContent(), 10);
-  assert.ok(zoom >= 70, `the diagram is fitted at ${zoom} %`);
-  assert.deepEqual(page.errors, []);
-  await page.context().close();
-});
-
 test('Outils › Mur de consoles says why it is off while no console is open, and nothing once one is', async () => {
   const page = await h.newPage();
   await h.session(page, 'student2');

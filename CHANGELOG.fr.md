@@ -9,6 +9,8 @@ destinations et Plus, les nouveaux composants) s'accompagne maintenant des
 **clés d'accès obligatoires pour chaque compte local**. Les étapes de clé
 d'accès de l'inscription, de la connexion et des liens de réinitialisation
 reprennent le cadre de connexion de la refonte, sur téléphone comme sur PC.
+Elle porte aussi les corrections nées de l'usage de la refonte sur téléphone
+et sur portable (ci-dessous, « Corrigé »).
 
 ### Modifié
 
@@ -50,6 +52,64 @@ reprennent le cadre de connexion de la refonte, sur téléphone comme sur PC.
   pour une classe derrière une seule adresse publique (300 requêtes de
   connexion en un clic et 240 d'étape par minute), et jusqu'à 100 connexions
   d'une même adresse peuvent attendre leur clé en même temps.
+
+### Corrigé
+
+- **Tourner le téléphone garde la console.** Un écran tactile de moins de
+  500 px de haut est compact quelle que soit sa largeur : la console garde
+  tout l'écran (pas de barre d'onglets, un en-tête, une barre de touches et
+  une ligne plus minces), tourner dans un sens puis dans l'autre ou charger
+  son adresse à l'horizontale la ramène, et l'écran de la baie n'a pas de
+  bandeau de journalisation dans ce cas.
+- **Consoles et Réservations s'ouvrent sur la baie de votre équipe**, puis
+  la dernière utilisée, puis la première. Le détail d'une baie dit où
+  l'équipe est déjà (`you.teamBench`) et ne propose plus d'en prendre une
+  autre : le bandeau et l'onglet Baie disent **Aller à B4M** au lieu d'un
+  bouton que le serveur refuse.
+- **Un téléphone ouvre la baie en liste**, pas un schéma qui sort de
+  l'écran ; le schéma reste à un toucher et se mémorise une fois choisi. À
+  côté de consoles ouvertes, une colonne de schéma de moins de 400 px montre
+  aussi la liste. Le bandeau de journalisation s'affiche une fois par
+  navigateur, en une phrase courte sur téléphone.
+- **Les touches IOS les plus utiles viennent d'abord** (Tab, ?, Ctrl, ^C, ^Z,
+  les flèches de l'historique) et celles d'après le balayage disent un mot
+  (Break, Espace, Coller, Clavier). Un seul **Demander la main**, pas deux ;
+  le pilote lit « Sans réponse, la main passe à Zoé dans 28 s » sur sa propre
+  ligne ; la rangée de pastilles et la ligne « tournez le téléphone » partent
+  quand le clavier est ouvert.
+- **Admin › Utilisateurs tient sur un portable de 1280 px** : les colonnes de
+  connexion s'effacent jusqu'à 1359 px (leur contenu passe sous le nom),
+  donc Valider n'est jamais derrière un défilement latéral. Machines et
+  switchs, État du labo et Toutes les équipes mettent leurs onglets dans la
+  colonne de contenu, à côté de la liste de l'administration, au lieu
+  d'empiler deux navigations.
+- **Réservations** : les heures déjà passées du jour tiennent sur une ligne,
+  l'heure en cours n'est pas proposée (le serveur la refuserait), le début
+  est une liste d'heures en 24 h encore libres, et le bouton de semaine dit
+  Aujourd'hui.
+- **Libérer la baie** est un bouton de danger dans la carte de la baie (c'était
+  un grand bouton bleu qui repoussait les onglets), avec une confirmation de
+  danger ; les rangées de boutons commencent au bord du contenu de la carte ;
+  le mot d'état du bandeau n'est jamais coupé (« Libre », « Prise par vous »).
+- **La visite guidée** place sa carte dans la moitié de l'écran où n'est pas
+  la cible, entoure le titre à sa première étape et finit sur la page où elle
+  a commencé.
+- **Accueil et Équipe** : un étudiant invité n'a qu'un bouton bleu (Rejoindre,
+  Accepter) ; la liste du labo sur téléphone fait des lignes de 58 px avec un
+  chevron. La page de connexion met en premier la méthode que ce navigateur a
+  utilisée en dernier, et dit qu'un compte créé par invitation utilise sa clé
+  d'accès.
+- **Administration** : le journal d'audit dit « Connexion », « Schéma
+  refusé »… avec le code dessous, des dates sur une ligne et pas de colonne
+  Baie vide ; le refus d'un schéma est une remarque avec une icône et sans
+  commande de développeur ; le bouton du formulaire d'invitation est **Créer
+  le lien** ; une valeur du labo que personne n'a changée n'a plus de pastille
+  « environnement » ; un étudiant lit « Proxmox n'est pas disponible pour le
+  moment » au lieu de devoir éditer `.env` ; **Mur de consoles** ne dit plus
+  qu'aucune console n'est ouverte quand certaines le sont.
+- `npm run check-diagram` affiche les avertissements de l'analyseur (il
+  affichait `[object Object]` puis plantait) et sort en 1 sur celui qui
+  bloque.
 
 ## 2.2.0 - 15 novembre 2026
 
