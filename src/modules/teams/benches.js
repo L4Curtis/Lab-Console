@@ -249,6 +249,8 @@ export class Benches {
     const locked = Boolean(s.lock);
     const pending = Boolean(o?.requests?.some((r) => r.id === user.id));
     const current = this.#currentReservation(name);
+    // A team holds one bench at a time: where it already sits, the others are not to take (take() refuses)
+    const teamBench = team ? this.names().find((b) => b !== name && this.#occupancy(b)?.teamId === team.id) ?? null : null;
     return {
       ...s,
       requests: occupant || admin ? (o?.requests ?? []) : [],
@@ -259,7 +261,8 @@ export class Benches {
         member,
         guest: occupant && !member,
         pending,
-        canTake: Boolean(team) && !member && (admin || !locked)
+        teamBench,
+        canTake: Boolean(team) && !member && !teamBench && (admin || !locked)
           && (!o || current?.teamId === team.id) && (admin || !current || current.teamId === team.id),
         canRelease: Boolean(o) && (member || admin),
         canJoin: Boolean(o) && !occupant && !pending && !locked,

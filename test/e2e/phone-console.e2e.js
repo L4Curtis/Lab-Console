@@ -174,7 +174,7 @@ test('the diagram on a phone: devices big enough to tap, a long press opens the 
 
 test('a phone turned on its side keeps the console on the whole screen, turning back and forth, and after a direct load', async () => {
   const page = await onPhone('student1');
-  const pane = await openConsole(page, 'B4M', 'R2');
+  await openConsole(page, 'B4M', 'R2');
   await page.waitForFunction(() => location.hash === '#/consoles/B4M/R2');
   const screen = () => page.locator('section.view-consoles').getAttribute('data-screen');
 

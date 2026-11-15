@@ -37,6 +37,11 @@ export function primaryOf(detail, act) {
   const you = detail?.you;
   if (!you) return null;
   if (you.canRelease) return { id: 'release', label: 'benches.actions.release', icon: 'power', run: () => act.release() };
+  // A team holds one bench at a time: from another free one, the way to its own (on the page the person is on)
+  if (you.teamBench && !detail.holder && !detail.lock) {
+    const page = location.hash.startsWith('#/consoles') ? 'consoles' : 'team/bench';
+    return { id: 'goto', label: () => t('benches.actions.goto', { bench: you.teamBench }), icon: 'chevronRight', run: () => { location.hash = `#/${page}/${encodeURIComponent(you.teamBench)}`; } };
+  }
   if (you.canTake) return { id: 'take', label: 'benches.actions.take', icon: 'check', run: () => act.take() };
   if (you.canJoin && !you.pending) return { id: 'join', label: 'benches.actions.join', icon: 'team', run: () => act.join() };
   if (you.pending) return { id: 'cancel-join', label: 'benches.actions.cancelJoin', icon: 'close', run: () => act.cancelJoin(), secondary: true };
@@ -100,7 +105,7 @@ export function createBenchPanel({ model, act, inlinePrimary = false, inSheet = 
       h('div.card-head', h('h2.bench-name', d.bench), h('span.badge', { dataset: { tone } }, h('span.dot'), word),
         d.lock && you.admin ? h('button.btn.sm', { type: 'button', dataset: { action: 'unlock' }, onclick: () => act.unlock() }, icon('lock'), t('benches.unlock.button')) : null),
       h('div.card-body', lines),
-      primary ? h('div.card-foot', h(`button.btn.${primary.secondary ? 'sm' : 'primary.lg'}`, { type: 'button', dataset: { action: primary.id }, onclick: primary.run }, icon(primary.icon), t(primary.label))) : null);
+      primary ? h('div.card-foot', h(`button.btn.${primary.secondary ? 'sm' : 'primary.lg'}`, { type: 'button', dataset: { action: primary.id }, onclick: primary.run }, icon(primary.icon), typeof primary.label === 'function' ? primary.label() : t(primary.label))) : null);
   }
 
   function requestsCard(d) {

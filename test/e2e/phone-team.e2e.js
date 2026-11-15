@@ -241,6 +241,39 @@ test('backups on a phone: cards instead of a table, the dialogs are bottom sheet
   await alice.context().close();
 });
 
+test('a team that holds a bench lands on it in Consoles and Réservations; another free bench offers the way back, never "Prendre la baie"; the strip words are whole', async () => {
+  const { alice, chloe } = await setup();
+  await chloe.context().close();
+  await alice.context().close();
+  const page = await open('alice'); // a browser that never chose a bench: before, the first one in the alphabet
+  await go(page, '#/consoles');
+  const consoles = page.locator('section.view-consoles');
+  await consoles.locator('.diagram-pane[data-state="ready"]').waitFor({ state: 'attached' });
+  await page.waitForFunction(() => document.querySelector('section.view-consoles').dataset.bench === 'B4M');
+  const strip = consoles.locator('.bench-bar');
+  const word = strip.locator('.bench-status .bench-text.short');
+  await word.waitFor();
+  assert.equal((await word.textContent()), 'Prise par vous');
+  assert.ok(await word.evaluate((e) => e.scrollWidth <= e.clientWidth), 'the state is not cut');
+
+  await go(page, '#/team/calendar');
+  await page.locator('section.view-team:not([hidden]) .cal-picker', { hasText: 'B4M' }).waitFor();
+
+  // Another bench, free: no "Prendre la baie" (the server would refuse it), a way to the team's own
+  await go(page, '#/consoles/B4B');
+  await page.waitForFunction(() => document.querySelector('section.view-consoles').dataset.bench === 'B4B');
+  await strip.locator('[data-action="goto"]').waitFor();
+  assert.equal(await strip.locator('[data-action="take"]').count(), 0);
+  assert.match(await strip.locator('[data-action="goto"]').textContent(), /Aller à B4M/);
+  const free = strip.locator('.bench-status .bench-text.short');
+  assert.equal(await free.textContent(), 'Libre');
+  assert.ok(await free.evaluate((e) => e.scrollWidth <= e.clientWidth), '"Libre" is not squeezed to a letter');
+  await strip.locator('[data-action="goto"]').click();
+  await page.waitForFunction(() => location.hash === '#/consoles/B4M');
+  assert.deepEqual(page.errors, []);
+  await page.context().close();
+});
+
 const SCREENS = [
   { hash: '#/team/mine', ready: '.team-page .card', section: 'team' },
   { hash: '#/team/bench', ready: '.bench-status-card', section: 'team' },

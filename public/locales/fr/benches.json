@@ -7,6 +7,7 @@
   },
   "actions": {
     "take": "Prendre la baie",
+    "goto": "Aller à {bench}",
     "needTeam": "Créer une équipe",
     "join": "Demander à rejoindre",
     "cancelJoin": "Annuler ma demande",
@@ -149,7 +150,7 @@
     "free": "{bench} est libre",
     "freeShort": "Libre",
     "mine": "{bench} · {team} (vous)",
-    "mineShort": "Prise par vous · {time}",
+    "mineShort": "Prise par vous",
     "guest": "{bench} · {team} (invité)",
     "guestShort": "Invité de l’équipe {team}",
     "taken": "{bench} · {team}",

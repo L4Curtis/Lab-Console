@@ -7,6 +7,7 @@
   },
   "actions": {
     "take": "Take the bench",
+    "goto": "Go to {bench}",
     "needTeam": "Create a team",
     "join": "Ask to join",
     "cancelJoin": "Cancel my request",
@@ -149,7 +150,7 @@
     "free": "{bench} is free",
     "freeShort": "Free",
     "mine": "{bench} · {team} (you)",
-    "mineShort": "Taken by you · {time}",
+    "mineShort": "Taken by you",
     "guest": "{bench} · {team} (guest)",
     "guestShort": "Guest of team {team}",
     "taken": "{bench} · {team}",

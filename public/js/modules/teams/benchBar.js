@@ -61,6 +61,8 @@ export function mountBenchBar(host, { variant = 'strip', lead = null } = {}) { /
     const you = d.you;
     if (d.lock && you.admin) return button('unlock', t('benches.unlock.button'), () => act.unlock(), '.bench-optional', 'lock');
     if (releaseSoon(d)) return button('touch', t('benches.actions.touch'), () => act.touch(), '.primary', 'check');
+    // A team holds one bench at a time: from another free one, the way back to its own
+    if (you.teamBench && !d.holder && !d.lock) return h('a.btn.sm', { href: `#/consoles/${encodeURIComponent(you.teamBench)}`, dataset: { action: 'goto' } }, icon('chevronRight'), t('benches.actions.goto', { bench: you.teamBench }));
     if (you.canTake) return button('take', t('benches.actions.take'), () => act.take(), '.primary', 'check');
     if (you.pending) return button('cancel-join', t('benches.actions.cancelJoin'), () => act.cancelJoin());
     if (you.canJoin) return button('join', t('benches.actions.join'), () => act.join(), '.primary', 'team');
@@ -112,10 +114,9 @@ export function mountBenchBar(host, { variant = 'strip', lead = null } = {}) { /
   function statusText(d) {
     const you = d.you;
     const team = d.holder?.teamName ?? '?';
-    const time = d.releaseAt ? fmtTime(d.releaseAt) : '';
     if (d.lock) return [t('benches.strip.locked', { bench: d.bench, reason: d.lock.reason }), t('benches.strip.lockedShort', { reason: d.lock.reason })];
     if (!d.holder) return [t('benches.strip.free', { bench: d.bench }), t('benches.strip.freeShort')];
-    if (you.member) return [t('benches.strip.mine', { bench: d.bench, team }), t('benches.strip.mineShort', { time })];
+    if (you.member) return [t('benches.strip.mine', { bench: d.bench, team }), t('benches.strip.mineShort')];
     if (you.guest) return [t('benches.strip.guest', { bench: d.bench, team }), t('benches.strip.guestShort', { team })];
     return [t('benches.strip.taken', { bench: d.bench, team }), t('benches.strip.takenShort', { team })];
   }

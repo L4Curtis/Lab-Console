@@ -39,8 +39,12 @@
 .bench-progress::-webkit-progress-value { background: var(--accent); border-radius: var(--r-pill); }
 .bench-progress::-moz-progress-bar { background: var(--accent); border-radius: var(--r-pill); }
 @media (max-width: 719.98px), (max-height: 499.98px) and (pointer: coarse) {
-  .bench-line { padding-inline: var(--gutter); }
+  .bench-line { padding-inline: var(--gutter); gap: var(--sp-2); }
   .bench-main { cursor: pointer; }
+  /* The state is a word that is never cut ("Libre", "Prise par vous"); the button gives way, then the chevron */
+  .bench-bar[data-state="free"] .bench-status, .bench-bar[data-mine="true"] .bench-status { flex: none; }
+  .bench-bar:is([data-state="free"], [data-mine="true"]) .bench-text.short { overflow: visible; }
+  .bench-main:has(.bench-actions > .btn:not(.bench-optional)) .bench-open { display: none; }
   .bench-text.long, .bench-idle.long { display: none; }
   .bench-text.short, .bench-open { display: inline; }
   .bench-open { display: inline-grid; }

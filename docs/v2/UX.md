@@ -831,8 +831,9 @@ running job (second line, only when present):
 - ⋯ holds: Historique de la baie, Planning de la baie (→
   `#/team/calendar/<bench>`), On est toujours là (when not shown), Attribuer,
   Verrouiller (admins), Quitter la baie (guests), Détails (→ `#/team/bench/<bench>`).
-- Compact: one line, text truncated with ellipsis, the bench name is in the
-  picker so the strip starts with the state ("Prise par vous · 04:54"); the
+- Compact: one line, the bench name is in the picker so the strip starts with
+  the state: a word that is never cut ("Libre", "Prise par vous"; the release
+  time is in the bench sheet, a team's name may be truncated); the
   only visible button is the most urgent one (Accepter on a request, Prendre
   la baie, On est toujours là near release); tapping the strip opens the bench
   sheet (same content as Équipe › Baie for that bench). Requests and running
@@ -943,7 +944,7 @@ Two screens and two sheets.
 ```
 ┌──────────────────────────────────┐
 │ Consoles            💬•    ⋯     │ app bar: Discussion (badge), Outils menu (+ Trouver, En direct)
-│ [● B4M ▾]  Prise par vous · 04:54│ picker button + strip text (tap → bench sheet)
+│ [● B4M ▾]  Prise par vous    │ picker button + strip text (tap → bench sheet)
 │ ⚠ Alice demande à rejoindre  [Accepter] │ only when a request waits (Refuser in the sheet)
 │ [  Schéma  |  Liste  ]           │ segmented, remembered (pref consolesView)
 ├──────────────────────────────────┤

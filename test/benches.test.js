@@ -118,6 +118,17 @@ describe('benches: taking, joining and the permission matrix', () => {
     assert.equal(second.body.params.bench, 'B4M');
   });
 
+  test('where a team already sits, the other benches say so and are not offered to take', async () => {
+    const elsewhere = (await t.api(S(2), 'GET', '/api/benches/B4H')).body.you;
+    assert.equal(elsewhere.teamBench, 'B4M');
+    assert.equal(elsewhere.canTake, false);
+    const here = (await t.api(S(2), 'GET', '/api/benches/B4M')).body.you;
+    assert.equal(here.teamBench, null, 'its own bench is not "elsewhere"');
+    const other = (await t.api(S(5), 'GET', '/api/benches/B4H')).body.you;
+    assert.equal(other.teamBench, null, 'a team that holds nothing');
+    assert.equal(other.canTake, true);
+  });
+
   test('a join request reaches the occupants only; a member accepts it', async () => {
     const member1 = await t.listen(S(1));
     const member2 = await t.listen(S(2));

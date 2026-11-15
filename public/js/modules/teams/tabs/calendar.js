@@ -5,14 +5,14 @@
  * choose the team); a slot of my team (any slot, for admins) cancels it. The
  * server checks the overlaps and the limits; its refusal is shown in the dialog
  */
-import { h, icon } from '../../../core/dom.js';
+import { h, icon, prefs } from '../../../core/dom.js';
 import { getJson, live, request, callOrToast } from '../../../core/api.js';
 import { t, getLocale, onLocaleChange } from '../../../core/i18n.js';
 import { session } from '../../../core/session.js';
 import { confirmDialog, formDialog } from '../../../shared/dialog.js';
 import { openMenu } from '../../../shared/menu.js';
 import { emptyState } from '../../../shared/loadState.js';
-import { fmtSlot } from '../data.js';
+import { fmtSlot, isOccupant } from '../data.js';
 import { fmtDay, fmtTime } from '../../../core/format.js';
 
 const FIRST_HOUR = 8;
@@ -77,7 +77,9 @@ export function mount(el, { header, navigate }) {
     if (!benchNames.length) {
       const data = await callOrToast('GET', '/api/benches', undefined, { quiet: true });
       benchNames = (data?.benches ?? []).map((b) => b.bench);
-      if (!bench || !benchNames.includes(bench)) bench = benchNames[0] ?? null;
+      // The bench of the address; else the one my team works on, the one I used last, the first
+      const mine = (data?.benches ?? []).find((b) => isOccupant(b))?.bench;
+      if (!bench || !benchNames.includes(bench)) bench = mine ?? benchNames.find((n) => n === prefs.get('lab')) ?? benchNames[0] ?? null;
     }
     if (!bench) { render(); return; }
     const from = monday.toISOString();

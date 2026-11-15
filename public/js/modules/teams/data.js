@@ -34,6 +34,9 @@ export const benchSummary = (name) => summaries.get(name) ?? null;
 /** Is the signed-in user one of the bench's occupants? */
 export const isOccupant = (summary) => Boolean(summary?.occupants?.some((o) => o.id === session.user?.id));
 
+/** The bench the signed-in user works on (their team's, or one they were let into), by name; null when none */
+export const myBenchName = () => [...summaries.values()].find((s) => isOccupant(s))?.bench ?? null;
+
 /**
  * The same rule as services.benches.canPilot, for showing things only:
  * admins and admin switches always; never when any of the device's benches

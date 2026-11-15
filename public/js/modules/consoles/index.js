@@ -42,6 +42,7 @@ import { consoleScreen } from './consoleScreen.js';
 import { openDeviceSheet } from './deviceSheet.js';
 import { QuickOpen } from './quickOpen.js';
 import { mountBenchBar } from '../teams/benchBar.js';
+import { myBenchName, onBenches } from '../teams/data.js';
 import { LivePanel } from './livePanel.js';
 import { openBenchWall } from './benchWall.js';
 import { openJournalDialog } from './journalDialog.js';
@@ -63,6 +64,7 @@ export async function mount(el, { navigate }) {
   let notesList = [];
   let retentionDays = null;
   let shown = false;
+  let autoPicked = false;        // the bench on screen is the default one, not a choice (the first answer about benches may change it)
   let pushedScreen = false;      // the console screen added a history entry (Back takes it away)
   let view = prefs.get('consolesView', 'diagram');
 
@@ -195,6 +197,13 @@ export async function mount(el, { navigate }) {
     if (error) toast(serverText(error), 'error', 8000);
     if (version !== null && v !== version) loadLabs();
   });
+  // The first state of the benches tells which one is mine: it replaces a default pick that was only the last used or the first
+  const offBenches = onBenches(() => {
+    if (!autoPicked || !labs.length) return;
+    autoPicked = false;
+    const mine = labs.find((l) => l.name === myBenchName());
+    if (mine && mine.id !== current?.id) selectLab(mine, false, false);
+  });
   loadLabs();
 
   async function loadLabs() {
@@ -209,12 +218,16 @@ export async function mount(el, { navigate }) {
       picker.render(labs);
       quick.setLabs(labs);
       renderNotes(data.warnings);
-      const keep = labs.find((l) => l.id === current?.id || l.name === pendingLabName) || labs.find((l) => l.name === prefs.get('lab')) || labs[0];
+      // The bench of the address or already on screen; else the one my team works on, the one I used last, the first
+      const chosen = labs.find((l) => l.id === current?.id || l.name === pendingLabName);
+      const mine = labs.find((l) => l.name === myBenchName());
+      const keep = chosen || mine || labs.find((l) => l.name === prefs.get('lab')) || labs[0];
       if (keep) {
         diagramPane.dataset.state = 'ready';
         failure.hidden = true;
         failure.replaceChildren();
         selectLab(keep, true, false);
+        autoPicked = !chosen && !mine; // the benches' state may not have arrived yet
         openPendingDevice();
       } else {
         diagramPane.dataset.state = 'empty';
@@ -237,6 +250,7 @@ export async function mount(el, { navigate }) {
   function selectLab(lab, force = false, address = true) {
     if (!force && current?.id === lab.id) return;
     current = lab;
+    autoPicked = false;
     pendingLabName = null;
     prefs.set('lab', lab.name);
     el.dataset.bench = lab.name;
@@ -444,6 +458,7 @@ export async function mount(el, { navigate }) {
     destroy() {
       diagram.destroy();
       offLocale();
+      offBenches();
       document.removeEventListener('keydown', onKey);
     },
     get shown() { return shown; },
