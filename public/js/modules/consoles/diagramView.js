@@ -29,9 +29,10 @@
  * decorated the same way with `registerLinkLayer(name, fn)`: a tone (a
  * colour), tooltip lines and a short text near each end.
  */
-import { svg, h, icon } from '../../core/dom.js';
+import { svg, h, icon, loadCss } from '../../core/dom.js';
 import { t, tAttr, onLocaleChange } from '../../core/i18n.js';
 import { diagramLayers, linkLayersList, onDiagramLayersChange } from '../../shared/diagramLayers.js';
+import { isCompact, isCoarse } from '../../core/viewport.js';
 
 // Device glyphs, drawn in a 24×24 box centred in the device tile
 const GLYPHS = {
@@ -47,8 +48,21 @@ const GLYPHS = {
 // What a device's state says (consoles.state.<state>)
 const stateText = (state) => t(`consoles.state.${state}`);
 
-/** Below this width of the diagram pane, the title and the buttons over its corner leave less room than the diagram needs */
-const NARROW = 900;
+/** A device's glyph as a small inline SVG (the device list of a phone uses the diagram's own drawings) */
+export function deviceGlyph(kind) {
+  const k = GLYPHS[kind] ? kind : 'generic';
+  return svg('svg', { class: 'device-glyph-icon', viewBox: '0 0 24 24', 'aria-hidden': 'true' }, svg('path', { d: GLYPHS[k] }));
+}
+
+const ZOOM_MIN = 0.25;
+const ZOOM_MAX = 3;
+/** On screen, a device tile is at least this big at the first zoom (UX.md §8.3), and its hit area at least TAP */
+const MIN_TILE_PX = 36;
+const TAP = 44;
+/** Under this zoom only the devices' names stay: addresses and link labels would be specks */
+const LABELS_FROM = 0.5;
+const LONG_PRESS_MS = 500;
+const DOUBLE_TAP_MS = 300;
 
 export class DiagramView {
   #lab = null;
@@ -59,9 +73,14 @@ export class DiagramView {
   #layers = new Map(); // name → (device) => decoration | null
   #stop = []; // what destroy() undoes: listeners on module-wide registries, the resize observer
 
-  /** `insets()` → { top, bottom }: the height of what is drawn over the canvas (the lab's title and buttons, the journal notice), so that a narrow diagram is not fitted under it */
-  constructor(container, { onOpen, insets = () => ({}) }) {
+  /**
+   * `onOpen(device)`: a click, Enter or a tap on a device. `onMenu(device)`: a long press or a right click (the device sheet).
+   * `insets()` → { top, bottom }: what floats over the canvas's edges (the hint, the zoom controls), so that the fitted diagram stays clear of it
+   */
+  constructor(container, { onOpen, onMenu, insets = () => ({}) }) {
+    loadCss('consoles'); // the diagram's rules (the administration's preview draws one too)
     this.onOpen = onOpen;
+    this.onMenu = onMenu;
     this.insets = insets;
     this.el = container;
     this.svg = svg('svg', { class: 'diagram-svg', role: 'img' });
@@ -70,10 +89,10 @@ export class DiagramView {
     this.tooltip = h('div.diagram-tip', { role: 'tooltip' });
     this.zoomLabel = h('span.zoom-level', '100%');
     this.controls = h('div.zoom-controls',
-      h('button.icon-btn', { type: 'button', ...tAttr('title', 'consoles.diagram.zoomOut'), onclick: () => this.zoomBy(1 / 1.25) }, icon('minus')),
+      h('button.icon-btn', { type: 'button', ...tAttr('title', 'consoles.diagram.zoomOut'), ...tAttr('aria-label', 'consoles.diagram.zoomOut'), onclick: () => this.zoomBy(1 / 1.25) }, icon('minus')),
       this.zoomLabel,
-      h('button.icon-btn', { type: 'button', ...tAttr('title', 'consoles.diagram.zoomIn'), onclick: () => this.zoomBy(1.25) }, icon('plus')),
-      h('button.icon-btn', { type: 'button', ...tAttr('title', 'consoles.diagram.fit'), onclick: () => this.fit(true) }, icon('fit')));
+      h('button.icon-btn', { type: 'button', ...tAttr('title', 'consoles.diagram.zoomIn'), ...tAttr('aria-label', 'consoles.diagram.zoomIn'), onclick: () => this.zoomBy(1.25) }, icon('plus')),
+      h('button.icon-btn', { type: 'button', ...tAttr('title', 'consoles.diagram.fit'), ...tAttr('aria-label', 'consoles.diagram.fit'), onclick: () => this.fit(true) }, icon('fit')));
     container.append(this.svg, this.controls, this.tooltip);
     this.#bindPanZoom();
     const resize = new ResizeObserver(() => this.#autoFit && this.fit());
@@ -102,12 +121,29 @@ export class DiagramView {
     this.#relabel();
     // One transparent hit area per device covering icon *and* label, so the
     // gap between them is clickable too
-    for (const { el } of this.#deviceEls.values()) {
-      const b = el.getBBox();
-      el.prepend(svg('rect', { class: 'device-hit', x: b.x - 6, y: b.y - 6, width: b.width + 12, height: b.height + 12, rx: 8 }));
+    for (const entry of this.#deviceEls.values()) {
+      const b = entry.el.getBBox();
+      entry.box = { x: b.x - 6, y: b.y - 6, w: b.width + 12, h: b.height + 12 };
+      entry.hit = svg('rect', { class: 'device-hit', rx: 8 });
+      entry.el.prepend(entry.hit);
     }
+    this.#sizeHits();
     this.refresh();
     this.fit(true);
+  }
+
+  /** Whatever the zoom, a device can be hit with a finger: its hit area is at least TAP screen pixels each way */
+  #sizeHits() {
+    const min = TAP / this.#k;
+    for (const { hit, box } of this.#deviceEls.values()) {
+      if (!hit) continue;
+      const w = Math.max(box.w, min);
+      const h2 = Math.max(box.h, min);
+      hit.setAttribute('x', box.x - (w - box.w) / 2);
+      hit.setAttribute('y', box.y - (h2 - box.h) / 2);
+      hit.setAttribute('width', w);
+      hit.setAttribute('height', h2);
+    }
   }
 
   /** Add (or replace, or with `null` remove) a decoration layer */
@@ -234,7 +270,13 @@ export class DiagramView {
       this.#label(d, true),
     );
     const open = () => this.onOpen(d);
-    g.addEventListener('click', (e) => { if (!this.dragged) open(); e.stopPropagation(); });
+    g.addEventListener('click', (e) => { if (!this.dragged && !this.pressed) open(); e.stopPropagation(); });
+    g.addEventListener('contextmenu', (e) => {
+      if (!this.onMenu) return;
+      e.preventDefault();
+      if (!this.pressed) this.onMenu(d); // a long press already opened it
+    });
+    g.addEventListener('pointerdown', (e) => this.#armLongPress(e, d));
     g.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
     g.addEventListener('pointerenter', () => this.#showTip(d, g));
     g.addEventListener('pointerleave', () => this.#hideTip());
@@ -317,54 +359,154 @@ export class DiagramView {
   /** Fit again unless the person has zoomed or panned on their own */
   refit() { if (this.#autoFit) this.fit(); }
 
+  /**
+   * The whole diagram; on a touch screen, only when its devices stay at least
+   * MIN_TILE_PX on screen, otherwise (a phone) the zoom that keeps them that big, the top of the
+   * diagram in view: the person pans to the rest
+   */
   fit(force = false) {
     if (!this.#lab) return;
     if (force) this.#autoFit = true;
     const { width, height } = this.el.getBoundingClientRect();
     if (!width || !height) return;
     const b = this.#lab.bounds;
-    // In a narrow pane the title would cover the devices at the top: fit the diagram in what is left under it
-    const { top = 0, bottom = 0 } = width < NARROW ? this.insets() : {};
+    const { top = 0, bottom = 0 } = this.insets() ?? {};
     const room = Math.max(height - top - bottom, height / 3);
-    const k = Math.min(width / b.w, room / b.h, 1.6);
-    this.#set(k, (width - b.w * k) / 2 - b.x * k, top + (room - b.h * k) / 2 - b.y * k);
+    const whole = Math.min(width / b.w, room / b.h, 1.6);
+    const smallest = Math.min(...this.#lab.devices.map((d) => Math.min(d.w, d.h)).filter((n) => n > 0), Infinity);
+    // A finger needs devices it can hit: on a phone or a touch screen they stay readable, the rest is a pan away
+    const readable = Number.isFinite(smallest) && (isCompact() || isCoarse()) ? MIN_TILE_PX / smallest : 0;
+    if (whole >= readable) {
+      this.#set(whole, (width - b.w * whole) / 2 - b.x * whole, top + (room - b.h * whole) / 2 - b.y * whole);
+      return;
+    }
+    const k = Math.min(readable, ZOOM_MAX);
+    const tx = b.w * k <= width ? (width - b.w * k) / 2 - b.x * k : -b.x * k;
+    this.#set(k, tx, top - b.y * k);
   }
 
   zoomBy(factor, cx, cy) {
     const r = this.el.getBoundingClientRect();
     cx ??= r.width / 2; cy ??= r.height / 2;
-    const k = Math.max(0.2, Math.min(4, this.#k * factor));
-    const f = k / this.#k;
-    this.#autoFit = false;
-    this.#set(k, cx - (cx - this.#tx) * f, cy - (cy - this.#ty) * f);
+    this.#zoomTo(this.#k * factor, cx, cy, this.#tx, this.#ty, this.#k);
   }
 
+  /** Zoom to `k` around (cx, cy), starting from the translation (tx, ty) at zoom `from` */
+  #zoomTo(k, cx, cy, tx, ty, from) {
+    const next = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, k));
+    const f = next / from;
+    this.#autoFit = false;
+    this.#set(next, cx - (cx - tx) * f, cy - (cy - ty) * f);
+  }
+
+  get zoom() { return this.#k; }
+
   #set(k, tx, ty) {
+    const zoomed = k !== this.#k;
     this.#k = k; this.#tx = tx; this.#ty = ty;
     this.viewport.setAttribute('transform', `translate(${tx} ${ty}) scale(${k})`);
     this.zoomLabel.textContent = `${Math.round(k * 100)}%`;
+    this.svg.classList.toggle('far', k < LABELS_FROM);
+    if (zoomed) this.#sizeHits();
     this.#hideTip();
   }
 
+  // ── Long press: the device sheet ─────────────────────────────────────────
+
+  #armLongPress(e, device) {
+    if (!this.onMenu || e.pointerType === 'mouse') return;
+    clearTimeout(this.pressTimer);
+    this.pressed = false;
+    const x = e.clientX;
+    const y = e.clientY;
+    const cancel = (ev) => {
+      if (ev.type === 'pointermove' && Math.hypot(ev.clientX - x, ev.clientY - y) < 8) return;
+      clearTimeout(this.pressTimer);
+      removeEventListener('pointermove', cancel);
+      removeEventListener('pointerup', cancel);
+      removeEventListener('pointercancel', cancel);
+    };
+    addEventListener('pointermove', cancel);
+    addEventListener('pointerup', cancel);
+    addEventListener('pointercancel', cancel);
+    this.pressTimer = setTimeout(() => {
+      cancel({ type: 'timeout' });
+      if (this.pointers.size > 1 || this.dragged) return;
+      this.pressed = true; // the click that follows the finger's release opens nothing
+      setTimeout(() => { this.pressed = false; }, 700);
+      this.onMenu(device);
+    }, LONG_PRESS_MS);
+  }
+
+  // ── Pan & zoom: a finger or the mouse pans, two fingers pinch, a double tap zooms in ──
+
   #bindPanZoom() {
-    let start = null;
+    this.pointers = new Map(); // pointerId → { x, y }
+    let start = null;          // one pointer: where the pan started
+    let pinch = null;          // two pointers: distance and midpoint at the start
+    let lastTap = null;
+    const local = (x, y) => {
+      const r = this.el.getBoundingClientRect();
+      return { x: x - r.left, y: y - r.top };
+    };
+    const startPinch = () => {
+      const [a, b] = [...this.pointers.values()];
+      const mid = local((a.x + b.x) / 2, (a.y + b.y) / 2);
+      pinch = { dist: Math.hypot(a.x - b.x, a.y - b.y) || 1, mid, k: this.#k, tx: this.#tx, ty: this.#ty };
+      start = null;
+      this.dragged = true;
+      clearTimeout(this.pressTimer);
+    };
     this.svg.addEventListener('pointerdown', (e) => {
-      if (e.button !== 0) return;
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (this.pointers.size === 2) { startPinch(); return; }
+      if (this.pointers.size > 2) return;
       start = { x: e.clientX, y: e.clientY, tx: this.#tx, ty: this.#ty, id: e.pointerId };
       this.dragged = false;
     });
     this.svg.addEventListener('pointermove', (e) => {
+      if (!this.pointers.has(e.pointerId)) return;
+      this.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (pinch && this.pointers.size >= 2) {
+        const [a, b] = [...this.pointers.values()];
+        const mid = local((a.x + b.x) / 2, (a.y + b.y) / 2);
+        const k = pinch.k * (Math.hypot(a.x - b.x, a.y - b.y) / pinch.dist);
+        // Zoom around the first midpoint, then follow the fingers' midpoint as they move
+        this.#zoomTo(k, pinch.mid.x, pinch.mid.y, pinch.tx, pinch.ty, pinch.k);
+        this.#set(this.#k, this.#tx + mid.x - pinch.mid.x, this.#ty + mid.y - pinch.mid.y);
+        return;
+      }
       if (!start || e.pointerId !== start.id) return;
       const dx = e.clientX - start.x, dy = e.clientY - start.y;
-      if (!this.dragged && Math.hypot(dx, dy) < 5) return; // a click, not a drag
+      if (!this.dragged && Math.hypot(dx, dy) < 6) return; // a click, not a drag
       if (!this.dragged) { this.dragged = true; this.svg.setPointerCapture(e.pointerId); this.svg.classList.add('panning'); }
       this.#autoFit = false;
       this.#set(this.#k, start.tx + dx, start.ty + dy);
     });
-    const end = () => {
-      start = null;
-      this.svg.classList.remove('panning');
-      setTimeout(() => { this.dragged = false; }, 0); // let the click handler see the drag flag first
+    const end = (e) => {
+      const was = this.pointers.get(e.pointerId);
+      this.pointers.delete(e.pointerId);
+      if (pinch) {
+        if (this.pointers.size < 2) pinch = null;
+        if (this.pointers.size === 1) { // one finger left: it pans from where it is
+          const [[id, p]] = [...this.pointers.entries()];
+          start = { x: p.x, y: p.y, tx: this.#tx, ty: this.#ty, id };
+        }
+      } else if (e.type === 'pointerup' && e.pointerType !== 'mouse' && !this.dragged && was) {
+        // A double tap zooms in around the finger
+        const now = Date.now();
+        if (lastTap && now - lastTap.at < DOUBLE_TAP_MS && Math.hypot(was.x - lastTap.x, was.y - lastTap.y) < 30) {
+          const p = local(was.x, was.y);
+          this.zoomBy(2, p.x, p.y);
+          lastTap = null;
+        } else lastTap = { at: now, x: was.x, y: was.y };
+      }
+      if (!this.pointers.size) {
+        start = null;
+        this.svg.classList.remove('panning');
+        setTimeout(() => { this.dragged = false; }, 0); // let the click handler see the drag flag first
+      }
     };
     this.svg.addEventListener('pointerup', end);
     this.svg.addEventListener('pointercancel', end);
