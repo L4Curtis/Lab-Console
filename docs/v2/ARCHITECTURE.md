@@ -1056,7 +1056,7 @@ services.collab = {                            // lot collab
   `public/css/tokens.css` (linked by every page before `app.css`; roles such
   as `--surface`, `--text-2`, `--accent-strong`, `--sp-4`, `--fs-title`), so
   both themes work; the names used before the redesign (`--ink`, `--console`,
-  `--line`…) are aliases until the final cleanup. The shared components
+  `--line`…) are gone since 2.2.0. The shared components
   (buttons, cards, badges, chips, avatars, segmented controls, forms, toasts
   in `app.css`; dialogs and sheets, menus, side panels, tabs, lists and load
   states in `shared.css`, which `main.js` loads at start-up) are described in

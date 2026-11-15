@@ -382,93 +382,11 @@ input[type="checkbox"], input[type="radio"] { width: 20px; height: 20px; margin:
 .spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--accent-soft); border-top-color: var(--accent); animation: spin .8s linear infinite; flex: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
-/* ── Placeholder (future modules) ──────────────────────────────────────── */
-.placeholder { margin: auto; max-width: 520px; padding: 32px; text-align: center; color: var(--ink-2); }
-.placeholder-icon { width: 48px; height: 48px; color: var(--console); }
-.placeholder h2 { margin: 14px 0 8px; font-size: 20px; font-weight: 600; color: var(--ink); }
-.placeholder p { margin: 0 0 10px; }
-.placeholder-note { font-size: 12.5px; color: var(--ink-3); }
-
-
-/* ── Infrastructure section ────────────────────────────────────────────── */
-.infra-primary { flex: 1; min-height: 0; overflow: auto; background: var(--paper); container-type: inline-size; }
+/* Kept from the first interface: a small button stays on one line; row actions side by side; a search field's width */
 .btn.small { white-space: nowrap; }
-/* Next to the workspace the panel is narrow: buttons go icon-only (titles keep them labelled). */
-@container (max-width: 820px) {
-  .vm-table .btn.small .lbl { display: none; }
-  .vm-table .btn.small { padding: 0 7px; }
-  .vm-table th, .vm-table td { padding-inline: 10px; }
-  .panel { padding-inline: 14px; }
-}
-.panel { padding: 18px 20px 28px; display: grid; gap: 14px; align-content: start; }
-.panel-toolbar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.filter { flex: 1 1 220px; max-width: 360px; }
-.panel-toolbar .btn.primary { margin-left: auto; }
-
-.table-wrap { position: relative; overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
-.vm-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.vm-table th { text-align: left; font-weight: 500; font-size: 12px; color: var(--ink-3); padding: 9px 14px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
-.vm-table td { padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: middle; }
-.vm-table tr:last-child td { border-bottom: 0; }
-.right { text-align: right; }
-.empty-row { text-align: center; color: var(--ink-3); padding: 28px !important; }
-.table-foot { margin: 0; font-size: 12.5px; color: var(--ink-3); }
-
-.vm-cell { display: flex; align-items: center; gap: 10px; white-space: nowrap; }
-.vm-cell strong { display: block; font-size: 14px; }
-.vm-meta { font: 400 12px var(--mono); color: var(--ink-3); }
-.vm-led { width: 9px; height: 9px; border-radius: 50%; background: var(--led-off); flex: none; }
-tr[data-status="running"] .vm-led { background: var(--led-green); box-shadow: 0 0 0 3px rgba(31, 163, 90, .15); }
-
-.row-actions { display: flex; gap: 6px; align-items: center; }
+.row-actions { display: flex; gap: var(--sp-2); align-items: center; }
 .row-actions.end { justify-content: flex-end; }
-
-.jobs { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
-.jobs:empty { display: none; }
-.job { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: 8px; background: var(--surface); border: 1px solid var(--line); font-size: 13px; }
-.job strong { font-weight: 600; }
-.job span:last-child { color: var(--ink-2); }
-.job.done .icon { color: var(--ok-ink); }
-.job.error { border-color: var(--led-red); }
-.job.error .icon { color: var(--danger-ink); }
-.spinner { width: 14px; height: 14px; border-radius: 50%; border: 2px solid var(--console-soft); border-top-color: var(--console); animation: spin .8s linear infinite; flex: none; }
-@keyframes spin { to { transform: rotate(360deg); } }
-
-.empty-row .form-error { margin-bottom: 10px; }
-
-/* VLAN of net0, edited in place */
-.vlan-edit { display: flex; align-items: center; gap: 6px; }
-.vlan-input { width: 92px; height: 30px; font: 500 13px var(--mono); color: var(--console-strong); }
-.vlan-input::placeholder { font-family: var(--font); font-weight: 400; color: var(--ink-3); }
-
-/* admin switches */
-.switch-bays { display: grid; gap: 18px; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); }
-.bay h3 { margin: 0 0 8px; font-size: 14px; font-weight: 600; }
-.bay-cards { display: grid; gap: 8px; }
-.switch-card {
-  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 12px;
-  padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface);
-}
-.switch-card[data-state="open"] { border-color: var(--led-green); }
-.switch-led { width: 9px; height: 9px; border-radius: 50%; background: var(--led-off); }
-.switch-card[data-state="open"] .switch-led { background: var(--led-green); }
-.switch-card[data-state="busy"] .switch-led { background: var(--led-amber); }
-.switch-text { display: grid; gap: 1px; }
-.switch-text code { font-size: 12px; color: var(--ink-3); }
-.switch-state { font-size: 12px; color: var(--ink-2); }
-
-/* ── v1.1: bulk VM power ───────────────────────────────────────────────── */
-.bulk-bar {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  padding: 7px 10px 7px 14px; border: 1px dashed var(--line); border-radius: 9px;
-  font-size: 12.5px; color: var(--ink-3);
-}
-.bulk-bar.active { border-style: solid; border-color: var(--console); background: var(--console-soft); color: var(--console-strong); }
-.bulk-count { margin-right: auto; font-weight: 500; }
-.vm-table th.select, .vm-table td.select { width: 36px; padding-right: 0; }
-.vm-table tr.picked td { background: color-mix(in srgb, var(--console-soft) 55%, transparent); }
-
-
+.filter { flex: 1 1 220px; max-width: 360px; }
 
 /* ── Compact (< 720 px): the tab bar at the bottom, one column ─────────── */
 @media (max-width: 719.98px) {

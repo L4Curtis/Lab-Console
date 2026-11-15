@@ -129,29 +129,6 @@
   --device-tile: #FFFFFF;
   --device-stroke: #5D6E7F;
 
-  /* ── Aliases of the names used before the redesign (UX.md §6.5): removed once no file uses them ── */
-  --paper: var(--bg);
-  --paper-dot: var(--canvas-dot);
-  --line: var(--border);
-  --ink: var(--text);
-  --ink-2: var(--text-2);
-  --ink-3: var(--text-muted);
-  --console: var(--accent);
-  --console-strong: var(--on-accent-soft);
-  --console-soft: var(--accent-soft);
-  --primary: var(--accent-strong);
-  --primary-hover: var(--accent-strong-hover);
-  --ok-ink: var(--success-text);
-  --warn-ink: var(--warning-text);
-  --danger-ink: var(--danger-text);
-  --led-green: var(--success);
-  --led-amber: var(--warning);
-  --led-red: var(--danger);
-  --rail: var(--nav-bg);
-  --rail-ink: var(--nav-ink);
-  --rail-hover: var(--nav-hover-bg);
-  --shadow: var(--elev-2);
-  --radius: var(--r-md);
 
   color-scheme: light;
 }

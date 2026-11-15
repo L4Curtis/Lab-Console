@@ -553,7 +553,7 @@ non-text UI (borders of inputs, focus ring, icons that carry meaning) ≥ 3:1.
 | terminal | unchanged: `--term-bg`, `--term-head`, `--term-head-ink` | unchanged | |
 | diagram | `--device-tile #FFFFFF`, `--device-stroke #5D6E7F` (4.4:1 on the canvas) | `--device-tile #223040`, `--device-stroke #A7B6C4` (8.5:1 on the canvas, 6.5:1 on the tile) | a device is recognised by its 2 px stroke, which must stay ≥ 3:1 against both the canvas and the tile fill; the dark tile is lighter than the canvas so that its body reads too |
 
-Aliases (kept until the cleanup): `--paper → --bg`, `--surface` keeps its name
+Aliases (kept until the cleanup, removed at the integration of 2.2.0): `--paper → --bg`, `--surface` keeps its name
 (new value), `--surface-2` same, `--line → --border`, `--ink → --text`,
 `--ink-2 → --text-2`, `--ink-3 → --text-muted`, `--console → --accent`,
 `--console-strong → --on-accent-soft`, `--console-soft → --accent-soft`,
